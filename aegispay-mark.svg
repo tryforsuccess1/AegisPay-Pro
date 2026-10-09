@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="AegisPay">
+<defs>
+ <linearGradient id="g1" x1="18" y1="10" x2="105" y2="110" gradientUnits="userSpaceOnUse"><stop stop-color="#7C5CFF"/><stop offset=".55" stop-color="#3B82F6"/><stop offset="1" stop-color="#22D3EE"/></linearGradient>
+ <linearGradient id="g2" x1="35" y1="25" x2="86" y2="98" gradientUnits="userSpaceOnUse"><stop stop-color="#FF5C7A"/><stop offset="1" stop-color="#C92E49"/></linearGradient>
+</defs>
+<path d="M60 8 104 25v29c0 29-18 48-44 58C34 102 16 83 16 54V25z" fill="url(#g1)"/>
+<path d="M60 23 88 84H68l-8-19-8 19H32z" fill="url(#g2)"/>
+<path d="M60 42 70 65H50z" fill="#fff" opacity=".92"/>
+</svg>

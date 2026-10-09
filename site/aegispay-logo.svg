@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 110" role="img" aria-label="AegisPay">
+<defs><linearGradient id="red" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#ff2435"/><stop offset=".55" stop-color="#ff1b2e"/><stop offset="1" stop-color="#c90e1c"/></linearGradient></defs>
+<g transform="translate(8 6)">
+<path d="M12 86 L55 12 Q62 0 71 12 L117 86 Q122 97 111 97 L95 97 Q88 97 84 89 L65 55 L47 89 Q43 97 34 97 H18 Q3 97 12 86Z" fill="url(#red)"/>
+<path d="M56 71 Q65 56 72 63 L89 88 Q95 97 84 97 H66 Q61 97 57 90 L51 79 Q49 75 56 71Z" fill="#e51d2b"/>
+</g>
+<text x="135" y="80" font-family="Arial,Helvetica,sans-serif" font-size="62" font-weight="700" font-style="italic" fill="#ffffff">Aegis</text>
+<text x="325" y="80" font-family="Arial,Helvetica,sans-serif" font-size="62" font-weight="700" font-style="italic" fill="url(#red)">Pay</text>
+</svg>

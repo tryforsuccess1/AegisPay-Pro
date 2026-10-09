@@ -1,0 +1,10 @@
+/app/auth/callback /app/home.html 200
+/auth/callback /app/home.html 200
+/app /app/ 301
+/app/ /app/home.html 200
+/client /app/ 301
+/client/ /app/ 301
+/client.html /app/ 301
+/admin /master-admin.html 200
+/admin/ /master-admin.html 200
+/app/master-admin.html /admin/ 301

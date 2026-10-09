@@ -1,0 +1,126 @@
+name: AegisPay Web Portal Deploy
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+concurrency:
+  group: aegispay-web-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  deploy-web:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "6a31dfe877fe64e588b9415265302af4"
+      CLOUDFLARE_API_TOKEN: "${{ secrets.CLOUDFLARE_API_TOKEN }}"
+      AEGIS_RELEASE_KEYSTORE_B64: ${{ secrets.AEGIS_RELEASE_KEYSTORE_B64 }}
+      AEGIS_RELEASE_STORE_PASSWORD: ${{ secrets.AEGIS_RELEASE_STORE_PASSWORD }}
+      AEGIS_RELEASE_KEY_ALIAS: ${{ secrets.AEGIS_RELEASE_KEY_ALIAS }}
+      AEGIS_RELEASE_KEY_PASSWORD: ${{ secrets.AEGIS_RELEASE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+      - name: Configure APK signing channel
+        shell: bash
+        run: |
+          set -euo pipefail
+          secrets_present=0
+          for key in AEGIS_RELEASE_KEYSTORE_B64 AEGIS_RELEASE_STORE_PASSWORD AEGIS_RELEASE_KEY_ALIAS AEGIS_RELEASE_KEY_PASSWORD; do
+            if [ -n "${!key}" ]; then secrets_present=$((secrets_present + 1)); fi
+          done
+          if [ "$secrets_present" -eq 4 ]; then
+            printf '%s' "$AEGIS_RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/aegispay-release.jks"
+            test -s "$RUNNER_TEMP/aegispay-release.jks"
+            echo "AEGIS_RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/aegispay-release.jks" >> "$GITHUB_ENV"
+            echo "AEGIS_APK_VARIANT=release" >> "$GITHUB_ENV"
+            echo "AEGIS_RELEASE_CHANNEL=stable" >> "$GITHUB_ENV"
+          elif [ "$secrets_present" -ne 0 ]; then
+            echo "Release signing secrets are incomplete." >&2
+            exit 1
+          else
+            echo "AEGIS_APK_VARIANT=debug" >> "$GITHUB_ENV"
+            echo "AEGIS_RELEASE_CHANNEL=test" >> "$GITHUB_ENV"
+          fi
+      - name: Build Client and Master Admin APKs
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$AEGIS_APK_VARIANT" = "release" ]; then
+            gradle -p android :app:assembleClientRelease :app:assembleAdminRelease --no-daemon
+          else
+            gradle -p android :app:assembleClientDebug :app:assembleAdminDebug --no-daemon
+          fi
+      - name: Assemble canonical web package
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site/app site/downloads
+          mkdir -p site/app site/downloads
+          APK_VARIANT="${AEGIS_APK_VARIANT:-debug}"
+          RELEASE_CHANNEL="${AEGIS_RELEASE_CHANNEL:-test}"
+          CLIENT_APK="android/app/build/outputs/apk/client/${APK_VARIANT}/app-client-${APK_VARIANT}.apk"
+          ADMIN_APK="android/app/build/outputs/apk/admin/${APK_VARIANT}/app-admin-${APK_VARIANT}.apk"
+          test -s "$CLIENT_APK"
+          test -s "$ADMIN_APK"
+          cp client.html site/client.html
+          cp master-admin.html site/master-admin.html
+          cp admin-auth.js site/admin-auth.js
+          cp client.html site/app/index.html
+          cp client.html site/app/home.html
+          cp _redirects site/_redirects
+          cp _headers site/_headers
+          cp shop-catalog.js supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/
+          cp supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/app/
+          VERSION_CODE=$(sed -n "s/.*versionCode \([0-9][0-9]*\).*/\1/p" android/app/build.gradle | head -1)
+          VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle | head -1)
+          VERSIONED_CLIENT="aegispay-client-v${VERSION_NAME}-b${VERSION_CODE}.apk"
+          VERSIONED_ADMIN="aegispay-admin-v${VERSION_NAME}-b${VERSION_CODE}.apk"
+          cp "$CLIENT_APK" "site/downloads/${VERSIONED_CLIENT}"
+          cp "$CLIENT_APK" site/downloads/aegispay-client.apk
+          cp "$ADMIN_APK" "site/downloads/${VERSIONED_ADMIN}"
+          cp "$ADMIN_APK" site/downloads/aegispay-admin.apk
+          CLIENT_SHA256=$(sha256sum "site/downloads/${VERSIONED_CLIENT}" | awk '{print $1}')
+          CLIENT_ALIAS_SHA256=$(sha256sum site/downloads/aegispay-client.apk | awk '{print $1}')
+          ADMIN_SHA256=$(sha256sum "site/downloads/${VERSIONED_ADMIN}" | awk '{print $1}')
+          ADMIN_ALIAS_SHA256=$(sha256sum site/downloads/aegispay-admin.apk | awk '{print $1}')
+          test "${CLIENT_SHA256}" = "${CLIENT_ALIAS_SHA256}"
+          test "${ADMIN_SHA256}" = "${ADMIN_ALIAS_SHA256}"
+          VERSION_CODE="$VERSION_CODE" VERSION_NAME="$VERSION_NAME" RELEASE_CHANNEL="$RELEASE_CHANNEL" VERSIONED_CLIENT="$VERSIONED_CLIENT" VERSIONED_ADMIN="$VERSIONED_ADMIN" CLIENT_SHA256="$CLIENT_SHA256" ADMIN_SHA256="$ADMIN_SHA256" python3 -c 'import json,os; json.dump({"versionCode":int(os.environ["VERSION_CODE"]),"versionName":os.environ["VERSION_NAME"],"releaseChannel":os.environ["RELEASE_CHANNEL"],"clientApkUrl":"https://aegispay-pro.pages.dev/downloads/"+os.environ["VERSIONED_CLIENT"],"adminApkUrl":"https://aegispay-pro.pages.dev/downloads/"+os.environ["VERSIONED_ADMIN"],"legacyClientApkUrl":"https://aegispay-pro.pages.dev/downloads/aegispay-client.apk","legacyAdminApkUrl":"https://aegispay-pro.pages.dev/downloads/aegispay-admin.apk","clientSha256":os.environ["CLIENT_SHA256"],"adminSha256":os.environ["ADMIN_SHA256"]},open("site/app-version.json","w"))'
+          test -s site/index.html
+          test -s site/client.html
+          test -s site/master-admin.html
+          test -s site/app/index.html
+          test -s site/app/home.html
+          test -s "site/downloads/${VERSIONED_CLIENT}"
+          test -s site/downloads/aegispay-client.apk
+          test -s site/_redirects
+      - name: Upload web portal artifact
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: AegisPay-Web-Portal
+          path: site/
+          if-no-files-found: error
+      - name: Verify Cloudflare API access
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN}"
+          HTTP_STATUS=$(curl --silent --show-error -o /tmp/cf.json -w "%{http_code}" -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/pages/projects/aegispay-pro")
+          echo "Cloudflare API HTTP status: ${HTTP_STATUS}"
+          echo "Cloudflare API response:"
+          head -c 2000 /tmp/cf.json
+          echo
+          test "${HTTP_STATUS}" = "200"
+          python3 -c 'import json; assert json.load(open("/tmp/cf.json"))["success"] is True'
+      - name: Deploy canonical site to Cloudflare Pages
+        shell: bash
+        run: npx --yes wrangler@4 pages deploy site --project-name=aegispay-pro --branch=main --commit-hash="${GITHUB_SHA}" --commit-message="AegisPay canonical client UI" --commit-dirty=false

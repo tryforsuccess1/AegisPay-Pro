@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AegisPay – Aurora UI</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* AURORA DESIGN SYSTEM — font Sora | dark midnight base | violet→cyan brand gradient | mint=success amber=warn coral=danger | radius 22px | spacing 16px | icons: Lucide-style 2px stroke */
+:root{--bg:#070A16;--v:#7C5CFF;--c:#22D3EE;--m:#2EE6A6;--a:#FFB84D;--r:#FF5C7A;--t:#EAF0FF;--mu:#8D97BD;--ln:rgba(255,255,255,.09);--g:linear-gradient(135deg,#7C5CFF,#22D3EE)}
+*{box-sizing:border-box;margin:0;font-family:Sora,system-ui,sans-serif;-webkit-tap-highlight-color:transparent}
+body{background:#03050C;color:var(--t)}
+svg.i{width:1.2em;height:1.2em;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;vertical-align:-.2em}
+#app{max-width:430px;margin:0 auto;min-height:calc(100vh - 52px);padding:0 16px 112px;position:relative;background:radial-gradient(90% 38% at 0 0,rgba(124,92,255,.3),transparent),radial-gradient(70% 34% at 100% 100%,rgba(34,211,238,.18),transparent),var(--bg)}
+.tb{display:flex;align-items:center;gap:12px;padding:18px 0 14px}.tb h1{font-size:19px;font-weight:600;flex:1}.tb b{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid var(--ln);cursor:pointer;position:relative}.tb b.dot:after{content:"";position:absolute;top:9px;right:10px;width:8px;height:8px;border-radius:50%;background:var(--r)}
+.av{width:44px;height:44px;border-radius:16px;background:var(--g);display:grid;place-items:center;font-weight:700;flex:none}
+.card{background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid var(--ln);border-radius:22px;padding:16px;margin-bottom:14px;backdrop-filter:blur(10px)}.activity-history{width:100%;text-align:left;color:var(--t);cursor:pointer;appearance:none;-webkit-appearance:none;font:inherit}.activity-history:active{transform:scale(.995)}
+.hero{position:relative;overflow:hidden;border-radius:26px;padding:20px;margin-bottom:16px;border:1px solid rgba(255,255,255,.2);background:radial-gradient(80% 100% at 100% 0,rgba(34,211,238,.55),transparent 60%),linear-gradient(135deg,#5B3DF5,#2B1B8F);box-shadow:0 24px 50px -22px #5B3DF5}
+.hero small{opacity:.8;font-size:13px}.hero h2{font-size:34px;letter-spacing:-1px;margin:4px 0 8px}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:20px;background:rgba(46,230,166,.16);color:var(--m)}.chip.r{background:rgba(255,92,122,.15);color:var(--r)}.chip.w{background:rgba(255,255,255,.15);color:#fff}
+.qa{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px;text-align:center;font-size:12px;color:var(--mu)}.qa div{cursor:pointer}.qa b{display:grid;place-items:center;width:58px;height:58px;margin:0 auto 8px;border-radius:20px;font-size:22px;color:#fff;box-shadow:0 12px 24px -10px currentColor,inset 0 1px 0 rgba(255,255,255,.4)}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:16px;padding:15px;font:600 15px Sora;color:#fff;cursor:pointer;background:var(--g);box-shadow:0 14px 28px -12px var(--v),inset 0 1px 0 rgba(255,255,255,.35)}.btn.o{background:rgba(255,255,255,.05);border:1px solid var(--ln);box-shadow:none}.btn.m{background:linear-gradient(135deg,#1FBF86,#2EE6A6);color:#04251B;box-shadow:0 14px 28px -12px var(--m)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sh{display:flex;justify-content:space-between;align-items:center;margin:6px 0 10px;font-weight:600}.sh span{font-size:12px;color:var(--c);font-weight:500;cursor:pointer}
+.row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--ln)}.row:last-child{border:0}.row>div{flex:1;font-size:14px;font-weight:600}.row small{display:block;font-size:11.5px;color:var(--mu);font-weight:400;margin-top:2px}.row em{font-style:normal;font-weight:600;font-size:14px;text-align:right}.row em small{text-align:right}
+.bub{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;flex:none;font-weight:700}
+.up{color:var(--m)}.dn{color:var(--r)}.mu{color:var(--mu)}
+.in{display:flex;align-items:center;gap:12px;padding:14px;border-radius:16px;margin-bottom:12px;background:rgba(255,255,255,.04);border:1px solid var(--ln);color:var(--mu);font-size:14px}.in.f{color:var(--t);font-weight:600;justify-content:space-between;word-break:break-all}
+.lvl{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.lvl div{font-size:12px;color:var(--mu)}.lvl b{display:block;font-size:20px;color:var(--t);margin:2px 0 8px}.pb{height:5px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden}.pb i{display:block;height:100%;border-radius:5px}
+.promo{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;border-radius:24px;padding:18px;margin-bottom:16px;background:linear-gradient(120deg,rgba(124,92,255,.35),rgba(34,211,238,.15));border:1px solid rgba(124,92,255,.5)}.promo b{font-size:16px}.promo p{font-size:12px;color:var(--mu);margin:4px 0 10px}.promo .gb{width:64px;height:64px;border-radius:22px;background:var(--g);display:grid;place-items:center;font-size:30px;flex:none;transform:rotate(-8deg);box-shadow:0 14px 30px -10px var(--v)}
+.pill{display:inline-flex;gap:8px;align-items:center;padding:9px 14px;border-radius:14px;background:rgba(255,255,255,.1);font-weight:600;font-size:13px}
+.fl{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px}.fl span{flex:none;padding:8px 16px;border-radius:20px;font-size:13px;border:1px solid var(--ln);color:var(--mu)}.fl .on{background:var(--g);color:#fff;border-color:transparent}
+.opt{display:flex;align-items:center;gap:14px;padding:14px;border-radius:18px;margin-bottom:10px;border:1px solid var(--ln);background:rgba(255,255,255,.03)}.opt.s{border-color:var(--c);background:rgba(34,211,238,.08);box-shadow:0 0 0 3px rgba(34,211,238,.1)}.opt>div{flex:1;font-weight:600;font-size:14px}.opt small{display:block;color:var(--mu);font-weight:400;font-size:12px}
+.amt{text-align:center;padding:22px 16px}.amt h2{font-size:44px;letter-spacing:-1px}.amt small{color:var(--mu)}
+.qr{display:grid;grid-template-columns:repeat(25,1fr);width:230px;margin:14px auto;padding:14px;background:#fff;border-radius:22px;position:relative;box-shadow:0 0 50px -8px var(--c)}.qr i{aspect-ratio:1}.qr .k{background:#070A16;border-radius:1px}.qr:after{content:"A";position:absolute;inset:0;margin:auto;width:44px;height:44px;border-radius:14px;background:var(--g);color:#fff;font-weight:700;display:grid;place-items:center;border:4px solid #fff}
+.warn{display:flex;gap:10px;padding:12px;border-radius:16px;font-size:12px;line-height:1.5;color:var(--a);background:rgba(255,184,77,.1);border:1px solid rgba(255,184,77,.3);margin-bottom:14px}
+.donut{width:150px;height:150px;border-radius:50%;margin:6px auto 16px;display:grid;place-items:center;background:conic-gradient(var(--v) 0 42%,var(--c) 0 70%,var(--m) 0 88%,var(--a) 0)}.donut div{width:104px;height:104px;border-radius:50%;background:#0B1022;display:grid;place-items:center;text-align:center;font-size:11px;color:var(--mu)}.donut b{display:block;font-size:20px;color:var(--t)}
+.tree{display:grid;gap:10px;text-align:center;font-size:11px;color:var(--mu)}.nd{border-radius:16px;padding:10px 4px;border:1px solid var(--ln);background:rgba(255,255,255,.05);line-height:1.5}.nd b{color:var(--t);font-size:13px}.kids{display:grid;gap:8px;position:relative;margin-top:14px}.kids:before{content:"";position:absolute;top:-8px;left:16%;right:16%;height:8px;border:2px solid rgba(124,92,255,.5);border-bottom:0;border-radius:8px 8px 0 0}
+.amz{display:inline-block;font-weight:700;font-size:32px;letter-spacing:-1.5px;line-height:1}.amz:after{content:"";display:block;height:10px;width:68%;margin:0 0 0 14%;border-bottom:3.5px solid #FF9900;border-radius:0 0 50% 50%}
+.cats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.cat{padding:14px 4px;border-radius:18px;text-align:center;font-size:11.5px;border:1px solid var(--ln);background:rgba(255,255,255,.04)}.cat b{display:grid;place-items:center;width:40px;height:40px;margin:0 auto 8px;border-radius:14px;font-size:19px}
+.chat{display:grid;gap:10px;margin-bottom:14px}.m1,.m2{max-width:82%;padding:12px 14px;border-radius:18px;font-size:13.5px;line-height:1.55}.m1{background:rgba(255,255,255,.07);border:1px solid var(--ln);border-bottom-left-radius:6px}.m2{background:var(--g);justify-self:end;border-bottom-right-radius:6px}.ai-msg{white-space:pre-wrap;word-break:break-word;width:fit-content}.ai-msg.m1{align-self:flex-start}.ai-msg.m2{align-self:flex-end}.ai-loading{opacity:.72}.ai-error{color:#FF9CAF}.ai-suggestions span{cursor:pointer}.ai-suggestions span:active{transform:scale(.98)}.ai-composer{margin-bottom:12px}.ai-composer button:disabled{opacity:.55;cursor:not-allowed}
+.app-notice{position:absolute;top:12px;left:16px;right:16px;z-index:140;display:flex;align-items:flex-start;gap:9px;padding:11px 13px;border-radius:15px;border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 40px rgba(0,0,0,.28);backdrop-filter:blur(18px);font-size:12px;line-height:1.45;font-weight:600}.app-notice.success{border-color:rgba(46,230,166,.30);background:rgba(13,42,35,.95);color:#9af4d2}.app-notice.error{border-color:rgba(255,92,122,.30);background:rgba(50,15,25,.96);color:#ff9bb0}.app-notice.info{border-color:rgba(34,211,238,.28);background:rgba(11,31,43,.96);color:#9cecf7}.app-notice .x{margin-left:auto;border:0;background:transparent;color:inherit;font:700 16px/1 Sora;cursor:pointer;padding:0 0 0 8px}.notif-count{position:absolute;top:3px;right:3px;min-width:16px;height:16px;padding:0 4px;display:grid;place-items:center;border-radius:999px;background:#FF5C7A;color:#fff;font:800 8px/1 Sora;border:2px solid #070A16}.notif-page{padding-bottom:112px}.notif-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}.notif-head button{border:1px solid var(--ln);background:rgba(255,255,255,.04);color:var(--c);border-radius:12px;padding:8px 11px;font:600 10px Sora;cursor:pointer}.notif-card{position:relative;display:flex;gap:12px;align-items:flex-start;width:100%;padding:14px;border:1px solid var(--ln);border-radius:18px;background:rgba(255,255,255,.035);margin-bottom:10px;text-align:left;color:var(--t);cursor:pointer}.notif-card.unread{border-color:rgba(34,211,238,.34);background:linear-gradient(135deg,rgba(34,211,238,.08),rgba(124,92,255,.06))}.notif-card .nicon{width:40px;height:40px;display:grid;place-items:center;flex:none;border-radius:13px;background:rgba(124,92,255,.14);color:var(--c)}.notif-card .nbody{min-width:0;flex:1}.notif-card .ntitle{font-size:13px;font-weight:700}.notif-card .ntext{font-size:11.5px;line-height:1.5;color:var(--mu);margin-top:4px}.notif-card .ntime{font-size:9px;color:#68739a;margin-top:7px}.notif-card .dotunread{width:7px;height:7px;border-radius:50%;background:var(--c);margin-top:4px;flex:none}.tier-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.tier-card{position:relative;border:1px solid var(--ln);border-radius:18px;padding:14px;background:rgba(255,255,255,.035);cursor:pointer;transition:.15s}.tier-card:hover{border-color:rgba(34,211,238,.45)}.tier-card.selected{border-color:var(--c);background:linear-gradient(135deg,rgba(34,211,238,.10),rgba(124,92,255,.08));box-shadow:0 0 0 2px rgba(34,211,238,.08)}.tier-card.locked{opacity:.48;cursor:not-allowed}.tier-card .tier-name{font-size:13px;font-weight:700}.tier-card .tier-amt{font-size:20px;font-weight:800;margin-top:5px}.tier-card small{display:block;color:var(--mu);font-size:10.5px;margin-top:3px;line-height:1.4}.tier-check{position:absolute;top:10px;right:10px;width:18px;height:18px;border-radius:50%;border:1px solid var(--ln);display:grid;place-items:center;color:transparent;font-size:10px}.tier-card.selected .tier-check{background:var(--g);border-color:transparent;color:#fff}.task-side{min-width:104px;display:flex;flex-direction:column;align-items:flex-end;gap:7px}.task-values{text-align:right;font-weight:700;font-size:13px}.task-values small{display:block;font-size:10px;color:var(--m);margin-top:3px}.task-complete{border:1px solid rgba(46,230,166,.32);background:rgba(46,230,166,.10);color:var(--m);border-radius:12px;padding:7px 10px;font:700 10px Sora;cursor:pointer;white-space:nowrap}.task-complete:active{transform:scale(.97)}.task-complete:disabled{opacity:.5;cursor:not-allowed}.task-done{font-size:10px;color:var(--m);font-weight:700;padding:7px 0}.task-product-row{display:flex;gap:12px;align-items:center;min-width:0}.task-product-img{width:68px;height:68px;border-radius:16px;object-fit:cover;background:#fff;border:1px solid rgba(255,255,255,.12);flex:none}.task-product-info{min-width:0;flex:1}.task-product-title{font-size:14px;font-weight:700;line-height:1.35}.task-product-sub{font-size:10.5px;color:var(--mu);margin-top:3px;line-height:1.4}.task-view-product{margin-top:7px;border:1px solid rgba(34,211,238,.30);background:rgba(34,211,238,.08);color:var(--c);border-radius:11px;padding:7px 9px;font:700 9.5px Sora;cursor:pointer;white-space:nowrap}.task-view-product:active{transform:scale(.98)}.task-modal{position:fixed;inset:0;z-index:180;display:none;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);padding:18px 16px 24px;align-items:flex-end;justify-content:center}.task-modal.show{display:flex}.task-modal-box{width:min(430px,100%);max-height:88vh;overflow:auto;border:1px solid var(--ln);border-radius:24px;background:#0b1022;box-shadow:0 30px 80px rgba(0,0,0,.55);padding:16px}.task-modal-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}.task-modal-close{margin-left:auto;width:36px;height:36px;border:1px solid var(--ln);border-radius:12px;background:rgba(255,255,255,.05);color:var(--t);font:700 20px Sora;cursor:pointer}.task-modal-hero{width:100%;height:230px;border-radius:20px;object-fit:contain;background:#fff;border:1px solid rgba(255,255,255,.12);display:block}.task-modal-rating{display:flex;align-items:center;gap:8px;margin-top:11px}.task-stars{color:#FFB84D;letter-spacing:1px;font-size:14px}.task-review{padding:11px 0;border-top:1px solid var(--ln)}.task-review .who{font-size:11px;font-weight:700}.task-review p{font-size:11px;line-height:1.55;color:var(--mu);margin-top:4px}.task-modal-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.task-modal-actions .btn{min-height:48px}.task-purchase-note{font-size:10.5px;line-height:1.45;color:var(--mu);margin-top:9px;text-align:center}.task-gallery{display:grid;gap:10px}.task-gallery-main{position:relative;border-radius:20px;overflow:hidden;background:#fff;border:1px solid rgba(255,255,255,.12);min-height:230px}.task-gallery-main img{display:block;width:100%;height:230px;object-fit:contain;background:#fff;cursor:pointer}.task-gallery-count{position:absolute;right:10px;bottom:10px;padding:5px 8px;border-radius:999px;background:rgba(7,10,22,.82);backdrop-filter:blur(8px);font:700 10px Sora;color:#fff}.task-gallery-thumbs{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}.task-gallery-thumbs button{min-width:0;cursor:pointer;border-radius:12px;overflow:hidden}.task-gallery-thumb{display:block;width:100%;height:52px;object-fit:cover;border-radius:12px;background:#fff;border:1px solid rgba(255,255,255,.10);opacity:.72}.task-gallery-thumb.on{opacity:1;border-color:rgba(34,211,238,.65);box-shadow:0 0 0 2px rgba(34,211,238,.12)}.activity-ticker{position:fixed;top:8px;left:50%;width:min(398px,calc(100vw - 32px));z-index:155;display:flex;align-items:center;gap:7px;padding:7px 11px;border-radius:999px;border:1px solid rgba(34,211,238,.25);background:rgba(8,13,27,.94);box-shadow:0 12px 30px rgba(0,0,0,.34);backdrop-filter:blur(16px);color:#dff8ff;font:600 10.5px/1.25 Sora;opacity:0;transform:translate(-50%,-10px);pointer-events:none;transition:opacity .22s ease,transform .22s ease}.activity-ticker.show{opacity:1;transform:translate(-50%,0)}.activity-ticker .tag{flex:none;color:#08131a;background:linear-gradient(135deg,#7C5CFF,#22D3EE);border-radius:999px;padding:3px 6px;font-size:8px;font-weight:800;letter-spacing:.35px}.activity-ticker .msg{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.activity-ticker .msg b{color:#fff}.activity-ticker .msg .amount{color:#9af4d2}.activity-ticker .dot{width:6px;height:6px;border-radius:50%;background:#2EE6A6;box-shadow:0 0 0 4px rgba(46,230,166,.08);flex:none}
+.mn{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--ln);font-size:14px;font-weight:500}.mn span{flex:1}
+nav{position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));transform:translateX(-50%);width:min(398px,calc(100vw - 32px));z-index:50;display:flex;justify-content:space-around;padding:8px;border-radius:26px;background:rgba(14,19,40,.92);backdrop-filter:blur(16px);border:1px solid var(--ln);box-shadow:0 20px 40px -12px #000}nav a{display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 12px;border-radius:18px;font-size:10.5px;color:var(--mu);cursor:pointer}nav a svg{width:22px;height:22px}nav a.on{color:#fff;background:var(--g);box-shadow:0 10px 20px -8px var(--v)}
+ .ap-auth{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:28px 0 36px}.ap-auth>svg{display:block;margin:0 auto}.ap-auth>h1{text-align:center;font-size:34px!important;margin-top:14px!important;letter-spacing:-1px}.ap-auth>p{text-align:center;color:var(--mu);font-size:14px;margin:6px 0 22px}.ap-auth .card{padding:22px 18px;margin-bottom:12px;background:linear-gradient(160deg,rgba(255,255,255,.075),rgba(255,255,255,.025));border:1px solid var(--ln);border-radius:22px;box-shadow:0 24px 50px -30px rgba(124,92,255,.7)}.ap-auth .card h2{font-size:22px}.ap-auth .ap-field{margin-bottom:12px}.ap-auth .ap-field label{display:block;font-size:11px;color:var(--mu);margin:0 0 7px 4px}.ap-auth .ap-field input{width:100%;min-height:50px;padding:0 14px;border-radius:16px;background:rgba(255,255,255,.04)!important;background-color:transparent!important;border:1px solid var(--ln);outline:0;color:var(--t);-webkit-text-fill-color:var(--t);font:500 14px Sora}.ap-auth .ap-field input::placeholder{color:#667197;opacity:1}.ap-auth .ap-field input:focus{border-color:rgba(34,211,238,.65);box-shadow:0 0 0 3px rgba(34,211,238,.08)}.ap-auth .btn{margin-top:2px}.ap-auth .btn.o{margin-top:0}.ap-auth .card+ .btn.o{background:rgba(255,255,255,.035);border:1px solid var(--ln);box-shadow:none}.ap-auth .card>div:last-child{color:var(--c)!important}.ap-auth input:-webkit-autofill,.ap-auth input:-webkit-autofill:hover,.ap-auth input:-webkit-autofill:focus{-webkit-text-fill-color:var(--t);-webkit-box-shadow:0 0 0 1000px #0b1022 inset;box-shadow:0 0 0 1000px #0b1022 inset;transition:background-color 9999s ease-out 0s}.ap-field{margin-bottom:12px}.ap-field label{display:block;font-size:11px;color:var(--mu);margin:0 0 7px 4px}.ap-field input,.ap-field select,.ap-field textarea{width:100%;min-height:50px;padding:0 14px;border-radius:16px;background:rgba(255,255,255,.04)!important;background-color:rgba(255,255,255,.04)!important;border:1px solid var(--ln);outline:0;color:var(--t);-webkit-text-fill-color:var(--t);font:500 14px Sora}.ap-field input::placeholder{color:#667197;opacity:1}.ap-field input:focus{border-color:rgba(34,211,238,.65);box-shadow:0 0 0 3px rgba(34,211,238,.08)}.filepick{display:flex;flex-direction:column;gap:8px;width:100%;padding:12px 0;color:var(--t);font-size:13px;line-height:1.35}.filepick input[type=file]{display:block;width:100%;min-width:0;max-width:100%;padding:10px 0;color:var(--mu);font:500 12px Sora}.filepick input[type=file]::file-selector-button{margin-right:10px;padding:9px 13px;border:1px solid var(--ln);border-radius:12px;background:rgba(255,255,255,.06);color:var(--t);font:600 12px Sora;cursor:pointer}.ap-secure{display:flex;flex-direction:column;align-items:center;gap:8px;margin:22px 0 8px;text-align:center;color:var(--mu)}.ap-secure .badge{display:inline-flex;align-items:center;gap:9px;padding:9px 13px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--ln);box-shadow:0 10px 28px -18px rgba(124,92,255,.9)}.ap-secure .badge strong{display:block;color:var(--t);font-size:12px;font-weight:600}.ap-secure .badge small{display:block;margin-top:2px;color:var(--mu);font-size:10.5px}.ap-secure .copy{font-size:10.5px;color:#667197;letter-spacing:.15px}.ai-page{height:calc(100vh - 52px);min-height:0;padding:0;display:flex;flex-direction:column;overflow:hidden}.ai-page .tb{flex:0 0 auto;padding-top:22px}.ai-chat{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;gap:9px;margin:0;padding:8px 0 118px;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;scrollbar-width:none;-ms-overflow-style:none}.ai-chat::-webkit-scrollbar{width:0;height:0;display:none}.ai-composer{position:fixed;left:50%;bottom:calc(104px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(398px,calc(100vw - 32px));z-index:60;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;margin:0;border-radius:20px;background:rgba(14,19,40,.98);backdrop-filter:blur(18px);border:1px solid var(--ln);box-shadow:0 16px 34px -16px #000}.ai-composer input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--t);font:500 12.5px Sora}.ai-composer input::placeholder{color:var(--mu)}.ai-composer button{flex:0 0 40px;width:40px;height:40px;border:0;border-radius:13px;background:var(--g);display:grid;place-items:center;color:#fff;cursor:pointer;box-shadow:0 8px 18px -8px rgba(34,211,238,.75)}.ai-suggestions{display:none!important}.ai-msg{max-width:84%;font-size:12.5px;line-height:1.5;padding:10px 12px}.ai-msg.m1,.ai-msg.m2{font-size:12.5px}.ai-msg.ai-loading{font-size:12px}@media(max-width:430px){.ai-page{height:calc(100dvh - 52px)}}</style>
+<script>window.AEGIS_ANDROID_APP=!!window.AegisNative;window.AEGIS_ADMIN_PORTAL=false;</script>
+</head>
+<body>
+<div id="app"></div><script>
+(function(){
+'use strict';
+var rows=[
+['Mini USB Fan','Aegis Home','Home & Kitchen','Cooling',2.99,4.4,'Deal','🌀',1],
+['Cable Organizer Kit','Aegis Office','Office','Desk',4.99,4.5,'New','🧷',2],
+['Pocket Notebook Set','Aegis Paper','Books','Stationery',7.49,4.6,'Popular','📓',3],
+['Phone Grip Stand','Aegis Mobile','Electronics','Accessories',9.99,4.5,'Best Seller','📱',4],
+['Travel Water Bottle','Aegis Active','Outdoor','Hydration',12.99,4.7,'Popular','🥤',5],
+['Classic Sunglasses','Aegis Style','Fashion','Accessories',15.99,4.6,'New','🕶️',6],
+['LED Desk Light','Aegis Home','Office','Lighting',18.99,4.6,'Deal','💡',7],
+['Wireless Mouse','Aegis Tech','Electronics','Computer Accessories',21.99,4.7,'Top Rated','🖱️',8],
+['Kitchen Storage Set','Aegis Home','Home & Kitchen','Storage',24.99,4.6,'Featured','🫙',9],
+['Compact Travel Pouch','Aegis Style','Fashion','Travel',29.99,4.5,'Popular','👜',10],
+['Fitness Resistance Bands','Aegis Active','Sports','Training',34.99,4.7,'Best Seller','🏋️',11],
+['Ceramic Coffee Mug','Aegis Home','Home & Kitchen','Drinkware',39.99,4.6,'New','☕',12],
+['Desk Mat Pro','Aegis Office','Office','Desk Accessories',44.99,4.7,'Top Rated','🖥️',13],
+['Glow Skin Care Set','Aegis Beauty','Beauty','Skin Care',49.99,4.8,'Best Seller','🧴',14],
+['Everyday Backpack','Aegis Style','Fashion','Bags',54.99,4.7,'Featured','🎒',15],
+['Smart Tracker Tag','Aegis Tech','Electronics','Smart Devices',59.99,4.4,'New','🏷️',16],
+['Portable Blender','Aegis Home','Home & Kitchen','Appliances',69.99,4.6,'Deal','🥤',17],
+['Gaming Mouse Pro','Aegis Game','Gaming','PC Gaming',79.99,4.8,'Top Rated','🖱️',18],
+['Running Shoes Lite','Aegis Sport','Sports','Footwear',89.99,4.7,'Popular','👟',19],
+['Travel Duffel Bag','Aegis Style','Fashion','Travel',99.99,4.6,'Featured','🧳',20],
+['Mechanical Keyboard','Aegis Tech','Gaming','PC Gaming',109,4.8,'Best Seller','⌨️',21],
+['Fitness Smart Band','Aegis Active','Sports','Wearables',119,4.6,'New','⌚',22],
+['Stainless Cookware Set','Aegis Home','Home & Kitchen','Cookware',129,4.8,'Top Rated','🍳',23],
+['Noise Cancel Earbuds','Aegis Audio','Electronics','Headphones',139,4.7,'Featured','🎧',24],
+['Polarized Eyewear','Aegis Style','Fashion','Accessories',149,4.6,'Deal','🕶️',25],
+['Office Backpack Pro','Aegis Office','Office','Bags',159,4.7,'Popular','🎒',26],
+['Beauty Vanity Kit','Aegis Beauty','Beauty','Cosmetics',169,4.7,'Best Seller','💄',27],
+['Air Fryer Compact','Aegis Home','Home & Kitchen','Appliances',179,4.8,'Hot','🍟',28],
+['Smart Home Camera','Aegis Tech','Electronics','Smart Home',199,4.5,'New','📷',29],
+['Premium Sports Watch','Aegis Active','Sports','Wearables',219,4.7,'Featured','⌚',30],
+['Ultralight Tent','Aegis Outdoor','Outdoor','Camping',239,4.8,'Top Rated','⛺',31],
+['Gaming Headset Elite','Aegis Game','Gaming','PC Gaming',249,4.8,'Best Seller','🎮',32],
+['Robot Vacuum Mini','Aegis Home','Home & Kitchen','Appliances',269,4.6,'Deal','🧹',33],
+['Leather Weekender','Aegis Style','Fashion','Travel',289,4.7,'Featured','👜',34],
+['4K Streaming Box','Aegis Tech','Electronics','Entertainment',299,4.5,'Popular','📺',35],
+['Ergonomic Office Chair','Aegis Office','Office','Furniture',329,4.7,'Top Rated','🪑',36],
+['Pro Makeup Case','Aegis Beauty','Beauty','Accessories',349,4.8,'New','💼',37],
+['Performance Running Kit','Aegis Active','Sports','Training',379,4.8,'Featured','🏃',38],
+['Mirrorless Camera Body','Aegis Tech','Electronics','Cameras',399,4.7,'Best Seller','📷',39],
+['Travel Smart Luggage','Aegis Outdoor','Outdoor','Travel',429,4.7,'New','🧳',40],
+['Premium Coffee Machine','Aegis Home','Home & Kitchen','Coffee',449,4.8,'Top Rated','☕',41],
+['Ultra Gaming Monitor','Aegis Game','Gaming','PC Gaming',499,4.8,'Hot','🖥️',42],
+['Business Laptop Air','Aegis Tech','Electronics','Laptops',549,4.7,'Featured','💻',43],
+['Designer Carry-On','Aegis Style','Fashion','Travel',599,4.7,'Popular','🧳',44],
+['Smart Fitness Station','Aegis Active','Sports','Training',649,4.9,'Top Rated','🏋️',45],
+['Home Theater System','Aegis Tech','Electronics','Entertainment',699,4.6,'Best Seller','📺',46],
+['Premium Espresso Bar','Aegis Home','Home & Kitchen','Coffee',749,4.8,'Featured','☕',47],
+['Creator Laptop Pro','Aegis Tech','Electronics','Laptops',799,4.8,'Top Rated','💻',48],
+['Luxury Outdoor Set','Aegis Outdoor','Outdoor','Furniture',849,4.7,'New','🪵',49],
+['Studio Camera Kit','Aegis Tech','Electronics','Cameras',899,4.8,'Featured','📷',50],
+['Executive Workspace','Aegis Office','Office','Furniture',929,4.7,'Premium','🪑',51],
+['Flagship Smart Device','Aegis Tech','Electronics','Smart Devices',949,4.6,'Premium','📱',52],
+['Luxury Travel Trunk','Aegis Style','Fashion','Luggage',959,4.8,'Premium','🧳',53],
+['Home Wellness Suite','Aegis Home','Home & Kitchen','Wellness',969,4.7,'Premium','🛁',54],
+['Pro Creator Bundle','Aegis Tech','Gaming','Creator Gear',979,4.9,'Premium','🎥',55],
+['Elite Fitness Bundle','Aegis Active','Sports','Training',989,4.8,'Premium','🏆',56],
+['Aegis Signature Collection','Aegis Style','Fashion','Signature',999,4.9,'Signature','👑',57],
+['Wireless Charging Hub','Aegis Tech','Electronics','Charging',31.99,4.5,'New','🔋',58],
+['Smart Kitchen Scale','Aegis Home','Home & Kitchen','Kitchen Tools',36.99,4.6,'Popular','⚖️',59],
+['Portable Projector','Aegis Tech','Electronics','Projectors',189,4.6,'Featured','📽️',60]
+];
+var PRODUCT_IMAGES={
+  tech:'https://images.unsplash.com/photo-1769689268229-3e9c9ddaf1ee?auto=format&fit=crop&w=900&q=82',
+  laptop:'https://images.unsplash.com/photo-1610006330187-5f0c6ec0f9aa?auto=format&fit=crop&w=900&q=82',
+  bag:'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=900&q=82',
+  camera:'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=900&q=82',
+  shoes:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=900&q=82',
+  watch:'https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=900&q=82',
+  headphones:'https://images.unsplash.com/photo-1674658556545-f18d4080ab6c?auto=format&fit=crop&w=900&q=82',
+  coffee:'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=900&q=82',
+  chair:'https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=900&q=82',
+  home:'https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=900&q=82'
+};
+
+var ACTIVE_PRODUCT_OVERRIDES={
+  'SP-4':{title:'Phone Grip Stand',brand:'PopSockets'},
+  'SP-8':{title:'Logitech M220 Silent Wireless Mouse',brand:'Logitech'},
+  'SP-16':{title:'Smart Bluetooth Tracker Tag',brand:'Tile'},
+  'SP-19':{title:'adidas Response 2 Running Shoes',brand:'adidas'},
+  'SP-21':{title:'Keychron K8 Pro Mechanical Keyboard',brand:'Keychron'},
+  'SP-24':{title:'Liberty 4 Pro Noise Cancelling Earbuds',brand:'soundcore'},
+  'SP-32':{title:'Wireless Gaming Headset Elite',brand:'Aegis Game'},
+  'SP-40':{title:'Heys SmartLuggage 26"',brand:'Heys'},
+  'SP-42':{title:'AOC 27" Curved Gaming Monitor',brand:'AOC'},
+  'SP-44':{title:'Designer Carry-On',brand:'Travel Collection'},
+  'SP-52':{title:'Flagship Smartphone',brand:'Aegis Tech'},
+  'SP-57':{title:'Premium Signature Crossbody Bag',brand:'Aegis Signature'}
+};
+var GALLERY_BY_ID={
+  'SP-4':[
+    'https://arqoob.com/uploads/img/pi/175/175411768300/medium_1754117683.webp',
+    'https://brave.ae/assets/images/1762178278_5769ff322d287431.png',
+    'https://simplecellbulk.com/cdn/shop/products/t84581-1__1_5e5a5f79-9631-41f8-8636-54af371941af.jpg?v=1681993849',
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=88',
+    'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?auto=format&fit=crop&w=900&q=88'
+  ],
+  'SP-8':[
+    'https://images.tcdn.com.br/img/img_prod/571937/mouse_sem_fio_logitech_m220_silent_preto_1_20260525094106_b1bcd4eba880.png',
+    'https://images.tcdn.com.br/img/img_prod/571937/mouse_sem_fio_logitech_m220_silent_preto_2_20260525094106_1075ce0dac61.png',
+    'https://images.tcdn.com.br/img/img_prod/571937/mouse_sem_fio_logitech_m220_silent_preto_3_20260525094106_f7303a8dffdb.png',
+    'https://images.tcdn.com.br/img/img_prod/571937/mouse_sem_fio_logitech_m220_silent_preto_4_20260525094106_d0ce338d6f56.png',
+    'https://images.tcdn.com.br/img/img_prod/571937/mouse_sem_fio_logitech_m220_silent_preto_5_20260525094106_a040ff5c6b0d.png'
+  ],
+  'SP-16':[
+    'https://images-na.ssl-images-amazon.com/images/I/610OXBcjEzL.jpg',
+    'https://s.alicdn.com/%40sc04/kf/H2439dcae96f94640aedea5300067648fA/Custom-Logo-Android-Smart-Phone-Tag-for-Google-Sony-Xiaomi-Smart-Phones-Key-Finder-Anti-Lost-Pet-Bike-Tracker.jpg',
+    'https://shop.letstrack.com/cdn/shop/files/smart-tag-ios.jpg?v=1757070065&width=1024',
+    'https://www.vimeltech.com.au/image/cache/catalog/2026/VIM-TAG-A1/tracker-tag-keyring-hand-held-550x550.jpg',
+    'https://images.unsplash.com/photo-1577598629456-7f4f7b3adf6e?auto=format&fit=crop&w=900&q=88'
+  ],
+  'SP-19':[
+    'https://assets.adidas.com/images/w_500%2Cf_auto%2Cq_auto/8a03725e19834c7c914202a7c6ac8f5e_9366/RESPONSE_2_RUNNING_SHOES_Red_KJ1752_01_00_standard.jpg',
+    'https://assets.adidas.com/images/w_500%2Cf_auto%2Cq_auto/be4dc1a6a8c24988bd5d3f9931cc9dc8_9366/RESPONSE_2_RUNNING_SHOES_Red_KJ1752_02_standard_hover.jpg',
+    'https://assets.adidas.com/images/w_500%2Cf_auto%2Cq_auto/38d6fbfc88fb47b9ad6356c5d6a601a1_9366/RESPONSE_2_RUNNING_SHOES_Red_KJ1752_03_standard.jpg',
+    'https://assets.adidas.com/images/w_500%2Cf_auto%2Cq_auto/7def225541b744e2985a9e4a82f12687_9366/RESPONSE_2_RUNNING_SHOES_Red_KJ1752_04_standard.jpg',
+    'https://contents.mediadecathlon.com/p1567822/k%24192043c18a8a8cacb793c158042bd4c7/laufschuhe-run-support-herren-rot.jpg'
+  ],
+  'SP-21':[
+    'https://cdn.shopify.com/s/files/1/0059/0630/1017/t/5/assets/keychronk8proqmkviawirelessmechanicalkeyboardformacwindowsosaprofilepbtkeycapspcbscrewinstabilizerwithhotswappablegaterongpromechanicalswitchcompatiblewithmxcherrypandakailhwithrgbbacklightaluminumframe-1645094681965.jpg?v=1645094684',
+    'https://cdn.shopify.com/s/files/1/0059/0630/1017/files/K8-Pro-White.jpg?v=1688090606',
+    'https://cdn.shopify.com/s/files/1/0059/0630/1017/files/K8-Pro-non-hot-swappable-version.jpg?v=1692007807',
+    'https://cdn.shopify.com/s/files/1/0059/0630/1017/t/5/assets/keychronk8proqmkviawirelessmechanicalkeyboardformacwindowsosaprofilepbtkeycapspcbscrewinstabilizerwithhotswappablegaterongpromechanicalswitchcompatiblewithmxcherrypandakailhwithrgbbacklightaluminumframe-1646107816821.jpg?v=1646107819',
+    'https://www.jib.co.th/img_master/product/original/20180809174303_30351_24_1.png',
+    'https://mechanicalkeyboards.com/cdn/shop/files/24061-9M62T-Keychron-K8-V2-Aluminum-Hotswap-RGB-Keyboard.jpg?v=1734988025&width=750'
+  ],
+  'SP-24':[
+    'https://m.media-amazon.com/images/S/aplus-media-library-service-media/2b8278d7-02c3-490e-94e0-e33e9f84400b.__CR0%2C0%2C1464%2C600_PT0_SX1464_V1___.jpg',
+    'https://m.media-amazon.com/images/S/aplus-media-library-service-media/f20411e3-e7f3-451e-804d-7caa78b4e72f.__CR0%2C0%2C1464%2C600_PT0_SX1464_V1___.jpg',
+    'https://m.media-amazon.com/images/S/aplus-media-library-service-media/735f982f-ae74-4310-b1fc-b9e56631cafd.__CR0%2C0%2C1464%2C600_PT0_SX1464_V1___.jpg',
+    'https://images-na.ssl-images-amazon.com/images/I/61loiB6QjoL.jpg',
+    'https://img.joomcdn.net/b216d373a5a6c4a7272d4eec42ad543262f7cedf_1024_1024.jpeg',
+    'https://www.segment.com.tr/images/productimages/SL_TWS04_B_02.jpg',
+    'https://image.made-in-china.com/2f0j00sfZkUHQzuToR/Tws-Charging-in-Ear-Wireless-Game-Headset-Cheap-Bluetooth-5-2-Noise-Cancellation-Headphone.webp'
+  ],
+  'SP-32':[
+    'https://resource.logitechg.com/w_544%2Ch_466%2Car_7%3A6%2Cc_pad%2Cq_auto%2Cf_auto%2Cdpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g733/gallery/g733-lilac-gallery-2.png',
+    'https://resource.logitechg.com/w_544%2Ch_466%2Car_7%3A6%2Cc_pad%2Cq_auto%2Cf_auto%2Cdpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g733/gallery/g733-lilac-gallery-3.png',
+    'https://resource.logitechg.com/w_544%2Ch_544%2Car_1%2Cc_fill%2Cq_auto%2Cf_auto%2Cdpr_1.0/d_transparent.gif/content/dam/gaming/en/products/g733/g733-hpb-desktop.png',
+    'https://media.ldlc.com/r705/mktp/product/productImage/240702/92/bed9a292e52e4d41a6c288b5236791e6.webp',
+    'https://dubsnatch.com/cdn/shop/products/neon-rgb-black-gaming-headset-microphone-jack-usb-dubsnatch_600x.jpg?v=1673069964'
+  ],
+  'SP-40':[
+    'https://eu.heys.com/cdn/shop/products/SmartLuggage_26_frontqrt_black_Hand.jpg?v=1557326945&width=750',
+    'https://eu.heys.com/cdn/shop/files/SmartLuggage-Black-26-Inch-heys-luggage-lifestyle-image-1_ff13c23e-577f-4005-9019-8691fe5c3cd2.jpg?v=1746115566&width=500',
+    'https://eu.heys.com/cdn/shop/products/SmartLuggage_features_5batteries.jpg?v=1746115566&width=750',
+    'https://eu.heys.com/cdn/shop/files/SmartLuggage-Black-26-Inch-heys-luggage-lifestyle-image-2_97c51421-c868-4be2-8cbc-4650f15c16d6.jpg?v=1746115566&width=500',
+    'https://eu.heys.com/cdn/shop/products/SmartLuggage_26_open_1ba1375b-5724-4d2c-bfb6-db27196d0237.jpg?v=1746115566&width=750',
+    'https://eu.heys.com/cdn/shop/products/SmartLuggage_26_isometric_front-icons_05856bf1-1223-4190-8f4b-646e2b00467b.jpg?v=1746115566&width=750',
+    'https://eu.heys.com/cdn/shop/products/SmartLuggage_features_2proximity_e405073e-14c7-471d-be77-c8764a0864d7.jpg?v=1746115566&width=750'
+  ],
+  'SP-42':[
+    'https://cdn.sanity.io/images/hf5b3axp/production/250e10d12e65d14cecb1a834b735b7b531329cb4-1500x1500.png?auto=format&fit=max&w=800',
+    'https://cdn.sanity.io/images/hf5b3axp/production/63476a1cd86fda14d7b8f01ec30dea0be9e3d891-1920x1920.png?auto=format&fit=max&w=800',
+    'https://cdn.sanity.io/images/hf5b3axp/production/ba93d21a74c18eaf8c0514d48d524e0a89d66a55-1500x1500.png?auto=format&fit=max&w=800',
+    'https://cdn.sanity.io/images/hf5b3axp/production/7b9f6d384c6dee65e2dd8f167f45334067c8ab7c-3840x1500.png?auto=format&fit=max&w=800',
+    'https://www.laptopsdirect.co.uk/Images/C27G4ZXE_1_Supersize.jpg?v=3'
+  ],
+  'SP-44':[
+    'https://assets.target.com.au/transform/f6c96a96-ea6e-461b-a267-a01baea60a2a/43114962-8?io=transform%3Afit%2Cwidth%3A1400%2Cheight%3A1600&output=webp&quality=90',
+    'https://cdn.mos.cms.futurecdn.net/whowhatwear/posts/278107/designer-luggage-sets-278107-1551672255228-product.png',
+    'https://urbantravellerco.id/cdn/shop/files/thecarryonpro-greychocolate.webp?v=1702287221&width=1445',
+    'https://brain-images-ssl.cdn.dixons.com/3/5/10146753/l_10146753_006.jpg',
+    'https://www.n-sport.net/UserFiles/products/big/05/06/zenska-torba-karl-lagerfeld-k-signature-shoulderbag-201W3100-783.jpg',
+    'https://www.cocoon.club/cdn/shop/products/GUCCI_GG-Marmont-Matelasse-Mini-Crossbody_Black_Leather_FRONT_grande.jpg?v=1621332282'
+  ],
+  'SP-52':[
+    'https://image01-eu.oneplus.net/shop/202104/27/1-M00-24-8B-rB8bwmCICVmAWJYwAAb0g1C5KSs370.png',
+    'https://static.wixstatic.com/media/c2b8f0_4036c43680524933b8d1a071d97da1ae~mv2.jpg/v1/fill/w_780%2Ch_480%2Cal_c%2Clg_1%2Cq_85/c2b8f0_4036c43680524933b8d1a071d97da1ae~mv2.jpg',
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=900&q=88',
+    'https://images.unsplash.com/photo-1598327105666-5b89351aff97?auto=format&fit=crop&w=900&q=88',
+    'https://images.unsplash.com/photo-1546054454-aa26e2b734c7?auto=format&fit=crop&w=900&q=88'
+  ],
+  'SP-57':[
+    'https://urbantravellerco.id/cdn/shop/files/thecarryonpro-greychocolate.webp?v=1702287221&width=1445',
+    'https://www.cocoon.club/cdn/shop/products/GUCCI_GG-Marmont-Matelasse-Mini-Crossbody_Black_Leather_FRONT_grande.jpg?v=1621332282',
+    'https://www.n-sport.net/UserFiles/products/big/05/06/zenska-torba-karl-lagerfeld-k-signature-shoulderbag-201W3100-783.jpg',
+    'https://assets.target.com.au/transform/f6c96a96-ea6e-461b-a267-a01baea60a2a/43114962-8?io=transform%3Afit%2Cwidth%3A1400%2Cheight%3A1600&output=webp&quality=90',
+    'https://cdn.mos.cms.futurecdn.net/whowhatwear/posts/278107/designer-luggage-sets-278107-1551672255228-product.png',
+    'https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=900&q=88'
+  ]
+};
+function productImage(x){
+  var s=(x[0]+' '+x[1]+' '+x[2]+' '+x[3]).toLowerCase();
+  if(/camera|creator|streaming|photo/.test(s))return PRODUCT_IMAGES.camera;
+  if(/laptop|keyboard|monitor|mouse|computer/.test(s))return PRODUCT_IMAGES.laptop;
+  if(/headphone|earbud|audio/.test(s))return PRODUCT_IMAGES.headphones;
+  if(/phone|smart device|charger|charging/.test(s))return PRODUCT_IMAGES.tech;
+  if(/shoe|running|fitness|sport|training|gym/.test(s))return PRODUCT_IMAGES.shoes;
+  if(/watch|wearable/.test(s))return PRODUCT_IMAGES.watch;
+  if(/backpack|bag|luggage|travel|pouch|makeup case/.test(s))return PRODUCT_IMAGES.bag;
+  if(/chair|furniture|office/.test(s))return PRODUCT_IMAGES.chair;
+  if(/coffee|mug|espresso/.test(s))return PRODUCT_IMAGES.coffee;
+  if(/home|kitchen|cook|air fryer|blender|vacuum/.test(s))return PRODUCT_IMAGES.home;
+  return PRODUCT_IMAGES.tech;
+}
+window.AegisShopCatalog=rows.map(function(x){
+  var id='SP-'+x[8],g=GALLERY_BY_ID[id]||[],ov=ACTIVE_PRODUCT_OVERRIDES[id]||{};
+  return{id:id,title:ov.title||x[0],brand:ov.brand||x[1],category:ov.category||x[2],subcategory:x[3],marketPrice:x[4],rating:x[5],badge:x[6],emoji:x[7],image:g[0]||productImage(x),gallery:g};
+});
+})();
+
+</script>
+<script>
+const P={home:'m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z',pie:'M21 12A9 9 0 1 1 12 3v9z',clock:'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M12 7v5l3 2',bot:'M12 8V4M8 8h8a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3M9 14v1M15 14v1',user:'M20 21a8 8 0 0 0-16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8',users:'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',bell:'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a2 2 0 0 0 3.4 0',back:'M19 12H5m7-7-7 7 7 7',chev:'m9 18 6-6-6-6',copy:'M9 9h11v11H9zM5 15H4V4h11v1',share:'M18 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6M8.6 13.5l6.8 4M15.4 6.5l-6.8 4',search:'m21 21-4.3-4.3M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14',cart:'M2 3h3l2.7 12.4a2 2 0 0 0 2 1.6h8.8a2 2 0 0 0 2-1.5L22 7H6M9 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2M18 21a1 1 0 1 0 0-2 1 1 0 0 0 0 2',shield:'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z',lock:'M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4',eye:'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6',check:'m5 12 5 5L20 7',gift:'M3 8h18v4H3zM12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8s1-5 4.5-5a2.5 2.5 0 0 1 0 5',set:'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',send:'m22 2-11 11M22 2l-7 20-4-9-9-4z',link:'M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1',alert:'M12 3 2 20h20zM12 10v4M12 17.5v.5',arrow:'M5 12h14m-7-7 7 7-7 7',out:'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',dl:'M17 7 7 17M16 17H7V8',up:'M7 17 17 7M8 7h9v9',usd:'M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6',chart:'M3 3v18h18M7 14l4-4 3 3 5-6',card:'M2 6h20v12H2zM2 10h20',phone:'M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1M11 18h2',shirt:'M8 3 3 6l2 4 3-1v12h8V9l3 1 2-4-5-3a4 4 0 0 1-8 0',cook:'M6 13h12v6a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM4 13h16M9 9a2 2 0 0 1 0-4 3 3 0 0 1 6 0 2 2 0 0 1 0 4',spark:'M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z',game:'M6 12h4M8 10v4M15 13h.01M18 11h.01M17 6H7a5 5 0 0 0-5 5v3a3 3 0 0 0 5.5 1.7L8.5 14h7l1 1.7A3 3 0 0 0 22 14v-3a5 5 0 0 0-5-5',book:'M4 19V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2M4 19a2 2 0 0 0 2 2h13'};
+const ic=n=>`<svg class="i" viewBox="0 0 24 24"><path d="${P[n]}"/></svg>`;
+const bub=(i,c)=>`<span class="bub" style="background:${c}26;color:${c}">${i}</span>`;
+const T=(t,b)=>`<div class="tb">${b?`<b onclick="go('${b}')">${ic('back')}</b>`:''}<h1>${t}</h1><b class="dot">${ic('bell')}</b></div>`;
+const NV=a=>`<nav>${[['home','Home','home'],['assets','Assets','pie'],['bot','AI Bot','bot'],['account','Profile','user']].map(n=>`<a class="${n[0]==a?'on':''}" onclick="go('${n[0]}')">${ic(n[2])}<span>${n[1]}</span></a>`).join('')}</nav>`;
+const logo=s=>`<svg width="${s}" height="${s}" viewBox="0 0 48 48"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#22D3EE"/></linearGradient></defs><path d="M24 3 6 11v12c0 11 8 19 18 22 10-3 18-11 18-22V11z" fill="url(#lg)"/><path d="M24 14 33 34h-6l-3-7-3 7h-6z" fill="#070A16" opacity=".85"/></svg>`;
+const sp=(a,c)=>{const m=Math.max(...a),n=Math.min(...a);return `<svg width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${a.map((v,i)=>`${i*64/(a.length-1)},${24-(v-n)/(m-n||1)*22}`).join(' ')}"/></svg>`};
+const tx=(i,c,t,s,a,k)=>`<div class="row">${bub(ic(i),c)}<div>${t}<small>${s}</small></div><em class="${k}">${a}</em></div>`;
+const fp=(x,y)=>{const a=x<7&&y<7,b=x>17&&y<7,c=x<7&&y>17;if(!(a||b||c))return null;const u=x%18,v=y%18;return u==0||u==6||v==0||v==6||(u>1&&u<5&&v>1&&v<5)};
+const DEPOSIT_ADDRESS='TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn';const DEPOSIT_QR='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQgAAAEICAIAAAAslP2oAAAERElEQVR42u3dQW7cMAxA0Sjw/a88XbSbLoRAAQmS1nvr1jPj5EMDK5LW5/P5Av737RaAMEAYIAwQBggDhAHCAGGAMEAYIAwQBggDEAbsPaf/Ya014oOdrjPZfa7ddaL+fdXninrdt/4+GDFAGCAMEAYIA4QBwoAWnqgLVe1P1e05evb7Ob1+1c9l+u+DEQOEAcIAYYAwQBggDGjhyX6BqnUIp++nat1F1OtOv/9V78eIAcIAYYAwQBggDBAGtPa4BX+dPl/Pnq+IUjXvYcQAYYAwQBiAMEAYIAwIYB7jB1XnXeyu323ew4gBwgBhAMIAYYAwQBiQKH0eY8pz8W7vM3sdxW3nZhgxQBggDBAGCAOEAcKAkcLmMd66H1H2+Rjdzuvodi6HEQOEAcIAYYAwQBggDLja8TzGbfsO+bx33h8jBggDhAHCAGGAMEAY0MKK+jv7qnOsd966L1PUz+W2n68RA4QBwgBhgDBAGCAMGKnsfIyo5+473fY1yj4XvOo+Z/+enN7PqM9lxABhgDBAGCAMEAYIA1pIn8fInk+Ysn5g+n3eyZ4PqZqHMWKAMEAYIAwQBggDhAEtrKr1D1V/f58975G9LiL7XPBuP/eq1zVigDBAGCAMEAYIA4QBLaxuz9G7PadP/wEUzW+cXmcn+/pRr2vEAGGAMEAYIAwQBggDRjreV6pqfqDbOoqo+zZlPcnp+4m6P6fXj5rPMWKAMEAYIAwQBggDhAEtrG5/r3/8AZrNV0Tdh6p1C2/dh8qIAcIAYYAwQBggDBAGjFS2HqNqv6nTzzXl3I/T60fpdm669RjgqxQIA4QBwgBhgDDgVVa3cySq9inqNv8Qdd+q1ttMPxfFiAHCAGGAMEAYIAwQBrSwpp/PEHYjhq+LMF9hxABfpUAYIAwQBggDhAEvtKbsg9RtnqRqP6Xb9r9yPgb4KgXCAGGAMEAYIAy4Wtk8xpTzpG/bhyrK9PtpxABhgDBAGCAMEAYIA1p4sl/g9Hl5t+frUZ+36vzybvch6t/bVwp8lQJhgDBAGCAMEAZcod053+kf+LL1JFXXj7pvzscAX6VAGCAMEAYIA4QBVztej1F1LsSp3XPut87bVD3vz35d52OAr1IgDBAGCAOEAcKAq4XtKzXlnIeodQjZ+0RNOY/8ree7GzFAGCAMEAYIA4QBwoAW2p2PsZM9T5J9XkTV60btNzV9HY4RA4QBwgBhgDBAGCAMGOlxC36n23kUp/MPp9efsh9X1Oc1YoAwQBggDBAGCAOEAS2Yx/gn+/zvqvdzKnu/rGzWY4CvUiAMEAYIA4QBwoBXSZ/H6PZ3/FXnTlTtHxW1T1S3c7uz50mMGCAMEAYIA4QBwgBhQAurar1Btm7nXWTfz6jXnfL7kD0/ZsQAYYAwQBggDBAGCANaWFPOPQAjBggDhAHCAGGAMEAYIAxAGCAMEAYIA4QBwgBhQBN/ADVwJB+Ww5TIAAAAAElFTkSuQmCC';const qr=()=>'<div style="text-align:center;margin:14px auto"><div class="chip">Scan to Pay · USDT TRC20</div><div style="background:#fff;border-radius:20px;padding:12px;width:236px;margin:12px auto;box-shadow:0 0 50px -8px var(--c)"><img src="'+DEPOSIT_QR+'" alt="Scan to pay" style="display:block;width:100%;height:auto"></div><p class="mu" style="font-size:12px">Scan this QR in your wallet app to pay USDT on TRC20.</p></div>';
+
+const SC={
+login:()=>`<div style="text-align:center;padding:64px 0 24px">${logo(84)}<h1 style="font-size:34px;margin-top:14px;letter-spacing:-1px">Aegis<span style="background:var(--g);-webkit-background-clip:text;color:transparent">Pay</span></h1><p class="mu" style="font-size:14px;margin-top:6px">Your Payments, Your Way</p></div>
+ <div class="card" style="padding:22px 18px"><h2 style="font-size:22px">Welcome back</h2><p class="mu" style="font-size:13px;margin:4px 0 18px">Sign in to continue</p>
+ <div class="in">${ic('user')}<input type="email" placeholder="Email or Username" autocomplete="email" style="flex:1;border:0;outline:0;background:transparent;color:var(--t);font:inherit"></div><div class="in">${ic('lock')}<input type="password" placeholder="Password" autocomplete="current-password" style="flex:1;border:0;outline:0;background:transparent;color:var(--t);font:inherit"><span style="margin-left:auto">${ic('eye')}</span></div>
+ ${marker}<div style="display:flex;justify-content:space-between;gap:12px;margin:14px 2px 6px;font-size:12.5px"><span onclick="go('forgot')" style="color:var(--c);cursor:pointer">Forgot Password?</span><span onclick="go('signup')" style="color:var(--c);cursor:pointer">Sign Up</span></div><div style="text-align:center;font-size:11.5px;color:var(--mu);margin-top:8px">New to AegisPay? Create your account to get started.</div><div style="text-align:center;font-size:13px;margin:16px 0 4px;color:var(--c)">Forgot Client ID?</div></div>
+ <button class="btn o">${ic('shield')} Sign in with Face ID</button><p class="mu" style="text-align:center;font-size:11.5px;margin-top:18px">256-bit encrypted · Your funds are protected</p>`,
+
+home:()=>`<div class="tb" style="padding-top:22px"><div class="av">A</div><div style="flex:1"><small class="mu">Welcome back</small><h1 style="font-size:21px;font-weight:700;letter-spacing:.2px">'+esc(formatName(p.display_name||p.name||'Client'))+'</h1></div><b class="dot">${ic('bell')}</b></div>
+ <div class="hero"><small>Total Balance</small><h2>$2,480.50</h2><span class="chip">${ic('up')} +12.4% this month</span><div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="pill">${ic('card')} AP-10023 ${ic('copy')}</span><span class="chip w">LV 2 · Gold</span></div></div>
+ <div class="qa"><div onclick="go('topup')"><b style="background:linear-gradient(135deg,#7C5CFF,#5B3DF5);color:#7C5CFF"><span style="color:#fff">${ic('usd')}</span></b>Top Up</div><div onclick="go('withdraw')"><b style="background:linear-gradient(135deg,#22D3EE,#0891B2);color:#22D3EE"><span style="color:#fff">${ic('up')}</span></b>Withdraw</div><div onclick="go('crypto')"><b style="background:linear-gradient(135deg,#FFB84D,#E8830C);color:#FFB84D"><span style="color:#fff">${ic('chart')}</span></b>Crypto</div><div onclick="go('shop')"><b style="background:linear-gradient(135deg,#FF5C9A,#C026D3);color:#FF5C9A"><span style="color:#fff">${ic('cart')}</span></b>Shop</div></div>
+ <div class="card"><div class="sh" style="margin-top:0">Your Levels <span>Rewards</span></div><div class="lvl"><div>LV 1<b>5%</b><div class="pb"><i style="width:100%;background:var(--m)"></i></div></div><div>LV 2<b>7%</b><div class="pb"><i style="width:62%;background:var(--c)"></i></div></div><div>LV 3<b>10%</b><div class="pb"><i style="width:18%;background:var(--v)"></i></div></div></div></div>
+ <div class="promo" onclick="go('referral')"><div style="flex:1"><b>Invite friends, earn USDT</b><p>5 USDT per direct invite, 2 USDT per indirect.</p><span class="pill">Code: AP10023 ${ic('copy')}</span></div><div class="gb">${ic('gift')}</div></div>
+ <div class="sh">Recent Activity</div><div class="card" style="padding:4px 16px">${tx('dl','#2EE6A6','Deposit · USDT','Today, 10:24','+100.00','up')}${tx('up','#FFB84D','Withdraw · USDT','Yesterday','−25.00','dn')}${tx('gift','#7C5CFF','Referral reward','12 Sep','+5.00','up')}</div>${NV('home')}`,
+
+topup:()=>`${T('Top Up','home')}<div class="sh">Payment Method</div>
+ <div class="opt s">${bub('▽','#FF5C7A')}<div>USDT (TRC20)<small>Fast · Low fees</small></div><span class="chip">Best</span></div>
+ <div class="opt">${bub('₮','#8D97BD')}<div>USDT (ERC20)<small>Higher network fees</small></div>${ic('chev')}</div>
+ <div class="opt">${bub('₿','#FFB84D')}<div>Bitcoin (BTC)<small>Secure &amp; global</small></div>${ic('chev')}</div>
+ <div class="opt">${bub(ic('card'),'#22D3EE')}<div>Bank Transfer<small>Local deposit</small></div>${ic('chev')}</div>
+ <div class="card amt"><small>Amount (USDT)</small><h2>100<span class="mu" style="font-size:18px"> USDT</span></h2><div class="fl" style="justify-content:center;margin:12px 0 0"><span>50</span><span class="on">100</span><span>500</span><span>1,000</span></div></div>
+ <div class="card"><div class="row" style="padding-top:0"><div class="mu">Network fee</div><em>1.00 USDT</em></div><div class="row" style="border:0;padding-bottom:0"><div>You receive</div><em class="up">99.00 USDT</em></div></div>
+ <button class="btn" onclick="go('deposit')">Generate Deposit Link ${ic('arrow')}</button>`,
+
+deposit:()=>`${T('Deposit USDT','topup')}<div style="text-align:center"><span class="chip">Network: TRC20</span>${qr()}<p class="mu" style="font-size:12px">Scan to deposit USDT (TRC20)</p></div>
+ <div class="sh" style="margin-top:16px">Deposit Address</div><div class="in f">TPr8f6Qx2J9mN4kR7vY8sZmU…<span style="color:var(--c)">${ic('copy')}</span></div>
+ <div class="warn">${ic('alert')}<span>Send only USDT (TRC20) to this address. Other networks may cause permanent loss of funds.</span></div>
+ <div class="two"><button class="btn o">${ic('link')} Save Link</button><button class="btn">${ic('share')} Share</button></div>`,
+
+withdraw:()=>`${T('Withdraw','home')}<div class="card" style="text-align:center"><small class="mu">Available balance</small><h2 style="font-size:32px;margin:4px 0">2,480.50 <span class="mu" style="font-size:15px">USDT</span></h2></div>
+ <div class="sh">Wallet Address (TRC20)</div><div class="in" style="padding:0;overflow:hidden"><span style="padding-left:14px;color:var(--mu)">${ic('link')}</span><input id="withdrawWallet" type="text" placeholder="Enter wallet address" autocomplete="off" style="flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--t);font:500 13px Sora;padding:14px 4px"><button type="button" style="border:0;background:transparent;color:var(--c);font:600 12px Sora;padding:14px 12px">Scan</button></div>
+ <div class="sh">Amount</div><div class="in f">250.00<span class="chip w">MAX</span></div>
+ <div class="card"><div class="row" style="padding-top:0"><div class="mu">Network</div><em>TRC20</em></div><div class="row"><div class="mu">Fee</div><em>1.00 USDT</em></div><div class="row" style="border:0;padding-bottom:0"><div>Total</div><em class="up">249.00 USDT</em></div></div>
+ <button class="btn">Confirm Withdrawal ${ic('arrow')}</button>`,
+
+crypto:()=>`${T('Crypto','home')}<div class="hero" style="padding:16px"><small>Crypto Portfolio</small><h2 style="font-size:28px">$1,184.20</h2><span class="chip">${ic('up')} +3.1% today</span></div>
+ <div class="two" style="margin-bottom:14px"><button class="btn m">Buy</button><button class="btn o">Sell</button></div><div class="in">${ic('search')}Search coins</div>
+ <div class="card" style="padding:4px 16px">${[['₿','#FFB84D','Bitcoin','BTC','$67,420','+2.4%',[3,4,3.5,5,4.6,6,7],1],['Ξ','#8D97BD','Ethereum','ETH','$3,520','−0.8%',[6,5,5.5,4,4.4,3,3.4],0],['₮','#2EE6A6','Tether','USDT','$1.00','0.0%',[5,5,5.1,5,5,5.1,5],1],['T','#FF5C7A','Tron','TRX','$0.14','+3.1%',[2,3,2.6,4,5,4.6,6],1],['B','#FFB84D','BNB','BNB','$598','+1.2%',[3,3.4,3,4,4.2,4.8,5],1]].map(c=>`<div class="row">${bub(c[0],c[1])}<div>${c[2]}<small>${c[3]}</small></div>${sp(c[6],c[7]?'#2EE6A6':'#FF5C7A')}<em class="${c[7]?'up':'dn'}">${c[4]}<small class="${c[7]?'up':'dn'}">${c[5]}</small></em></div>`).join('')}</div>`,
+
+assets:()=>`${T('Assets')}<div class="card"><div class="donut"><div><span><b>$3,664</b>Total</span></div></div>
+ ${[['var(--v)','USDT Wallet','42%'],['var(--c)','Crypto','28%'],['var(--m)','Rewards','18%'],['var(--a)','Shop credit','12%']].map(l=>`<div class="row" style="padding:8px 0"><span style="width:10px;height:10px;border-radius:50%;background:${l[0]}"></span><div>${l[1]}</div><em>${l[2]}</em></div>`).join('')}</div>
+ <div class="sh">Your Wallets</div><div class="card" style="padding:4px 16px">${tx('usd','#7C5CFF','USDT (TRC20)','Main wallet','2,480.50','')}${tx('chart','#22D3EE','Crypto Portfolio','5 coins','$1,184.20','')}${tx('gift','#2EE6A6','Referral Rewards','Earned','37.00 USDT','up')}</div>${NV('assets')}`,
+
+activity:()=>`${T('Activity')}<div class="fl"><span class="on">All</span><span>Deposits</span><span>Withdrawals</span><span>Rewards</span></div>
+ <div class="sh">Today</div><div class="card" style="padding:4px 16px">${tx('dl','#2EE6A6','Deposit · USDT','10:24 · Completed','+100.00','up')}${tx('cart','#FF5C9A','Amazon purchase','08:10 · Completed','−49.99','dn')}</div>
+ <div class="sh">This Week</div><div class="card" style="padding:4px 16px">${tx('up','#FFB84D','Withdraw · USDT','Yesterday · Completed','−25.00','dn')}${tx('gift','#7C5CFF','Referral reward · Ahmed','12 Sep','+5.00','up')}${tx('gift','#7C5CFF','Referral reward · Sara','08 Sep','+5.00','up')}${tx('dl','#2EE6A6','Deposit · USDT','04 Sep · Pending','+50.00','mu')}</div>${NV('activity')}`,
+
+referral:()=>`${T('Referral','home')}<div class="hero" style="padding:22px"><h1 style="font-size:24px;line-height:1.2">Invite friends,<br>earn USDT</h1><p style="font-size:12.5px;opacity:.9;margin:8px 0 14px;max-width:70%">Earn when they join and make a deposit.</p><span class="pill">AP10023 ${ic('copy')}</span></div>
+ <div class="two" style="margin-bottom:14px"><div class="card" style="margin:0;text-align:center">${bub(ic('user'),'#2EE6A6')}<h2 style="margin-top:8px">5 USDT</h2><small class="mu">Level 1 · Direct</small></div><div class="card" style="margin:0;text-align:center">${bub(ic('users'),'#7C5CFF')}<h2 style="margin-top:8px">2 USDT</h2><small class="mu">Level 2 · Indirect</small></div></div>
+ <div class="two" style="margin-bottom:14px"><button class="btn m">${ic('share')} WhatsApp</button><button class="btn">${ic('link')} Share Link</button></div>
+ <div class="card"><div class="lvl"><div>Total<b>12</b></div><div>Direct<b>8</b></div><div>Indirect<b>14</b></div></div></div>
+ <div class="sh">My Referrals <span onclick="go('network')">Network view</span></div><div class="card" style="padding:4px 16px">${[['Ahmed Khan','AP45872','Active','+5 USDT'],['Sara Ali','AP77219','Active','+5 USDT'],['Usman Malik','AP99012','Pending','–'],['Hina Fatima','AP66781','Active','+5 USDT']].map(r=>`<div class="row"><span class="av" style="width:42px;height:42px;border-radius:14px">${r[0][0]}</span><div>${r[0]}<small>${r[1]}</small></div><em class="${r[2]=='Active'?'up':'mu'}">${r[3]}<small>${r[2]}</small></em></div>`).join('')}</div>`,
+
+network:()=>`${T('Referral Network','referral')}<div class="card" style="font-size:12.5px;line-height:2"><span style="color:var(--c)">●</span> You &nbsp; <span style="color:var(--m)">●</span> Level 1 (5 USDT) &nbsp; <span style="color:var(--v)">●</span> Level 2 (2 USDT)</div>
+ <div class="tree"><div class="nd" style="width:140px;margin:auto;background:var(--g);color:#fff"><b>You</b><br>AP10023</div>
+ <div class="kids" style="grid-template-columns:repeat(3,1fr)">${[['Ahmed','AP45872','3'],['Sara','AP77219','5'],['Hina','AP66781','2']].map(n=>`<div class="nd" style="border-color:rgba(46,230,166,.4)"><b>${n[0]}</b><br>${n[1]}<br><span class="up">+5 USDT</span><br>${n[2]} referrals</div>`).join('')}</div>
+ <div class="kids" style="grid-template-columns:repeat(6,1fr);gap:5px;font-size:9.5px">${['Ali','Zoya','Bilal','Ayesha','Imran','Sana'].map(n=>`<div class="nd" style="border-color:rgba(124,92,255,.5)"><b style="font-size:11px">${n}</b><br>+2</div>`).join('')}</div></div>
+ <div class="card" style="margin-top:18px"><div class="lvl"><div>Level 1<b class="up">8</b></div><div>Level 2<b>14</b></div><div>Earned<b>37</b></div></div></div>`,
+
+shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient(135deg,#0B1330,#16286B);padding:20px"><span class="amz">amazon</span><h2 style="font-size:22px;margin:14px 0 6px;max-width:75%;letter-spacing:0">AegisPay Amazon-Style Shop</h2><small>35 products per category, product photos, worldwide sample reviews and cart-ready browsing.</small></div>
+ <div class="in">${ic('search')}Search products…</div><button class="btn" style="margin-bottom:18px" onclick="location.href='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay'">Open Full Shop ${ic('arrow')}</button>
+ <div class="card"><div class="row" style="padding-top:4px"><div><b>Full catalog</b><small>7 categories · 35 items each</small></div><em>245 items</em></div><div class="row" style="border:0;padding-bottom:4px"><div><b>Reviews</b><small>8 unique sample reviews per item · worldwide locations</small></div><em>1,960</em></div></div>
+ <div class="sh">Shop by Category</div><div class="cats">${[['phone','Laptop &amp; Tech','#22D3EE'],['phone','Mobile Accessories','#22D3EE'],['bot','Audio &amp; Wearables','#8D97BD'],['cook','Home &amp; Kitchen','#2EE6A6'],['shirt','Fashion','#FF5C7A'],['spark','Beauty &amp; Care','#E879F9'],['book','Toys, Games &amp; Books','#FFB84D']].map(c=>`<div class="cat"><b style="background:${c[2]}26;color:${c[2]}">${ic(c[0])}</b>${c[1]}</div>`).join('')}</div>`,account:()=>`${T('Profile')}<div class="card" style="display:flex;gap:14px;align-items:center"><div class="av" style="width:60px;height:60px;border-radius:22px;font-size:24px">A</div><div style="flex:1"><h2 style="font-size:19px">Client Name</h2><small class="mu">Client ID: AP-10023</small><div style="margin-top:6px"><span class="chip">${ic('check')} Verified</span> <span class="chip w">LV 2</span></div></div></div>
+ <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
+ <div class="card" style="padding:0 16px">${[['user','Account Details','#7C5CFF'],['shield','Security &amp; PIN','#2EE6A6'],['card','Payment Methods','#22D3EE'],['bell','Notifications','#FFB84D'],['set','Settings','#8D97BD'],['out','Log Out','#FF5C7A']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
+
+bot:()=>`<div class="ai-page"><div class="tb"><div class="av">${ic('spark')}</div><div style="flex:1"><h1 style="font-size:18px">AegisPay AI</h1><small class="up" id="aiOnline">● Online</small></div></div>
+ <div class="ai-chat" id="aiMessages" aria-live="polite"></div>
+ <div class="ai-composer"><input type="text" id="aiInput" placeholder="Ask me anything…" aria-label="Ask AegisPay AI" maxlength="1000" autocomplete="off"><button type="button" id="aiSend" aria-label="Send">${ic('send')}</button></div>${NV('bot')}</div>`};
+function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
+go('login');
+</script>
+<script src="./supabase-sdk.js"></script>
+<script>
+(function(){
+const U='https://wtcspnrmsoisroavojop.supabase.co',K='sb_publishable_pDg6Ef_P6fZnNvrKkuBm0Q_uEQMItB2';
+const db=supabase.createClient(U,K,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
+const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0;
+function uiNotice(message,type='error',duration=4200){
+  const root=document.getElementById('app');if(!root)return;
+  const old=root.querySelector('.app-notice');if(old)old.remove();
+  const el=document.createElement('div');el.className='app-notice '+(type==='success'?'success':type==='info'?'info':'error');
+  el.innerHTML='<span style="font-size:15px;line-height:1">'+(type==='success'?'✓':type==='info'?'i':'!')+'</span><span style="flex:1">'+esc(String(message||''))+'</span><button class="x" type="button" aria-label="Close">×</button>';
+  el.querySelector('.x').onclick=()=>el.remove();root.prepend(el);
+  if(duration>0)setTimeout(()=>{if(el.isConnected)el.remove()},duration);
+}
+let activityTickerTimer=null,activityTickerHideTimer=null,activityTickerIndex=0;
+const globalActivityFeed=[
+ ['Olivia - UK','deposited','120.00'],['Hassan - UAE','withdrew','75.00'],['Sofia - Spain','deposited','250.00'],['Kenji - Japan','withdrew','95.00'],['Amara - Nigeria','deposited','180.00'],['Lucas - Brazil','withdrew','60.00'],['Aarav - India','deposited','210.00'],['Mia - USA','withdrew','85.00']
+];
+function stopActivityTicker(){
+ if(activityTickerTimer){clearInterval(activityTickerTimer);activityTickerTimer=null;}
+ if(activityTickerHideTimer){clearTimeout(activityTickerHideTimer);activityTickerHideTimer=null;}
+ const el=document.getElementById('aegisActivityTicker');if(el)el.remove();
+}
+function startActivityTicker(){
+ stopActivityTicker();
+ if(!profile)return;
+ const el=document.createElement('div');el.id='aegisActivityTicker';el.className='activity-ticker';el.setAttribute('aria-hidden','true');document.body.appendChild(el);
+ const show=()=>{
+  const [name,action,amount]=globalActivityFeed[activityTickerIndex%globalActivityFeed.length];activityTickerIndex++;
+  const verb=action==='deposited'?'deposited':'withdrew';
+  el.innerHTML='<span class="tag">ACTIVITY</span><span class="msg"><b>'+esc(name)+'</b> '+verb+' <span class="amount">'+esc(amount)+' USDT</span></span>';
+  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+  if(activityTickerHideTimer)clearTimeout(activityTickerHideTimer);
+  activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000);
+ };
+ setTimeout(show,1200);
+ activityTickerTimer=setInterval(show,30000);
+}
+function clientId(p){
+  const u=formatUsername(p?.username||'');if(u)return u;
+  let h=0;for(const ch of String(p?.id||''))h=(h*31+ch.charCodeAt(0))%1000000;
+  return String(h).padStart(6,'0');
+}
+function updateNotificationBadge(){
+  document.querySelectorAll('.tb .dot').forEach(el=>{
+    el.innerHTML=ic('bell')+(unreadNotifications>0?'<span class="notif-count">'+(unreadNotifications>99?'99+':unreadNotifications)+'</span>':'');
+    el.setAttribute('aria-label','Notifications');el.setAttribute('role','button');el.style.cursor='pointer';
+  });
+}
+async function refreshNotificationCount(){
+  try{
+    if(!profile?.id){unreadNotifications=0;return}
+    const r=await db.from('notifications').select('id',{count:'exact',head:true}).eq('user_id',profile.id).eq('is_read',false);
+    if(!r.error)unreadNotifications=Number(r.count||0);
+  }catch(_){}
+}
+document.addEventListener('click',e=>{
+  const bell=e.target.closest('.tb .dot');
+  if(bell){e.preventDefault();e.stopPropagation();window.go('notifications')}
+});
+const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const formatName=v=>String(v??'').trim().replace(/\s+/g,' ').split(' ').filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
+const formatUsername=v=>String(v??'').trim().toLowerCase();
+async function initData(){
+ const r=await db.rpc('claim_aegispay_profile'); if(r.error)throw r.error; profile=Array.isArray(r.data)?r.data[0]:r.data;
+ authUser=(await db.auth.getUser()).data.user;
+ startActivityTicker();
+ await refreshNotificationCount();
+ const s=await db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime']);
+ (s.data||[]).forEach(x=>settings[x.key]=x.value_json||{});
+ const t=await db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order'); tiers=t.data||[];
+}
+function top(t,b='home'){return '<div class="tb"><b onclick="go(\''+b+'\')">'+ic('back')+'</b><h1>'+t+'</h1><b class="dot">'+ic('bell')+'</b></div>'}
+function nav(a){return '<nav>'+[['home','Home','home'],['assets','Assets','pie'],['activity','Activity','clock'],['bot','AI Bot','bot'],['account','Profile','user']].map(n=>'<a class="'+(n[0]==a?'on':'')+'" onclick="go(\''+n[0]+'\')">'+ic(n[2])+'<span>'+n[1]+'</span></a>').join('')+'</nav>'}
+async function liveHome(){
+ const p=profile,b=Number(p.current_platform_balance||0);
+ const l=await db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(5);
+ const displayName=formatName(p.display_name||p.name||'Client')||'Client'; const displayUsername=formatUsername(p.username||'');
+ app.innerHTML='<div class="tb" style="padding-top:22px"><div class="av">'+esc(displayName[0]||'A')+'</div><div style="flex:1"><small class="mu">Welcome back</small><h1 style="font-size:18px">'+esc(displayName)+'</h1>'+(displayUsername?'<small class="mu">@'+esc(displayUsername)+'</small>':'')+'</div><b class="dot">'+ic('bell')+'</b></div>'+
+ '<div class="hero"><small>Total Balance</small><h2>'+b.toFixed(2)+' <span style="font-size:15px">USDT</span></h2><span class="chip">'+esc(p.status||'Active')+'</span><div style="display:flex;justify-content:space-between;align-items:center;margin-top:18px"><span class="pill">Client ID: '+esc(clientId(p))+' '+ic('copy')+'</span><span class="chip w">'+esc((()=>{const t=(tiers||[]).find(x=>String(x.id)===String(p.selected_tier_id))|| (tiers||[]).find(x=>String(x.name).toLowerCase()===String(p.selected_tier_id||'').toLowerCase());return t?.name||p.selected_tier_name||p.vip_level||'Client'})() )+'</span></div></div>'+
+ '<div class="qa"><div onclick="go(\'topup\')"><b style="background:linear-gradient(135deg,#7C5CFF,#5B3DF5)">'+ic('usd')+'</b>Top Up</div><div onclick="go(\'withdraw\')"><b style="background:linear-gradient(135deg,#22D3EE,#0891B2)">'+ic('up')+'</b>Withdraw</div><div onclick="go(\'tasks\')"><b style="background:linear-gradient(135deg,#FFB84D,#E8830C)">'+ic('check')+'</b>Tasks</div><div onclick="go(\'shop\')"><b style="background:linear-gradient(135deg,#FF5C9A,#C026D3)">'+ic('cart')+'</b>Shop</div></div>'+
+ '<div class="card"><div class="sh">User Level</div><div class="opt s" style="margin-bottom:0"><div style="flex:1"><b style="font-size:16px;color:var(--t)">'+esc((()=>{const t=(tiers||[]).find(x=>String(x.id)===String(p.selected_tier_id))|| (tiers||[]).find(x=>String(x.name).toLowerCase()===String(p.selected_tier_id||'').toLowerCase());return t?.name||p.selected_tier_name||p.vip_level||'Not Assigned'})() )+'</b><small>Active</small></div><span class="chip">Active</span></div></div>'+
+ '<div class="promo" onclick="go(\'referral\')"><div style="flex:1"><b>Referral</b><p>Invite friends and track your network rewards.</p><span class="pill">Code: '+esc(p.referral_code||'—')+'</span></div><div class="gb">'+ic('gift')+'</div></div>'+
+ '<div class="sh">Recent Activity</div><div class="card" style="padding:4px 16px">'+((l.data||[]).map(x=>'<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em>'+((Number(x.amount)>=0)?'+':'')+Number(x.amount).toFixed(2)+'</em></div>').join('')||'<div class="mu" style="padding:14px 0">No activity yet.</div>')+'</div>'+nav('home');
+}
+async function activateClientTier(tierId){
+ try{
+   const chosen=tiers.find(x=>String(x.id)===String(tierId));
+   if(!chosen)throw Error('Please select a valid tier.');
+   const available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0));
+   if(available<Number(chosen.deposit_amount||0))throw Error('Your available balance is below this tier requirement.');
+   const r=await db.rpc('ai_activate_tier',{p_tier_id:String(tierId)});
+   if(r.error)throw r.error;
+   await initData();
+   await liveShop();
+   uiNotice('Tier '+String(chosen.name)+' activated. Your Shop tasks are being assigned automatically.','success');
+ }catch(e){uiNotice(e.message||'Unable to activate tier.','error')}
+}
+async function completeShopTask(taskId){
+ const btn=document.querySelector('[data-complete-task="'+taskId+'"]');
+ if(btn){btn.disabled=true;btn.textContent='Completing…';}
+ try{
+   const r=await db.rpc('complete_shop_task',{p_task_id:taskId});
+   if(r.error)throw r.error;
+   await initData();
+   await liveShop();
+   uiNotice('Task completed successfully.','success');
+ }catch(e){
+   if(btn){btn.disabled=false;btn.textContent='Complete';}
+   uiNotice(e.message||'Unable to complete task.','error');
+ }
+}
+
+async function liveTopup(){
+ const d=settings.deposit_rules||{};
+ const wallet=String(d.trc20_wallet_address||d.deposit_wallet_address||d.deposit_address||d.wallet_address||d.receiving_address||'').trim();
+ const available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0));
+ const activeTier=tiers.find(t=>String(t.id)===String(profile.selected_tier_id||''));
+ const tierCards=tiers.map(t=>{
+   const affordable=available>=Number(t.deposit_amount||0);
+   const selected=String(profile.selected_tier_id||'')===String(t.id);
+   return '<button type="button" class="tier-card '+(selected?'selected ':'')+(!affordable?'locked':'')+'" data-tier-id="'+esc(t.id)+'" '+(!affordable?'disabled':'')+'><span class="tier-check">✓</span><div class="tier-name">'+esc(t.name)+'</div><div class="tier-amt">'+Number(t.deposit_amount||0).toFixed(0)+' USDT</div><small>Base profit '+Number(t.initial_profit||0).toFixed(2)+' USDT</small><small>'+ (affordable?'Eligible with current balance':'Requires '+Number(t.deposit_amount||0).toFixed(0)+' USDT available') +'</small></button>';
+ }).join('');
+ app.innerHTML=top('Top Up')+
+ '<div class="card"><div class="sh">Deposit Amount <span style="color:var(--c);font-size:11px">Minimum 10 USDT</span></div><div class="amt" style="padding:18px 10px"><small>Enter any amount you want to deposit</small><div class="ap-field" style="margin-top:12px;margin-bottom:0"><input id="depAmount" type="number" min="10" step="0.01" inputmode="decimal" placeholder="10.00 USDT" autocomplete="off"></div></div></div>'+
+ '<div class="card">'+(wallet?qr():'')+'<div class="sh">USDT (TRC20) Deposit Wallet Address</div><div class="in f">'+(wallet?esc(wallet):'Deposit wallet address is not configured')+'</div><div class="mu" style="font-size:11px;margin:-4px 0 12px">Send USDT only on the configured TRON network to this address.</div><div class="ap-field"><label>Transaction ID / TXID</label><input id="txid" type="text" autocomplete="off" placeholder="Enter transaction ID / TXID" required></div><label class="filepick">Choose File — Deposit Screenshot<input id="proof" type="file" accept="image/*"></label><button class="btn" style="margin-top:12px" id="submitDep">Submit Deposit '+ic('arrow')+'</button><div class="mu" style="font-size:11px;margin-top:10px">No deposit fee is charged by AegisPay. After verification, choose one of the six tiers below to activate Shop tasks.</div></div>'+
+ '<div class="card"><div class="sh" style="margin-top:0">Choose Your Tier <span>'+Number(available).toFixed(2)+' USDT available</span></div><div class="mu" style="font-size:11px;line-height:1.55">A deposit can remain unactivated. Profit-bearing Shop tasks start only after you select a tier that your available balance can cover.</div><div class="tier-grid">'+tierCards+'</div>'+(activeTier?'<div class="mu" style="font-size:10.5px;margin-top:12px">Current tier: <b style="color:var(--t)">'+esc(activeTier.name)+'</b></div>':'')+'<button class="btn" style="margin-top:14px" id="activateTierBtn" disabled>Activate Selected Tier '+ic('arrow')+'</button></div>';
+ document.querySelectorAll('[data-tier-id]').forEach(el=>el.onclick=()=>{
+   document.querySelectorAll('[data-tier-id]').forEach(x=>x.classList.toggle('selected',x===el));
+   const b=document.getElementById('activateTierBtn');if(b){b.disabled=false;b.dataset.tierId=el.getAttribute('data-tier-id');}
+ });
+ const ab=document.getElementById('activateTierBtn');
+ if(ab)ab.onclick=()=>activateClientTier(ab.dataset.tierId||'');
+ submitDep.onclick=async()=>{try{
+   const amount=Number(depAmount.value),f=proof.files[0],tx=txid.value.trim();
+   if(!Number.isFinite(amount)||amount<10)throw Error('Minimum deposit amount is 10 USDT.');
+   if(!wallet)throw Error('Deposit wallet address is not configured.');
+   if(!tx)throw Error('Please enter the transaction ID / TXID.');
+   if(!f)throw Error('Please choose the deposit screenshot.');
+   submitDep.disabled=true;submitDep.style.opacity='.65';
+   const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase());
+   const up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});
+   if(up.error)throw up.error;
+   const rr=await db.functions.invoke('submit-deposit',{body:{amount,txid:tx,screenshotPath:path}});
+   if(rr.error)throw rr.error;
+   go('activity');uiNotice(rr.data?.message||'Deposit submitted for verification.','success');
+ }catch(e){uiNotice(e.message||'Deposit failed','error')}finally{submitDep.disabled=false;submitDep.style.opacity='1'}};
+}
+
+async function liveWithdraw(){
+ const p=profile,r=settings.withdrawal_rules||{};const b=Number(p.current_platform_balance||0);
+ const k=await db.from('kyc_verifications').select('status,document_type,submitted_at,review_reason').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle();
+ const ks=k.data?.status||null;
+ if(ks!=='VERIFIED'){
+  const pending=ks==='PENDING_REVIEW'||ks==='MANUAL_REVIEW';
+  const walletBlock=p.destination_address?'<div class="card"><div class="sh" style="margin-top:0">Withdrawal Wallet Address (TRC20)<span class="chip">Linked · Locked</span></div><div class="in f">'+esc(p.destination_address)+'</div><div class="mu" style="font-size:11px;margin-top:-4px">This address is locked for the client. Only Master Admin can change it.</div></div>':'<div class="card"><div class="sh" style="margin-top:0">Withdrawal Wallet Address (TRC20)</div><div class="ap-field"><label>TRC20 Wallet Address</label><input id="withdrawWallet" type="text" autocomplete="off" placeholder="Enter TRC20 wallet address"></div><button class="btn o" id="linkWalletBtn">Link Wallet '+ic('link')+'</button><div class="mu" style="font-size:11px;margin-top:8px">After linking, this address will be locked. Only Master Admin can change it.</div></div>';
+  app.innerHTML=top('Withdraw')+walletBlock+'<div class="card"><div class="sh" style="margin-top:0">Identity Verification</div><p class="mu" style="font-size:12px;line-height:1.55;margin-bottom:14px">'+(pending?'Your verification is under secure review. Withdrawals will unlock after verification is completed.':'For your first withdrawal, complete identity verification. Choose CNIC and upload front + back, or Passport and upload the photo page.')+'</p>'+(!pending?'<div class="fl" style="margin-bottom:14px"><span class="on" id="cnicTab" onclick="setDocType(\'CNIC\')">CNIC</span><span id="passTab" onclick="setDocType(\'PASSPORT\')">Passport</span></div><input type="hidden" id="docType" value="CNIC"><label class="filepick">CNIC / Passport front<input id="kycFront" type="file" accept="image/*"></label><label class="filepick" id="kycBackWrap">CNIC back<input id="kycBack" type="file" accept="image/*"></label><label class="in" style="font-size:12px;cursor:pointer"><input id="kycConsent" type="checkbox" style="width:18px;height:18px"> I consent to secure identity-document review.</label><button class="btn" id="kycBtn">Submit Verification '+ic('arrow')+'</button>':'<div class="warn">'+ic('alert')+'<span>Verification pending. Please wait for the review result.</span></div>')+'</div>';
+  const showWithdrawNotice=function(message,type){const old=document.getElementById('withdrawNotice');if(old)old.remove();const el=document.createElement('div');el.id='withdrawNotice';el.style.cssText='display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;padding:12px 14px;border-radius:14px;border:1px solid '+(type==='success'?'rgba(44,220,164,.35)':'rgba(255,78,112,.35)')+';background:'+(type==='success'?'rgba(44,220,164,.08)':'rgba(255,55,90,.08)')+';color:'+(type==='success'?'#72f0c1':'#ff7892')+';font-size:12px;line-height:1.5;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.16)';el.innerHTML='<span style="font-size:16px;line-height:1">'+(type==='success'?'✓':'!')+'</span><span>'+esc(String(message||''))+'</span>';const card=document.querySelector('.card');if(card)card.parentNode.insertBefore(el,card);};
+  if(!p.destination_address){linkWalletBtn.onclick=async()=>{try{const wallet=withdrawWallet.value.trim().toUpperCase();if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address');const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});if(rr.error)throw rr.error;profile.destination_address=wallet;profile.withdrawal_wallet_owner_name=profile.name;showWithdrawNotice('Withdrawal wallet linked and locked.','success');liveWithdraw()}catch(e){showWithdrawNotice(e.message||'Unable to link wallet','error')}};}
+  if(!pending){window.setDocType=function(type){docType.value=type;cnicTab.classList.toggle('on',type==='CNIC');passTab.classList.toggle('on',type==='PASSPORT');kycBackWrap.style.display=type==='CNIC'?'flex':'none';kycFront.accept='image/*';};kycBtn.onclick=async()=>{kycBtn.disabled=true;kycBtn.style.opacity='.65';try{const type=docType.value,front=kycFront.files[0],back=kycBack.files[0];if(!front)throw Error('Front image is required.');if(type==='CNIC'&&!back)throw Error('CNIC back image is required.');if(!kycConsent.checked)throw Error('Please provide verification consent.');const base=authUser.id+'/kyc/';const ext=f=>(f.name.split('.').pop()||'jpg').toLowerCase();const fp=base+crypto.randomUUID()+'.'+ext(front);let bp='';const u1=await db.storage.from('private-verification').upload(fp,front,{contentType:front.type||'image/jpeg'});if(u1.error)throw u1.error;if(type==='CNIC'){bp=base+crypto.randomUUID()+'.'+ext(back);const u2=await db.storage.from('private-verification').upload(bp,back,{contentType:back.type||'image/jpeg'});if(u2.error)throw u2.error;}const rr=await db.functions.invoke('submit-kyc',{body:{documentType:type,frontPath:fp,backPath:bp,processingConsent:true}});if(rr.error){const msg=rr.error.message||'KYC submission could not be completed.';if(String(msg).toLowerCase().includes('still in progress'))throw Error('Your CNIC verification is already under review. You do not need to submit it again.');throw rr.error;}showWithdrawNotice(rr.data?.message||'Verification submitted successfully.','success');setTimeout(liveWithdraw,900)}catch(e){showWithdrawNotice(e.message||'Verification failed. Please try again.','error')}finally{kycBtn.disabled=false;kycBtn.style.opacity='1'}};}
+  return;
+ }
+ app.innerHTML=top('Withdraw')+'<div class="card" style="text-align:center"><small class="mu">Available balance</small><h2 style="font-size:32px;margin:4px 0">'+b.toFixed(2)+' <span class="mu" style="font-size:15px">USDT</span></h2></div><div class="card"><div class="ap-field"><label>Withdrawal amount</label><input id="wAmount" type="number" min="'+(r.minimum||50)+'" step=".01" placeholder="Enter amount"></div><div class="ap-field"><label>Withdrawal Wallet Address (TRC20)</label>'+(p.destination_address?'<div class="in f">'+esc(p.destination_address)+'<span class="chip">Linked · Locked</span></div><div class="mu" style="font-size:11px;margin:-4px 0 12px">This wallet cannot be changed from the client portal. Only Master Admin can change it.</div>':'<input id="withdrawWallet" type="text" autocomplete="off" placeholder="Enter TRC20 wallet address"><button class="btn o" id="linkWalletBtn" style="margin-top:8px">Link Wallet '+ic('link')+'</button><div class="mu" style="font-size:11px;margin:8px 0 12px">After linking, this address will be locked. Only Master Admin can change it.</div>')+'</div><button class="btn" id="wBtn">Request Withdrawal '+ic('arrow')+'</button></div>';
+if(!p.destination_address){linkWalletBtn.onclick=async()=>{try{const wallet=withdrawWallet.value.trim().toUpperCase();if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address');const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});if(rr.error)throw rr.error;profile.destination_address=wallet;profile.withdrawal_wallet_owner_name=profile.name;uiNotice('Withdrawal wallet linked and locked.');liveWithdraw()}catch(e){uiNotice(e.message||'Unable to link wallet')}};}
+wBtn.onclick=async()=>{try{if(!profile.destination_address)throw Error('Link your withdrawal wallet first.');const a=Number(wAmount.value);const x=await db.rpc('request_withdrawal',{p_amount:a});if(x.error)throw x.error;const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});go('home');uiNotice(tg.error?'Withdrawal submitted, but the Telegram approval alert could not be sent automatically.':'Withdrawal submitted and sent for Master Admin approval.','success')}catch(e){uiNotice(e.message||'Withdrawal failed')}};
+}
+async function liveNotifications(){
+ const p=profile;
+ const r=await db.from('notifications').select('id,notification_type,title,body,is_read,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ if(r.error){uiNotice('Unable to load notifications.','error');return liveHome()}
+ const items=r.data||[];unreadNotifications=items.filter(x=>!x.is_read).length;
+ app.innerHTML='<div class="notif-page">'+top('Notifications','home')+'<div class="notif-head"><div><div class="sh" style="margin:0">Updates</div><small class="mu">'+(unreadNotifications?unreadNotifications+' unread notification'+(unreadNotifications===1?'':'s'):'All notifications are read')+'</small></div>'+(unreadNotifications?'<button id="markAllNotifications" type="button">Mark all as read</button>':'')+'</div><div id="notificationList">'+(items.map(x=>'<button type="button" class="notif-card '+(!x.is_read?'unread':'')+'" data-notification-id="'+esc(x.id)+'"><span class="nicon">'+ic('bell')+'</span><span class="nbody"><span class="ntitle">'+esc(x.title||'AegisPay Update')+'</span><span class="ntext">'+esc(x.body||'')+'</span><span class="ntime">'+esc(new Date(x.created_at).toLocaleString())+'</span></span>'+(!x.is_read?'<span class="dotunread"></span>':'')+'</button>').join('')||'<div class="card" style="text-align:center;padding:28px 16px"><div style="font-size:28px;margin-bottom:8px">🔔</div><div style="font-weight:700">No notifications yet</div><div class="mu" style="font-size:11px;margin-top:6px">New account, deposit, Shop and withdrawal updates will appear here.</div></div>')+'</div></div>'+NV('account');
+ document.querySelectorAll('[data-notification-id]').forEach(el=>el.onclick=async()=>{
+   const id=el.getAttribute('data-notification-id');if(!id)return;
+   const item=items.find(x=>String(x.id)===String(id));
+   if(item&&!item.is_read){const u=await db.from('notifications').update({is_read:true}).eq('id',id).eq('user_id',p.id);if(!u.error)item.is_read=true;}
+   unreadNotifications=items.filter(x=>!x.is_read).length;updateNotificationBadge();
+   if(item){el.classList.remove('unread');const dot=el.querySelector('.dotunread');if(dot)dot.remove();}
+ });
+ const all=document.getElementById('markAllNotifications');
+ if(all)all.onclick=async()=>{
+   const u=await db.from('notifications').update({is_read:true}).eq('user_id',p.id).eq('is_read',false);
+   if(u.error){uiNotice('Unable to mark notifications as read.','error');return}
+   unreadNotifications=0;updateNotificationBadge();liveNotifications();
+ };
+ updateNotificationBadge();
+}
+async function liveActivity(){
+ const p=profile;
+ const l=await db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ const w=await db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ const r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ if(l.error||w.error||r.error){uiNotice('Unable to load activity history right now. Please try again.','error');return}
+ const rows=l.data||[], withdrawals=w.data||[], refs=r.data||[];
+ const sum=(arr)=>arr.reduce((n,x)=>n+Math.abs(Number(x.amount||x.platform_reward||0)),0);
+ const deposits=rows.filter(x=>Number(x.amount)>0&&!/referral|reward|profit|task/i.test((x.description||'')+' '+(x.entry_type||'')));
+ const profits=rows.filter(x=>Number(x.amount)>0&&/profit|task/i.test((x.description||'')+' '+(x.entry_type||'')));
+ const refTotal=sum(refs);
+ const card=(type,title,sub,total,icon,color)=>'<button type="button" class="card activity-history" data-activity-history="'+type+'" style="background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border-color:'+color+'55"><div style="display:flex;align-items:center;gap:14px"><span class="bub" style="background:'+color+'22;color:'+color+'">'+ic(icon)+'</span><div style="flex:1"><h3 style="font-size:15px">'+title+'</h3><small class="mu">'+sub+'</small></div><div style="text-align:right"><b style="font-size:17px">'+Number(total).toFixed(2)+' USDT</b><small class="mu" style="display:block;margin-top:3px">View History '+ic('chev')+'</small></div></div></button>';
+ app.innerHTML=top('Activity')+
+ '<div class="sh">Activity Categories</div>'+
+ card('deposit','Deposit','Credit · Deposit history',sum(deposits),'dl','#2EE6A6')+
+ card('withdrawal','Withdrawal','Debit · Withdrawal history',sum(withdrawals),'up','#FF5C7A')+
+ card('profit','Task Profit','Completed task earnings',sum(profits),'check','#FFB84D')+
+ card('referral','Referral Rewards','Referral earnings history',refTotal,'gift','#7C5CFF')+
+ '<div class="warn" style="margin-top:4px">'+ic('alert')+'<span>Select any category to view its dedicated history.</span></div>'+nav('activity');
+ document.querySelectorAll('[data-activity-history]').forEach(el=>el.addEventListener('click',()=>activityHistory(el.getAttribute('data-activity-history')||'')));
+}
+async function activityHistory(type){
+ const p=profile;
+ const l=await db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ const w=await db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ const r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ let title='',items=[];
+ if(type==='deposit'){title='Deposit History';items=(l.data||[]).filter(x=>Number(x.amount)>0&&!/referral|reward|profit|task/i.test((x.description||'')+' '+(x.entry_type||''))).map(x=>({label:x.description||'Deposit · USDT',date:x.created_at,amount:'+'+Number(x.amount).toFixed(2),status:x.entry_type||'Credit'}));}
+ if(type==='withdrawal'){title='Withdrawal History';items=(w.data||[]).map(x=>({label:'Withdrawal · USDT',date:x.created_at,amount:'−'+Number(x.amount).toFixed(2),status:x.status||'Debit'}));}
+ if(type==='profit'){title='Task Profit History';items=(l.data||[]).filter(x=>Number(x.amount)>0&&/profit|task/i.test((x.description||'')+' '+(x.entry_type||''))).map(x=>({label:x.description||'Task Profit',date:x.created_at,amount:'+'+Number(x.amount).toFixed(2),status:'Profit'}));}
+ if(type==='referral'){title='Referral Rewards History';items=(r.data||[]).map(x=>({label:'Referral Reward · Level '+x.referral_level,date:x.created_at,amount:'+'+Number(x.platform_reward||0).toFixed(2),status:'Reward'}));}
+ app.innerHTML=top(title,'activity')+'<div class="card" style="padding:4px 16px">'+(items.length?items.map(x=>'<div class="row"><div>'+esc(x.label)+'<small>'+new Date(x.date).toLocaleString()+'</small></div><em class="up">'+x.amount+'<small>'+esc(x.status)+'</small></em></div>').join(''):'<div class="mu" style="padding:16px 0;text-align:center">No history available yet.</div>')+'</div>'+nav('activity');
+}
+
+async function liveReferral(){
+ const p=profile,r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false});
+ app.innerHTML=top('Referral')+'<div class="hero"><h2 style="font-size:25px">Invite friends,<br>earn USDT</h2><p style="margin:8px 0 14px">Your referral code</p><span class="pill">'+esc(p.referral_code||'—')+' '+ic('copy')+'</span></div><div class="card"><div class="lvl"><div>Total<b>'+(r.data?.length||0)+'</b></div><div>Level 1<b>'+(r.data||[]).filter(x=>x.referral_level===1).length+'</b></div><div>Level 2<b>'+(r.data||[]).filter(x=>x.referral_level===2).length+'</b></div></div></div><div class="sh">My Referrals</div><div class="card" style="padding:4px 16px">'+((r.data||[]).map(x=>'<div class="row">'+ic('user')+'<div>Referral User<small>Level '+x.referral_level+'</small></div><em>+'+Number(x.platform_reward||0).toFixed(2)+' USDT</em></div>').join('')||'<div class="mu" style="padding:14px 0">No referrals yet.</div>')+'</div>'+nav('home');
+}
+async function liveAssets(){const p=profile;app.innerHTML=top('Assets')+'<div class="card"><div class="donut"><div><b>'+Number(p.current_platform_balance||0).toFixed(2)+'</b><span>USDT</span></div></div><div class="sh"><span>Platform Balance</span><b>'+Number(p.current_platform_balance||0).toFixed(2)+'</b></div><div class="sh"><span>Principal</span><b>'+Number(p.principal_balance||0).toFixed(2)+'</b></div><div class="sh"><span>Profit</span><b>'+Number(p.profit_balance||0).toFixed(2)+'</b></div></div>'+nav('assets')}
+async function liveAccount(){const p=profile;const displayName=formatName(p.name||'Client')||'Client';const displayUsername=formatUsername(p.username||'');app.innerHTML=top('Profile')+'<div class="card" style="display:flex;gap:14px;align-items:center"><div class="av">'+esc(displayName[0]||'A')+'</div><div><h2 style="font-size:19px">'+esc(displayName)+'</h2><small class="mu" style="display:block;margin:3px 0">Client ID: '+esc(clientId(p))+'</small>'+(displayUsername?'<small class="mu" style="display:block;margin-bottom:3px">@'+esc(displayUsername)+'</small>':'')+'<small class="mu">'+esc(p.email||authUser.email||'')+'</small><div style="margin-top:6px"><span class="chip">'+esc(p.status||'Active')+'</span></div></div></div><div class="card"><div class="sh"><span>Referral Code</span><b>'+esc(p.referral_code||'—')+'</b></div><div class="sh"><span>Withdrawal Wallet</span><b style="max-width:190px;overflow:hidden;text-overflow:ellipsis">'+esc(p.destination_address||'Not linked')+'</b></div></div><button class="btn o" onclick="liveLogout()">'+ic('out')+' Sign Out</button>'+nav('account')}
+let taskProductData={};
+const taskReviewSamples=[
+ "The product looks good and matches the listing. Quality feels solid for everyday use.",
+ "Good value for the price and easy to use. Packaging was neat when it arrived.",
+ "I compared a few options and this one worked well for my needs.",
+ "The finish is clean and the product performs as expected.",
+ "Overall a useful purchase with good value and a straightforward design."
+];
+function taskStars(r){const n=Math.max(0,Math.min(5,Number(r||0)));return '★★★★★'.slice(0,Math.round(n))+'☆☆☆☆☆'.slice(0,5-Math.round(n));}
+function taskReviewList(product){
+ const base=Math.max(1,Number(String(product?.id||'').replace(/[^0-9]/g,'')||1));
+ const names=['Aiden','Amelia','Arjun','Aisha','Daniel'];
+ return taskReviewSamples.slice(0,3).map((t,i)=>({name:names[(base+i)%names.length],text:t,d:(3+i*5)+' days ago'}));
+}
+function taskImageFallbackUrl(title,variant){
+ const t=String(title||'Assigned Shop Product').trim();
+ const s=t.toLowerCase();
+ const v=((Number(variant)||0)%6+6)%6;
+ const bg=['#f8fafc','#eef2ff','#f1f5f9','#fefce8','#f0fdf4','#fdf4ff'][v];
+ const accent=['#7C5CFF','#22D3EE','#FF5C7A','#FFB84D','#2EE6A6','#A855F7'][v];
+ const escXml=x=>String(x??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[m]));
+ let art='';
+ if(/shoe|running|adidas|footwear|sport/.test(s)){
+  const rot=[-7,0,6,-4,4,8][v];
+  art='<g transform="translate(38 46) rotate('+rot+' 172 88)"><path d="M42 128c30-18 55-38 74-70l23-39 28 14 34 45 91 51c18 10 30 25 29 43-1 17-15 28-34 28H76c-26 0-48-11-48-27 0-18 7-30 14-45z" fill="#ef4444"/><path d="M78 145c49-9 117-3 211 25" fill="none" stroke="#fff" stroke-width="11" stroke-linecap="round"/><path d="M112 56l32 34m-12-47 33 40m-13-50 31 38" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".9"/><path d="M26 172h280" stroke="#111827" stroke-width="8" stroke-linecap="round" opacity=".18"/></g>';
+ }else if(/tracker|tag|tile/.test(s)){
+  const rot=[-8,5,-4,7,-5,3][v];
+  art='<g transform="translate(88 38) rotate('+rot+' 122 122)"><rect x="34" y="22" width="176" height="176" rx="46" fill="#111827"/><rect x="49" y="37" width="146" height="146" rx="37" fill="#f8fafc"/><circle cx="122" cy="108" r="29" fill="'+accent+'" opacity=".88"/><circle cx="122" cy="108" r="11" fill="#fff"/><path d="M83 164c24-18 52-18 78 0" fill="none" stroke="#111827" stroke-width="10" stroke-linecap="round"/><circle cx="122" cy="18" r="10" fill="#111827"/></g>';
+ }else if(/keyboard|mouse|monitor|laptop|computer/.test(s)){
+  art='<g transform="translate(48 52)"><rect x="20" y="24" width="280" height="150" rx="22" fill="#111827"/><rect x="36" y="40" width="248" height="118" rx="14" fill="#0b1022"/><rect x="66" y="70" width="188" height="58" rx="12" fill="'+accent+'" opacity=".22"/><path d="M112 174v24m-45 0h90" stroke="#111827" stroke-width="10" stroke-linecap="round"/></g>';
+ }else if(/earbud|headphone|audio/.test(s)){
+  art='<g transform="translate(70 34)"><path d="M60 88c0-44 40-70 68-70s68 26 68 70" fill="none" stroke="#111827" stroke-width="18" stroke-linecap="round"/><rect x="38" y="88" width="36" height="86" rx="18" fill="'+accent+'"/><rect x="182" y="88" width="36" height="86" rx="18" fill="'+accent+'"/></g>';
+ }else{
+  const glyph=/phone|smart/.test(s)?'PHONE':/watch|wearable/.test(s)?'WATCH':/bag|luggage|backpack|travel/.test(s)?'BAG':/coffee|mug/.test(s)?'MUG':/camera|photo/.test(s)?'CAM':'SHOP';
+  art='<g transform="translate(66 30)"><rect x="38" y="26" width="182" height="182" rx="48" fill="#111827"/><rect x="53" y="41" width="152" height="152" rx="39" fill="'+bg+'"/><text x="129" y="127" text-anchor="middle" font-size="34" font-weight="800" fill="'+accent+'" font-family="Arial,sans-serif">'+glyph+'</text><circle cx="129" cy="163" r="6" fill="#111827"/></g>';
+ }
+ const label=escXml(t.slice(0,28));
+ const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 250"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="'+bg+'"/><stop offset="1" stop-color="#ffffff"/></linearGradient></defs><rect width="360" height="250" rx="30" fill="url(#g)"/><rect x="16" y="16" width="328" height="218" rx="24" fill="#fff" opacity=".9"/><circle cx="52" cy="51" r="17" fill="'+accent+'" opacity=".16"/><circle cx="52" cy="51" r="6" fill="'+accent+'"/><text x="82" y="56" font-family="Arial,sans-serif" font-size="12" font-weight="800" fill="#0f172a">AEGIS SHOP</text>'+art+'<text x="24" y="223" font-family="Arial,sans-serif" font-size="12" font-weight="700" fill="#475569">'+label+'</text><text x="318" y="223" text-anchor="end" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="#64748b">'+(v+1)+' / 6</text></svg>';
+ return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
+}
+function taskImageUrl(url){
+ const raw=String(url||'').trim();
+ if(!raw)return '';
+ if(/^data:image\//i.test(raw)||/^blob:/i.test(raw)||raw.startsWith(location.origin))return raw;
+ return location.origin+'/product-image?url='+encodeURIComponent(raw);
+}
+function bindTaskImageFallback(root){
+ if(!root)return;
+ const probe=(img,url,mode)=>{
+  const target=String(url||'').trim();if(!target)return;
+  const p=new Image();
+  p.onload=()=>{img.src=target;img.dataset.imageState='remote';};
+  p.onerror=()=>{
+   if(mode==='remote'){
+    const direct=img.dataset.directSrc||'';
+    if(direct && img.dataset.directTried!=='1'){img.dataset.directTried='1';probe(img,direct,'direct');}
+   }
+  };
+  p.src=target;
+ };
+ root.querySelectorAll('img[data-remote-src]').forEach(img=>{
+  if(img.dataset.imageFallbackBound)return;
+  img.dataset.imageFallbackBound='1';
+  probe(img,img.dataset.remoteSrc,'remote');
+ });
+}function bindTaskDelegation(){
+  if(window.__aegisTaskDelegationBound)return;
+  window.__aegisTaskDelegationBound=true;
+  document.addEventListener('click',function(e){
+    const view=e.target.closest('[data-open-task-product]');
+    if(view){e.preventDefault();e.stopPropagation();openTaskProduct(view.getAttribute('data-open-task-product')||'');return;}
+    const done=e.target.closest('[data-complete-task]');
+    if(done){e.preventDefault();e.stopPropagation();completeShopTask(done.getAttribute('data-complete-task')||'');return;}
+    const close=e.target.closest('[data-close-task-product]');
+    if(close){e.preventDefault();e.stopPropagation();closeTaskProduct();return;}
+    const buy=e.target.closest('[data-buy-task-product]');
+    if(buy){e.preventDefault();e.stopPropagation();openTaskMarketplace(buy.getAttribute('data-buy-task-product')||'');return;}
+  },true);
+}
+function closeTaskProduct(){const m=document.getElementById('taskProductModal');if(m)m.classList.remove('show');}
+function openTaskMarketplace(taskId){
+ const x=taskProductData[String(taskId)]||{},product=x.product,offer=x.offer;
+ if(!product){uiNotice('Product details are not available for this task yet.','error');return}
+ const returnUrl=location.href;
+ const shopQuery=String(offer?.title||product.title||'').trim();
+ const u='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&task='+encodeURIComponent(taskId)+'&product='+encodeURIComponent(product.id)+'&q='+encodeURIComponent(shopQuery)+'&return='+encodeURIComponent(returnUrl);
+ location.href=u;
+}
+function openTaskProduct(taskId){
+ const x=taskProductData[String(taskId)]||{},task=x.task||{},offer=x.offer||{};
+ let product=x.product||null;
+ if(!product){
+  const fallbackId=String(offer?.product_id||'');
+  product=(window.AegisShopCatalog||[]).find(p=>String(p.id)===fallbackId)||null;
+ }
+ if(!product||!product.id){
+  uiNotice('The assigned Shop product could not be loaded. Please refresh Shop Tasks.','error');
+  return;
+ }
+ const modal=document.getElementById('taskProductModal'),box=document.getElementById('taskProductContent');if(!modal||!box)return;
+ const rating=Number(product.rating||0),reviews=taskReviewList(product);
+ const base=product.image||'',rawGallery=(Array.isArray(product.gallery)&&product.gallery.length?product.gallery:[base]).filter(Boolean).slice(0,7);while(rawGallery.length<6)rawGallery.push('');const gallery=rawGallery.map(taskImageUrl),galleryFallbacks=rawGallery.map((_,i)=>taskImageFallbackUrl(product.title||task.title||'Assigned Shop Product',i));
+ box.innerHTML='<div class="task-modal-head"><div><small class="mu">Assigned Shop Product</small><h2 style="font-size:19px;margin-top:2px">'+esc(product.title||task.title||'Product')+'</h2></div><button type="button" class="task-modal-close" data-close-task-product>×</button></div>'+
+   '<div class="task-gallery"><div class="task-gallery-main"><img id="taskGalleryMain" src="'+esc(galleryFallbacks[0]||'')+'" data-remote-src="'+esc(gallery[0]||'')+'" data-direct-src="'+esc(rawGallery[0]||'')+'" alt="'+esc(product.title||'Product')+'"><span class="task-gallery-count" id="taskGalleryCount">1 / '+gallery.length+'</span></div><div class="task-gallery-thumbs">'+gallery.map((im,i)=>'<button type="button" style="padding:0;border:0;background:transparent" data-gallery-index="'+i+'"><img class="task-gallery-thumb '+(i===0?'on':'')+'" src="'+esc(galleryFallbacks[i]||'')+'" data-remote-src="'+esc(im)+'" data-direct-src="'+esc(rawGallery[i]||'')+'" alt="Product image '+(i+1)+'"></button>').join('')+'</div></div>'+
+   '<div style="margin-top:11px;font-size:12px;color:var(--mu)">'+esc(product.brand||offer.subtitle||'AegisPay Shop')+' · '+esc(product.category||'Shop Product')+'</div>'+
+   '<div class="task-modal-rating"><span class="task-stars">'+taskStars(rating)+'</span><b>'+rating.toFixed(1)+'/5</b><span class="mu">Customer rating</span></div>'+
+   '<div class="card" style="margin-top:13px;margin-bottom:0;padding:13px"><div class="sh" style="margin:0"><span>Task Purchase Value</span><b style="color:var(--t)">'+Number(task.task_value||0).toFixed(2)+' USDT</b></div><small class="mu">Review the assigned item first, purchase it through Shop, then return here and complete the task.</small></div>'+
+   '<div class="sh" style="margin-top:16px"><span>Review Preview</span><span>'+rating.toFixed(1)+' / 5</span></div>'+
+   reviews.map(r=>'<div class="task-review"><div class="who">'+esc(r.name)+' <span class="mu">· '+esc(r.d)+'</span></div><p>'+esc(r.text)+'</p></div>').join('')+
+   '<div class="task-modal-actions"><button type="button" class="btn o" data-close-task-product>Close</button><button type="button" class="btn" data-buy-task-product="'+esc(taskId)+'">Purchase '+ic('arrow')+'</button></div>'+
+   '<div class="task-purchase-note">Product images are served from the assigned Shop catalog. Review Preview is illustrative; the marketplace contains the live listing information.</div>';
+ bindTaskImageFallback(box);
+modal.classList.add('show');
+ const main=document.getElementById('taskGalleryMain'),count=document.getElementById('taskGalleryCount'),thumbs=box.querySelectorAll('[data-gallery-index]');let idx=0;
+ const show=()=>{if(main){main.dataset.remoteSrc=gallery[idx]||'';main.dataset.directSrc=rawGallery[idx]||'';main.src=galleryFallbacks[idx]||taskImageFallbackUrl(product.title||task.title||'Assigned Shop Product',idx);main.dataset.directTried='';main.dataset.imageFallbackBound='';bindTaskImageFallback(main.parentElement);}if(count)count.textContent=(idx+1)+' / '+gallery.length;thumbs.forEach((b,i)=>{const im=b.querySelector('img');if(im)im.classList.toggle('on',i===idx)});};
+ thumbs.forEach(b=>b.onclick=()=>{idx=Number(b.getAttribute('data-gallery-index')||0);show()});
+ let sx=0;if(main){main.ontouchstart=e=>{sx=e.touches[0].clientX};main.ontouchend=e=>{const dx=e.changedTouches[0].clientX-sx;if(Math.abs(dx)>35){idx=(idx+(dx<0?1:-1)+gallery.length)%gallery.length;show()}};main.onclick=()=>{idx=(idx+1)%gallery.length;show()}};
+ box.querySelectorAll('[data-close-task-product]').forEach(b=>b.onclick=closeTaskProduct);
+ const buy=box.querySelector('[data-buy-task-product]');if(buy)buy.onclick=()=>openTaskMarketplace(taskId);
+}
+async function completeShopCycle(cycleId){try{
+ const t=await db.from('tasks').select('id,cycle_id,user_id,status,task_value,reward,title,description').eq('user_id',profile.id).eq('cycle_id',cycleId).order('id',{ascending:true});
+ if(t.error)throw t.error;
+ const tasks=t.data||[];
+ if(!tasks.length)throw Error('No assigned Shop tasks were found for this cycle.');
+ if(tasks.some(x=>String(x.status)==='Completed'))throw Error('This cycle is already partially completed. Please contact Master Admin for reconciliation.');
+ const total=tasks.reduce((n,x)=>n+Number(x.task_value||0),0);
+ const cycle=await db.from('cycle_runs').select('id,status,cycle_base').eq('id',cycleId).eq('user_id',profile.id).maybeSingle();
+ if(cycle.error)throw cycle.error;
+ if(!cycle.data)throw Error('Shop cycle not found.');
+ if(String(cycle.data.status)!=='TASKS_OPEN')throw Error('This Shop cycle is no longer open for checkout.');
+ if(Math.abs(total-Number(cycle.data.cycle_base||0))>0.01)throw Error('Assigned task values do not equal the full cycle balance.');
+ const rr=await db.functions.invoke('complete-cycle-checkout',{body:{cycleId:cycleId,taskIds:tasks.map(x=>x.id)}});
+ if(rr.error){let detail=null;try{if(rr.error.context&&typeof rr.error.context.clone==='function')detail=await rr.error.context.clone().json()}catch(_){}throw Error((detail&&detail.error)||rr.error.message||'Shop checkout failed.')}
+ uiNotice(rr.data?.message||'Shop cycle completed. The 18-hour settlement timer has started.');
+ await initData(); liveShop();
+}catch(e){uiNotice(e.message||'Shop checkout failed')}}
+
+async function liveShop(){
+ const p=profile;
+ const [cr,tr,offersRes]=await Promise.all([
+   db.from('cycle_runs').select('id,status,cycle_base,task_completed_at,ready_at,settled_at,profit_amount,created_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+   db.from('tasks').select('id,cycle_id,title,description,status,progress,reward,task_value,due_date,offer_id').eq('user_id',p.id).order('id',{ascending:false}).limit(100),
+   db.from('shop_offers').select('id,title,subtitle,product_id,task_level').eq('status','ACTIVE')
+ ]);
+ if(cr.error)throw cr.error;if(tr.error)throw tr.error;if(offersRes.error)throw offersRes.error;
+ const cycle=cr.data||null;
+ const offerRows=offersRes.data||[];const offerMap=new Map(offerRows.map(x=>[String(x.id),x]));taskProductData={};
+ const rows=(tr.data||[]).filter(x=>!cycle||x.cycle_id===cycle.id);
+ const taskTotal=rows.reduce((n,x)=>n+Number(x.task_value||0),0);
+ const remaining=Math.max(0,Number(cycle?.cycle_base||0)-taskTotal);
+ const waiting=cycle?.status==='WAITING_18H';
+ const ready=waiting&&cycle.ready_at;
+ const readyText=ready?new Date(ready).toLocaleString():'';
+ const completedCount=rows.filter(x=>String(x.status)==='Completed').length;
+ const pendingCount=rows.length-completedCount;
+ const taskHtml=rows.length?rows.map(x=>{
+  const offer=offerMap.get(String(x.offer_id||''))||null;
+  const product=(window.AegisShopCatalog||[]).find(p=>String(p.id)===String(offer?.product_id||''))||null;
+  taskProductData[String(x.id)]={task:x,offer,product};
+  const imageRaw=product?.image?product.image:'',title=product?.title||x.title||'Assigned Shop Product',brand=product?.brand||offer?.subtitle||'AegisPay Shop',rating=Number(product?.rating||0),image=imageRaw?taskImageUrl(imageRaw):'',fallback=taskImageFallbackUrl(title,0);
+  return '<div class="row" style="align-items:flex-start"><div style="padding-top:2px;min-width:0"><div class="task-product-row">'+(image?'<img class="task-product-img" src="'+esc(fallback)+'" data-remote-src="'+esc(image)+'" data-direct-src="'+esc(imageRaw)+'" alt="'+esc(title)+'" loading="lazy">':'<img class="task-product-img" src="'+esc(fallback)+'" alt="'+esc(title)+'" loading="lazy">')+'<div class="task-product-info"><div class="task-product-title">'+esc(title)+'</div><div class="task-product-sub">'+esc(brand)+' · '+(rating?esc(rating.toFixed(1))+'/5':'Rating available in Shop')+' · Purchase value '+Number(x.task_value||0).toFixed(2)+' USDT</div><button type="button" class="task-view-product" data-open-task-product="'+esc(x.id)+'">View Pictures & Reviews</button></div></div><small style="display:block;margin-top:8px">'+esc(x.description||'')+' · '+esc(x.status)+' · Due '+esc(x.due_date||'—')+'</small></div><div class="task-side"><div class="task-values">'+Number(x.task_value||0).toFixed(2)+'<small>Profit '+Number(x.reward||0).toFixed(2)+'</small></div>'+(String(x.status)==='Completed'?'<div class="task-done">✓ Completed</div>':'<button type="button" class="task-complete" data-complete-task="'+esc(x.id)+'">Complete</button>')+'</div></div>';
+}).join(''):'<div class="mu" style="padding:16px 0;text-align:center">No assigned Shop tasks yet.</div>';
+
+ let statusCard='';
+ if(!cycle){
+   if(!profile.selected_tier_id){
+     statusCard='<div class="card"><div class="sh" style="margin-top:0">Activate Shop Tasks</div><p class="mu" style="font-size:12px;line-height:1.55">Your balance is available, but no tier has been selected yet. Choose one of the six tiers to unlock automatic Shop task assignment and profit calculation.</p><button class="btn" style="margin-top:12px" onclick="go(\'topup\')">Choose Tier '+ic('arrow')+'</button></div>';
+   }else{
+     statusCard='<div class="card"><div class="sh" style="margin-top:0">Preparing Shop Cycle</div><p class="mu" style="font-size:12px;line-height:1.55">Your selected tier is active. The system will assign the next eligible Shop task cycle automatically.</p></div>';
+   }
+ }else if(waiting){
+   statusCard='<div class="card"><div class="sh" style="margin-top:0">18-hour settlement</div><div class="chip">All tasks completed · Waiting</div><p class="mu" style="font-size:12px;line-height:1.55;margin-top:10px">Your cycle has been checked out automatically after the final individual task. Settlement is scheduled for <b style="color:var(--t)">'+esc(readyText)+'</b>.</p></div>';
+ }else{
+   statusCard='<div class="card"><div class="sh" style="margin-top:0">Active Shop Cycle <span>'+Number(cycle.cycle_base||0).toFixed(2)+' USDT</span></div><div class="two"><div><small class="mu">Tasks</small><h3>'+completedCount+'/'+rows.length+'</h3></div><div><small class="mu">Remaining Balance</small><h3>'+remaining.toFixed(2)+' USDT</h3></div></div><div class="warn" style="margin-top:12px"><span>Complete each assigned task individually. When the final task is completed, the 18-hour settlement starts automatically.</span></div></div>';
+ }
+ app.innerHTML=top('Shop & Tasks','home')+statusCard+'<div class="sh">Assigned Task Set <span>'+rows.length+' tasks</span></div><div class="card" style="padding:4px 16px">'+taskHtml+'</div><button class="btn o" style="margin-bottom:14px" onclick="location.href=\'https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&return=\'+encodeURIComponent(location.href)">Browse Shop Marketplace</button><div class="card"><div class="sh" style="margin-top:0">How the cycle works</div><div class="mu" style="font-size:11.5px;line-height:1.6">Open an assigned product to view its picture, rating and review previews. Purchase it through Shop, return here, then complete the task. After the final task, the 18-hour settlement timer starts automatically.</div></div><div id="taskProductModal" class="task-modal" aria-hidden="true"><div class="task-modal-box"><div id="taskProductContent"></div></div></div>'+nav('home');
+ bindTaskImageFallback(app);
+ bindTaskDelegation();
+}
+
+async function liveTasks(){return liveShop()}
+async function liveLogout(){stopActivityTicker();await db.auth.signOut();profile=null;authUser=null;location.reload()}
+const originalLogin=SC.login;
+SC.login=()=>'<div class="ap-auth">'+logo(84)+'<h1>Aegis<span style="background:var(--g);-webkit-background-clip:text;color:transparent">Pay</span></h1><p>Your Payments, Your Way</p>'+(window.__emailVerified?'<div style="display:flex;align-items:center;gap:10px;padding:12px 14px;margin:0 0 14px;border-radius:14px;background:rgba(46,230,166,.12);border:1px solid rgba(46,230,166,.35);color:var(--m);font-size:13px;font-weight:600">'+ic('check')+' Email Verified Successfully — You can now sign in.</div>':'')+'<form class="card" id="liveLogin"><div class="ap-field"><label>Username or Email</label><input id="le" type="text" inputmode="email" autocomplete="username" placeholder="Enter username or email" required></div><div class="ap-field"><label>Password</label><input id="lp" type="password" autocomplete="current-password" required></div><button class="btn">Sign In '+ic('arrow')+'</button><div style="display:flex;justify-content:space-between;gap:12px;margin-top:14px;font-size:13px"><span onclick="go(\'forgot\')" style="color:var(--c);cursor:pointer">Forgot Password?</span><span onclick="go(\'signup\')" style="color:var(--c);cursor:pointer">Create New Account</span></div></form><div class="ap-secure"><div class="badge">'+logo(24)+'<div><strong>Secure &amp; Verified</strong><small>256-bit encrypted payments</small></div></div><div class="copy">© 2023–2026 AegisPay</div></div></div>';
+SC.forgot=()=>'<div class="ap-auth">'+logo(84)+'<h1>Aegis<span style="background:var(--g);-webkit-background-clip:text;color:transparent">Pay</span></h1><p>Reset your password</p><form class="card" id="forgotForm"><div class="ap-field"><label>Email</label><input id="fe" type="email" autocomplete="email" placeholder="Enter your registered email" required></div><button class="btn">Send Reset Link '+ic('arrow')+'</button><div style="text-align:center;margin-top:14px;font-size:13px;color:var(--c);cursor:pointer" onclick="go(\'login\')">Back to Sign In</div></form></div>';
+SC.reset=()=>'<div class="ap-auth">'+logo(84)+'<h1>Aegis<span style="background:var(--g);-webkit-background-clip:text;color:transparent">Pay</span></h1><p>Create a new password</p><form class="card" id="resetForm"><div class="ap-field"><label>New Password</label><input id="rp" type="password" autocomplete="new-password" minlength="8" required placeholder="Enter new password"></div><button class="btn">Update Password '+ic('arrow')+'</button></form></div>';
+SC.signup=()=>'<div class="ap-auth">'+logo(84)+'<h1>Aegis<span style="background:var(--g);-webkit-background-clip:text;color:transparent">Pay</span></h1><p>Create your AegisPay account</p><form class="card" id="liveSignup"><div class="ap-field"><label>Full Name</label><input id="sn" type="text" autocomplete="name" required></div><div class="ap-field"><label>Username</label><input id="su" type="text" autocomplete="username" maxlength="32" pattern="[A-Za-z0-9_]{3,32}" placeholder="letters, numbers, underscore" required></div><div class="ap-field"><label>Email</label><input id="se" type="email" autocomplete="email" required></div><div class="ap-field"><label>Password</label><input id="sp" type="password" autocomplete="new-password" minlength="8" required></div><div class="ap-field"><label>Referral Code</label><input id="sr" type="text" placeholder="Enter referral code (optional)" autocomplete="off"></div><button class="btn">Sign Up '+ic('arrow')+'</button><div style="text-align:center;margin-top:14px;font-size:13px;color:var(--c);cursor:pointer" onclick="go(\'login\')">Already have an account? Sign In</div></form></div>';
+SC.verifyPending=(email)=>'<div class="ap-auth">'+logo(84)+'<h1>Verify your <span style="background:var(--g);-webkit-background-clip:text;color:transparent">Email</span></h1><p>One final step before you can sign in</p><div class="card"><div style="text-align:center;font-size:42px;margin:4px 0 12px">✉️</div><h2 style="font-size:21px;text-align:center">Check your Gmail</h2><p class="mu" style="font-size:13px;line-height:1.6;text-align:center;margin:10px 0 18px">We sent a verification link to <b style="color:var(--t)">'+esc(email)+'</b>. Open your email and tap <b style="color:var(--c)">Verify Email</b>. You must verify your email before signing in.</p><button class="btn" id="resendVerify">Resend Verification Email</button><button class="btn o" style="margin-top:10px" onclick="go(\'login\')">I\'ve Verified — Sign In</button></div><div class="ap-secure"><div class="copy">Check your Spam/Promotions folder if you do not see the email.</div></div></div>';
+const originalGo=window.go;
+function bindAuthForms(){
+  const login=document.getElementById('liveLogin');
+  if(login && !login.dataset.bound){
+    login.dataset.bound='1';
+    login.addEventListener('submit',async e=>{
+      e.preventDefault();e.stopPropagation();
+      try{
+        const identifier=document.getElementById('le').value.trim();
+        const password=document.getElementById('lp').value;
+        if(identifier.includes('@')){
+          const r=await db.auth.signInWithPassword({email:identifier.toLowerCase(),password});
+          if(r.error)throw r.error;
+        }else{
+          const response=await db.functions.invoke('username-login',{body:{username:identifier.toLowerCase(),password}});
+          if(response.error){
+            let detail=null;
+            try{if(response.error.context&&typeof response.error.context.clone==='function')detail=await response.error.context.clone().json();}catch(_){}
+            throw Error((detail&&detail.error)||response.error.message||'Invalid username or password.');
+          }
+          const tokens=response.data||{};
+          if(!tokens.access_token||!tokens.refresh_token)throw Error('Invalid username or password.');
+          const stored=await db.auth.setSession({access_token:tokens.access_token,refresh_token:tokens.refresh_token});
+          if(stored.error)throw stored.error;
+        }
+        await initData();
+        if(profile.role!=='USER'){
+          await db.auth.signOut();
+          profile=null;
+          authUser=null;
+          throw Error('This account does not have client access.');
+        }
+        if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){
+          await db.auth.signOut();
+          profile=null;
+          authUser=null;
+          throw Error('This account is not active.');
+        }
+        await liveHome();
+      }catch(x){
+        const msg=x.message||'Login failed';
+        uiNotice(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your Gmail/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
+      }
+    },true);
+  }
+  const forgot=document.getElementById('forgotForm');
+  if(forgot && !forgot.dataset.bound){
+    forgot.dataset.bound='1';
+    forgot.addEventListener('submit',async e=>{
+      e.preventDefault();e.stopPropagation();
+      const button=forgot.querySelector('button[type="submit"],button');
+      const email=document.getElementById('fe').value.trim().toLowerCase();
+      if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent='Sending...'}
+      try{
+        if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Please enter a valid registered email address.');
+        const r=await db.auth.resetPasswordForEmail(email,{
+          redirectTo:'https://aegispay-web.aegispay.workers.dev/?reset=1'
+        });
+        if(r.error)throw r.error;
+        uiNotice('If an account exists for this email, a password reset link has been sent. Please check your Gmail and Spam folder.','success');
+        if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Send Reset Link '+ic('arrow')}
+      }catch(x){
+        if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Send Reset Link '+ic('arrow')}
+        uiNotice(x.message||'Unable to send password reset email. Please try again.');
+      }
+    },true);
+  }
+  const signup=document.getElementById('liveSignup');
+  if(signup && !signup.dataset.bound){
+    signup.dataset.bound='1';
+    signup.addEventListener('submit',async e=>{
+      e.preventDefault();e.stopPropagation();
+      const button=signup.querySelector('button[type="submit"],button');
+      if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent='Creating Account...'}
+      try{
+        const email=document.getElementById('se').value.trim().toLowerCase();
+        const username=document.getElementById('su').value.trim().toLowerCase();
+        if(!/^[a-z0-9_]{3,32}$/.test(username))throw Error('Username must be 3–32 characters using letters, numbers, or underscore.');
+        const rr=await db.functions.invoke('public-signup',{body:{
+          email,password:document.getElementById('sp').value,
+          name:formatName(document.getElementById('sn').value),
+          username,referralCode:document.getElementById('sr').value.trim().toUpperCase(),
+          preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'
+        }});
+        if(rr.error){
+          let serverMessage=rr.data && typeof rr.data==='object' && rr.data.error ? rr.data.error : '';
+          const serverCode=rr.data && typeof rr.data==='object' && rr.data.code ? rr.data.code : '';
+          if(!serverMessage && rr.error && rr.error.context && typeof rr.error.context.json==='function'){
+            try{
+              const body=await rr.error.context.clone().json();
+              serverMessage=body && body.error ? body.error : '';
+            }catch(_){}
+          }
+          const status=Number(rr.error && (rr.error.status || rr.error.context && rr.error.context.status) || 0);
+          if(status===409 || serverCode==='PROFILE_EXISTS' || serverCode==='USERNAME_EXISTS'){
+            throw Error(serverMessage || 'This email or username is already registered. Please use a different email or username.');
+          }
+          const msg=serverMessage || rr.error.message || 'Signup failed. Please try again.';
+          if(serverCode==='EMAIL_DELIVERY_FAILED' || /email verification service|confirmation email|email delivery/i.test(msg)){
+            throw Error('Email verification service is temporarily unavailable. Please try again after the email service is fixed.');
+          }
+          throw Error(msg);
+        }
+        app.innerHTML=SC.verifyPending(email);
+        bindAuthForms();
+        const rb=document.getElementById('resendVerify');
+        if(rb)rb.onclick=async()=>{
+          try{
+            rb.disabled=true;rb.textContent='Sending...';
+            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'}});
+            if(r.error)throw r.error;
+            uiNotice('A new verification email has been sent.','success');
+            rb.textContent='Resend Verification Email';rb.disabled=false;
+          }catch(x){rb.disabled=false;rb.textContent='Resend Verification Email';uiNotice(x.message||'Unable to resend verification email.')}
+        };
+      }catch(x){
+        uiNotice(x.message||'Signup failed');
+        if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Sign Up'}
+      }
+    },true);
+  }
+}
+
+const AI_HISTORY_KEY='aegispay_ai_history_v2';
+let aiHistory=[];
+
+function aiLoadHistory(){
+  try{
+    const key=AI_HISTORY_KEY+':'+String(profile?.id||'guest');
+    const raw=sessionStorage.getItem(key);
+    const parsed=raw?JSON.parse(raw):[];
+    aiHistory=Array.isArray(parsed)?parsed.filter(x=>x&&['user','assistant'].includes(x.role)&&typeof x.content==='string').slice(-20):[];
+  }catch(_){aiHistory=[]}
+  if(!Array.isArray(aiHistory))aiHistory=[];
+}
+function aiSaveHistory(){
+  try{
+    const key=AI_HISTORY_KEY+':'+String(profile?.id||'guest');
+    sessionStorage.setItem(key,JSON.stringify(aiHistory.slice(-20)));
+  }catch(_){}
+}
+function aiRender(){
+  const box=document.getElementById('aiMessages');
+  if(!box)return;
+  box.innerHTML=aiHistory.map(x=>'<div class="'+(x.role==='user'?'m2':'m1')+' ai-msg">'+esc(x.content)+'</div>').join('');
+  box.scrollTop=box.scrollHeight;
+}
+function aiSetBusy(busy){
+  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend');
+  if(input)input.disabled=busy;
+  if(button)button.disabled=busy;
+}
+async function aiAsk(raw){
+  const message=String(raw||'').trim().slice(0,1000);
+  if(!message)return;
+  const input=document.getElementById('aiInput');
+  if(input)input.value='';
+  const previous=aiHistory.filter(x=>x&&['user','assistant'].includes(x.role)).slice(-10);
+  aiHistory.push({role:'user',content:message});
+  aiRender();aiSaveHistory();aiSetBusy(true);
+  const box=document.getElementById('aiMessages');
+  if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Thinking…</div>');box.scrollTop=box.scrollHeight}
+  try{
+    const rr=await db.functions.invoke('ai-support',{body:{message,history:previous}});
+    if(rr.error){
+      let detail='';
+      try{
+        if(rr.error.context&&typeof rr.error.context.clone==='function'){
+          const body=await rr.error.context.clone().json();
+          detail=body&&body.error?String(body.error):'';
+        }
+      }catch(_){}
+      throw Error(detail||rr.error.message||'AI support is temporarily unavailable.');
+    }
+    const answer=String(rr.data?.answer||'').trim();
+    if(!answer)throw Error('AegisPay AI did not return an answer.');
+    aiHistory.push({role:'assistant',content:answer});
+    aiSaveHistory();
+    const status=document.getElementById('aiOnline');
+    if(status)status.textContent=rr.data?.degraded?'● Support mode':'● Online';
+  }catch(e){
+    aiHistory.push({role:'assistant',content:'Sorry, I could not process that request right now. Please try again in a moment.'});
+    aiSaveHistory();
+    const status=document.getElementById('aiOnline');
+    if(status)status.textContent='● Support available';
+  }finally{
+    const thinking=document.getElementById('aiThinking');
+    if(thinking)thinking.remove();
+    aiRender();aiSetBusy(false);
+    if(input)input.focus();
+  }
+}
+function bindAiBot(){
+  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend');
+  if(button&&!button.dataset.bound){
+    button.dataset.bound='1';
+    button.onclick=()=>aiAsk(input?.value||'');
+  }
+  if(input&&!input.dataset.bound){
+    input.dataset.bound='1';
+    input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiAsk(input.value)}});
+  }
+}
+async function liveBot(){
+  if(!profile)return oldGo('login');
+  aiLoadHistory();
+  app.innerHTML=SC.bot();
+  aiRender();
+  bindAiBot();
+  const input=document.getElementById('aiInput');
+  if(input)input.focus();
+}
+
+window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return liveBot();if(id==='home')return liveHome();if(id==='topup')return liveTopup();if(id==='withdraw')return liveWithdraw();if(id==='referral')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account')return liveAccount();if(id==='notifications')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
+async function bootLive(){try{const qs=new URLSearchParams(location.search);const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
+if(qs.get('shop_purchase')==='confirmed'){
+  const shopTaskId=String(qs.get('task')||'').trim();
+  const shopProductId=String(qs.get('product')||'').trim();
+  history.replaceState({},document.title,location.pathname);
+  const shopSession=await db.auth.getSession();
+  if(!shopSession.data.session){window.go('login');return;}
+  try{
+    await initData();
+    if(profile.role!=='USER' || !['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())) throw Error('This account is not active.');
+    if(!shopTaskId||!shopProductId) throw Error('Shop purchase confirmation is missing the assigned task or product.');
+    const purchase=await db.rpc('record_shop_task_purchase',{p_task_id:shopTaskId,p_product_id:shopProductId});
+    if(purchase.error)throw purchase.error;
+    await liveShop();
+    setTimeout(()=>uiNotice('Shop purchase confirmed. The assigned task is now ready to complete.','success'),0);
+  }catch(shopError){
+    try{await liveShop();}catch(_){}
+    setTimeout(()=>uiNotice(shopError.message||'Shop purchase confirmation could not be recorded.','error'),0);
+  }
+  return;
+}
+
+// Email verification does not need a persistent recovery session; it only confirms the address and returns the client to sign-in.
+if(qs.get('verified')==='1'){window.__emailVerified=true;history.replaceState({},document.title,location.pathname);await db.auth.signOut();window.go('login');return}
+// Password recovery supports both Supabase PKCE (?code=...) and implicit (#access_token...&type=recovery) return formats.
+if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || hashParams.get('type')==='recovery'){
+  const code=qs.get('code');
+  if(code){
+    const ex=await db.auth.exchangeCodeForSession(code);
+    if(ex.error)throw ex.error;
+  }else{
+    const accessToken=hashParams.get('access_token');
+    const refreshToken=hashParams.get('refresh_token');
+    if(accessToken&&refreshToken){
+      const session=await db.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
+      if(session.error)throw session.error;
+    }
+  }
+  const sessionCheck=await db.auth.getSession();
+  if(!sessionCheck.data.session)throw Error('This password reset link is invalid or expired. Please request a new reset link.');
+  window.go('reset');
+  setTimeout(()=>{
+    const f=document.getElementById('resetForm');
+    if(f)f.onsubmit=async e=>{
+      e.preventDefault();
+      try{
+        const password=document.getElementById('rp').value;
+        if(password.length<8)throw Error('Password must contain at least 8 characters.');
+        const rr=await db.functions.invoke('complete-password-reset',{body:{password}});
+        if(rr.error){
+          let detail=null;try{if(rr.error.context&&typeof rr.error.context.clone==='function')detail=await rr.error.context.clone().json();}catch(_){}
+          throw Error((detail&&detail.error)||rr.error.message||'Unable to complete password reset.');
+        }
+        if(!rr.data||rr.data.status!=='PASSWORD_RESET_COMPLETE')throw Error('Password reset could not be completed.');
+        history.replaceState({},document.title,location.pathname);
+        await db.auth.signOut();
+        window.go('login');
+        setTimeout(()=>uiNotice('Password updated successfully. Your account is temporarily frozen for security.','success'),0);
+      }catch(x){uiNotice(x.message||'Unable to reset password')}
+    };
+  },0);
+  return;
+}
+const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}return liveHome()}}window.go('login')}catch(e){window.go('login')}}
+
+/* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
+(function(){
+  const css='.app-notice{position:static!important;display:flex;align-items:flex-start;gap:9px;width:100%;margin:0 0 14px;padding:12px 14px!important;border-radius:16px!important;box-shadow:none!important;backdrop-filter:blur(12px)!important;font-size:12px!important;line-height:1.5!important}.app-notice .x{display:none!important}.activity-ticker{display:none!important}'+
+  '.p2-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin:2px 2px 10px}.p2-head h2{font-size:16px;letter-spacing:-.2px}.p2-head span{font-size:10.5px;color:var(--mu)}'+
+  '.p2-balance{padding:20px;border-radius:26px;background:radial-gradient(90% 130% at 100% 0,rgba(34,211,238,.30),transparent 58%),linear-gradient(135deg,#4b32d4,#17103f 72%);border:1px solid rgba(255,255,255,.14);box-shadow:0 24px 55px -28px rgba(124,92,255,.9);margin-bottom:14px}.p2-balance small{font-size:11px;color:rgba(255,255,255,.72)}.p2-balance h2{font-size:34px;letter-spacing:-1px;margin:4px 0 7px}.p2-balance h2 span{font-size:14px}.p2-balance .sub{font-size:10.5px;color:rgba(255,255,255,.72)}'+
+  '.p2-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:15px}.p2-stat{padding:10px 8px;border-radius:14px;background:rgba(0,0,0,.16);border:1px solid rgba(255,255,255,.08)}.p2-stat small{display:block;font-size:9.5px}.p2-stat b{display:block;font-size:12px;margin-top:3px}'+
+  '.p2-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:0 0 18px}.p2-action{border:1px solid var(--ln);background:linear-gradient(150deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border-radius:18px;padding:11px 5px;color:var(--t);text-align:center;font:600 10px Sora;cursor:pointer}.p2-action i{display:grid;place-items:center;width:40px;height:40px;border-radius:14px;margin:0 auto 7px;color:#fff;font-style:normal}'+
+  '.p2-card{background:linear-gradient(160deg,rgba(255,255,255,.065),rgba(255,255,255,.025));border:1px solid var(--ln);border-radius:20px;padding:15px;margin-bottom:12px}.p2-card.compact{padding:13px}'+
+  '.p2-row{display:flex;align-items:center;gap:11px}.p2-row .grow{flex:1;min-width:0}.p2-row h3{font-size:13px}.p2-row small{display:block;color:var(--mu);font-size:10.5px;line-height:1.4;margin-top:3px}.p2-amount{text-align:right;font-weight:700;font-size:13px}.p2-amount small{font-weight:400}'+
+  '.p2-progress{height:7px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:10px 0 7px}.p2-progress i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#7C5CFF,#22D3EE)}'+
+  '.p2-mini-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.p2-mini{padding:12px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--ln)}.p2-mini small{display:block;color:var(--mu);font-size:9.5px}.p2-mini b{display:block;font-size:15px;margin-top:4px;word-break:break-word}'+
+  '.p2-step{display:flex;gap:11px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--ln)}.p2-step:last-child{border-bottom:0}.p2-step .n{width:27px;height:27px;border-radius:10px;display:grid;place-items:center;flex:none;background:rgba(124,92,255,.16);color:#d9d1ff;font-weight:800;font-size:11px}.p2-step b{font-size:12px}.p2-step small{display:block;color:var(--mu);font-size:10.5px;line-height:1.45;margin-top:2px}'+
+  '.p2-wallet{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.035);border:1px solid var(--ln)}.p2-wallet code{min-width:0;flex:1;font:600 10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#dfe7ff}'+
+  '.p2-status{display:flex;gap:10px;align-items:center;padding:11px 12px;border-radius:15px;background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.18);margin-bottom:12px}.p2-status.green{background:rgba(46,230,166,.05);border-color:rgba(46,230,166,.20)}.p2-status.error{background:rgba(255,92,122,.06);border-color:rgba(255,92,122,.20)}.p2-status .dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}.p2-status.green .dot{background:var(--m)}.p2-status.error .dot{background:var(--r)}.p2-status b{font-size:11.5px}.p2-status small{display:block;color:var(--mu);font-size:10px;margin-top:2px}'+
+  '.p2-ai{display:flex;gap:12px;align-items:center;padding:14px 15px;border-radius:20px;background:linear-gradient(135deg,rgba(124,92,255,.18),rgba(34,211,238,.08));border:1px solid rgba(124,92,255,.24);cursor:pointer}.p2-ai .orb{width:44px;height:44px;border-radius:15px;display:grid;place-items:center;background:var(--g);color:#fff}.p2-ai .grow{flex:1}.p2-ai b{font-size:13px}.p2-ai small{display:block;color:var(--mu);font-size:10.5px;line-height:1.4;margin-top:2px}.p2-ai-mini{width:38px;height:38px;border:1px solid var(--ln);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;display:grid;place-items:center}'+
+  '.p2-empty{text-align:center;padding:24px 14px;color:var(--mu);font-size:11.5px}.p2-empty b{display:block;color:var(--t);font-size:13px;margin-bottom:4px}@media(min-width:720px){#app{max-width:540px}}';
+  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css;document.head.appendChild(st);
+
+  uiNotice=function(message,type){
+    const root=document.getElementById('app');if(!root)return;const old=root.querySelector('.app-notice');if(old)old.remove();
+    const el=document.createElement('div');el.className='app-notice '+(type==='success'?'success':type==='info'?'info':'error');
+    el.innerHTML='<span>'+(type==='success'?'✓':type==='info'?'i':'!')+'</span><span style="flex:1">'+esc(String(message||''))+'</span>';
+    root.prepend(el);setTimeout(function(){if(el.isConnected)el.remove();},6500);
+  };
+  startActivityTicker=function(){};
+  top=function(t,b){return '<div class="tb" style="padding-top:18px"><b onclick="go(\''+(b||'home')+'\')" aria-label="Back">'+ic('back')+'</b><div style="flex:1;min-width:0"><small class="mu" style="font-size:9.5px;letter-spacing:.7px;text-transform:uppercase">AEGISPAY</small><h1 style="font-size:18px;margin-top:1px">'+esc(t)+'</h1></div><b class="dot" aria-label="Notifications">'+ic('bell')+'</b></div>'};
+  nav=function(a){return '<nav>'+[['home','Home','home'],['wallet','Wallet','pie'],['earn','Earn','check'],['activity','Activity','clock'],['profile','Profile','user']].map(function(n){return '<a class="'+(n[0]===a?'on':'')+'" onclick="go(\''+n[0]+'\')">'+ic(n[2])+'<span>'+n[1]+'</span></a>';}).join('')+'</nav>'};
+
+  liveHome=async function(){
+    const p=profile,b=Number(p.current_platform_balance||0),held=Number(p.withdrawal_held||0),available=Math.max(0,b-held);
+    const q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(5),db.from('cycle_runs').select('status,cycle_base,ready_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('tasks').select('id,status,reward,task_value').eq('user_id',p.id).order('id',{ascending:false}).limit(50)]);
+    const cycle=q[1].data||null,tasks=q[2].data||[],done=cycle?tasks.filter(function(x){return String(x.status)==='Completed';}).length:0,progress=tasks.length?Math.round(done/tasks.length*100):0,name=formatName(p.display_name||p.name||'Client')||'Client',tier=(tiers||[]).find(function(x){return String(x.id)===String(p.selected_tier_id);}),level=tier?.name||p.selected_tier_name||p.vip_level||'Not Assigned';
+    const recent=(q[0].data||[]).map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="'+(Number(x.amount)>=0?'up':'dn')+'">'+(Number(x.amount)>=0?'+':'')+Number(x.amount).toFixed(2)+'<small>USDT</small></em></div>';}).join('');
+    let cycleHtml=cycle?(cycle.status==='WAITING_18H'?'<div class="p2-status green"><span class="dot"></span><div><b>Settlement in progress</b><small>All tasks are complete · Next settlement '+esc(cycle.ready_at?new Date(cycle.ready_at).toLocaleString():'scheduled')+'</small></div></div>':'<div class="p2-card compact"><div class="p2-row"><span class="bub" style="background:rgba(34,211,238,.12);color:var(--c)">'+ic('check')+'</span><div class="grow"><h3>Shop Cycle Active</h3><small>'+done+' of '+tasks.length+' tasks completed · '+Number(cycle.cycle_base||0).toFixed(2)+' USDT</small></div><button class="btn o" style="width:auto;padding:9px 11px;font-size:10px" onclick="go(\'earn\')">Open</button></div><div class="p2-progress"><i style="width:'+progress+'%"></i></div><small class="mu">'+progress+'% complete</small></div>'):'<div class="p2-status"><span class="dot"></span><div><b>Shop earning is ready</b><small>Activate a tier to unlock automatic task assignment.</small></div></div>';
+    app.innerHTML='<div class="tb" style="padding-top:20px"><div class="av">'+esc(name[0]||'A')+'</div><div style="flex:1"><small class="mu" style="font-size:10px">Welcome back</small><h1 style="font-size:19px;margin-top:2px">'+esc(name)+'</h1><small class="mu" style="font-size:9.5px">'+esc(level)+'</small></div><button class="p2-ai-mini" onclick="go(\'bot\')" aria-label="Open AI">'+ic('spark')+'</button><b class="dot">'+ic('bell')+'</b></div>'+
+      '<div class="p2-balance"><small>Available Balance</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+b.toFixed(2)+' USDT · Held '+held.toFixed(2)+' USDT</div><div class="p2-stats"><div class="p2-stat"><small>Level</small><b>'+esc(level)+'</b></div><div class="p2-stat"><small>Client ID</small><b>'+esc(clientId(p))+'</b></div><div class="p2-stat"><small>Status</small><b>'+esc(p.status||'Active')+'</b></div></div></div>'+
+      '<div class="p2-actions"><button class="p2-action" onclick="go(\'topup\')"><i style="background:linear-gradient(135deg,#7C5CFF,#5B3DF5)">'+ic('usd')+'</i>Deposit</button><button class="p2-action" onclick="go(\'withdraw\')"><i style="background:linear-gradient(135deg,#22D3EE,#0891B2)">'+ic('up')+'</i>Withdraw</button><button class="p2-action" onclick="go(\'earn\')"><i style="background:linear-gradient(135deg,#FFB84D,#E8830C)">'+ic('check')+'</i>Earn</button><button class="p2-action" onclick="go(\'referral\')"><i style="background:linear-gradient(135deg,#A855F7,#7C5CFF)">'+ic('gift')+'</i>Referral</button></div>'+
+      '<div class="p2-head"><h2>Earning Cycle</h2><span>Live status</span></div>'+cycleHtml+
+      '<div class="p2-ai" onclick="go(\'bot\')"><span class="orb">'+ic('spark')+'</span><div class="grow"><b>AegisPay AI Assistant</b><small>Balance, deposits, withdrawals, tasks and account guidance.</small></div>'+ic('chev')+'</div>'+
+      '<div class="p2-head" style="margin-top:17px"><h2>Recent Activity</h2><span onclick="go(\'activity\')" style="cursor:pointer;color:var(--c)">View all</span></div><div class="p2-card compact">'+(recent||'<div class="p2-empty"><b>No activity yet</b>Your account activity will appear here.</div>')+'</div>'+nav('home');
+  };
+
+  liveAssets=async function(){
+    const p=profile,total=Number(p.current_platform_balance||0),held=Number(p.withdrawal_held||0),available=Math.max(0,total-held),principal=Number(p.principal_balance||0),profit=Number(p.profit_balance||0);
+    app.innerHTML=top('Wallet','home')+'<div class="p2-balance"><small>Available Balance</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+total.toFixed(2)+' USDT · Held '+held.toFixed(2)+' USDT</div><div class="p2-stats"><div class="p2-stat"><small>Principal</small><b>'+principal.toFixed(2)+'</b></div><div class="p2-stat"><small>Profit</small><b>'+profit.toFixed(2)+'</b></div><div class="p2-stat"><small>Held</small><b>'+held.toFixed(2)+'</b></div></div></div><div class="p2-actions"><button class="p2-action" onclick="go(\'topup\')"><i style="background:linear-gradient(135deg,#7C5CFF,#5B3DF5)">'+ic('usd')+'</i>Deposit</button><button class="p2-action" onclick="go(\'withdraw\')"><i style="background:linear-gradient(135deg,#22D3EE,#0891B2)">'+ic('up')+'</i>Withdraw</button><button class="p2-action" onclick="go(\'activity\')"><i style="background:linear-gradient(135deg,#FFB84D,#E8830C)">'+ic('clock')+'</i>History</button><button class="p2-action" onclick="go(\'earn\')"><i style="background:linear-gradient(135deg,#2EE6A6,#16A34A)">'+ic('check')+'</i>Earn</button></div><div class="p2-head"><h2>Balance Breakdown</h2><span>Live account state</span></div><div class="p2-card compact"><div class="row"><div>Platform Balance<small>Total balance</small></div><em>'+total.toFixed(2)+'<small>USDT</small></em></div><div class="row"><div>Withdrawal Hold<small>Reserved amount</small></div><em class="dn">−'+held.toFixed(2)+'<small>USDT</small></em></div><div class="row"><div>Available<small>Eligible balance</small></div><em class="up">'+available.toFixed(2)+'<small>USDT</small></em></div><div class="row" style="border:0"><div>Profit Balance<small>Recorded earnings</small></div><em class="up">+'+profit.toFixed(2)+'<small>USDT</small></em></div></div>'+nav('wallet');
+  };
+
+  liveReferral=async function(){
+    const p=profile,r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}),rows=r.data||[],reward=rows.reduce(function(n,x){return n+Number(x.platform_reward||0);},0);
+    const lvl=function(n){const rr=rows.filter(function(x){return Number(x.referral_level)===n;});return '<div class="p2-step"><span class="n">'+n+'</span><div class="grow"><b>Level '+n+'</b><small>'+rr.length+' members · '+rr.reduce(function(t,y){return t+Number(y.platform_reward||0);},0).toFixed(2)+' USDT rewards</small></div></div>';};
+    app.innerHTML=top('Referral')+'<div class="p2-balance" style="background:radial-gradient(90% 130% at 100% 0,rgba(34,211,238,.20),transparent 55%),linear-gradient(135deg,#28166f,#0f1026 72%)"><small>Your Referral Code</small><h2 style="font-size:28px;letter-spacing:1px">'+esc(p.referral_code||'—')+'</h2><div class="sub">Track Levels 1–3 members and rewards in one place.</div></div><div class="p2-mini-grid"><div class="p2-mini"><small>Members</small><b>'+rows.length+'</b></div><div class="p2-mini"><small>Total Rewards</small><b>'+reward.toFixed(2)+'</b></div></div><div class="p2-head" style="margin-top:17px"><h2>Reward Levels</h2><span>Live records</span></div><div class="p2-card compact">'+lvl(1)+lvl(2)+lvl(3)+'</div><div class="p2-head"><h2>Recent Referrals</h2><span>Latest</span></div><div class="p2-card compact">'+(rows.length?rows.slice(0,10).map(function(x){return '<div class="row"><span class="bub" style="background:rgba(124,92,255,.12);color:var(--v)">'+ic('user')+'</span><div>Referral Member<small>Level '+esc(x.referral_level)+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.platform_reward||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No referrals yet</b>Share your referral code to start building your network.</div>')+'</div>'+nav('home');
+  };
+
+  liveAccount=async function(){
+    const p=profile,name=formatName(p.display_name||p.name||'Client')||'Client',tier=(tiers||[]).find(function(x){return String(x.id)===String(p.selected_tier_id);});
+    app.innerHTML=top('Profile','home')+'<div class="p2-card"><div class="p2-row"><div class="av" style="width:58px;height:58px;border-radius:19px;font-size:23px">'+esc(name[0]||'A')+'</div><div class="grow"><h3 style="font-size:17px">'+esc(name)+'</h3><small>'+esc(p.email||authUser?.email||'')+'</small><small>Client ID · '+esc(clientId(p))+'</small></div><span class="chip">'+esc(p.status||'Active')+'</span></div></div><div class="p2-head"><h2>Account Summary</h2><span>Live profile</span></div><div class="p2-mini-grid"><div class="p2-mini"><small>Tier</small><b>'+esc(tier?.name||p.selected_tier_name||p.vip_level||'Not Assigned')+'</b></div><div class="p2-mini"><small>Referral Code</small><b>'+esc(p.referral_code||'—')+'</b></div><div class="p2-mini"><small>Wallet</small><b>'+(p.destination_address?'Linked':'Not linked')+'</b></div><div class="p2-mini"><small>Unread</small><b>'+unreadNotifications+'</b></div></div><div class="p2-head" style="margin-top:17px"><h2>Quick Controls</h2><span>Account tools</span></div><div class="p2-card compact"><div class="mn" onclick="go(\'withdraw\')">'+ic('shield')+'<span>Identity & Withdrawal Security</span><span class="mu">'+ic('chev')+'</span></div><div class="mn" onclick="go(\'notifications\')">'+ic('bell')+'<span>Notifications</span><span class="mu">'+ic('chev')+'</span></div><div class="mn" onclick="go(\'bot\')">'+ic('spark')+'<span>AegisPay AI Assistant</span><span class="mu">'+ic('chev')+'</span></div></div><div class="p2-card"><div class="p2-head"><h2>Withdrawal Wallet</h2><span class="chip">Locked</span></div><div class="p2-wallet"><span class="bub" style="width:34px;height:34px;background:rgba(34,211,238,.12);color:var(--c)">'+ic('link')+'</span><code>'+esc(p.destination_address||'No wallet linked yet')+'</code></div><button class="btn o" style="margin-top:10px" onclick="go(\'withdraw\')">'+(p.destination_address?'Open Withdrawal':'Link Wallet')+' '+ic('arrow')+'</button></div><button class="btn o" onclick="liveLogout()">'+ic('out')+' Sign Out</button>'+nav('profile');
+  };
+
+  liveTopup=async function(){
+    const d=settings.deposit_rules||{},wallet=String(d.trc20_wallet_address||d.deposit_wallet_address||d.deposit_address||d.wallet_address||d.receiving_address||'').trim(),available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0)),activeTier=tiers.find(function(t){return String(t.id)===String(profile.selected_tier_id||'');});
+    const cards=tiers.map(function(t){const ok=available>=Number(t.deposit_amount||0),sel=String(profile.selected_tier_id||'')===String(t.id);return '<button type="button" class="tier-card '+(sel?'selected ':'')+(!ok?'locked':'')+'" data-tier-id="'+esc(t.id)+'" '+(!ok?'disabled':'')+'><span class="tier-check">✓</span><div class="tier-name">'+esc(t.name)+'</div><div class="tier-amt">'+Number(t.deposit_amount||0).toFixed(0)+' USDT</div><small>Base profit '+Number(t.initial_profit||0).toFixed(2)+' USDT</small><small>'+(ok?'Ready to activate':'Need more available balance')+'</small></button>';}).join('');
+    app.innerHTML=top('Deposit USDT')+'<div class="p2-status"><span class="dot"></span><div><b>TRC20 network</b><small>Use the configured TRON deposit wallet only.</small></div></div><div class="p2-card"><div class="p2-head"><h2>1. Deposit</h2><span>Secure flow</span></div><div class="amt" style="padding:12px 6px 4px"><small>Amount</small><div class="ap-field" style="margin-top:8px"><input id="depAmount" type="number" min="10" step=".01" inputmode="decimal" placeholder="10.00 USDT"></div></div>'+(wallet?qr():'<div class="warn">'+ic('alert')+'<span>Deposit wallet is not configured.</span></div>')+'<div class="p2-wallet"><span class="bub" style="width:34px;height:34px;background:rgba(34,211,238,.12);color:var(--c)">'+ic('link')+'</span><code>'+esc(wallet||'Not configured')+'</code><button id="copyDepositWallet" class="btn o" style="width:auto;padding:9px 11px;font-size:10px">Copy</button></div></div><div class="p2-card"><div class="p2-head"><h2>2. Submit Proof</h2><span>Required</span></div><div class="ap-field"><label>TXID</label><input id="txid" type="text" placeholder="Paste transaction ID"></div><label class="filepick">Choose Deposit Screenshot<input id="proof" type="file" accept="image/*"></label><button class="btn" style="margin-top:10px" id="submitDep">Submit Deposit '+ic('arrow')+'</button><div id="depositInlineStatus"></div></div><div class="p2-card"><div class="p2-head"><h2>3. Activate Tier</h2><span>'+available.toFixed(2)+' available</span></div><div class="mu" style="font-size:10.5px;line-height:1.5;margin-bottom:10px">Deposits can remain unactivated. Shop earnings begin after a tier is activated.</div><div class="tier-grid">'+cards+'</div>'+(activeTier?'<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Current tier: '+esc(activeTier.name)+'</b><small>Ready for the next Shop cycle.</small></div></div>':'')+'<button class="btn" style="margin-top:12px" id="activateTierBtn" disabled>Activate Selected Tier '+ic('arrow')+'</button></div>';
+    document.querySelectorAll('[data-tier-id]').forEach(function(el){el.onclick=function(){document.querySelectorAll('[data-tier-id]').forEach(function(x){x.classList.toggle('selected',x===el);});const btn=document.getElementById('activateTierBtn');if(btn){btn.disabled=false;btn.dataset.tierId=el.getAttribute('data-tier-id');}};});
+    const at=document.getElementById('activateTierBtn');if(at)at.onclick=function(){activateClientTier(at.dataset.tierId||'');};
+    const cp=document.getElementById('copyDepositWallet');if(cp&&wallet)cp.onclick=async function(){try{await navigator.clipboard.writeText(wallet);uiNotice('Deposit wallet copied.','success');}catch(_){uiNotice('Copy is not available on this device.','info');}};
+    submitDep.onclick=async function(){const box=document.getElementById('depositInlineStatus');try{const amount=Number(depAmount.value),f=proof.files[0],tx=txid.value.trim();if(!Number.isFinite(amount)||amount<10)throw Error('Minimum deposit amount is 10 USDT.');if(!wallet)throw Error('Deposit wallet address is not configured.');if(!tx)throw Error('Please enter the transaction ID / TXID.');if(!f)throw Error('Please choose the deposit screenshot.');submitDep.disabled=true;const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase()),up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});if(up.error)throw up.error;const rr=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:tx,screenshotPath:path}});if(rr.error)throw rr.error;if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Deposit submitted</b><small>'+esc(rr.data?.message||'Your deposit is under verification.')+'</small></div></div>';}catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Submission needs attention</b><small>'+esc(e.message||'Deposit failed. Please try again.')+'</small></div></div>'}finally{submitDep.disabled=false;}};
+  };
+
+  liveShop=async function(){
+    const p=profile,q=await Promise.all([db.from('cycle_runs').select('id,status,cycle_base,task_completed_at,ready_at,settled_at,profit_amount,created_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('tasks').select('id,cycle_id,title,description,status,progress,reward,task_value,due_date,offer_id').eq('user_id',p.id).order('id',{ascending:false}).limit(100),db.from('shop_offers').select('id,title,subtitle,product_id,task_level').eq('status','ACTIVE')]);
+    if(q[0].error||q[1].error||q[2].error){uiNotice('Unable to load the earning cycle right now.','error');return;}
+    const cycle=q[0].data||null,offerMap=new Map((q[2].data||[]).map(function(x){return[String(x.id),x];})),rows=(q[1].data||[]).filter(function(x){return !cycle||x.cycle_id===cycle.id;});taskProductData={};
+    const done=rows.filter(function(x){return String(x.status)==='Completed';}).length,progress=rows.length?Math.round(done/rows.length*100):0,totalValue=rows.reduce(function(n,x){return n+Number(x.task_value||0);},0),waiting=cycle?.status==='WAITING_18H';
+    const taskHtml=rows.length?rows.map(function(x){const offer=offerMap.get(String(x.offer_id||''))||null,product=(window.AegisShopCatalog||[]).find(function(p){return String(p.id)===String(offer?.product_id||'');})||null;taskProductData[String(x.id)]={task:x,offer:offer,product:product};const raw=product?.image||'',title=product?.title||x.title||'Assigned Shop Product',brand=product?.brand||offer?.subtitle||'AegisPay Shop',rating=Number(product?.rating||0),prox=raw?taskImageUrl(raw):'',fallback=taskImageFallbackUrl(title,0);return '<div class="p2-card compact" style="margin-bottom:9px"><div class="task-product-row">'+(raw?'<img class="task-product-img" src="'+esc(fallback)+'" data-remote-src="'+esc(prox)+'" data-direct-src="'+esc(raw)+'" alt="'+esc(title)+'" loading="lazy">':'<img class="task-product-img" src="'+esc(fallback)+'" alt="'+esc(title)+'" loading="lazy">')+'<div class="task-product-info"><div class="task-product-title">'+esc(title)+'</div><div class="task-product-sub">'+esc(brand)+' · '+(rating?rating.toFixed(1)+'/5':'Rating available')+' · Purchase '+Number(x.task_value||0).toFixed(2)+' USDT</div><button type="button" class="task-view-product" data-open-task-product="'+esc(x.id)+'">Pictures & Reviews</button></div><div class="task-side"><div class="task-values">'+Number(x.task_value||0).toFixed(2)+'<small>Profit '+Number(x.reward||0).toFixed(2)+'</small></div>'+(String(x.status)==='Completed'?'<div class="task-done">✓ Complete</div>':'<button type="button" class="task-complete" data-complete-task="'+esc(x.id)+'">Complete</button>')+'</div></div><small class="mu" style="display:block;margin-top:8px;font-size:10px">'+esc(x.description||'Assigned Shop task')+' · Due '+esc(x.due_date||'—')+'</small></div>';}).join(''):'<div class="p2-empty"><b>No assigned tasks</b>Active Shop tasks appear automatically after tier activation.</div>';
+    let status=!cycle?(profile.selected_tier_id?'<div class="p2-status"><span class="dot"></span><div><b>Preparing next cycle</b><small>Your active tier is selected.</small></div></div>':'<div class="p2-status"><span class="dot"></span><div><b>Shop is ready</b><small>Select a tier from Deposit to start automatic task assignment.</small></div></div>'):waiting?'<div class="p2-status green"><span class="dot"></span><div><b>18-hour settlement is running</b><small>All '+rows.length+' tasks are complete · '+esc(cycle.ready_at?new Date(cycle.ready_at).toLocaleString():'Automatic settlement')+'</small></div></div>':'<div class="p2-status"><span class="dot"></span><div><b>Active Shop cycle · '+Number(cycle.cycle_base||0).toFixed(2)+' USDT</b><small>'+done+'/'+rows.length+' tasks completed</small></div></div>';
+    app.innerHTML=top('Earn')+status+'<div class="p2-card"><div class="p2-head"><h2>Cycle Progress</h2><span>'+progress+'%</span></div><div class="p2-progress"><i style="width:'+progress+'%"></i></div><div class="p2-mini-grid"><div class="p2-mini"><small>Tasks</small><b>'+done+'/'+rows.length+'</b></div><div class="p2-mini"><small>Task Value</small><b>'+totalValue.toFixed(2)+' USDT</b></div></div></div><div class="p2-card"><div class="p2-head"><h2>Workflow</h2><span>3 steps</span></div><div class="p2-step"><span class="n">1</span><div><b>Review the assigned product</b><small>Open Pictures & Reviews before purchasing.</small></div></div><div class="p2-step"><span class="n">2</span><div><b>Purchase in Shop</b><small>Use the assigned item, then return here.</small></div></div><div class="p2-step"><span class="n">3</span><div><b>Complete the task</b><small>The secured Shop workflow processes completion.</small></div></div></div><div class="p2-head"><h2>Assigned Tasks</h2><span>'+rows.length+' total</span></div>'+taskHtml+'<button class="btn" style="margin-bottom:10px" onclick="location.href=\'https://aegispay-shopping.aegispay.workers.dev/?from=aegis&return=\'+encodeURIComponent(location.href)">Open Shop Marketplace '+ic('arrow')+'</button><button class="btn o" style="margin-bottom:14px" onclick="go(\'referral\')">'+ic('gift')+' Referral Rewards</button><div id="taskProductModal" class="task-modal" aria-hidden="true"><div class="task-modal-box"><div id="taskProductContent"></div></div></div>'+nav('earn');
+    bindTaskImageFallback(app);bindTaskDelegation();
+  };
+
+
+  liveWithdraw=async function(){
+    const p=profile,rules=settings.withdrawal_rules||{},total=Number(p.current_platform_balance||0),held=Number(p.withdrawal_held||0),available=Math.max(0,total-held);
+    const k=await db.from('kyc_verifications').select('status,document_type,submitted_at,review_reason').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle();
+    const status=k.data?.status||null,pending=status==='PENDING_REVIEW'||status==='MANUAL_REVIEW';
+    if(status!=='VERIFIED'){
+      const walletBlock=p.destination_address?
+        '<div class="p2-card"><div class="p2-head"><h2>1. Withdrawal Wallet</h2><span class="chip">Locked</span></div><div class="p2-wallet"><span class="bub" style="background:rgba(34,211,238,.12);color:var(--c)">'+ic('link')+'</span><code>'+esc(p.destination_address)+'</code></div><small class="mu" style="display:block;margin-top:8px;font-size:10px">Only Master Admin can change this wallet.</small></div>':
+        '<div class="p2-card"><div class="p2-head"><h2>1. Withdrawal Wallet</h2><span>Step 1</span></div><div class="ap-field"><label>TRC20 Wallet Address</label><input id="withdrawWallet" type="text" autocomplete="off" placeholder="Enter your TRC20 wallet address"></div><button class="btn o" id="linkWalletBtn">Link & Lock Wallet '+ic('link')+'</button><div id="walletInlineStatus"></div></div>';
+      const verification=pending?
+        '<div class="p2-card"><div class="p2-head"><h2>2. Identity Verification</h2><span class="chip">In Review</span></div><div class="p2-status"><span class="dot"></span><div><b>Verification is under review</b><small>Withdrawals unlock after the verification is finalized.</small></div></div></div>':
+        '<div class="p2-card"><div class="p2-head"><h2>2. Identity Verification</h2><span>Step 2</span></div><div class="fl"><span class="on" id="cnicTab">CNIC</span><span id="passTab">Passport</span></div><input type="hidden" id="docType" value="CNIC"><label class="filepick">Front / Photo Page<input id="kycFront" type="file" accept="image/*"></label><label class="filepick" id="kycBackWrap">Back<input id="kycBack" type="file" accept="image/*"></label><label class="in" style="font-size:12px;cursor:pointer"><input id="kycConsent" type="checkbox" style="width:18px;height:18px"> I consent to secure identity-document review.</label><button class="btn" id="kycBtn">Submit Verification '+ic('arrow')+'</button><div id="kycInlineStatus"></div></div>';
+      app.innerHTML=top('Withdraw')+'<div class="p2-status"><span class="dot"></span><div><b>Identity-protected withdrawals</b><small>Complete these steps once. Your linked wallet stays locked.</small></div></div>'+walletBlock+verification+nav('wallet');
+      if(!p.destination_address){
+        linkWalletBtn.onclick=async function(){
+          const box=document.getElementById('walletInlineStatus');
+          try{const wallet=withdrawWallet.value.trim().toUpperCase();if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address');const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});if(rr.error)throw rr.error;profile.destination_address=wallet;if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Wallet linked</b><small>Your withdrawal wallet is now locked.</small></div></div>';setTimeout(liveWithdraw,700);}catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Wallet not linked</b><small>'+esc(e.message||'Unable to link wallet.')+'</small></div></div>'}
+        };
+      }
+      if(!pending){
+        const setDoc=function(type){docType.value=type;cnicTab.classList.toggle('on',type==='CNIC');passTab.classList.toggle('on',type==='PASSPORT');kycBackWrap.style.display=type==='CNIC'?'flex':'none';};
+        cnicTab.onclick=function(){setDoc('CNIC');};passTab.onclick=function(){setDoc('PASSPORT');};
+        kycBtn.onclick=async function(){
+          const box=document.getElementById('kycInlineStatus');kycBtn.disabled=true;
+          try{const type=docType.value,front=kycFront.files[0],back=kycBack.files[0];if(!front)throw Error('Front image is required.');if(type==='CNIC'&&!back)throw Error('CNIC back image is required.');if(!kycConsent.checked)throw Error('Please provide verification consent.');
+            const base=authUser.id+'/kyc/',ext=function(f){return(f.name.split('.').pop()||'jpg').toLowerCase();},fp=base+crypto.randomUUID()+'.'+ext(front);let bp='';
+            const u1=await db.storage.from('private-verification').upload(fp,front,{contentType:front.type||'image/jpeg'});if(u1.error)throw u1.error;
+            if(type==='CNIC'){bp=base+crypto.randomUUID()+'.'+ext(back);const u2=await db.storage.from('private-verification').upload(bp,back,{contentType:back.type||'image/jpeg'});if(u2.error)throw u2.error;}
+            const rr=await db.functions.invoke('submit-kyc',{body:{documentType:type,frontPath:fp,backPath:bp,processingConsent:true}});if(rr.error)throw rr.error;
+            if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Verification submitted</b><small>'+esc(rr.data?.message||'Your verification is now under review.')+'</small></div></div>';
+            setTimeout(liveWithdraw,900);
+          }catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Verification needs attention</b><small>'+esc(e.message||'Verification failed. Please try again.')+'</small></div></div>';kycBtn.disabled=false;}
+        };
+      }
+      return;
+    }
+    app.innerHTML=top('Withdraw')+'<div class="p2-balance"><small>Available to withdraw</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+total.toFixed(2)+' · Held '+held.toFixed(2)+' USDT</div></div><div class="p2-card"><div class="p2-head"><h2>Withdrawal Details</h2><span>TRC20</span></div><div class="ap-field"><label>Amount</label><input id="wAmount" type="number" min="'+(rules.minimum||50)+'" max="'+available.toFixed(2)+'" step=".01" inputmode="decimal" placeholder="Minimum '+Number(rules.minimum||50).toFixed(2)+' USDT"></div><div class="p2-wallet"><span class="bub" style="background:rgba(34,211,238,.12);color:var(--c)">'+ic('link')+'</span><code>'+esc(p.destination_address)+'</code><span class="chip">Locked</span></div><div class="p2-mini-grid" style="margin-top:10px"><div class="p2-mini"><small>Network</small><b>TRC20</b></div><div class="p2-mini"><small>Fee</small><b>'+Number(rules.fee||0).toFixed(2)+' USDT</b></div></div><button class="btn" style="margin-top:12px" id="wBtn">Request Withdrawal '+ic('arrow')+'</button><div id="withdrawInlineStatus"></div></div><div class="p2-card"><div class="p2-head"><h2>Approval Flow</h2><span>Protected</span></div><div class="p2-step"><span class="n">1</span><div><b>Submit request</b><small>Available balance is checked first.</small></div></div><div class="p2-step"><span class="n">2</span><div><b>Master Admin review</b><small>The request enters the secure approval queue.</small></div></div><div class="p2-step"><span class="n">3</span><div><b>Processing</b><small>Final payout processing follows the approved workflow.</small></div></div></div>'+nav('wallet');
+    wBtn.onclick=async function(){
+      const box=document.getElementById('withdrawInlineStatus');
+      try{const amount=Number(wAmount.value);if(!Number.isFinite(amount)||amount<Number(rules.minimum||50))throw Error('Enter an amount above the minimum withdrawal.');if(amount>available)throw Error('Withdrawal amount exceeds your available balance.');const x=await db.rpc('request_withdrawal',{p_amount:amount});if(x.error)throw x.error;const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Withdrawal submitted</b><small>'+esc(tg.error?'Request created; Telegram alert needs attention.':'Your request is waiting for Master Admin approval.')+'</small></div></div>';}catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Withdrawal not submitted</b><small>'+esc(e.message||'Withdrawal failed.')+'</small></div></div>'}
+    };
+  };
+
+  liveActivity=async function(){
+    const p=profile,q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100)]);
+    if(q[0].error||q[1].error||q[2].error){uiNotice('Unable to load activity history.','error');return;}
+    const ledger=q[0].data||[],withdrawals=q[1].data||[],referrals=q[2].data||[];
+    const sum=function(a){return a.reduce(function(n,x){return n+Math.abs(Number(x.amount||x.platform_reward||0));},0);};
+    const deposits=ledger.filter(function(x){return Number(x.amount)>0&&!/profit|task|referral|reward/i.test((x.entry_type||'')+' '+(x.description||''));}),profits=ledger.filter(function(x){return Number(x.amount)>0&&/profit|task/i.test((x.entry_type||'')+' '+(x.description||''));});
+    let current='overview';
+    const listBox='<div id="activityList"></div>';
+    const card=function(key,title,value,icon,color){return '<button type="button" class="p2-card compact" data-activity-tab="'+key+'" style="width:100%;text-align:left;border-color:'+color+'44"><div class="p2-row"><span class="bub" style="background:'+color+'18;color:'+color+'">'+ic(icon)+'</span><div class="grow"><h3>'+title+'</h3><small>Open history</small></div><div class="p2-amount">'+Number(value).toFixed(2)+'<small>USDT · View</small></div></div></button>';};
+    const render=function(key){
+      current=key;const box=document.getElementById('activityList');if(!box)return;
+      let html='';
+      if(key==='overview')html='<div class="p2-card compact"><div class="p2-step"><span class="n">1</span><div><b>Deposits</b><small>Successful account credits and submitted deposit history.</small></div></div><div class="p2-step"><span class="n">2</span><div><b>Withdrawals</b><small>Requested, approved and processed withdrawal activity.</small></div></div><div class="p2-step"><span class="n">3</span><div><b>Task Profit</b><small>Recorded Shop/task earnings.</small></div></div><div class="p2-step"><span class="n">4</span><div><b>Referral Rewards</b><small>Level-based referral reward records.</small></div></div></div>';
+      else if(key==='deposit')html=deposits.length?deposits.map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No deposit records</b>Successful credits will appear here.</div>';
+      else if(key==='withdrawal')html=withdrawals.length?withdrawals.map(function(x){return '<div class="row"><div>Withdrawal<small>'+esc(x.status||'REQUESTED')+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="dn">−'+Number(x.net_amount||x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No withdrawals yet</b>Your withdrawal requests will appear here.</div>';
+      else if(key==='profit')html=profits.length?profits.map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No task profit yet</b>Completed Shop earnings will appear here.</div>';
+      else if(key==='referral')html=referrals.length?referrals.map(function(x){return '<div class="row"><div>Referral Reward<small>Level '+esc(x.referral_level)+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.platform_reward||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No referral rewards yet</b>New rewards will appear here.</div>';
+      box.innerHTML='<div class="p2-card compact">'+html+'</div>';
+    };
+    app.innerHTML=top('Activity')+'<div class="p2-head"><h2>Account Overview</h2><span>Live ledger</span></div><div class="p2-mini-grid"><div class="p2-mini"><small>Total Credits</small><b>+'+sum(deposits).toFixed(2)+'</b></div><div class="p2-mini"><small>Withdrawals</small><b>−'+sum(withdrawals).toFixed(2)+'</b></div><div class="p2-mini"><small>Task Profit</small><b>+'+sum(profits).toFixed(2)+'</b></div><div class="p2-mini"><small>Referral Rewards</small><b>+'+sum(referrals).toFixed(2)+'</b></div></div><div class="p2-head" style="margin-top:17px"><h2>History</h2><span>Tap a category</span></div>'+card('deposit','Deposits',sum(deposits),'dl','#2EE6A6')+card('withdrawal','Withdrawals',sum(withdrawals),'up','#FF5C7A')+card('profit','Task Profit',sum(profits),'check','#FFB84D')+card('referral','Referral Rewards',sum(referrals),'gift','#7C5CFF')+listBox+nav('activity');
+    document.querySelectorAll('[data-activity-tab]').forEach(function(el){el.onclick=function(){render(el.getAttribute('data-activity-tab')||'overview');};});
+    render(current);
+  };
+
+  window.go=async function(id){
+    try{
+      if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const rr=oldGo(id);setTimeout(bindAuthForms,0);return rr;}
+      if(!profile)return oldGo('login');
+      if(id==='bot')return liveBot();if(id==='home')return liveHome();if(id==='wallet'||id==='assets')return liveAssets();if(id==='earn'||id==='tasks'||id==='shop')return liveShop();
+      if(id==='topup')return liveTopup();if(id==='withdraw')return liveWithdraw();if(id==='referral')return liveReferral();if(id==='activity')return liveActivity();if(id==='profile'||id==='account')return liveAccount();if(id==='notifications')return liveNotifications();
+      return oldGo(id);
+    }catch(e){app.innerHTML='<div class="p2-card" style="margin-top:30px"><div class="p2-status error"><span class="dot"></span><div><b>Unable to load this section</b><small>'+esc(e.message||'Please try again.')+'</small></div></div>'+nav('home')+'</div>';}finally{setTimeout(updateNotificationBadge,0);}
+  };
+})();
+bindTaskDelegation();window.liveLogout=liveLogout;updateNotificationBadge();bootLive();
+})();
+</script>
+<script src="./app-update.js"></script>
+</body>
+</html>

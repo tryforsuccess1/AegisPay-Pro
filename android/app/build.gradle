@@ -1,0 +1,168 @@
+plugins { id 'com.android.application' }
+
+def releaseKeystorePath = System.getenv('AEGIS_RELEASE_KEYSTORE_PATH')
+def releaseStorePassword = System.getenv('AEGIS_RELEASE_STORE_PASSWORD')
+def releaseKeyAlias = System.getenv('AEGIS_RELEASE_KEY_ALIAS')
+def releaseKeyPassword = System.getenv('AEGIS_RELEASE_KEY_PASSWORD')
+def hasReleaseSigning = [releaseKeystorePath, releaseStorePassword, releaseKeyAlias, releaseKeyPassword].every { it }
+
+android {
+    namespace 'com.aegispay.app'
+    compileSdk 35
+    flavorDimensions += 'portal'
+
+    defaultConfig {
+        applicationId 'com.aegispay.app'
+        minSdk 23
+        targetSdk 35
+        versionCode 39
+        versionName '2.6.0'
+    }
+
+    productFlavors {
+        client {
+            dimension 'portal'
+            applicationIdSuffix '.client'
+            resValue 'string', 'app_name', 'AegisPay'
+            resValue 'string', 'entry_html', 'client.html'
+            resValue 'string', 'auth_scheme', 'com.aegispay.app.client'
+        }
+        admin {
+            dimension 'portal'
+            applicationIdSuffix '.admin'
+            resValue 'string', 'app_name', 'AegisPay Admin'
+            resValue 'string', 'entry_html', 'master-admin.html'
+            resValue 'string', 'auth_scheme', 'com.aegispay.app.admin'
+        }
+    }
+
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystorePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'androidx.coordinatorlayout:coordinatorlayout:1.2.0'
+    implementation 'androidx.drawerlayout:drawerlayout:1.2.0'
+    implementation 'androidx.recyclerview:recyclerview:1.3.2'
+    implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'androidx.webkit:webkit:1.12.1'
+    implementation 'androidx.lifecycle:lifecycle-livedata:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-viewmodel:2.8.7'
+    implementation 'androidx.lifecycle:lifecycle-runtime:2.8.7'
+    implementation 'androidx.arch.core:core-runtime:2.2.0'
+    implementation 'androidx.vectordrawable:vectordrawable:1.2.0'
+    implementation 'androidx.media:media:1.7.0'
+    implementation 'androidx.multidex:multidex:2.0.1'
+
+    // Native QR/barcode scan bridge.
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+}
+
+def webRoot = rootProject.projectDir.parentFile
+def supabaseSdkFile = new File(webRoot, 'supabase-sdk.js')
+def ensureSupabaseSdk = tasks.register('ensureSupabaseSdk') {
+    doLast {
+        if (!supabaseSdkFile.exists() || supabaseSdkFile.length() < 50000) {
+            def connection = (new URL('https://unpkg.com/@supabase/supabase-js@2.117.2/dist/umd/supabase.js').openConnection())
+            connection.setConnectTimeout(30000)
+            connection.setReadTimeout(60000)
+            connection.setRequestProperty('User-Agent', 'AegisPay-Android-Build')
+            connection.connect()
+            if (connection.responseCode != 200) {
+                throw new GradleException("Unable to download pinned Supabase browser SDK: HTTP " + connection.responseCode)
+            }
+            connection.inputStream.withCloseable { input ->
+                supabaseSdkFile.withOutputStream { output -> input.transferTo(output) }
+            }
+        }
+        if (!supabaseSdkFile.exists() || supabaseSdkFile.length() < 50000) {
+            throw new GradleException('Pinned Supabase browser SDK was not downloaded correctly.')
+        }
+    }
+}
+
+def verifyCanonicalAuroraClientUi = tasks.register('verifyCanonicalAuroraClientUi') {
+    doLast {
+        def clientFile = new File(webRoot, 'client.html')
+        if (!clientFile.exists()) {
+            throw new GradleException('Canonical Aurora client.html is missing.')
+        }
+        byte[] bytes = clientFile.bytes
+        def html = new String(bytes, 'UTF-8')
+        def requiredAuroraMarkers = [
+            '<title>AegisPay – Aurora UI</title>',
+            'Select a tier',
+            'Activate Selected Tier',
+            'Submit Deposit',
+            'link_withdrawal_wallet',
+            'Identity Verification',
+            'record_shop_task_purchase',
+            "qs.get('shop_purchase')==='confirmed'",
+            'Secure &amp; Verified',
+            '© 2023–2026 AegisPay'
+        ]
+        def missingAuroraMarkers = requiredAuroraMarkers.findAll { marker -> !html.contains(marker) }
+        if (!missingAuroraMarkers.isEmpty()) {
+            throw new GradleException('Client UI guard failed: missing required Aurora markers: ' + missingAuroraMarkers.join(', '))
+        }
+        if (html.contains('aegispay-client1.netlify.app') || html.contains('aegispay-ali-archive.netlify.app')) {
+            throw new GradleException('Client UI guard failed: legacy Netlify client references remain.')
+        }
+    }
+}
+
+def syncClientAegisPayWebAssets = tasks.register('syncClientAegisPayWebAssets', Copy) {
+    doFirst {
+        delete(layout.projectDirectory.dir('src/client/assets/aegispay'))
+    }
+    from(webRoot) {
+        include 'client.html'
+        include 'app-version.json'
+        include 'app-update.js'
+        include 'supabase-sdk.js'
+    }
+    into(layout.projectDirectory.dir('src/client/assets/aegispay'))
+}
+
+def syncAdminAegisPayWebAssets = tasks.register('syncAdminAegisPayWebAssets', Copy) {
+    from(webRoot) {
+        include 'master-admin.html'
+        include 'admin-auth.js'
+        include 'shop-catalog.js'
+        include 'supabase-client.js'
+        include 'supabase-service.js'
+        include 'aegis-auth-redirect.js'
+        include 'app-update.js'
+        include 'service-worker.js'
+        include 'manifest.webmanifest'
+        include 'aegispay-logo.svg'
+    }
+    into(layout.projectDirectory.dir('src/admin/assets/aegispay'))
+}
+
+tasks.named('syncClientAegisPayWebAssets').configure { dependsOn(verifyCanonicalAuroraClientUi) }
+
+tasks.named('preBuild').configure {
+    dependsOn(ensureSupabaseSdk)
+    dependsOn(verifyCanonicalAuroraClientUi)
+    dependsOn(syncClientAegisPayWebAssets)
+    dependsOn(syncAdminAegisPayWebAssets)
+}

@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07090d"><meta name="description" content="AegisPay — premium secure client app and direct Android download.">
+<title>AegisPay — Premium Digital Client Experience</title>
+<link rel="icon" href="/aegispay-logo.svg" type="image/svg+xml"><link rel="stylesheet" href="/site.css">
+</head>
+<body>
+<div class="bg-glow glow-a"></div><div class="bg-glow glow-b"></div>
+<header class="topbar"><a class="brand" href="/"><img src="/aegispay-logo.svg" alt=""><span>Aegis<span>Pay</span></span></a>
+<nav><a href="#features">Features</a><a href="#security">Security</a><a href="#download">Download</a></nav><a class="top-cta" href="/app/">Open App</a></header>
+<main>
+<section class="hero"><div class="eyebrow"><span class="pulse"></span> TESTNET / DEMO · SINCE 2023 — 2026</div>
+<h1>A premium digital<br><span>experience, built to move.</span></h1>
+<p class="hero-copy">AegisPay brings account access, Shop tasks, referrals, wallet activity and secure support into one polished testnet/demo client experience.</p>
+<div class="hero-actions"><a class="primary-cta" href="/downloads/aegispay-client.apk">Download AegisPay APK <span>↗</span></a><a class="secondary-cta" href="/app/">Open secure web app</a></div>
+<div class="hero-trust"><span>Direct APK distribution</span><span>•</span><span>Remote-first updates</span><span>•</span><span>TESTNET / DEMO ONLY</span><span>•</span><span>Secure Supabase backend</span></div>
+<div class="hero-device"><div class="device-glow"></div><div class="phone"><div class="phone-notch"></div><div class="phone-screen">
+<div class="screen-top"><div class="mini-brand">Aegis<span>Pay</span></div><div class="mini-dot"></div></div>
+<div class="screen-pill">SECURE CLIENT PORTAL</div><div class="balance-card"><small>AVAILABLE BALANCE</small><strong>DEMO</strong><div class="mini-row"><span>Mode</span><b>TESTNET</b></div><div class="mini-row"><span>Funds</span><b>NO REAL FUNDS</b></div></div>
+<div class="mini-grid"><div><span>Shop</span><b>Ready</b></div><div><span>Tasks</span><b>3 / 5</b></div><div><span>Referrals</span><b>12</b></div><div><span>KYC</span><b>Verified</b></div></div>
+<div class="mini-panel"><div class="mini-heading">18-hour cycle</div><div class="mini-progress"><span></span></div><small>Settlement timer active</small></div>
+</div></div></div></section>
+<section id="features" class="section-block"><div class="section-kicker">ONE ECOSYSTEM</div><h2>Everything important,<br>in one elegant flow.</h2>
+<div class="feature-grid"><article><div class="icon">◈</div><h3>Shop & Tasks</h3><p>Live offers, assigned tasks, completion status and cycle settlement tracking.</p></article>
+<article><div class="icon">↗</div><h3>Referrals</h3><p>Referral code, Level 1 / Level 2 activity and recorded rewards in one view.</p></article>
+<article><div class="icon">◎</div><h3>Secure Support</h3><p>Server-side AI assistance for navigation, KYC, deposits, Shop and withdrawal questions.</p></article>
+<article><div class="icon">⌁</div><h3>Remote-first</h3><p>Web UI changes can flow to installed clients without repeatedly replacing the APK.</p></article></div></section>
+<section id="security" class="section-block"><div class="security-card"><div><div class="section-kicker">BUILT FOR CONTROL</div><h2>Designed around secure operations.</h2><p>Authentication, private evidence, controlled withdrawals, admin review and audit visibility are kept behind the Supabase-backed workflow.</p></div>
+<div class="security-metrics"><div><b>01</b><span>Private evidence</span></div><div><b>02</b><span>Admin review</span></div><div><b>03</b><span>Audit trail</span></div><div><b>04</b><span>Update checks</span></div></div></div></section>
+<section id="download" class="section-block download-section"><div class="section-kicker">DIRECT TEST DISTRIBUTION</div><h2>Download AegisPay<br>straight to your phone.</h2>
+<p class="download-copy">No app-store search required. Download the test client APK directly from this website and install it on Android. No real funds are required for this prototype. Once installed, the client checks the AegisPay update manifest when you are online.</p>
+<div class="download-card"><div class="download-meta"><span class="download-badge">ANDROID APK</span><strong id="versionLabel">Latest stable release</strong><small id="releaseNotes">Checking release information…</small></div><a class="primary-cta wide" href="/downloads/aegispay-client.apk">Download Client APK <span>↓</span></a></div>
+</section>
+</main>
+<footer class="footer"><span>AegisPay © 2023–2026</span><span>Secure Client Platform</span><a href="/app/">Client Portal</a></footer>
+<script>(async function(){try{const r=await fetch('/app-version.json?ts='+Date.now(),{cache:'no-store'});if(!r.ok)throw 0;const m=await r.json();document.getElementById('versionLabel').textContent='Version '+(m.versionName||'Latest');document.getElementById('releaseNotes').textContent=(m.notes||[]).slice(0,2).join(' · ')||'Latest stable AegisPay release';}catch(e){}})();</script>
+</body></html>

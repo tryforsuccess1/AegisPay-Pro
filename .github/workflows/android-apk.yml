@@ -1,0 +1,76 @@
+name: AegisPay Android APKs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: aegispay-android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-debug-apks:
+    runs-on: ubuntu-22.04
+    env:
+      AEGIS_RELEASE_KEYSTORE_B64: ${{ secrets.AEGIS_RELEASE_KEYSTORE_B64 }}
+      AEGIS_RELEASE_STORE_PASSWORD: ${{ secrets.AEGIS_RELEASE_STORE_PASSWORD }}
+      AEGIS_RELEASE_KEY_ALIAS: ${{ secrets.AEGIS_RELEASE_KEY_ALIAS }}
+      AEGIS_RELEASE_KEY_PASSWORD: ${{ secrets.AEGIS_RELEASE_KEY_PASSWORD }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Configure release signing
+        if: env.AEGIS_RELEASE_KEYSTORE_B64 != '' && env.AEGIS_RELEASE_STORE_PASSWORD != '' && env.AEGIS_RELEASE_KEY_ALIAS != '' && env.AEGIS_RELEASE_KEY_PASSWORD != ''
+        run: |
+          echo "$AEGIS_RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/aegispay-release.jks"
+          echo "AEGIS_RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/aegispay-release.jks" >> "$GITHUB_ENV"
+      - name: Build client and Master Admin APKs and AABs
+        run: |
+          if [ -n "${AEGIS_RELEASE_KEYSTORE_PATH:-}" ]; then
+            gradle -p android :app:assembleClientRelease :app:assembleAdminRelease :app:bundleClientRelease :app:bundleAdminRelease --no-daemon
+          else
+            gradle -p android :app:assembleClientDebug :app:assembleAdminDebug :app:bundleClientDebug :app:bundleAdminDebug --no-daemon
+          fi
+      - name: Verify APKs and AABs exist
+        run: |
+          if [ -n "${AEGIS_RELEASE_KEYSTORE_PATH:-}" ]; then
+            test -s android/app/build/outputs/apk/client/release/app-client-release.apk
+            test -s android/app/build/outputs/apk/admin/release/app-admin-release.apk
+            test -s android/app/build/outputs/bundle/clientRelease/app-client-release.aab
+            test -s android/app/build/outputs/bundle/adminRelease/app-admin-release.aab
+          else
+            test -s android/app/build/outputs/apk/client/debug/app-client-debug.apk
+            test -s android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
+            test -s android/app/build/outputs/bundle/clientDebug/app-client-debug.aab
+            test -s android/app/build/outputs/bundle/adminDebug/app-admin-debug.aab
+          fi
+      - name: Upload installable APKs and AABs
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: AegisPay-Client-and-Master-Admin-Android-Bundles
+          path: |
+            android/app/build/outputs/apk/client/debug/app-client-debug.apk
+            android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
+            android/app/build/outputs/apk/client/release/app-client-release.apk
+            android/app/build/outputs/apk/admin/release/app-admin-release.apk
+            android/app/build/outputs/bundle/clientDebug/app-client-debug.aab
+            android/app/build/outputs/bundle/adminDebug/app-admin-debug.aab
+            android/app/build/outputs/bundle/clientRelease/app-client-release.aab
+            android/app/build/outputs/bundle/adminRelease/app-admin-release.aab
+          if-no-files-found: error

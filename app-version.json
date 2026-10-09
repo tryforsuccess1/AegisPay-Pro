@@ -1,0 +1,13 @@
+{
+  "versionCode": 38,
+  "versionName": "2.5.9",
+  "releaseChannel": "test",
+  "releasedAt": "2026-10-06T18:47:30Z",
+  "clientApkUrl": "https://aegispay-pro.pages.dev/downloads/aegispay-client-v2.5.9-b38.apk",
+  "clientSha256": "e5a39e00d8791ce20b98193d4838e64f2cc8568d38131848f88d03929cee46a5",
+  "notes": [
+    "Canonical Aurora Client UI APK baseline.",
+    "Premium Client dashboard and username login are included.",
+    "APK delivery uses a versioned filename and SHA-256 verification."
+  ]
+}
