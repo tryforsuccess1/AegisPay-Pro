@@ -16,6 +16,7 @@ const must=[
   'database/migrations/20261009_harden_shop_task_account_state.sql',
   'database/migrations/20261009_harden_shop_task_product_and_runtime.sql',
   'database/migrations/20261009_retire_public_username_email_lookup.sql',
+  'database/migrations/20261010_fail_closed_shop_cycle_checkout_jwt_role.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
@@ -72,6 +73,9 @@ assert((shopHardening.match(/status.*NOT IN \('ACTIVE','NORMAL'\)/g)||[]).length
 const shopProductHardening=fs.readFileSync('database/migrations/20261009_harden_shop_task_product_and_runtime.sql','utf8');
 assert(shopProductHardening.includes("The assigned Shop task does not have a resolvable product"),'Shop purchase confirmation must fail closed when its assigned product cannot be resolved');
 assert(shopProductHardening.includes("NOT public.app_runtime_enabled()"),'Cycle checkout must honor the global runtime pause');
+const shopCheckoutRoleHardening=fs.readFileSync('database/migrations/20261010_fail_closed_shop_cycle_checkout_jwt_role.sql','utf8');
+assert(shopCheckoutRoleHardening.includes("auth.jwt() ->> 'role'"),'Shop checkout must support current Supabase JWT claim settings');
+assert(shopCheckoutRoleHardening.includes("v_jwt_role IS NULL OR v_jwt_role NOT IN ('authenticated','service_role')"),'Shop checkout must reject missing and unsupported JWT roles');
 assert(client.includes("qs.get('shop_purchase')==='confirmed'"),'Client Shop purchase return callback is missing');
 assert(client.includes("&product=")||client.includes("'&product='"),'Shop task marketplace link must carry the assigned product ID');
 assert(client.includes("qs.get('reset')==='1'"),'Client password reset route is missing');
