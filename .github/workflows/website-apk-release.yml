@@ -1,4 +1,4 @@
-name: AegisPay Aurora APK Release
+name: AegisPay Client and Master Admin APK Release
 on:
   push:
     branches: [main]
@@ -20,22 +20,26 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-      - name: Build canonical Aurora Client debug APK
-        run: gradle -p android :app:assembleClientDebug :app:bundleClientDebug --no-daemon
+      - name: Build Client and Master Admin debug APKs
+        run: gradle -p android :app:assembleClientDebug :app:assembleAdminDebug :app:bundleClientDebug :app:bundleAdminDebug --no-daemon
       - name: Verify canonical Aurora Client
         shell: bash
         run: |
           set -euo pipefail
           APK="android/app/build/outputs/apk/client/debug/app-client-debug.apk"
           AAB="android/app/build/outputs/bundle/clientDebug/app-client-debug.aab"
+          ADMIN_APK="android/app/build/outputs/apk/admin/debug/app-admin-debug.apk"
+          ADMIN_AAB="android/app/build/outputs/bundle/adminDebug/app-admin-debug.aab"
           test -s "$APK"
           test -s "$AAB"
+          test -s "$ADMIN_APK"
+          test -s "$ADMIN_AAB"
           VERSION_CODE=$(sed -n "s/.*versionCode \\([0-9][0-9]*\\).*/\\1/p" android/app/build.gradle | head -1)
           VERSION_NAME=$(sed -n "s/.*versionName '\\([^']*\\)'.*/\\1/p" android/app/build.gradle | head -1)
           test -n "$VERSION_CODE"
           test -n "$VERSION_NAME"
-          echo "Aurora version: $VERSION_NAME (code $VERSION_CODE)"
-          sha256sum "$APK"
+          echo "AegisPay Client and Master Admin version: $VERSION_NAME (code $VERSION_CODE)"
+          sha256sum "$APK" "$AAB" "$ADMIN_APK" "$ADMIN_AAB"
       - name: Publish Aurora Client APK
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,15 +48,20 @@ jobs:
           set -euo pipefail
           APK="android/app/build/outputs/apk/client/debug/app-client-debug.apk"
           AAB="android/app/build/outputs/bundle/clientDebug/app-client-debug.aab"
+          ADMIN_APK="android/app/build/outputs/apk/admin/debug/app-admin-debug.apk"
+          ADMIN_AAB="android/app/build/outputs/bundle/adminDebug/app-admin-debug.aab"
           test -s "$APK"
           test -s "$AAB"
+          test -s "$ADMIN_APK"
+          test -s "$ADMIN_AAB"
           VERSION_CODE=$(sed -n "s/.*versionCode \\([0-9][0-9]*\\).*/\\1/p" android/app/build.gradle | head -1)
           VERSION_NAME=$(sed -n "s/.*versionName '\\([^']*\\)'.*/\\1/p" android/app/build.gradle | head -1)
           TAG="aurora-apk-${VERSION_NAME}-b${VERSION_CODE}"
-          TITLE="AegisPay Aurora Client ${VERSION_NAME} (${VERSION_CODE})"
-          NOTES="Canonical Aurora Client UI APK. Includes username login, password recovery, Secure & Verified footer, corrected CNIC/Passport layout, automatic Shop task assignment, assigned-product marketplace flow, Shop purchase confirmation return flow, and the canonical Aurora UI guard."
+          TITLE="AegisPay Client and Master Admin ${VERSION_NAME} (${VERSION_CODE})"
+          NOTES="Installable debug APKs for the canonical AegisPay Client and Master Admin apps. Includes the latest verified app screens, Supabase authentication wiring, and the separate admin portal."
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" "$AAB" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "$APK" "$AAB" "$ADMIN_APK" "$ADMIN_AAB" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes "$NOTES"
           else
-            gh release create "$TAG" "$APK" "$AAB" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes "$NOTES" --prerelease --target "$GITHUB_SHA"
+            gh release create "$TAG" "$APK" "$AAB" "$ADMIN_APK" "$ADMIN_AAB" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes "$NOTES" --prerelease --target "$GITHUB_SHA"
           fi

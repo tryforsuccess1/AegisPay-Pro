@@ -101,6 +101,25 @@ jobs:
           test -s site/app/home.html
           test -s "site/downloads/${VERSIONED_CLIENT}"
           test -s site/downloads/aegispay-client.apk
+          test -s "site/downloads/${VERSIONED_ADMIN}"
+          test -s site/downloads/aegispay-admin.apk
+          test -s site/app-version.json
+          VERSION_CODE="$VERSION_CODE" VERSION_NAME="$VERSION_NAME" RELEASE_CHANNEL="$RELEASE_CHANNEL" VERSIONED_CLIENT="$VERSIONED_CLIENT" VERSIONED_ADMIN="$VERSIONED_ADMIN" python3 - <<'PY'
+          import hashlib, json, os, re
+          from pathlib import Path
+          manifest=json.loads(Path("site/app-version.json").read_text(encoding="utf-8"))
+          assert manifest.get("versionCode")==int(os.environ["VERSION_CODE"])
+          assert manifest.get("versionName")==os.environ["VERSION_NAME"]
+          assert manifest.get("releaseChannel")==os.environ["RELEASE_CHANNEL"]
+          for name, alias in (("client", "site/downloads/aegispay-client.apk"), ("admin", "site/downloads/aegispay-admin.apk")):
+              versioned=os.environ["VERSIONED_"+name.upper()]
+              expected_url="https://aegispay-pro.pages.dev/downloads/"+versioned
+              assert manifest.get(name+"ApkUrl")==expected_url
+              digest=hashlib.sha256(Path(alias).read_bytes()).hexdigest()
+              assert re.fullmatch(r"[a-f0-9]{64}", manifest.get(name+"Sha256", ""))
+              assert manifest[name+"Sha256"]==digest
+              assert hashlib.sha256(Path("site/downloads/"+versioned).read_bytes()).hexdigest()==digest
+          PY
           test -s site/_redirects
       - name: Upload web portal artifact
         continue-on-error: true

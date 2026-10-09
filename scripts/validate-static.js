@@ -86,7 +86,9 @@ const admin=fs.readFileSync('master-admin.html','utf8');
 assert(admin.includes('./admin-auth.js')&&!admin.includes('aegis-core.js')&&!admin.includes('app.js'),'Admin entry wiring incomplete');
 
 const adminAuth=fs.readFileSync('admin-auth.js','utf8');
-assert(adminAuth.includes('Production Readiness')&&adminAuth.includes('aaProductionForm')&&adminAuth.includes('set_production_config')&&adminAuth.includes('get_production_readiness'),'Phase 3 Master Admin readiness controls are missing');
+const productionReadinessFunction=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+assert(adminAuth.includes('Production Readiness')&&adminAuth.includes('aaProductionForm')&&adminAuth.includes("invokeFunction('production-readiness'")&&adminAuth.includes('get_production_readiness'),'Phase 3 Master Admin readiness controls are missing');
+assert(productionReadinessFunction.includes('rpc("set_production_config"'),'Phase 3 production settings must be saved through the protected readiness function');
 
 const payout=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(payout.includes('production_config')&&payout.includes('Production payout gate is locked'),'Phase 3 payout gate is missing');
@@ -127,16 +129,20 @@ assert(androidWorkflow.includes('outputs/bundle/adminRelease/app-admin-release.a
 const deploy=fs.readFileSync('.github/workflows/web-portal-deploy.yml','utf8');
 assert(deploy.includes('cp client.html site/app/index.html'),'Deploy source of truth is not client.html');
 assert(deploy.includes('cp master-admin.html site/master-admin.html'),'Admin deploy source is not master-admin.html');
+assert(deploy.includes('test -s site/downloads/aegispay-admin.apk')&&deploy.includes('VERSIONED_ADMIN'),'Web deploy must package and verify the Master Admin APK');
+assert(deploy.includes('adminApkUrl')&&deploy.includes('adminSha256')&&deploy.includes('hashlib.sha256'),'Update manifest must validate both APK download URLs and SHA-256 digests');
 assert(deploy.includes('rm -rf site/app site/downloads'),'Generated deploy directories are rebuilt cleanly');
 assert(!deploy.includes('netlify-cli deploy'),'Legacy Netlify production deployment must stay disabled during Cloudflare migration');
 
 const rel=fs.readFileSync('.github/workflows/website-apk-release.yml','utf8');
 assert(rel.includes(':app:assembleClientDebug'),'Aurora APK release workflow must build the canonical client flavor');
 assert(rel.includes(':app:bundleClientDebug'),'Aurora APK release workflow must build the canonical client AAB');
+assert(rel.includes(':app:assembleAdminDebug')&&rel.includes(':app:bundleAdminDebug'),'Aurora APK release workflow must build the Master Admin APK and AAB');
 assert(rel.includes('VERSION_CODE=$(sed'),'Aurora release workflow must derive the Android version code from build.gradle');
 assert(rel.includes('VERSION_NAME=$(sed'),'Aurora release workflow must derive the Android version name from build.gradle');
 assert(!rel.includes('aurora-apk-2.5.9-b38'),'Aurora release workflow must not pin the obsolete Build 38 release tag');
 assert(rel.includes('outputs/bundle/clientDebug/app-client-debug.aab'),'Aurora AAB output verification is missing');
+assert(rel.includes('outputs/apk/admin/debug/app-admin-debug.apk')&&rel.includes('outputs/bundle/adminDebug/app-admin-debug.aab'),'Master Admin APK and AAB outputs must be verified before release');
 assert(!rel.includes('netlify-cli deploy'),'Release workflow still has active Netlify production deployment');
 
 const updater=fs.readFileSync('app-update.js','utf8');
