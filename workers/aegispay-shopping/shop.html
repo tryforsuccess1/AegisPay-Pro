@@ -247,7 +247,7 @@ function render(){
  <div class="rt" data-r="${p.id}"><span class="st">${stars(p.rating)}</span>${p.rating} (${p.rc.toLocaleString()})</div>
  <div class="pr"><b>$${d}<sup>${c}</sup></b>${p.old?`<s>$${p.old}</s>`:''}${p.prime?'<span class="prime">prime</span>':''}</div>
  <div class="dl">${p.free?'FREE Delivery':'Delivery $2.99'}</div><button class="add" data-a="${p.id}">Add to Cart</button></div></div>`}).join('')||'<div class="empty">No items found</div>';
- $('grid').querySelectorAll('.img img').forEach(function(img){img.onerror=function(){if(img.dataset.proxyFallback==='1')return;img.dataset.proxyFallback='1';const original=img.getAttribute('src')||'';if(/^https:///i.test(original))img.src=location.origin+'/image-proxy?url='+encodeURIComponent(original);};});
+ $('grid').querySelectorAll('.img img').forEach(function(img){img.onerror=function(){if(img.dataset.proxyFallback==='1')return;img.dataset.proxyFallback='1';const original=img.getAttribute('src')||'';if(/^https?:\/\//i.test(original))img.src=location.origin+'/image-proxy?url='+encodeURIComponent(original);};});
     $('more').style.display=L.length>shown?'block':'none';
 }
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1400)}
