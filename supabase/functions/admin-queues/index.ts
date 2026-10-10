@@ -111,15 +111,22 @@ Deno.serve(async (req: Request) => {
         frontUrl: await signedUrl(admin, x.front_storage_path),
         backUrl: await signedUrl(admin, x.back_storage_path),
       }))),
-      withdrawals: withdrawals.map((x: any) => ({
-        id: x.id, amount: x.amount, feeAmount: x.fee_amount, netAmount: x.net_amount,
-        destinationAddress: x.destination_address, status: x.status, submittedAt: x.created_at,
-        payoutError: x.payout_error, payoutTxid: x.payout_txid,
-        panelDecision: x.panel_decision, panelDecidedAt: x.panel_decided_at,
-        telegramDecision: x.telegram_decision, telegramDecidedAt: x.telegram_decided_at,
-        telegramStatus: x.telegram_status, telegramMessageId: x.telegram_message_id,
-        aiDecision: x.ai_decision, aiConfidence: x.ai_confidence, aiReviewReason: x.ai_review_reason, aiReviewedAt: x.ai_reviewed_at,
-        user: users.get(x.user_id) || null,
+      withdrawals: await Promise.all(withdrawals.map(async (x: any) => {
+        const { data: walletValid, error: walletValidationError } = await admin.rpc("is_valid_tron_address", {
+          p_address: String(x.destination_address || "")
+        });
+        return {
+          id: x.id, amount: x.amount, feeAmount: x.fee_amount, netAmount: x.net_amount,
+          destinationAddress: x.destination_address, walletValid: !walletValidationError && walletValid === true,
+          status: x.status, submittedAt: x.created_at,
+          payoutError: x.payout_error, payoutTxid: x.payout_txid,
+          payoutStartedAt: x.payout_started_at || null,
+          panelDecision: x.panel_decision, panelDecidedAt: x.panel_decided_at,
+          telegramDecision: x.telegram_decision, telegramDecidedAt: x.telegram_decided_at,
+          telegramStatus: x.telegram_status, telegramMessageId: x.telegram_message_id,
+          aiDecision: x.ai_decision, aiConfidence: x.ai_confidence, aiReviewReason: x.ai_review_reason, aiReviewedAt: x.ai_reviewed_at,
+          user: users.get(x.user_id) || null,
+        };
       })),
       accessEvents: (accessResult.data || []).map((x: any) => ({
         id: x.id, eventType: x.event_type, ipAddress: x.ip_address,
