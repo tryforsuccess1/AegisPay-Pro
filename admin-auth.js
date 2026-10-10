@@ -265,10 +265,10 @@ function reviewCard(kind,item){
     '<div class="aa-wallet-box"><span>Destination</span><code>'+esc(item.destinationAddress||'—')+'</code></div>'+
     (item.payoutTxid?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Payout TXID</strong><small class="aa-mono">'+esc(item.payoutTxid)+'</small></div></div>':'')+
     '<div class="aa-review-actions">'+
-      ((item.status==='PENDING_APPROVAL'&&item.panelDecision==='PENDING')?'<button class="aa-primary" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-amount="'+esc(item.amount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'" data-decision="approve">Panel Approve</button>':'')+
-      (item.telegramDecision==='PENDING'?'<button class="aa-secondary" data-action="telegram-resend" data-id="'+esc(item.id)+'">Send Telegram</button>':'')+
-      ((item.status==='APPROVED'&&item.panelDecision==='APPROVED'&&item.telegramDecision==='APPROVED'&&!item.payoutTxid)?'<button class="aa-primary" data-action="payout" data-id="'+esc(item.id)+'" data-amount="'+esc(item.netAmount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'">'+(mainnetLive?'Execute MAINNET USDT Payout':'Send Testnet Payout')+'</button>':'')+
-      '<button class="aa-danger" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>'+
+      ((item.status==='PENDING_APPROVAL'&&item.panelDecision==='PENDING'&&item.walletValid===true)?'<button class="aa-primary" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-amount="'+esc(item.amount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'" data-decision="approve">Panel Approve</button>':'')+
+      (item.telegramDecision==='PENDING'&&item.walletValid===true?'<button class="aa-secondary" data-action="telegram-resend" data-id="'+esc(item.id)+'">Send Telegram</button>':'')+
+      ((item.status==='APPROVED'&&item.panelDecision==='APPROVED'&&item.telegramDecision==='APPROVED'&&!item.payoutTxid&&item.walletValid===true)?'<button class="aa-primary" data-action="payout" data-id="'+esc(item.id)+'" data-amount="'+esc(item.netAmount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'">'+(mainnetLive?'Execute MAINNET USDT Payout':'Send Testnet Payout')+'</button>':'')+
+      ((item.status==='PENDING_APPROVAL'&&item.panelDecision==='PENDING')?'<button class="aa-danger" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>':'')+
     '</div></article>';
 }
 
