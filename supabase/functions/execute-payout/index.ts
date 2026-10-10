@@ -153,6 +153,26 @@ let payoutMayHaveBeenBroadcast = false;
       }, 409);
     }
 
+    // Validate the exact case-sensitive TRON recipient before claiming a payout.
+    // Uppercasing a Base58 address changes the destination and may make it invalid.
+    const { data: payoutTarget, error: payoutTargetError } = await admin
+      .from("withdrawal_requests")
+      .select("id,destination_address")
+      .eq("id", withdrawalId)
+      .maybeSingle();
+    if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
+    if (!payoutTarget) return json({ error: "Withdrawal request not found. No transaction was sent." }, 404);
+    const { data: destinationValid, error: destinationValidationError } = await admin.rpc("is_valid_tron_address", {
+      p_address: String(payoutTarget.destination_address || "")
+    });
+    if (destinationValidationError || destinationValid !== true) {
+      return json({
+        error: "Withdrawal destination is not a valid exact-case TRON Base58Check address. No transaction was sent. Master Admin must verify the correct wallet and reconcile this request.",
+        code: "INVALID_WITHDRAWAL_DESTINATION",
+        withdrawalId,
+      }, 409);
+    }
+
     // Atomic claim: only one invocation can transition an approved request to PROCESSING.
     let claimQuery = admin
       .from("withdrawal_requests")
