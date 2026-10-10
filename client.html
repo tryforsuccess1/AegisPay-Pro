@@ -535,7 +535,38 @@ async function liveWithdraw(){
  }
  app.innerHTML=top('Withdraw')+'<div class="card" style="text-align:center"><small class="mu">Available balance</small><h2 style="font-size:32px;margin:4px 0">'+b.toFixed(2)+' <span class="mu" style="font-size:15px">USDT</span></h2></div><div class="card"><div class="ap-field"><label>Withdrawal amount</label><input id="wAmount" type="number" min="'+(r.minimum||50)+'" step=".01" placeholder="Enter amount"></div><div class="ap-field"><label>Withdrawal Wallet Address (TRC20)</label>'+(p.destination_address?'<div class="in f">'+esc(p.destination_address)+'<span class="chip">Linked · Locked</span></div><div class="mu" style="font-size:11px;margin:-4px 0 12px">This wallet cannot be changed from the client portal. Only Master Admin can change it.</div>':'<input id="withdrawWallet" type="text" autocomplete="off" placeholder="Enter TRC20 wallet address"><button class="btn o" id="linkWalletBtn" style="margin-top:8px">Link Wallet '+ic('link')+'</button><div class="mu" style="font-size:11px;margin:8px 0 12px">After linking, this address will be locked. Only Master Admin can change it.</div>')+'</div><button class="btn" id="wBtn">Request Withdrawal '+ic('arrow')+'</button></div>';
 if(!p.destination_address){linkWalletBtn.onclick=async()=>{try{const wallet=withdrawWallet.value.trim().toUpperCase();if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address');const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});if(rr.error)throw rr.error;profile.destination_address=wallet;profile.withdrawal_wallet_owner_name=profile.name;uiNotice('Withdrawal wallet linked and locked.');liveWithdraw()}catch(e){uiNotice(e.message||'Unable to link wallet')}};}
-wBtn.onclick=async()=>{try{if(!profile.destination_address)throw Error('Link your withdrawal wallet first.');const a=Number(wAmount.value);const x=await db.rpc('request_withdrawal',{p_amount:a});if(x.error)throw x.error;const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});go('home');uiNotice(tg.error?'Withdrawal submitted, but the Telegram approval alert could not be sent automatically.':'Withdrawal submitted and sent for Master Admin approval.','success')}catch(e){uiNotice(e.message||'Withdrawal failed')}};
+wBtn.onclick=async()=>{try{
+ if(!profile.destination_address)throw Error('Link your withdrawal wallet first.');
+ const a=Number(wAmount.value);const x=await db.rpc('request_withdrawal',{p_amount:a});if(x.error)throw x.error;
+ let aiDecision=null,aiMessage='';
+ try{
+   const ar=await db.functions.invoke('withdrawal-ai-review',{body:{action:'review',withdrawalId:x.data}});
+   if(ar.error)throw ar.error;
+   aiDecision=ar.data||null;
+ }catch(aiError){aiMessage=String(aiError&&aiError.message||'AI review is unavailable.');}
+ if(aiDecision&&aiDecision.decision==='AUTO_APPROVED'){
+   const payout=await db.functions.invoke('execute-payout',{body:{withdrawalId:x.data}});
+   if(!payout.error&&payout.data&&payout.data.status==='PAID'){
+     go('home');uiNotice('Aegis AI approved the low-risk withdrawal and the payout was confirmed.','success');return;
+   }
+   go('home');uiNotice('Aegis AI approved this request, but transfer needs reconciliation: '+String((payout.data&&payout.data.error)||(payout.error&&payout.error.message)||'Check withdrawal status in Activity.'),'info');return;
+ }
+ const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});
+ go('home');
+ if(tg.error)uiNotice('Withdrawal submitted for Master Admin review, but Telegram alert failed to send.','info');
+ else if(aiDecision&&aiDecision.requiresManualReview)uiNotice('Withdrawal sent to Master Admin review. AI confidence: '+Number(aiDecision.confidence||0).toFixed(2)+'. Reason: '+String(aiDecision.reason||aiDecision.decision||'Manual review required')+'.','success');
+ else if(aiMessage)uiNotice('Withdrawal submitted for Master Admin review; AI review was unavailable.','info');
+ else uiNotice('Withdrawal submitted and sent for Master Admin approval.','success');
+ }catch(e){uiNotice(e.message||'Withdrawal failed')} };
+}
+async function recordClientAccess(eventType){
+  try{
+    if(!profile||profile.role!=='USER')return;
+    // The server derives identity and IP from the authenticated request; the browser never supplies an IP.
+    await db.functions.invoke('record-user-access',{body:{eventType:eventType==='LOGIN'?'LOGIN':'APP_OPEN'}});
+  }catch(_){
+    // Access logging must not prevent a client from signing in or using the portal.
+  }
 }
 async function liveNotifications(){
  const p=profile;
@@ -854,6 +885,7 @@ function bindAuthForms(){
           authUser=null;
           throw Error('This account is not active.');
         }
+        recordClientAccess('LOGIN');
         await liveHome();
       }catch(x){
         const msg=x.message||'Login failed';
@@ -1093,7 +1125,7 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
   },0);
   return;
 }
-const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login')}}
+const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}recordClientAccess('APP_OPEN');return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login')}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
 (function(){
