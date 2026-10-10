@@ -12,11 +12,11 @@ const cors = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 
 function clientIp(req: Request) {
-  const candidate = req.headers.get("cf-connecting-ip") ||
-    req.headers.get("true-client-ip") ||
-    req.headers.get("x-real-ip") ||
-    (req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
-  return String(candidate || "").trim().slice(0, 64) || null;
+  // Prefer the right-most forwarded IP, which is the last hop appended by the trusted gateway.
+  // Do not trust the left-most X-Forwarded-For value supplied by a client.
+  const chain = String(req.headers.get("x-forwarded-for") || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const candidate = req.headers.get("x-real-ip") || chain[chain.length - 1] || "";
+  return String(candidate).trim().slice(0, 64) || null;
 }
 function isPublicIp(ip: string) {
   if (ip.includes(":")) {
@@ -55,12 +55,13 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const eventType = ["APP_OPEN", "LOGIN"].includes(String(body?.eventType || "")) ? String(body.eventType) : "APP_OPEN";
     const ip = clientIp(req);
-    let countryCode = safeHeader(req, "cf-ipcountry", 2).toUpperCase();
-    let countryName = safeHeader(req, "x-geo-country", 80);
-    let region = safeHeader(req, "x-geo-region", 80);
-    let city = safeHeader(req, "x-geo-city", 100);
-    let geoSource = countryCode ? "edge-country-header" : "unresolved";
-    if (countryCode === "XX" || countryCode === "T1") countryCode = "";
+    // The Supabase function is called directly by clients, so do not trust client-supplied
+    // Cloudflare/geolocation headers. Resolve approximate location from the server-observed IP.
+    let countryCode = "";
+    let countryName = "";
+    let region = "";
+    let city = "";
+    let geoSource = "unresolved";
     if (ip && isPublicIp(ip) && (!countryCode || !city)) {
       try {
         const controller = new AbortController();
