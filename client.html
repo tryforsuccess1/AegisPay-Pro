@@ -523,7 +523,7 @@ async function liveNotifications(){
  // Delegate clicks from the notification list so dynamically rendered cards always open.
  const notificationList=document.getElementById('notificationList');
  if(notificationList)notificationList.addEventListener('click',e=>{
-   const el=e.target.closest('[data-notification-id]');if(!el)return;
+   const target=e.target;const el=target&&target.closest?target.closest('[data-notification-id]'):null;if(!el)return;
    e.preventDefault();e.stopPropagation();
    const id=el.getAttribute('data-notification-id');
    const item=items.find(x=>String(x.id)===String(id));if(!item)return;
@@ -539,7 +539,7 @@ async function liveNotifications(){
    // Open the selected notification immediately; never wait for a database write before showing it.
    const prior=document.getElementById('notificationDetailOverlay');if(prior)prior.remove();
    const overlay=document.createElement('div');overlay.id='notificationDetailOverlay';
-   overlay.style.cssText='position:fixed;inset:0;z-index:99999;background:rgba(3,6,18,.82);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;pointer-events:auto';
+   overlay.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(3,6,18,.82);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;pointer-events:auto';
    overlay.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="notificationDetailTitle" style="width:min(420px,100%);max-height:85vh;overflow:auto;padding:20px;border-radius:22px;background:#0b1022;color:#fff;border:1px solid var(--ln);box-shadow:0 24px 70px rgba(0,0,0,.5)"><div style="display:flex;align-items:flex-start;gap:12px"><span class="nicon">'+ic('bell')+'</span><div style="flex:1;min-width:0"><h2 id="notificationDetailTitle" style="font-size:17px;line-height:1.4;margin:0 0 7px">'+esc(item.title||'AegisPay Update')+'</h2><small class="mu">'+esc(new Date(item.created_at).toLocaleString())+'</small></div><button type="button" id="closeNotificationDetail" aria-label="Close" style="border:1px solid var(--ln);border-radius:10px;background:rgba(255,255,255,.05);color:#fff;padding:7px 10px;cursor:pointer">✕</button></div><div style="margin-top:16px;font-size:14px;line-height:1.7;color:#d7dbea;white-space:pre-wrap;overflow-wrap:anywhere">'+esc(item.body||'No additional details were provided.')+'</div>'+(destination?'<button type="button" id="notificationOpenDestination" class="btn" style="margin-top:18px;width:100%">Open related section</button>':'')+'<button type="button" id="notificationDetailDone" class="btn" style="margin-top:10px;width:100%">Done</button></div>';
    document.body.appendChild(overlay);
    const close=()=>overlay.remove();
@@ -555,7 +555,7 @@ async function liveNotifications(){
        if(u.error){item.is_read=false;uiNotice('Notification opened, but its read status could not be saved.','error');}
      }).catch(()=>uiNotice('Notification opened, but its read status could not be saved.','error'));
    }
- });
+ },true);
  const all=document.getElementById('markAllNotifications');
  if(all)all.onclick=async()=>{
    const u=await db.from('notifications').update({is_read:true}).eq('user_id',p.id).eq('is_read',false);
