@@ -520,13 +520,10 @@ async function liveNotifications(){
  if(r.error){uiNotice('Unable to load notifications.','error');return liveHome()}
  const items=r.data||[];unreadNotifications=items.filter(x=>!x.is_read).length;
  app.innerHTML='<div class="notif-page">'+top('Notifications','home')+'<div class="notif-head"><div><div class="sh" style="margin:0">Updates</div><small class="mu">'+(unreadNotifications?unreadNotifications+' unread notification'+(unreadNotifications===1?'':'s'):'All notifications are read')+'</small></div>'+(unreadNotifications?'<button id="markAllNotifications" type="button">Mark all as read</button>':'')+'</div><div id="notificationList">'+(items.map(x=>'<button type="button" class="notif-card '+(!x.is_read?'unread':'')+'" data-notification-id="'+esc(x.id)+'"><span class="nicon">'+ic('bell')+'</span><span class="nbody"><span class="ntitle">'+esc(x.title||'AegisPay Update')+'</span><span class="ntext">'+esc(x.body||'')+'</span><span class="ntime">'+esc(new Date(x.created_at).toLocaleString())+'</span></span>'+(!x.is_read?'<span class="dotunread"></span>':'')+'</button>').join('')||'<div class="card" style="text-align:center;padding:28px 16px"><div style="font-size:28px;margin-bottom:8px">🔔</div><div style="font-weight:700">No notifications yet</div><div class="mu" style="font-size:11px;margin-top:6px">New account, deposit, Shop and withdrawal updates will appear here.</div></div>')+'</div></div>'+NV('account');
- // Delegate clicks from the notification list so dynamically rendered cards always open.
- const notificationList=document.getElementById('notificationList');
- if(notificationList)notificationList.addEventListener('click',e=>{
-   const target=e.target;const el=target&&target.closest?target.closest('[data-notification-id]'):null;if(!el)return;
-   e.preventDefault();e.stopPropagation();
-   const id=el.getAttribute('data-notification-id');
-   const item=items.find(x=>String(x.id)===String(id));if(!item)return;
+ // Open notification details as a dedicated readable page. A click handler outside the list handles all mobile taps.
+ window.__aegisOpenNotificationById=async function(id){
+   let item=items.find(x=>String(x.id)===String(id));
+   if(!item){uiNotice('This notification could not be found.','error');return;}
    const signal=[item.notification_type,item.title,item.body].filter(Boolean).join(' ').toLowerCase();
    let destination='';
    if(/withdraw|payout|cash.?out/.test(signal))destination='withdraw';
@@ -536,26 +533,29 @@ async function liveNotifications(){
    else if(/kyc|cnic|passport|identity|verification/.test(signal))destination='withdraw';
    else if(/balance|wallet|credit|debit|profit|reward|earning|ledger/.test(signal))destination='activity';
    else if(/profile|account|password|security|login|email/.test(signal))destination='profile';
-   // Open the selected notification immediately; never wait for a database write before showing it.
-   const prior=document.getElementById('notificationDetailOverlay');if(prior)prior.remove();
-   const overlay=document.createElement('div');overlay.id='notificationDetailOverlay';
-   overlay.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(3,6,18,.82);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px;pointer-events:auto';
-   overlay.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="notificationDetailTitle" style="width:min(420px,100%);max-height:85vh;overflow:auto;padding:20px;border-radius:22px;background:#0b1022;color:#fff;border:1px solid var(--ln);box-shadow:0 24px 70px rgba(0,0,0,.5)"><div style="display:flex;align-items:flex-start;gap:12px"><span class="nicon">'+ic('bell')+'</span><div style="flex:1;min-width:0"><h2 id="notificationDetailTitle" style="font-size:17px;line-height:1.4;margin:0 0 7px">'+esc(item.title||'AegisPay Update')+'</h2><small class="mu">'+esc(new Date(item.created_at).toLocaleString())+'</small></div><button type="button" id="closeNotificationDetail" aria-label="Close" style="border:1px solid var(--ln);border-radius:10px;background:rgba(255,255,255,.05);color:#fff;padding:7px 10px;cursor:pointer">✕</button></div><div style="margin-top:16px;font-size:14px;line-height:1.7;color:#d7dbea;white-space:pre-wrap;overflow-wrap:anywhere">'+esc(item.body||'No additional details were provided.')+'</div>'+(destination?'<button type="button" id="notificationOpenDestination" class="btn" style="margin-top:18px;width:100%">Open related section</button>':'')+'<button type="button" id="notificationDetailDone" class="btn" style="margin-top:10px;width:100%">Done</button></div>';
-   document.body.appendChild(overlay);
-   const close=()=>overlay.remove();
-   overlay.querySelector('#closeNotificationDetail').onclick=close;
-   overlay.querySelector('#notificationDetailDone').onclick=close;
-   if(destination)overlay.querySelector('#notificationOpenDestination').onclick=()=>{close();window.go(destination)};
-   overlay.addEventListener('click',ev=>{if(ev.target===overlay)close()});
-   // Mark as read in the background; a slow request must not block opening the notification.
+   const title=item.title||'AegisPay Update';
+   const dateText=new Date(item.created_at).toLocaleString();
+   const bodyText=item.body||'No additional details were provided.';
+   app.innerHTML=top('Notification Details','notifications')+
+     '<article class="p2-card" style="color:#EAF0FF!important;-webkit-text-fill-color:#EAF0FF!important;padding:20px">'+
+       '<h2 style="color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;font-size:19px;line-height:1.45;font-weight:800;margin-bottom:10px">'+esc(title)+'</h2>'+
+       '<div style="color:#C5CEE8!important;-webkit-text-fill-color:#C5CEE8!important;font-size:11px;line-height:1.5;margin-bottom:18px">'+esc(dateText)+'</div>'+
+       '<div style="color:#F4F6FF!important;-webkit-text-fill-color:#F4F6FF!important;font-size:15px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word">'+esc(bodyText)+'</div>'+
+       (destination?'<button type="button" id="notificationOpenDestination" class="btn" style="margin-top:22px;width:100%">Open related section</button>':'')+
+       '<button type="button" id="notificationDetailsBack" class="btn o" style="margin-top:10px;width:100%">Back to notifications</button>'+
+     '</article>'+nav('account');
+   window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;
+   const openRelated=document.getElementById('notificationOpenDestination');
+   if(openRelated)openRelated.onclick=function(){window.go(destination)};
+   const back=document.getElementById('notificationDetailsBack');
+   if(back)back.onclick=function(){window.go('notifications')};
    if(!item.is_read){
-     item.is_read=true;el.classList.remove('unread');const dot=el.querySelector('.dotunread');if(dot)dot.remove();
-     unreadNotifications=Math.max(0,unreadNotifications-1);updateNotificationBadge();
+     item.is_read=true;unreadNotifications=Math.max(0,unreadNotifications-1);updateNotificationBadge();
      db.from('notifications').update({is_read:true}).eq('id',id).eq('user_id',p.id).then(u=>{
        if(u.error){item.is_read=false;uiNotice('Notification opened, but its read status could not be saved.','error');}
      }).catch(()=>uiNotice('Notification opened, but its read status could not be saved.','error'));
    }
- },true);
+ };
  const all=document.getElementById('markAllNotifications');
  if(all)all.onclick=async()=>{
    const u=await db.from('notifications').update({is_read:true}).eq('user_id',p.id).eq('is_read',false);
@@ -1195,36 +1195,64 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   };
 
   liveActivity=async function(){
-    const p=profile,q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000),db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000),db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000)]);
+    const p=profile;
+    const q=await Promise.all([
+      db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000),
+      db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000),
+      db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000)
+    ]);
     if(q[0].error||q[1].error||q[2].error){uiNotice('Unable to load activity history.','error');return;}
     const ledger=q[0].data||[],withdrawals=q[1].data||[],referrals=q[2].data||[];
     const sum=function(a){return a.reduce(function(n,x){return n+Math.abs(Number(x.amount||x.platform_reward||0));},0);};
-    const deposits=ledger.filter(function(x){return Number(x.amount)>0&&!/profit|task|referral|reward/i.test((x.entry_type||'')+' '+(x.description||''));}),profits=ledger.filter(function(x){return Number(x.amount)>0&&/profit|task/i.test((x.entry_type||'')+' '+(x.description||''));});
-    let current='overview';
-    const listBox='<div id="activityList"></div>';
-    const card=function(key,title,value,icon,color){return '<button type="button" class="p2-card compact" data-activity-tab="'+key+'" style="width:100%;text-align:left;color:var(--t);font:inherit;appearance:none;-webkit-appearance:none;cursor:pointer;border-color:'+color+'44"><div class="p2-row"><span class="bub" style="background:'+color+'18;color:'+color+'">'+ic(icon)+'</span><div class="grow"><h3>'+title+'</h3><small>Open history</small></div><div class="p2-amount">'+Number(value).toFixed(2)+'<small>USDT · View</small></div></div></button>';};
-    const render=function(key){
-      current=key;const box=document.getElementById('activityList');if(!box)return;
-      let html='';
-      if(key==='overview')html='<div class="p2-card compact"><div class="p2-step"><span class="n">1</span><div><b>Deposits</b><small>Successful account credits and submitted deposit history.</small></div></div><div class="p2-step"><span class="n">2</span><div><b>Withdrawals</b><small>Requested, approved and processed withdrawal activity.</small></div></div><div class="p2-step"><span class="n">3</span><div><b>Task Profit</b><small>Recorded Shop/task earnings.</small></div></div><div class="p2-step"><span class="n">4</span><div><b>Referral Rewards</b><small>Level-based referral reward records.</small></div></div></div>';
-      else if(key==='deposit')html=deposits.length?deposits.map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No deposit records</b>Successful credits will appear here.</div>';
-      else if(key==='withdrawal')html=withdrawals.length?withdrawals.map(function(x){return '<div class="row"><div>Withdrawal<small>'+esc(x.status||'REQUESTED')+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="dn">−'+Number(x.net_amount||x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No withdrawals yet</b>Your withdrawal requests will appear here.</div>';
-      else if(key==='profit')html=profits.length?profits.map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No task profit yet</b>Completed Shop earnings will appear here.</div>';
-      else if(key==='referral')html=referrals.length?referrals.map(function(x){return '<div class="row"><div>Referral Reward<small>Level '+esc(x.referral_level)+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.platform_reward||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No referral rewards yet</b>New rewards will appear here.</div>';
-      if(key!=='overview'){
-        const pageTitles={deposit:'Deposit History',withdrawal:'Withdrawal History',profit:'Task Profit History',referral:'Referral Rewards History'};
-        const pageTitle=pageTitles[key]||'Activity History';
-        const counts={deposit:deposits.length,withdrawal:withdrawals.length,profit:profits.length,referral:referrals.length};
-        app.innerHTML=top(pageTitle,'activity')+'<div class="p2-head"><h2>'+pageTitle+'</h2><span>'+Number(counts[key]||0)+' records</span></div><div class="p2-card compact p2-history-list" style="color:var(--t)">'+html+'</div>'+nav('activity');
-        return;
-      }
-      box.innerHTML='<div class="p2-card compact">'+html+'</div>';
+    const deposits=ledger.filter(function(x){return Number(x.amount)>0&&!/profit|task|referral|reward/i.test((x.entry_type||'')+' '+(x.description||''));});
+    const profits=ledger.filter(function(x){return Number(x.amount)>0&&/profit|task/i.test((x.entry_type||'')+' '+(x.description||''));});
+    const styles={
+      card:'width:100%;text-align:left;color:#EAF0FF!important;-webkit-text-fill-color:#EAF0FF!important;font:inherit;appearance:none;-webkit-appearance:none;cursor:pointer;border-color:var(--ln);',
+      white:'color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;',
+      muted:'color:#C5CEE8!important;-webkit-text-fill-color:#C5CEE8!important;'
     };
-    app.innerHTML=top('Activity')+'<div class="p2-head"><h2>Account Overview</h2><span>Live ledger</span></div><div class="p2-mini-grid"><div class="p2-mini"><small>Total Credits</small><b>+'+sum(deposits).toFixed(2)+'</b></div><div class="p2-mini"><small>Withdrawals</small><b>−'+sum(withdrawals).toFixed(2)+'</b></div><div class="p2-mini"><small>Task Profit</small><b>+'+sum(profits).toFixed(2)+'</b></div><div class="p2-mini"><small>Referral Rewards</small><b>+'+sum(referrals).toFixed(2)+'</b></div></div><div class="p2-head" style="margin-top:17px"><h2>History</h2><span>Tap a category</span></div>'+card('deposit','Deposits',sum(deposits),'dl','#2EE6A6')+card('withdrawal','Withdrawals',sum(withdrawals),'up','#FF5C7A')+card('profit','Task Profit',sum(profits),'check','#FFB84D')+card('referral','Referral Rewards',sum(referrals),'gift','#7C5CFF')+listBox+nav('activity');
-    document.querySelectorAll('[data-activity-tab]').forEach(function(el){el.onclick=function(){render(el.getAttribute('data-activity-tab')||'overview');};});
-    render(current);
+    const card=function(key,title,value,icon,color){
+      return '<button type="button" class="p2-card compact" data-activity-tab="'+key+'" style="'+styles.card+'border-color:'+color+'66">'+
+        '<div class="p2-row"><span class="bub" style="background:'+color+'18;color:'+color+'">'+ic(icon)+'</span>'+
+        '<div class="grow"><h3 style="'+styles.white+'font-size:14px;font-weight:800">'+title+'</h3>'+
+        '<small style="'+styles.muted+'display:block;margin-top:4px">Open full history</small></div>'+
+        '<div class="p2-amount" style="'+styles.white+'font-size:14px;font-weight:800;text-align:right">'+Number(value).toFixed(2)+
+        '<small style="'+styles.muted+'display:block;font-weight:500;margin-top:3px">USDT · View</small></div></div></button>';
+    };
+    const pageTitles={deposit:'Deposit History',withdrawal:'Withdrawal History',profit:'Task Profit History',referral:'Referral Rewards History'};
+    window.__aegisOpenActivityHistory=function(key){
+      let title=pageTitles[key];if(!title)return;
+      let items=[];
+      if(key==='deposit')items=deposits.map(function(x){return {label:x.description||x.entry_type||'Deposit Credit',date:x.created_at,amount:'+'+Number(x.amount||0).toFixed(2),status:x.entry_type||'Credit'};});
+      if(key==='withdrawal')items=withdrawals.map(function(x){return {label:'Withdrawal',date:x.created_at,amount:'−'+Number(x.net_amount||x.amount||0).toFixed(2),status:x.status||'Requested'};});
+      if(key==='profit')items=profits.map(function(x){return {label:x.description||x.entry_type||'Task Profit',date:x.created_at,amount:'+'+Number(x.amount||0).toFixed(2),status:'Task Profit'};});
+      if(key==='referral')items=referrals.map(function(x){return {label:'Referral Reward · Level '+(x.referral_level??'—'),date:x.created_at,amount:'+'+Number(x.platform_reward||0).toFixed(2),status:'Reward'};});
+      const rows=items.length?items.map(function(x){
+        return '<div class="p2-history-entry" style="display:flex;align-items:flex-start;gap:12px;justify-content:space-between;padding:15px 0;border-bottom:1px solid rgba(255,255,255,.12)">'+
+          '<div style="flex:1;min-width:0"><div style="'+styles.white+'font-size:13px;font-weight:800;line-height:1.5;overflow-wrap:anywhere">'+esc(x.label)+'</div>'+
+          '<div style="'+styles.muted+'font-size:11px;line-height:1.6;margin-top:5px">'+esc(new Date(x.date).toLocaleString())+'</div>'+
+          '<div style="'+styles.muted+'font-size:10px;margin-top:3px">'+esc(String(x.status))+'</div></div>'+
+          '<div style="'+styles.white+'font-size:14px;font-weight:800;white-space:nowrap;text-align:right">'+esc(x.amount)+'<small style="'+styles.muted+'display:block;font-size:10px;margin-top:4px">USDT</small></div></div>';
+      }).join(''):'<div style="'+styles.muted+'padding:26px 8px;text-align:center;line-height:1.8">No records are available in this category yet.</div>';
+      app.innerHTML=top(title,'activity')+
+        '<div class="p2-head"><h2 style="'+styles.white+'font-size:17px">'+title+'</h2><span style="'+styles.muted+'">'+items.length+' records</span></div>'+
+        '<section class="p2-card p2-history-list" style="color:#EAF0FF!important;-webkit-text-fill-color:#EAF0FF!important;padding:16px">'+rows+'</section>'+nav('activity');
+      window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;
+    };
+    app.innerHTML=top('Activity')+
+      '<div class="p2-head"><h2 style="'+styles.white+'font-size:16px">Account Overview</h2><span style="'+styles.muted+'">Live ledger</span></div>'+
+      '<div class="p2-mini-grid">'+
+        '<div class="p2-mini"><small style="'+styles.muted+'">Total Credits</small><b style="'+styles.white+'">+'+sum(deposits).toFixed(2)+'</b></div>'+
+        '<div class="p2-mini"><small style="'+styles.muted+'">Withdrawals</small><b style="'+styles.white+'">−'+sum(withdrawals).toFixed(2)+'</b></div>'+
+        '<div class="p2-mini"><small style="'+styles.muted+'">Task Profit</small><b style="'+styles.white+'">+'+sum(profits).toFixed(2)+'</b></div>'+
+        '<div class="p2-mini"><small style="'+styles.muted+'">Referral Rewards</small><b style="'+styles.white+'">+'+sum(referrals).toFixed(2)+'</b></div>'+
+      '</div><div class="p2-head" style="margin-top:17px"><h2 style="'+styles.white+'font-size:17px">History</h2><span style="'+styles.muted+'">Tap a category</span></div>'+
+      card('deposit','Deposits',sum(deposits),'dl','#2EE6A6')+
+      card('withdrawal','Withdrawals',sum(withdrawals),'up','#FF5C7A')+
+      card('profit','Task Profit',sum(profits),'check','#FFB84D')+
+      card('referral','Referral Rewards',sum(referrals),'gift','#7C5CFF')+nav('activity');
+    window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;
   };
-
   window.go=async function(id){
     try{
       if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const rr=oldGo(id);setTimeout(bindAuthForms,0);return rr;}
@@ -1234,6 +1262,23 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
       return oldGo(id);
     }catch(e){app.innerHTML='<div class="p2-card" style="margin-top:30px"><div class="p2-status error"><span class="dot"></span><div><b>Unable to load this section</b><small>'+esc(e.message||'Please try again.')+'</small></div></div>'+nav('home')+'</div>';}finally{setTimeout(updateNotificationBadge,0);}
   };
+  // Central capture-phase routing: it runs before child/button listeners and is reliable for Android WebView taps.
+  if(window.__aegisGlobalTapHandler)document.removeEventListener('click',window.__aegisGlobalTapHandler,true);
+  window.__aegisGlobalTapHandler=function(e){
+    let target=e.target;
+    if(!target||!target.closest)return;
+    const notification=target.closest('.notif-card[data-notification-id]');
+    if(notification&&typeof window.__aegisOpenNotificationById==='function'){
+      e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+      window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'));return;
+    }
+    const activity=target.closest('[data-activity-tab]');
+    if(activity&&typeof window.__aegisOpenActivityHistory==='function'){
+      e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+      window.__aegisOpenActivityHistory(activity.getAttribute('data-activity-tab'));return;
+    }
+  };
+  document.addEventListener('click',window.__aegisGlobalTapHandler,true);
 })();
 bindTaskDelegation();window.liveLogout=liveLogout;updateNotificationBadge();bootLive();
 })();
