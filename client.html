@@ -340,7 +340,7 @@ go('login');
 (function(){
 const U='https://wtcspnrmsoisroavojop.supabase.co',K='sb_publishable_pDg6Ef_P6fZnNvrKkuBm0Q_uEQMItB2';
 const db=supabase.createClient(U,K,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
-const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0;
+const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='';
 function uiNotice(message,type='error',duration=4200){
   const root=document.getElementById('app');if(!root)return;
   const old=root.querySelector('.app-notice');if(old)old.remove();
@@ -365,7 +365,7 @@ function startActivityTicker(){
  const show=()=>{
   const [name,action,amount]=globalActivityFeed[activityTickerIndex%globalActivityFeed.length];activityTickerIndex++;
   const verb=action==='deposited'?'deposited':'withdrew';
-  el.innerHTML='<span class="tag">ACTIVITY</span><span class="msg"><b>'+esc(name)+'</b> '+verb+' <span class="amount">'+esc(amount)+' USDT</span></span>';
+  el.innerHTML='<span class="tag">DEMO</span><span class="msg"><b>'+esc(name)+'</b> '+verb+' <span class="amount">'+esc(amount)+' USDT</span></span>';
   el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
   if(activityTickerHideTimer)clearTimeout(activityTickerHideTimer);
   activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000);
@@ -377,6 +377,29 @@ function clientId(p){
   const u=formatUsername(p?.username||'');if(u)return u;
   let h=0;for(const ch of String(p?.id||''))h=(h*31+ch.charCodeAt(0))%1000000;
   return String(h).padStart(6,'0');
+}
+async function copyTextToClipboard(text,successMessage){
+  const value=String(text||'').trim();
+  if(!value){uiNotice('Nothing to copy yet.','error');return false;}
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText)await navigator.clipboard.writeText(value);
+    else{
+      const area=document.createElement('textarea');area.value=value;area.setAttribute('readonly','');
+      area.style.cssText='position:fixed;left:-9999px;top:0;opacity:0;font-size:16px';
+      document.body.appendChild(area);area.focus();area.select();area.setSelectionRange(0,area.value.length);
+      const ok=document.execCommand&&document.execCommand('copy');area.remove();
+      if(!ok)throw Error('Clipboard permission unavailable');
+    }
+    uiNotice(successMessage||'Copied to clipboard.','success');return true;
+  }catch(e){
+    const prior=document.getElementById('aegisCopyFallback');if(prior)prior.remove();
+    const box=document.createElement('div');box.id='aegisCopyFallback';
+    box.style.cssText='position:fixed;inset:0;z-index:2147483647;background:rgba(3,6,18,.86);display:flex;align-items:center;justify-content:center;padding:20px';
+    box.innerHTML='<div style="width:min(420px,100%);background:#0b1022;color:#fff;border:1px solid var(--ln);border-radius:18px;padding:18px"><b style="color:#fff;display:block;margin-bottom:10px">Copy this text</b><textarea id="aegisCopyValue" readonly style="width:100%;min-height:90px;padding:10px;border-radius:10px;background:#11182b;color:#fff;border:1px solid var(--ln);font-size:14px"></textarea><button type="button" id="aegisCopyClose" class="btn" style="margin-top:10px">Done</button></div>';
+    document.body.appendChild(box);const field=box.querySelector('#aegisCopyValue');field.value=value;field.focus();field.select();
+    box.querySelector('#aegisCopyClose').onclick=()=>box.remove();
+    uiNotice('Clipboard was blocked. Select the text and copy it manually.','info');return false;
+  }
 }
 function updateNotificationBadge(){
   document.querySelectorAll('.tb .dot').forEach(el=>{
@@ -1007,7 +1030,7 @@ async function liveBot(){
 }
 
 window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return liveBot();if(id==='home')return liveHome();if(id==='topup')return liveTopup();if(id==='withdraw')return liveWithdraw();if(id==='referral')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account')return liveAccount();if(id==='notifications')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
-async function bootLive(){try{const qs=new URLSearchParams(location.search);const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
+async function bootLive(){try{const qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
 if(qs.get('shop_purchase')==='confirmed'){
   const shopTaskId=String(qs.get('task')||'').trim();
   const shopProductId=String(qs.get('product')||'').trim();
@@ -1096,18 +1119,19 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
     el.innerHTML='<span>'+(type==='success'?'✓':type==='info'?'i':'!')+'</span><span style="flex:1">'+esc(String(message||''))+'</span>';
     root.prepend(el);setTimeout(function(){if(el.isConnected)el.remove();},6500);
   };
-  startActivityTicker=function(){};
+  // Keep the timed demo activity ticker enabled; it was previously disabled by this no-op override.
+
   top=function(t,b){return '<div class="tb" style="padding-top:18px"><b onclick="go(\''+(b||'home')+'\')" aria-label="Back">'+ic('back')+'</b><div style="flex:1;min-width:0"><small class="mu" style="font-size:9.5px;letter-spacing:.7px;text-transform:uppercase">AEGISPAY</small><h1 style="font-size:18px;margin-top:1px">'+esc(t)+'</h1></div><b class="dot" aria-label="Notifications">'+ic('bell')+'</b></div>'};
   nav=function(a){return '<nav>'+[['home','Home','home'],['wallet','Wallet','pie'],['earn','Earn','check'],['activity','Activity','clock'],['profile','Profile','user']].map(function(n){return '<a class="'+(n[0]===a?'on':'')+'" onclick="go(\''+n[0]+'\')">'+ic(n[2])+'<span>'+n[1]+'</span></a>';}).join('')+'</nav>'};
 
   liveHome=async function(){
     const p=profile,b=Number(p.current_platform_balance||0),held=Number(p.withdrawal_held||0),available=Math.max(0,b-held);
-    const q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(5),db.from('cycle_runs').select('status,cycle_base,ready_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('tasks').select('id,status,reward,task_value').eq('user_id',p.id).order('id',{ascending:false}).limit(50)]);
-    const cycle=q[1].data||null,tasks=q[2].data||[],done=cycle?tasks.filter(function(x){return String(x.status)==='Completed';}).length:0,progress=tasks.length?Math.round(done/tasks.length*100):0,name=formatName(p.display_name||p.name||'Client')||'Client',tier=(tiers||[]).find(function(x){return String(x.id)===String(p.selected_tier_id);}),level=tier?.name||p.selected_tier_name||p.vip_level||'Not Assigned';
+    const q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(5),db.from('cycle_runs').select('status,cycle_base,ready_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('tasks').select('id,status,reward,task_value').eq('user_id',p.id).order('id',{ascending:false}).limit(50),db.from('kyc_verifications').select('status,submitted_at').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle()]);
+    const cycle=q[1].data||null,tasks=q[2].data||[],done=cycle?tasks.filter(function(x){return String(x.status)==='Completed';}).length:0,progress=tasks.length?Math.round(done/tasks.length*100):0,name=formatName(p.display_name||p.name||'Client')||'Client',tier=(tiers||[]).find(function(x){return String(x.id)===String(p.selected_tier_id);}),level=tier?.name||p.selected_tier_name||p.vip_level||'Not Assigned',kycStatus=String(q[3]?.data?.status||'').trim().toUpperCase(),kycLabel=kycStatus==='VERIFIED'?'Verified':(['PENDING_REVIEW','MANUAL_REVIEW','PENDING'].includes(kycStatus)?'Pending':'Unverified'),kycColor=kycLabel==='Verified'?'var(--m)':kycLabel==='Pending'?'var(--a)':'#FF9CAF';
     const recent=(q[0].data||[]).map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="'+(Number(x.amount)>=0?'up':'dn')+'">'+(Number(x.amount)>=0?'+':'')+Number(x.amount).toFixed(2)+'<small>USDT</small></em></div>';}).join('');
     let cycleHtml=cycle?(cycle.status==='WAITING_18H'?'<div class="p2-status green"><span class="dot"></span><div><b>Settlement in progress</b><small>All tasks are complete · Next settlement '+esc(cycle.ready_at?new Date(cycle.ready_at).toLocaleString():'scheduled')+'</small></div></div>':'<div class="p2-card compact"><div class="p2-row"><span class="bub" style="background:rgba(34,211,238,.12);color:var(--c)">'+ic('check')+'</span><div class="grow"><h3>Shop Cycle Active</h3><small>'+done+' of '+tasks.length+' tasks completed · '+Number(cycle.cycle_base||0).toFixed(2)+' USDT</small></div><button class="btn o" style="width:auto;padding:9px 11px;font-size:10px" onclick="go(\'earn\')">Open</button></div><div class="p2-progress"><i style="width:'+progress+'%"></i></div><small class="mu">'+progress+'% complete</small></div>'):'<div class="p2-status"><span class="dot"></span><div><b>Shop earning is ready</b><small>Activate a tier to unlock automatic task assignment.</small></div></div>';
     app.innerHTML='<div class="tb" style="padding-top:20px"><div class="av">'+esc(name[0]||'A')+'</div><div style="flex:1"><small class="mu" style="font-size:10px">Welcome back</small><h1 style="font-size:19px;margin-top:2px">'+esc(name)+'</h1><small class="mu" style="font-size:9.5px">'+esc(level)+'</small></div><button class="p2-ai-mini" onclick="go(\'bot\')" aria-label="Open AI">'+ic('spark')+'</button><b class="dot">'+ic('bell')+'</b></div>'+
-      '<div class="p2-balance"><small>Available Balance</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+b.toFixed(2)+' USDT · Held '+held.toFixed(2)+' USDT</div><div class="p2-stats"><div class="p2-stat"><small>Level</small><b>'+esc(level)+'</b></div><div class="p2-stat"><small>Client ID</small><b>'+esc(clientId(p))+'</b></div><div class="p2-stat"><small>Status</small><b>'+esc(p.status||'Active')+'</b></div></div></div>'+
+      '<div class="p2-balance"><small>Available Balance</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+b.toFixed(2)+' USDT · Held '+held.toFixed(2)+' USDT</div><div class="p2-stats"><div class="p2-stat"><small>Level</small><b>'+esc(level)+'</b></div><div class="p2-stat"><small>Client ID</small><b>'+esc(clientId(p))+'</b></div><div class="p2-stat"><small>KYC Status</small><b style="color:'+kycColor+'">'+esc(kycLabel)+'</b></div></div></div>'+
       '<div class="p2-actions"><button class="p2-action" onclick="go(\'topup\')"><i style="background:linear-gradient(135deg,#7C5CFF,#5B3DF5)">'+ic('usd')+'</i>Deposit</button><button class="p2-action" onclick="go(\'withdraw\')"><i style="background:linear-gradient(135deg,#22D3EE,#0891B2)">'+ic('up')+'</i>Withdraw</button><button class="p2-action" onclick="go(\'earn\')"><i style="background:linear-gradient(135deg,#FFB84D,#E8830C)">'+ic('check')+'</i>Earn</button><button class="p2-action" onclick="go(\'referral\')"><i style="background:linear-gradient(135deg,#A855F7,#7C5CFF)">'+ic('gift')+'</i>Referral</button></div>'+
       '<div class="p2-head"><h2>Earning Cycle</h2><span>Live status</span></div>'+cycleHtml+
       '<div class="p2-ai" onclick="go(\'bot\')"><span class="orb">'+ic('spark')+'</span><div class="grow"><b>AegisPay AI Assistant</b><small>Balance, deposits, withdrawals, tasks and account guidance.</small></div>'+ic('chev')+'</div>'+
@@ -1120,9 +1144,24 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   };
 
   liveReferral=async function(){
-    const p=profile,r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}),rows=r.data||[],reward=rows.reduce(function(n,x){return n+Number(x.platform_reward||0);},0);
+    const p=profile,r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false});
+    if(r.error){uiNotice('Unable to load referral records.','error');return;}
+    const rows=r.data||[],reward=rows.reduce(function(n,x){return n+Number(x.platform_reward||0);},0),code=String(p.referral_code||'').trim().toUpperCase();
+    const referralLink=code?'https://aegispay-pro.pages.dev/app/home.html?ref='+encodeURIComponent(code):'';
     const lvl=function(n){const rr=rows.filter(function(x){return Number(x.referral_level)===n;});return '<div class="p2-step"><span class="n">'+n+'</span><div class="grow"><b>Level '+n+'</b><small>'+rr.length+' members · '+rr.reduce(function(t,y){return t+Number(y.platform_reward||0);},0).toFixed(2)+' USDT rewards</small></div></div>';};
-    app.innerHTML=top('Referral')+'<div class="p2-balance" style="background:radial-gradient(90% 130% at 100% 0,rgba(34,211,238,.20),transparent 55%),linear-gradient(135deg,#28166f,#0f1026 72%)"><small>Your Referral Code</small><h2 style="font-size:28px;letter-spacing:1px">'+esc(p.referral_code||'—')+'</h2><div class="sub">Track Levels 1–3 members and rewards in one place.</div></div><div class="p2-mini-grid"><div class="p2-mini"><small>Members</small><b>'+rows.length+'</b></div><div class="p2-mini"><small>Total Rewards</small><b>'+reward.toFixed(2)+'</b></div></div><div class="p2-head" style="margin-top:17px"><h2>Reward Levels</h2><span>Live records</span></div><div class="p2-card compact">'+lvl(1)+lvl(2)+lvl(3)+'</div><div class="p2-head"><h2>Recent Referrals</h2><span>Latest</span></div><div class="p2-card compact">'+(rows.length?rows.slice(0,10).map(function(x){return '<div class="row"><span class="bub" style="background:rgba(124,92,255,.12);color:var(--v)">'+ic('user')+'</span><div>Referral Member<small>Level '+esc(x.referral_level)+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.platform_reward||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No referrals yet</b>Share your referral code to start building your network.</div>')+'</div>'+nav('home');
+    app.innerHTML=top('Referral')+
+      '<div class="p2-balance" style="background:radial-gradient(90% 130% at 100% 0,rgba(34,211,238,.20),transparent 55%),linear-gradient(135deg,#28166f,#0f1026 72%)"><small style="color:#EAF0FF">Your Referral Code</small><h2 style="font-size:28px;letter-spacing:1px;color:#FFFFFF">'+esc(code||'—')+'</h2><div class="sub" style="color:#DDE5FF">Share your personal link. The referral code will be filled into the signup form.</div></div>'+
+      '<div class="p2-card"><div class="p2-head"><h2>Share & Invite</h2><span>Referral tools</span></div>'+
+      '<div style="font-size:11px;color:#C5CEE8;margin-bottom:7px">Your referral link</div>'+
+      '<div style="display:flex;align-items:stretch;gap:8px"><input id="referralShareLink" readonly value="'+esc(referralLink)+'" aria-label="Referral link" style="flex:1;min-width:0;width:1px;padding:11px;border-radius:12px;border:1px solid var(--ln);background:rgba(255,255,255,.04);color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;font-size:11px"><button type="button" id="copyReferralLink" class="btn" style="width:auto;flex:none;padding:10px 12px;font-size:11px">Copy Link</button></div>'+
+      '<button type="button" id="copyReferralCode" class="btn o" style="margin-top:9px;color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important">Copy Referral Code</button>'+
+      '<div class="p2-mini-grid" style="margin-top:12px"><div class="p2-mini"><small>Members</small><b>'+rows.length+'</b></div><div class="p2-mini"><small>Total Rewards</small><b>'+reward.toFixed(2)+' USDT</b></div></div></div>'+
+      '<div class="p2-head" style="margin-top:17px"><h2>Reward Levels</h2><span>Live records</span></div><div class="p2-card compact">'+lvl(1)+lvl(2)+lvl(3)+'</div>'+
+      '<div class="p2-head"><h2>Recent Referrals</h2><span>Latest</span></div><div class="p2-card compact">'+(rows.length?rows.slice(0,10).map(function(x){return '<div class="row"><span class="bub" style="background:rgba(124,92,255,.12);color:var(--v)">'+ic('user')+'</span><div>Referral Member<small>Level '+esc(x.referral_level)+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.platform_reward||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No referrals yet</b>Share your referral link to start building your network.</div>')+'</div>'+nav('home');
+    const linkBtn=document.getElementById('copyReferralLink'),codeBtn=document.getElementById('copyReferralCode'),linkField=document.getElementById('referralShareLink');
+    if(linkBtn)linkBtn.onclick=()=>copyTextToClipboard(referralLink,'Referral link copied.');
+    if(codeBtn)codeBtn.onclick=()=>copyTextToClipboard(code,'Referral code copied.');
+    if(linkField)linkField.onclick=function(){this.select();};
   };
 
   liveAccount=async function(){
@@ -1255,7 +1294,7 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   };
   window.go=async function(id){
     try{
-      if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const rr=oldGo(id);setTimeout(bindAuthForms,0);return rr;}
+      if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const rr=oldGo(id);setTimeout(function(){bindAuthForms();if(id==='signup'&&referralLinkCode){const rf=document.getElementById('sr');if(rf&&!rf.value)rf.value=referralLinkCode;}},0);return rr;}
       if(!profile)return oldGo('login');
       if(id==='bot')return liveBot();if(id==='home')return liveHome();if(id==='wallet'||id==='assets')return liveAssets();if(id==='earn'||id==='tasks'||id==='shop')return liveShop();
       if(id==='topup')return liveTopup();if(id==='withdraw')return liveWithdraw();if(id==='referral')return liveReferral();if(id==='activity')return liveActivity();if(id==='profile'||id==='account')return liveAccount();if(id==='notifications')return liveNotifications();
