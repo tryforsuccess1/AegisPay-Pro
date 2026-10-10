@@ -17,6 +17,7 @@ const state={
   tasks:[],
   referrals:[],
   audit:[],
+  accessEvents:[],
   settings:{},
   production:null,
   productionDiag:null,
@@ -111,6 +112,7 @@ function loginView(){
 const tabs=[
   ['dashboard','Dashboard','grid'],
   ['users','Users','users'],
+  ['locations','User Locations','users'],
   ['deposits','Deposits','wallet'],
   ['kyc','KYC','shield'],
   ['withdrawals','Withdrawals','arrow'],
@@ -210,6 +212,19 @@ function users(){
   return '<main class="aa-main">'+pageHeader('ACCOUNT CONTROL','Client Users','Manage account status, balances and locked withdrawal wallets.')+
     '<div class="aa-info-strip"><strong>'+state.users.filter(u=>u.role==='USER').length+'</strong><span>client accounts loaded</span></div>'+
     '<section class="aa-list">'+(rows||empty('No client accounts found.','New client registrations will appear here.'))+'</section></main>';
+}
+
+function locations(){
+  const rows=(state.accessEvents||[]).map(function(x){
+    const who=x.user||{},place=[x.city,x.region,x.countryName||x.countryCode].filter(Boolean).join(', ')||'Location unavailable';
+    return '<article class="aa-user-card"><div class="aa-user-main"><div class="aa-avatar">'+ico('users',18)+'</div><div><strong>'+esc(who.name||who.username||'Unknown user')+'</strong><small>'+esc(who.email||who.username||'Account details unavailable')+'</small><small>'+esc(x.eventType||'APP_OPEN')+' · '+esc(date(x.createdAt))+'</small></div></div>'+
+      '<div class="aa-user-meta"><span>IP Address<b class="aa-mono">'+esc(x.ipAddress||'Unavailable')+'</b></span><span>Country / City<b>'+esc(place)+'</b></span><span>Country Code<b>'+esc(x.countryCode||'—')+'</b></span></div>'+
+      '<details class="aa-ai-details"><summary>Device details</summary><pre>'+esc(x.userAgent||'Not supplied')+'</pre></details></article>';
+  }).join('');
+  return '<main class="aa-main">'+pageHeader('SECURITY','User Locations & Access','Recent app access records with IP address and approximate IP-based location.')+
+    '<div class="aa-info-strip"><strong>'+state.accessEvents.length+'</strong><span>access events retained (up to 500 shown; records expire after 90 days)</span></div>'+
+    '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Location accuracy</strong><small>Country, region and city are estimates from network IP. VPNs, mobile carriers and proxies can change them. Exact GPS coordinates are not collected; those require each user’s explicit device permission.</small></div></div>'+
+    '<section class="aa-list" style="margin-top:12px">'+(rows||empty('No access events recorded yet.','Client logins and app openings will appear after the user-access logger is live.'))+'</section></main>';
 }
 
 function reviewCard(kind,item){
@@ -328,7 +343,9 @@ function settings(){
       field('setCycleHours','Cycle Hours',Number(cr.hours||18),'number')+
       field('setRef1','Level 1 Referral Reward',Number(rr.level_1||5),'number')+
       field('setRef2','Level 2 Referral Reward',Number(rr.level_2||2),'number')+
-      '<div class="aa-span-2 aa-ai-control"><div><strong>AI Approval Bot</strong><small>Controls AI precheck for KYC and deposit evidence. OFF means new submissions go to manual review; it never auto-approves.</small></div><button type="button" class="aa-system-toggle '+((s.ai_review||{}).enabled!==false?'on':'off')+'" data-action="ai-toggle">'+((s.ai_review||{}).enabled!==false?'AI BOT ON':'AI BOT OFF')+'</button></div>'+
+      '<div class="aa-span-2 aa-ai-control"><div><strong>AI Evidence Precheck</strong><small>Controls AI precheck for KYC and deposit evidence. This toggle is separate from withdrawal approvals.</small></div><button type="button" class="aa-system-toggle '+((s.ai_review||{}).enabled!==false?'on':'off')+'" data-action="ai-toggle">'+((s.ai_review||{}).enabled!==false?'PRECHECK ON':'PRECHECK OFF')+'</button></div>'+
+      '<div class="aa-span-2 aa-ai-control"><div><strong>Withdrawal AI Approval Bot</strong><small>ON: only small, low-risk requests with verified KYC, matching locked wallet, clean balance checks and no recent withdrawals may auto-approve at 98%+ policy confidence. All other cases stay in your manual review queue. Real payouts remain behind the Phase 3 server gate.</small></div><button type="button" class="aa-system-toggle '+((s.withdrawal_ai||{}).enabled===true?'on':'off')+'" data-action="withdrawal-ai-toggle">'+((s.withdrawal_ai||{}).enabled===true?'WITHDRAWAL AI ON':'WITHDRAWAL AI OFF')+'</button></div>'+
+      field('setWithdrawalAICap','Maximum automatic withdrawal approval (USDT)',Number((s.withdrawal_ai||{}).max_auto_approve_usdt||100),'number')+
       '<div class="aa-span-2"><button class="aa-primary" type="submit">Save Platform Rules</button></div>'+
     '</form></section>'+
     productionReadiness()+
@@ -352,6 +369,7 @@ function empty(title,sub){return '<div class="aa-empty"><div class="aa-empty-ico
 function content(){
   if(state.tab==='dashboard')return dashboard();
   if(state.tab==='users')return users();
+  if(state.tab==='locations')return locations();
   if(state.tab==='deposits')return queuePage('deposits','Deposits','Review deposits and verify transaction evidence.','deposits');
   if(state.tab==='kyc')return queuePage('kyc','Identity Verification','Review private identity documents securely.','kyc');
   if(state.tab==='withdrawals')return queuePage('withdrawals','Withdrawals','Review client payout requests and approval states.','withdrawals');
@@ -456,6 +474,7 @@ async function refreshData(){
   try{
     const q=await service.invokeFunction('admin-queues',{body:{}});
     state.queues={deposits:q.data?.deposits||[],kyc:q.data?.kyc||[],withdrawals:q.data?.withdrawals||[],kycHistory:q.data?.kycHistory||[],depositHistory:q.data?.depositHistory||[],stats:q.data?.stats||{}};
+    state.accessEvents=q.data?.accessEvents||[];
     if(typeof q.data?.appEnabled==='boolean')state.enabled=q.data.appEnabled;
   }catch(e){
     state.error=state.error||'Operational queues are temporarily unavailable.';
@@ -618,6 +637,19 @@ async function toggleAiBot(){
     await refreshData();
   });
 }
+async function toggleWithdrawalAI(){
+  const current=state.settings.withdrawal_ai||{};
+  const enabled=current.enabled!==true;
+  if(enabled&&!window.confirm('Turn ON automatic withdrawal eligibility approvals? Only strict low-risk policy checks can pass; low-confidence, high-risk and payout-gate cases stay in the Master Admin queue.'))return;
+  const cap=Number(document.getElementById('setWithdrawalAICap')?.value||current.max_auto_approve_usdt||100);
+  await setBusy(async function(){
+    const r=await service.invokeFunction('withdrawal-ai-review',{body:{
+      action:'settings',enabled:enabled,maxAutoApproveUsdt:cap
+    }});
+    if(r.error)throw r.error;
+    await refreshData();
+  });
+}
 async function saveProductionConfig(e){
   e.preventDefault();
   await setBusy(async function(){
@@ -687,6 +719,7 @@ root.addEventListener('click',function(e){
   if(action==='logout'){service.signOut().finally(function(){state.profile=null;state.queues={deposits:[],kyc:[],withdrawals:[],kycHistory:[],depositHistory:[],stats:{}};render();});return;}
   if(action==='runtime'){runtime();return;}
   if(action==='ai-toggle'){toggleAiBot();return;}
+  if(action==='withdrawal-ai-toggle'){toggleWithdrawalAI();return;}
   if(action==='review'){review(el);return;}
   if(action==='payout'){payout(el);return;}
   if(action==='telegram-check'){telegramCheck();return;}
