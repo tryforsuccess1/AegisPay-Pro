@@ -103,6 +103,19 @@ Deno.serve(async(req:Request)=>{
    return json({wallet});
   }
 
+  if(action==="cancel_invalid_withdrawal_refund"){
+   const withdrawalId=String(body?.withdrawalId||"");
+   const reason=String(body?.reason||"").trim().slice(0,500);
+   if(!isUuid(withdrawalId))return json({error:"A valid withdrawal request is required."},400);
+   if(reason.length<10)return json({error:"Enter a clear reconciliation reason of at least 10 characters."},400);
+   const {data:result,error:reconcileError}=await admin.rpc("reconcile_invalid_unbroadcast_withdrawal",{
+    p_request_id:withdrawalId,p_admin_user_id:actor.id,p_reason:reason
+   });
+   if(reconcileError)return json({error:reconcileError.message||"Withdrawal reconciliation failed."},409);
+   if(!result||result.ok!==true)return json({error:"Withdrawal reconciliation could not be verified."},500);
+   return json(result);
+  }
+
   if(action==="balance"){
    const userId=String(body?.userId||""); const type=String(body?.type||"").toUpperCase(); const amount=Number(body?.amount);
    const reason=String(body?.reason||"").trim().slice(0,500)||"Master Admin balance adjustment";
