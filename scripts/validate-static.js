@@ -106,12 +106,15 @@ assert(goLiveGuard.includes("status IN ('APPROVED','PROCESSING') AND payout_txid
 const tronValidator=fs.readFileSync('database/migrations/20261011_exact_integer_tron_address_decode.sql','utf8');
 const walletRpc=fs.readFileSync('database/migrations/20261011_validate_tron_wallet_base58check.sql','utf8');
 const walletOps=fs.readFileSync('supabase/functions/admin-account-ops/index.ts','utf8');
+const adminQueuesSource=fs.readFileSync('supabase/functions/admin-queues/index.ts','utf8');
 const payoutSource=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(/v_number\s*:=\s*div\(v_number,256\)/.test(tronValidator)&&tronValidator.includes("extensions.digest(extensions.digest"),'TRON wallet validator must use exact integer Base58 decoding and a double-SHA256 checksum');
 assert(walletRpc.includes('public.is_valid_tron_address(v_wallet)')&&walletRpc.includes('destination_address=v_address'),'Wallet link and withdrawal request must reject case-corrupted addresses');
 assert(walletOps.includes('is_valid_tron_address')&&!walletOps.includes('.trim().toUpperCase()'),'Master Admin wallet changes must preserve case and validate Base58Check');
 assert(!client.includes('withdrawWallet.value.trim().toUpperCase()'),'Client wallet linking must preserve original TRON Base58 case');
 assert(payoutSource.includes('INVALID_WITHDRAWAL_DESTINATION')&&payoutSource.includes('is_valid_tron_address'),'Payout source must reject invalid exact-case recipient addresses');
+assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
+assert(adminAuth.includes('DO NOT EXECUTE THIS PAYOUT')&&adminAuth.includes('Changing the profile wallet does not automatically change this existing request'),'Invalid recipients must be visibly blocked in the Master Admin queue');
 
 const payout=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(payout.includes('production_config')&&payout.includes('Production payout gate is locked'),'Phase 3 payout gate is missing');
