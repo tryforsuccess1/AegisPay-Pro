@@ -66,12 +66,35 @@ let payoutMayHaveBeenBroadcast = false;
       .eq("auth_user_id", authResult.user.id)
       .maybeSingle();
     if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
-    if (profile.role !== "MASTER ADMIN") {
-      return json({ error: "Master Admin access required." }, 403);
-    }
     if (!["ACTIVE", "NORMAL"].includes(String(profile.status || "").toUpperCase())) {
-      return json({ error: "Active Master Admin access is required." }, 403);
+      return json({ error: "Active account access is required." }, 403);
     }
+
+    // AI may request payout execution only for this authenticated client's own,
+    // policy-approved withdrawal. The normal Master Admin flow is unchanged.
+    const body = await req.json().catch(() => null);
+    withdrawalId = typeof body?.withdrawalId === "string" ? body.withdrawalId : null;
+    if (!withdrawalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(withdrawalId)) {
+      return json({ error: "A valid withdrawalId is required." }, 400);
+    }
+    let aiApprovedClientPayout = false;
+    if (profile.role !== "MASTER ADMIN") {
+      if (profile.role !== "USER") return json({ error: "Master Admin access required." }, 403);
+      const [{ data: ownRequest, error: ownError }, { data: aiSettings, error: aiSettingsError }] = await Promise.all([
+        admin.from("withdrawal_requests").select("id,user_id,status,panel_decision,telegram_decision,ai_decision,payout_txid")
+          .eq("id", withdrawalId).eq("user_id", profile.id).maybeSingle(),
+        admin.from("platform_settings").select("value_json").eq("key", "withdrawal_ai").maybeSingle(),
+      ]);
+      if (ownError || aiSettingsError) return json({ error: "Unable to verify AI-approved withdrawal permissions." }, 503);
+      if (!ownRequest || ownRequest.ai_decision !== "AUTO_APPROVED" ||
+          ownRequest.status !== "APPROVED" || ownRequest.panel_decision !== "APPROVED" ||
+          ownRequest.telegram_decision !== "APPROVED" || ownRequest.payout_txid ||
+          aiSettings?.value_json?.enabled !== true) {
+        return json({ error: "Only your own currently AI-approved withdrawal can use automatic payout processing." }, 403);
+      }
+      aiApprovedClientPayout = true;
+    }
+
     const { data: appEnabled, error: runtimeError } = await admin.rpc("app_runtime_enabled");
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
@@ -110,14 +133,11 @@ let payoutMayHaveBeenBroadcast = false;
     const chain = testnet ? "https://api.shasta.trongrid.io" : "https://api.trongrid.io";
     const usdtContract = testnet ? SHASTA_USDT : MAINNET_USDT;
 
-    const body = await req.json().catch(() => null);
-    withdrawalId = typeof body?.withdrawalId === "string" ? body.withdrawalId : null;
-    if (!withdrawalId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(withdrawalId)) {
-      return json({ error: "A valid withdrawalId is required." }, 400);
-    }
+    // withdrawalId is validated before payout configuration checks above.
+
 
     // Atomic claim: only one invocation can transition an approved request to PROCESSING.
-    const { data: withdrawal, error: claimError } = await admin
+    let claimQuery = admin
       .from("withdrawal_requests")
       .update({
         status: "PROCESSING",
@@ -127,8 +147,10 @@ let payoutMayHaveBeenBroadcast = false;
       .eq("id", withdrawalId)
       .eq("status", "APPROVED")
       .eq("panel_decision", "APPROVED")
-      .eq("telegram_decision", "APPROVED")
-      .is("payout_txid", null)
+      .eq("telegram_decision", "APPROVED");
+    if (aiApprovedClientPayout) claimQuery = claimQuery.eq("ai_decision", "AUTO_APPROVED");
+    claimQuery = claimQuery.is("payout_txid", null);
+    const { data: withdrawal, error: claimError } = await claimQuery
       .select("id,user_id,net_amount,destination_address,panel_decision,telegram_decision")
       .maybeSingle();
 
