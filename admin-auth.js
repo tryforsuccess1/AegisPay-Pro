@@ -363,6 +363,7 @@ function productionReadiness(){
       '<span>AI Review Config<b>'+esc(secretMark(secrets.ai_review_endpoint&&secrets.ai_review_api_key&&secrets.ai_review_model))+'</b></span>'+
       '<span>Monitoring Gate<b>'+esc(d.mainnet_monitoring_ready?'READY':'NOT READY')+'</b></span>'+
       '<span>Payout Ops Gate<b>'+esc(d.mainnet_payout_operational?'READY':'LOCKED')+'</b></span>'+
+      '<span>Payout Enablement Check<b>'+esc(d.mainnet_payout_enablement_ready?'READY':'MISSING PREREQUISITES')+'</b></span>'+
     '</div>'+
     '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Phase 3 Safety Gate</strong><small>Real payouts can only be enabled by an active Master Admin when MAINNET, the TRON MAINNET configuration, runtime, go-live approval, payout unlock, and required server-side secrets are all ready.</small></div></div>'+
     '</section>';
@@ -733,7 +734,7 @@ async function saveProductionConfig(e){
     const goLive=document.getElementById('prodGoLive').value==='true';
     const locked=document.getElementById('prodPayoutLock').value==='true';
     if(payouts){
-      if(!(state.productionDiag&&state.productionDiag.mainnet_payout_operational===true)){
+      if(!(state.productionDiag&&state.productionDiag.mainnet_payout_enablement_ready===true)){
         throw new Error('Production payout operations are not ready. Configure the required server-side secrets and complete the readiness checks before enabling real payouts.');
       }
       if(!window.confirm('You are changing a production payout control. Continue only after server-side payout secrets and operational smoke tests are verified.'))return;
