@@ -19,6 +19,7 @@ const must=[
   'database/migrations/20261010_fail_closed_shop_cycle_checkout_jwt_role.sql',
   'database/migrations/20261011_ai_support_cases.sql',
   'database/migrations/20261011_block_unreconciled_payout_go_live.sql',
+  'database/migrations/20261011_withdrawal_ai_wallet_validation.sql',
   'database/migrations/20261011_validate_tron_wallet_base58check.sql',
   'database/migrations/20261011_fix_tron_address_validator_collation.sql',
   'database/migrations/20261011_fix_tron_address_validator_bytes.sql',
@@ -111,6 +112,8 @@ const payoutSource=fs.readFileSync('supabase/functions/execute-payout/index.ts',
 assert(/v_number\s*:=\s*div\(v_number,256\)/.test(tronValidator)&&tronValidator.includes("extensions.digest(extensions.digest"),'TRON wallet validator must use exact integer Base58 decoding and a double-SHA256 checksum');
 assert(walletRpc.includes('public.is_valid_tron_address(v_wallet)')&&walletRpc.includes('destination_address=v_address'),'Wallet link and withdrawal request must reject case-corrupted addresses');
 assert(walletOps.includes('is_valid_tron_address')&&!walletOps.includes('.trim().toUpperCase()'),'Master Admin wallet changes must preserve case and validate Base58Check');
+const walletAiGuard=fs.readFileSync('database/migrations/20261011_withdrawal_ai_wallet_validation.sql','utf8');
+assert(walletAiGuard.includes('WITHDRAWAL_WALLET_INVALID_CASE_OR_CHECKSUM'),'Withdrawal AI must send invalid-case wallets to manual review');
 assert(!client.includes('withdrawWallet.value.trim().toUpperCase()'),'Client wallet linking must preserve original TRON Base58 case');
 assert(payoutSource.includes('INVALID_WITHDRAWAL_DESTINATION')&&payoutSource.includes('is_valid_tron_address'),'Payout source must reject invalid exact-case recipient addresses');
 assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
