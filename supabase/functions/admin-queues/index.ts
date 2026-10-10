@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
         .select("id,user_id,document_type,status,ai_review_status,ai_confidence,ai_checks,ai_policy_version,review_reason,front_storage_path,back_storage_path,submitted_at")
         .in("status", ["PENDING_REVIEW","MANUAL_REVIEW"]).order("submitted_at", { ascending: true }).limit(50),
       admin.from("withdrawal_requests")
-        .select("id,user_id,amount,fee_amount,net_amount,destination_address,status,created_at,payout_error,payout_txid,payout_started_at,panel_decision,panel_decided_at,telegram_decision,telegram_decided_at,telegram_status,telegram_message_id,ai_decision,ai_confidence,ai_review_reason,ai_reviewed_at")
+        .select("id,user_id,amount,fee_amount,net_amount,destination_address,status,created_at,payout_error,payout_txid,payout_started_at,balance_deducted,panel_decision,panel_decided_at,telegram_decision,telegram_decided_at,telegram_status,telegram_message_id,ai_decision,ai_confidence,ai_review_reason,ai_reviewed_at")
         .in("status", ["PENDING_APPROVAL","APPROVED"]).order("created_at", { ascending: true }).limit(50),
       admin.from("deposit_submissions")
         .select("id,user_id,tier_id,gross_amount,credited_amount,txid,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
@@ -121,6 +121,7 @@ Deno.serve(async (req: Request) => {
           status: x.status, submittedAt: x.created_at,
           payoutError: x.payout_error, payoutTxid: x.payout_txid,
           payoutStartedAt: x.payout_started_at || null,
+          balanceDeducted: x.balance_deducted === true,
           panelDecision: x.panel_decision, panelDecidedAt: x.panel_decided_at,
           telegramDecision: x.telegram_decision, telegramDecidedAt: x.telegram_decided_at,
           telegramStatus: x.telegram_status, telegramMessageId: x.telegram_message_id,
