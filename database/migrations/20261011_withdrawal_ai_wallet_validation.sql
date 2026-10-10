@@ -1,0 +1,97 @@
+CREATE OR REPLACE FUNCTION public.auto_approve_withdrawal(p_request_id uuid,p_confidence numeric,p_reason text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO ''
+AS $function$
+DECLARE
+  w public.withdrawal_requests;
+  u public.users;
+  cfg jsonb := '{}'::jsonb;
+  system_cfg jsonb := '{}'::jsonb;
+  payout_cfg jsonb := '{}'::jsonb;
+  deposit_cfg jsonb := '{}'::jsonb;
+  latest_kyc_status text;
+  max_amount numeric;
+  max_risk numeric;
+  min_confidence numeric;
+  network text;
+  mode text;
+  mainnet_ready boolean := false;
+  testnet_ready boolean := false;
+BEGIN
+  SELECT COALESCE(value_json,'{}'::jsonb) INTO cfg FROM public.platform_settings WHERE key='withdrawal_ai';
+  IF COALESCE((cfg->>'enabled')::boolean,false) IS NOT TRUE THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','WITHDRAWAL_AI_BOT_OFF');
+  END IF;
+  max_amount := LEAST(500,GREATEST(50,COALESCE((cfg->>'max_auto_approve_usdt')::numeric,100)));
+  max_risk := LEAST(0.10,GREATEST(0,COALESCE((cfg->>'max_risk_score')::numeric,0.10)));
+  min_confidence := LEAST(1,GREATEST(0.98,COALESCE((cfg->>'min_confidence')::numeric,0.98)));
+  IF p_confidence IS NULL OR p_confidence < min_confidence THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','AI_CONFIDENCE_BELOW_THRESHOLD');
+  END IF;
+  SELECT * INTO w FROM public.withdrawal_requests WHERE id=p_request_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','WITHDRAWAL_NOT_FOUND'); END IF;
+  IF w.status <> 'PENDING_APPROVAL' OR w.panel_decision <> 'PENDING' THEN
+    RETURN jsonb_build_object('status',w.status,'reason','WITHDRAWAL_ALREADY_REVIEWED');
+  END IF;
+  SELECT * INTO u FROM public.users WHERE id=w.user_id FOR UPDATE;
+  IF NOT FOUND OR u.role <> 'USER' OR upper(COALESCE(u.status,'')) NOT IN ('ACTIVE','NORMAL') THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','USER_ACCOUNT_NOT_ELIGIBLE');
+  END IF;
+  IF COALESCE(trim(u.destination_address),'')='' OR trim(w.destination_address) <> trim(u.destination_address) THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','WITHDRAWAL_WALLET_MISMATCH');
+  END IF;
+  IF NOT public.is_valid_tron_address(trim(u.destination_address)) THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','WITHDRAWAL_WALLET_INVALID_CASE_OR_CHECKSUM');
+  END IF;
+  IF w.amount > max_amount THEN RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','AMOUNT_ABOVE_AUTO_APPROVAL_LIMIT'); END IF;
+  IF COALESCE(w.ai_risk_score,1) > max_risk THEN RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','RISK_SCORE_ABOVE_AUTO_APPROVAL_LIMIT'); END IF;
+  IF COALESCE(u.current_platform_balance,0) < w.amount OR COALESCE(u.withdrawal_held,0) < w.amount THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','BALANCE_OR_HOLD_MISMATCH');
+  END IF;
+  SELECT status INTO latest_kyc_status FROM public.kyc_verifications WHERE user_id=w.user_id ORDER BY submitted_at DESC LIMIT 1;
+  IF latest_kyc_status IS DISTINCT FROM 'VERIFIED' THEN
+    RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','LATEST_KYC_NOT_VERIFIED');
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.withdrawal_requests x WHERE x.user_id=w.user_id AND x.id<>w.id
+      AND x.created_at > now()-interval '24 hours'
+      AND x.status IN ('PENDING_APPROVAL','APPROVED','PROCESSING','PAID','FAILED')
+  ) THEN RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','RECENT_WITHDRAWAL_ACTIVITY'); END IF;
+  SELECT COALESCE(value_json,'{}'::jsonb) INTO system_cfg FROM public.platform_settings WHERE key='system_mode';
+  SELECT COALESCE(value_json,'{}'::jsonb) INTO payout_cfg FROM public.platform_settings WHERE key='production_config';
+  SELECT COALESCE(value_json,'{}'::jsonb) INTO deposit_cfg FROM public.platform_settings WHERE key='deposit_rules';
+  mode := upper(COALESCE(system_cfg->>'mode',''));
+  network := upper(COALESCE(deposit_cfg->>'network',''));
+  testnet_ready := mode='TESTNET_DEMO' AND COALESCE((system_cfg->>'testnet_payouts')::boolean,false)
+    AND network='TRON TESTNET' AND COALESCE(deposit_cfg->>'token_contract','')='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
+  mainnet_ready := mode='MAINNET' AND COALESCE((system_cfg->>'real_payouts')::boolean,false)
+    AND COALESCE((system_cfg->>'production_go_live_approved')::boolean,false) AND network='TRON MAINNET'
+    AND COALESCE((payout_cfg->>'go_live_approved')::boolean,false)
+    AND COALESCE((payout_cfg->>'real_payouts_enabled')::boolean,false)
+    AND COALESCE((payout_cfg->>'payouts_locked')::boolean,true)=false
+    AND upper(COALESCE(payout_cfg->>'environment',''))='PRODUCTION';
+  IF NOT (testnet_ready OR mainnet_ready) THEN RETURN jsonb_build_object('status','MANUAL_REVIEW','reason','PAYOUT_GATE_LOCKED'); END IF;
+
+  UPDATE public.withdrawal_requests SET status='APPROVED', panel_decision='APPROVED', panel_decided_at=now(),
+    telegram_decision='APPROVED', telegram_decided_at=now(), telegram_status='AI_APPROVED',
+    telegram_approver_id='AEGIS_AI_BOT', approval_date=now(), approved_by=NULL, balance_deducted=true,
+    ai_decision='AUTO_APPROVED', ai_confidence=p_confidence,
+    ai_review_reason=left(COALESCE(p_reason,'Automated policy checks passed.'),500), ai_reviewed_at=now()
+  WHERE id=w.id;
+  UPDATE public.users SET withdrawal_held=GREATEST(0,COALESCE(withdrawal_held,0)-w.amount),
+    current_platform_balance=GREATEST(0,COALESCE(current_platform_balance,0)-w.amount) WHERE id=w.user_id;
+  INSERT INTO public.audit_events(actor_user_id,target_user_id,event_type,description,reference_id)
+  VALUES(NULL,w.user_id,'WITHDRAWAL_AI_AUTO_APPROVED',
+    'AegisPay withdrawal policy bot auto-approved request under high-confidence controls; confidence='||
+    round(p_confidence,4)::text||'; policy='||COALESCE(cfg->>'policy_version','2026-10-11-v1')||
+    '; payout execution remains a separate controlled action.',w.id::text);
+  RETURN jsonb_build_object('status','APPROVED','decision','AUTO_APPROVED','confidence',p_confidence);
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.auto_approve_withdrawal(uuid,numeric,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.auto_approve_withdrawal(uuid,numeric,text) TO service_role;
+COMMENT ON FUNCTION public.auto_approve_withdrawal(uuid,numeric,text)
+IS 'Service-role-only low-risk withdrawal auto-approval with verified KYC, wallet match, bounded amount/risk, no recent withdrawals, and locked payout gate.';
