@@ -144,7 +144,7 @@ Deno.serve(async (req: Request) => {
     const kyc = kycResult.data;
     const recent = recentResult.data || [];
     const checks: Array<{ ok: boolean; label: string }> = [
-      { ok: Boolean(u && u.role === "USER" && ["ACTIVE", "NORMAL"].includes(String(u.status || "").toUpperCase()), label: "User account is active" },
+      { ok: Boolean(u && u.role === "USER" && ["ACTIVE", "NORMAL"].includes(String(u.status || "").toUpperCase())), label: "User account is active" },
       { ok: Boolean(kyc && kyc.status === "VERIFIED"), label: "Latest KYC is verified" },
       { ok: Boolean(u && String(u.destination_address || "").trim() && String(w.destination_address || "").trim() === String(u.destination_address || "").trim()), label: "Withdrawal destination matches the locked wallet" },
       { ok: Number(w.amount) >= 50 && Number(w.amount) <= maxAmount, label: "Amount is within the configured auto-approval limit" },
