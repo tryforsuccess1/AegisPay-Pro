@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AegisPay Shop</title>
+<style>
+:root{--bg:#eaeded;--card:#fff;--line:#d5d9d9;--tx:#0f1111;--mut:#565959;--blue:#131921;--blue2:#232f3e;--red:#c40000;--gold:#ff9900;--green:#067d62;--g1:#ffa41c;--g2:#ffb41f}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+body{background:#eaeded;color:#0f1111;font-family:"Amazon Ember",Arial,Helvetica,sans-serif;max-width:560px;margin:auto;padding-bottom:40px}
+header{background:linear-gradient(180deg,#131921,#232f3e);padding:13px 14px 10px;position:sticky;top:0;z-index:5}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:11px}.top #backb{flex:0 0 38px;width:38px;height:38px;border:1px solid rgba(255,255,255,.18);border-radius:12px;display:grid;place-items:center;padding:0}.top #backb:active{transform:scale(.96)}
+.logo{flex:1;height:34px;display:flex;align-items:center}.logo img{height:34px;width:auto;max-width:150px;display:block}.ic{font-size:22px;position:relative;cursor:pointer;background:none;border:0;color:#fff}
+.badge{position:absolute;top:-6px;right:-8px;background:var(--gold);color:#111;border-radius:10px;font-size:11px;font-weight:800;padding:1px 6px}
+.search{display:flex;background:#fff;border-radius:10px;overflow:hidden}
+.search input{flex:1;border:0;padding:13px 14px;font-size:15px;outline:0;color:#111}
+.search b{background:var(--gold);padding:0 16px;display:grid;place-items:center;font-size:18px}
+.loc{font-size:13px;color:#fff;margin-top:9px}
+.cats{display:flex;gap:8px;overflow-x:auto;padding:10px 10px 9px;background:#fff;scrollbar-width:none;-ms-overflow-style:none;touch-action:pan-x;overscroll-behavior-x:contain}.cats::-webkit-scrollbar{display:none;width:0;height:0}
+.cat{flex:0 0 78px;text-align:center;font-size:12px;line-height:1.16;color:#0f1111;cursor:pointer}
+.cat i{display:grid;place-items:center;height:56px;border-radius:10px;background:#f7f7f7;font-style:normal;font-size:13px;font-weight:700;letter-spacing:0;margin-bottom:5px;border:1px solid #d5d9d9;color:#111820}
+.cat.on{color:#007eb9;font-weight:700}.cat.on i{border-color:#007eb9;box-shadow:0 0 0 2px #c7e5f4;background:#fff}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;background:#fff;border-top:1px solid #e5e5e5}
+.bar b{color:#0f1111;font-size:18px;margin-right:5px}
+select{background:#fff;color:#0f1111;border:1px solid #888;border-radius:8px;padding:9px 11px;font-size:14px;font-family:"Amazon Ember",Arial,Helvetica,sans-serif}select option{background:#fff;color:#0f1111}
+.pills{display:flex;gap:8px;overflow-x:auto;padding:0 14px 12px;background:#fff;scrollbar-width:none;-ms-overflow-style:none;touch-action:pan-x;overscroll-behavior-x:contain}.pills::-webkit-scrollbar{display:none;width:0;height:0}
+.pill{flex:none;padding:9px 15px;border-radius:18px;border:1px solid #9da3a6;font-size:13px;cursor:pointer;color:#111820;background:#fff}
+.pill.on{background:#e7f1f8;border-color:#007eb9;color:#111}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 10px;background:#eaeded}
+.p{background:#fff;border:1px solid #ddd;border-radius:8px;overflow:hidden;display:flex;flex-direction:column}
+.img{position:relative;aspect-ratio:1.1;background:#fff;margin:5px;border-radius:7px;overflow:hidden;border:1px solid #eee}
+.img img{width:100%;height:100%;display:block;object-fit:contain;background:#fff}
+.tag{position:absolute;top:8px;left:8px;background:var(--red);font-size:12px;font-weight:700;padding:4px 9px;border-radius:7px;color:#fff}
+.tag.bs{background:#e8620f}
+.hrt{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;background:#000a;color:#fff;border:0;font-size:17px;cursor:pointer}
+.hrt.on{color:#ff4d6a}
+.info{padding:6px 12px 12px;display:flex;flex-direction:column;gap:3px;flex:1}
+.nm{font-weight:500;font-size:14px;line-height:1.25;color:#111820}
+.br{color:#565959;font-size:12px}
+.rt{font-size:13px;color:#dfe3ea;cursor:pointer;display:flex;gap:5px;align-items:center}
+.st{color:#de7921;letter-spacing:1px;font-size:13px}
+.pr{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:2px}
+.pr b{font-size:20px;color:#0f1111}.pr sup{font-size:13px}
+.pr s{color:var(--mut);font-size:13px}
+.prime{color:#1fa3ff;font-weight:800;font-style:italic}
+.dl{color:#007600;font-size:12px;margin-bottom:6px}
+.add{margin-top:auto;border:1px solid #ffd814;border-radius:20px;padding:10px;font-weight:700;font-size:14px;color:#111;background:linear-gradient(#ffd814,#ffa41c);cursor:pointer}
+.add:active{transform:scale(.97)}
+.more{display:block;margin:20px auto;padding:13px 30px;border-radius:24px;border:1px solid #4a76ff;background:none;color:#8fb0ff;font-size:15px;cursor:pointer}
+.empty{grid-column:1/-1;text-align:center;color:var(--mut);padding:40px}
+.sheet{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;z-index:20}
+.sheet.show{display:flex}
+.box{background:var(--card);width:100%;max-width:560px;margin:auto;max-height:82vh;overflow:auto;border-radius:22px 22px 0 0;padding:18px 16px calc(24px + env(safe-area-inset-bottom,0px))}
+.box h3{font-size:18px;margin-bottom:4px}
+.sum{display:flex;gap:12px;align-items:center;margin:8px 0 14px}.sum big{font-size:36px;font-weight:800}
+.bars div{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mut);margin:3px 0}.bars i{flex:1;height:7px;background:#2a2e36;border-radius:4px;overflow:hidden}.bars em{display:block;height:100%;background:var(--gold)}
+.rv{border-top:1px solid var(--line);padding:12px 0;font-size:14px;line-height:1.45}
+.rv .who{display:flex;gap:8px;align-items:center;margin-bottom:4px;font-weight:600}.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--blue2);font-size:13px}
+.rv small{color:var(--mut)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#fff;color:#111;padding:11px 20px;border-radius:24px;font-weight:600;font-size:14px;opacity:0;pointer-events:none;transition:.25s;z-index:30}
+.toast.show{opacity:1}
+/* AegisPay accessibility and contrast refresh */
+:root{--bg:#f1f5ff;--card:#fff;--line:#cbd5e1;--tx:#101828;--mut:#475467;--blue:#101c3a;--blue2:#173d78;--red:#dc2626;--gold:#ffc247;--green:#07875b;--g1:#ffb21c;--g2:#ffd166}
+body{background:#eef3ff;color:#101828;font-size:16px;line-height:1.45}
+header{background:linear-gradient(135deg,#102a63 0%,#165bb8 55%,#0f8bba 100%)}
+.loc{font-size:14px}
+.cat{font-size:13px;line-height:1.25;font-weight:600}
+.cat i{height:60px;background:linear-gradient(145deg,#eaf2ff,#fff);font-size:19px;border-color:#c6d7f2;color:#174ea6}
+.cat.on{color:#0a64c5}.cat.on i{background:linear-gradient(145deg,#dbeafe,#eff6ff);border-color:#1476df;box-shadow:0 0 0 2px #bfdbfe}
+.bar{background:#f7faff}.bar b{font-size:19px;color:#102a63}
+.pill{font-size:14px;font-weight:650;padding:10px 16px;border-color:#9db3d1}
+.pill.on{background:#dbeafe;border-color:#2563eb;color:#123b7a}
+.grid{background:#edf2ff;gap:12px;padding:0 10px}
+.p{border-color:#d5def0;box-shadow:0 3px 12px #1b3c6b12}
+.nm{font-size:15px;line-height:1.4;font-weight:650;color:#15213b}
+.br,.dl{font-size:13px}.rt{font-size:13px}
+.pr b{font-size:20px;color:#b42318}
+.add{font-size:15px;font-weight:750;background:linear-gradient(90deg,#ffbf3c,#ffdc75);color:#18253d;border:1px solid #e3a51c}
+.tag{font-size:13px}button,select,input{font-size:15px}
+.empty{font-size:16px;padding:28px;color:#334155}
+@media(max-width:380px){.cat{flex-basis:82px}.nm{font-size:14px}.pr b{font-size:18px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="top"><button class="ic" id="backb" aria-label="Back to AegisPay"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button><div class="logo"><img src="data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22260%22%20height%3D%2272%22%20viewBox%3D%220%200%20260%2072%22%3E%3Cdefs%3E%3ClinearGradient%20id%3D%22g%22%20x1%3D%220%22%20y1%3D%220%22%20x2%3D%221%22%20y2%3D%221%22%3E%3Cstop%20stop-color%3D%22%238b5cf6%22%2F%3E%3Cstop%20offset%3D%221%22%20stop-color%3D%22%2322d3ee%22%2F%3E%3C%2FlinearGradient%3E%3C%2Fdefs%3E%3Cpath%20d%3D%22M36%204%208%2016v19c0%2017%2012%2027%2028%2032%2016-5%2028-15%2028-32V16z%22%20fill%3D%22url(%23g)%22%2F%3E%3Cpath%20d%3D%22m36%2018%2014%2031h-9l-5-12-5%2012h-9z%22%20fill%3D%22%2314161a%22%2F%3E%3Ctext%20x%3D%2278%22%20y%3D%2244%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2231%22%20font-weight%3D%22700%22%20fill%3D%22%23fff%22%3EAegis%3C%2Ftext%3E%3Ctext%20x%3D%22162%22%20y%3D%2244%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2231%22%20font-weight%3D%22700%22%20fill%3D%22%238fb0ff%22%3EPay%3C%2Ftext%3E%3Ctext%20x%3D%22222%22%20y%3D%2243%22%20font-family%3D%22Arial%2C%20sans-serif%22%20font-size%3D%2212%22%20font-weight%3D%22700%22%20letter-spacing%3D%221.5%22%20fill%3D%22%239aa1ad%22%3ESHOP%3C%2Ftext%3E%3C%2Fsvg%3E" alt="AegisPay Shop"></div><button class="ic" id="acc" aria-label="Account"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.2 3.4-7 8-7s8 2.8 8 7"/></svg></button><button class="ic" id="cartb" aria-label="Cart"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h8.7a2 2 0 0 0 2-1.5L22 8H6"/><circle cx="10" cy="21" r="1"/><circle cx="18" cy="21" r="1"/></svg><span class="badge" id="cc">0</span></button></div>
+  <div class="search"><input id="q" placeholder="Search products" autocomplete="off"><b aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#111" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></b></div>
+  <div class="loc"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:5px"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>AegisPay Shipping Address: 1940 Route 52 East, Fishkill, NY 12533, United States</div>
+</header>
+<div class="cats" id="cats"></div>
+<div class="bar"><span><b id="cnt">0</b>results in <span id="cn">All</span></span>
+<select id="sort"><option value="f">Featured</option><option value="pl">Price: Low–High</option><option value="ph">Price: High–Low</option><option value="r">Top rated</option><option value="d">Biggest discount</option></select></div>
+<div class="pills" id="pills"></div>
+<div class="grid" id="grid"></div>
+<button class="more" id="more">Show more</button>
+<div class="sheet" id="sheet"><div class="box" id="box"></div></div>
+<div class="toast" id="toast"></div>
+<div style="padding:16px 14px 0;color:#7f8794;font-size:11px;line-height:1.45;text-align:center">AegisPay Shop is an Amazon-style marketplace interface for the AegisPay prototype. Real product photos are loaded from a public Amazon product-image sample dataset for this AegisPay prototype; this prototype is not affiliated with Amazon.</div>
+<script>
+window.addEventListener('error', function(event) {
+  const doc = document.documentElement;
+  if (doc.dataset.shopReady === 'true') return;
+  const grid = document.getElementById('grid');
+  const count = document.getElementById('cnt');
+  if (!grid || grid.children.length) return;
+  doc.dataset.shopBootError = String(event && event.message || 'Shop script failed to initialize');
+  if (count) count.textContent = '!';
+  const card = document.createElement('div');
+  card.className = 'empty';
+  card.style.cssText = 'grid-column:1/-1;text-align:center;padding:26px 16px;color:#b42318;background:#fff;border-radius:12px;margin:10px';
+  card.textContent = 'Shop could not initialize. Use Reload to try again. Details: ' + doc.dataset.shopBootError;
+  grid.appendChild(card);
+  const more = document.getElementById('more');
+  if (more) more.style.display = 'none';
+  const retry = document.createElement('button');
+  retry.className = 'more';
+  retry.textContent = 'Reload Shop';
+  retry.onclick = () => location.reload();
+  grid.appendChild(retry);
+});
+</script>
+<script>
+// ---------- DATA: 7 categories x 50 real catalog items ----------
+const BRANDS=['Nexa','Zenix','Orbit','Lumio','Vertex','Aero','Kora','Pulse'];
+const C=[
+ {k:'All',e:'▦'},
+ {k:'Laptop Accessories',e:'💻',items:['Laptop Sleeve 13-inch','Laptop Sleeve 15-inch','Adjustable Laptop Stand','Laptop Cooling Pad','USB-C Dock','USB-C Hub 6-in-1','USB-C Hub 8-in-1','HDMI Adapter','DisplayPort Adapter','Wireless Keyboard','Slim Wireless Mouse','Ergonomic Mouse','Mechanical Keyboard','Keyboard Wrist Rest','XL Mouse Pad','Gaming Mouse Pad','Laptop Privacy Filter','Webcam Cover','Laptop Cleaning Kit','Microfiber Screen Cloth','Laptop Backpack','Laptop Carry Case','Cable Organizer','USB-C Charger 65W','USB-C Charger 100W','GaN Charger 65W','Universal Laptop Charger','External SSD 1TB','Portable Monitor 15.6-inch','Laptop Speakers']},
+ {k:'Mobile Accessories',e:'📱',items:['Phone Case','Screen Protector','USB-C Fast Charger','Wireless Phone Charger','Power Bank 20000mAh','Car Phone Mount','USB-C Cable 2m','Lightning Cable','Phone Tripod','Ring Light for Phone','Tablet Stand','Tablet Case','USB-C Adapter','SIM Ejector Kit','Camera Lens Protector','Magnetic Phone Holder','Foldable Phone Stand','Portable Charger','Wireless Charging Pad','Phone Grip','MagSafe Car Charger','USB-C to HDMI Adapter','Dual-Port Wall Charger','Braided USB-C Cable','Wireless Charging Stand','Waterproof Phone Pouch','Phone Camera Grip','Foldable Tablet Keyboard','Tablet Screen Protector','Compact Power Bank']},
+ {k:'Audio & Wearables',e:'🎧',items:['Wireless Headphones','Bluetooth Earbuds','Noise-Cancelling Headphones','Portable Bluetooth Speaker','USB Microphone','USB-C Earphones','Smartwatch','Fitness Tracker','Wired Studio Headphones','Soundbar','Wireless Lavalier Microphone','Gaming Headset','Over-Ear Headphones','Sports Earbuds','Smart Watch Band','Mini Bluetooth Speaker','Desk Microphone Stand','Audio Splitter','USB DAC Adapter','Charging Case','True Wireless Earbud Case','Open-Ear Bluetooth Headphones','USB Podcast Microphone','Portable Party Speaker','Smartwatch Charging Cable','Sport Watch Strap','Bone-Conduction Headset','Studio Monitor Speakers','Bluetooth Audio Receiver','Digital Voice Recorder']},
+ {k:'Home & Kitchen',e:'🏠',items:['Electric Kettle','Coffee Maker','Air Fryer','Hand Blender','Vacuum Cleaner','LED Desk Lamp','Stainless Steel Water Bottle','Food Storage Set','Nonstick Frying Pan','Kitchen Knife Set','Digital Kitchen Scale','Toaster','Spice Organizer','Electric Chopper','Reusable Lunch Box','Bedside Night Light','Clothes Steamer','Air Purifier','Shower Organizer','Laundry Basket','Robot Vacuum Cleaner','Rechargeable Handheld Vacuum','Glass Food Container Set','Electric Milk Frother','Digital Air Quality Monitor','Motion Sensor Night Light','Under-Cabinet LED Light','Insulated Travel Mug','Silicone Cooking Utensil Set','Compact Rice Cooker']},
+ {k:'Fashion',e:'👕',items:['Everyday Backpack','Leather Wallet','Classic Sunglasses','Casual Sneakers','Running Shoes','Cotton T-Shirt','Zip Hoodie','Lightweight Jacket','Travel Duffel Bag','Baseball Cap','Woven Belt','Crossbody Bag','Winter Scarf','Slip-On Shoes','Denim Jeans','Canvas Tote Bag','Sports Socks','Minimalist Watch','Laptop Messenger Bag','Travel Organizer','Canvas Everyday Tote','Leather Card Holder','Classic Baseball Cap','Polarized Sunglasses','Minimalist Belt','Lightweight Rain Jacket','Compression Socks','Crossbody Sling Bag','Leather Travel Wallet','Lightweight Knit Sweater']},
+ {k:'Beauty & Personal Care',e:'✨',items:['Face Cleanser','Hydrating Face Cream','Vitamin C Serum','Hair Dryer','Hair Straightener','Electric Toothbrush','Sunscreen SPF 50','Shampoo and Conditioner Set','Perfume Spray','Makeup Brush Set','Nail Care Kit','Beard Trimmer','Facial Cleansing Brush','Body Lotion','Reusable Makeup Pads','Hair Styling Brush','Travel Toiletry Bag','Lip Balm Set','LED Vanity Mirror','Electric Shaver','Reusable Makeup Sponge Set','Hair Dryer Diffuser','Electric Nail File','Travel Perfume Atomizer','Heatless Curling Set','LED Makeup Mirror','Scalp Massage Brush','Manicure Care Kit','Sunscreen Stick','Electric Toothbrush Travel Case']},
+ {k:'Toys, Games & Books',e:'🎲',items:['Strategy Board Game','Wooden Chess Set','Jigsaw Puzzle 1000 Pieces','Building Blocks Set','Family Card Game','Children’s Story Book','Sketch Book Set','Educational Science Kit','Classic Playing Cards','Remote Control Car','Beginner Art Kit','Travel Board Game','Logic Puzzle Set','Paperback Mystery Novel','Kids Drawing Tablet','Miniature Building Kit','Reusable Activity Book','Portable Game Controller','Fantasy Book Collection','Number Puzzle Book','Magnetic Building Tiles','STEM Robotics Kit','Watercolor Pencil Set','Children\'s Story Collection','Pocket Sketchbook','3D Wooden Puzzle','Beginner Chess Set','Science Experiment Kit','Reusable Sticker Activity Book','Coding Robot for Kids']}
+];
+const TINT=['#e8f1ff','#fff0ec','#eefbe9','#fdf3d8','#f3eaff','#e6f8fa','#ffeaf2'];
+function rnd(s){return()=>(s=(s*16807)%2147483647)/2147483647}
+
+function productPhoto(name,cat,i){const n=String(name).toLowerCase(),p={"Laptop Accessories":["#dbeafe","#eff6ff","#2563eb"],"Mobile Accessories":["#cffafe","#ecfeff","#0891b2"],"Audio & Wearables":["#ede9fe","#f5f3ff","#7c3aed"],"Home & Kitchen":["#fef3c7","#fff7ed","#b45309"],"Fashion":["#fce7f3","#fff1f2","#be185d"],"Beauty & Personal Care":["#fce7f3","#faf5ff","#a21caf"],"Toys, Games & Books":["#dcfce7","#eff6ff","#15803d"]}[cat]||["#eef2ff","#f8fafc","#334155"];let a="";if(/mouse|trackpad/.test(n))a='<ellipse cx="350" cy="300" rx="105" ry="135" fill="#fff" stroke="#cbd5e1" stroke-width="8"/><rect x="330" y="195" width="40" height="92" rx="18" fill="#e2e8f0"/>';else if(/keyboard/.test(n))a='<rect x="82" y="225" width="536" height="175" rx="24" fill="#f8fafc" stroke="#cbd5e1" stroke-width="8"/>';else if(/laptop|monitor/.test(n))a='<rect x="125" y="85" width="450" height="270" rx="20" fill="#0f172a"/><rect x="150" y="110" width="400" height="220" rx="12" fill="url(#screen)"/><rect x="315" y="350" width="70" height="70" rx="10" fill="#475569"/>';else if(/phone|tablet|case|screen protector|stylus/.test(n))a='<rect x="235" y="50" width="230" height="420" rx="34" fill="#111827" stroke="#cbd5e1" stroke-width="8"/><rect x="257" y="92" width="186" height="320" rx="20" fill="url(#screen)"/>';else if(/earbud|headphone|headset/.test(n))a='<path d="M210 210a140 140 0 0 1 280 0" fill="none" stroke="#111827" stroke-width="42"/><rect x="165" y="190" width="112" height="170" rx="34" fill="#1f2937"/><rect x="423" y="190" width="112" height="170" rx="34" fill="#1f2937"/>';else if(/speaker|soundbar/.test(n))a='<rect x="135" y="135" width="430" height="250" rx="52" fill="#1f2937"/><circle cx="270" cy="260" r="74" fill="'+p[2]+'"/><circle cx="430" cy="260" r="74" fill="'+p[2]+'"/>';else if(/watch|band|tracker/.test(n))a='<rect x="285" y="48" width="130" height="420" rx="62" fill="#111827"/><rect x="305" y="135" width="90" height="175" rx="22" fill="url(#screen)"/>';else if(/pan|pot|sauce|cooker|fryer/.test(n))a='<ellipse cx="350" cy="290" rx="190" ry="112" fill="#111827"/><ellipse cx="350" cy="265" rx="168" ry="84" fill="#334155"/>';else if(/kettle|coffee|maker|toaster|blender|chopper|processor/.test(n))a='<rect x="245" y="135" width="210" height="255" rx="32" fill="#f8fafc" stroke="#94a3b8" stroke-width="8"/><circle cx="350" cy="245" r="54" fill="'+p[2]+'"/>';else if(/shirt|hoodie|dress|jacket|coat|sweat|scarf|skirt|legging|pant/.test(n))a='<path d="M235 95q115 70 230 0l75 95-75 45v190H209V235l-75-45z" fill="#fff" stroke="#94a3b8" stroke-width="8"/>';else if(/shoe|sneaker|loafer|sandal|slipper/.test(n))a='<path d="M155 340c95-10 160 0 245 45l-35 85H175c-60 0-90-55-20-130Z" fill="#fff" stroke="#94a3b8" stroke-width="8"/>';else if(/bag|backpack|wallet|organizer/.test(n))a='<path d="M185 145h330l25 305H160z" fill="'+p[2]+'" opacity=".9"/><path d="M260 145v-42c0-50 180-50 180 0v42" fill="none" stroke="#5b21b6" stroke-width="22"/>';else if(/lipstick|foundation|cream|serum|perfume|deodorant|shampoo|conditioner|lotion|soap/.test(n))a='<rect x="220" y="115" width="260" height="315" rx="28" fill="#fff" stroke="#cbd5e1" stroke-width="8"/><rect x="275" y="165" width="150" height="95" rx="20" fill="'+p[2]+'" opacity=".25"/>';else if(/mirror/.test(n))a='<circle cx="350" cy="255" r="145" fill="#e2e8f0" stroke="#94a3b8" stroke-width="14"/><circle cx="350" cy="255" r="110" fill="url(#screen)"/>';else if(/dryer|straightener|curler|trimmer|shaver|razor/.test(n))a='<rect x="300" y="70" width="100" height="340" rx="40" fill="#fff" stroke="#cbd5e1" stroke-width="8"/><rect x="318" y="115" width="64" height="52" rx="18" fill="'+p[2]+'"/>';else if(/book|novel|atlas|guide|dictionary|journal|notebook|handbook/.test(n))a='<path d="M170 100h300a40 40 0 0 1 40 40v285H210a40 40 0 0 1-40-40Z" fill="#fff" stroke="#94a3b8" stroke-width="8"/><path d="M210 100v325" stroke="#cbd5e1" stroke-width="8"/>';else if(/puzzle|game|chess|card|building|tiles|blocks/.test(n))a='<rect x="165" y="100" width="370" height="300" rx="30" fill="#fff" stroke="#94a3b8" stroke-width="8"/><circle cx="260" cy="195" r="48" fill="'+p[2]+'" opacity=".8"/><circle cx="430" cy="195" r="48" fill="#22c55e" opacity=".7"/><circle cx="260" cy="315" r="48" fill="#f59e0b" opacity=".7"/><circle cx="430" cy="315" r="48" fill="#ef4444" opacity=".7"/>';else a='<rect x="205" y="100" width="290" height="290" rx="34" fill="#fff" stroke="#cbd5e1" stroke-width="8"/><circle cx="350" cy="245" r="82" fill="'+p[0]+'"/><path d="M305 245h90M350 200v90" stroke="'+p[2]+'" stroke-width="12"/>';const svg='<svg xmlns="http://www.w3.org/2000/svg" width="700" height="600" viewBox="0 0 700 600"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="'+p[0]+'"/><stop offset="1" stop-color="'+p[1]+'"/></linearGradient><linearGradient id="screen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dbeafe"/><stop offset=".55" stop-color="#93c5fd"/><stop offset="1" stop-color="#a5f3fc"/></linearGradient><filter id="s"><feDropShadow dx="0" dy="18" stdDeviation="16" flood-opacity=".22"/></filter></defs><rect width="700" height="600" rx="36" fill="url(#bg)"/><ellipse cx="350" cy="485" rx="190" ry="28" fill="#0f172a" opacity=".12"/><g filter="url(#s)">'+a+'</g><text x="350" y="535" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="'+p[2]+'" opacity=".9">'+String(name).replace(/[&<>]/g," ").slice(0,28)+'</text><text x="350" y="565" text-anchor="middle" font-family="Arial" font-size="12" fill="'+p[2]+'" opacity=".5">Product Preview</text></svg>';return "data:image/svg+xml;charset=UTF-8,"+encodeURIComponent(svg);}
+const ITEMS=[];
+C.slice(1).forEach((c,ci)=>{
+  const R=rnd(ci*977+13);
+  c.items.slice(0,35).forEach((name,bi)=>{
+    const price=+(Math.pow(R(),1.45)*(ci===0?180:ci===1?120:ci===2?160:ci===3?100:ci===4?140:ci===5?90:60)+(ci===6?5:3)).toFixed(2);
+    const dis=R()<.55?[10,15,20,25,30][Math.floor(R()*5)]:0;
+    const rating=+(4.0+R()*1.0).toFixed(1);
+    const rc=Math.floor(35+Math.pow(R(),2)*4200);
+    ITEMS.push({id:ITEMS.length,cat:c.k,name,brand:BRANDS[(bi+ci)%BRANDS.length],price,old:dis?+(price/(1-dis/100)).toFixed(2):0,dis,rating,rc,prime:R()<.78,free:R()<.62,best:rc>2200,photo:productPhoto(name,c.k,ITEMS.length),ord:R()});
+  });
+});
+
+const REAL_CATALOG_URL=location.origin+"/catalog-proxy?raw=1";
+const CAT_TERMS={
+  "Laptop Accessories":["laptop","keyboard","mouse","computer","monitor","webcam","usb","dock","docking","ssd","hard drive","printer","pc","desk"],
+  "Mobile Accessories":["phone","iphone","samsung","android","mobile","charger","power bank","case","screen protector","usb-c","magnetic","wireless charger","tablet"],
+  "Audio & Wearables":["headphone","earbud","earbuds","speaker","soundbar","microphone","audio","bluetooth","smartwatch","smart watch","fitness tracker","watch"],
+  "Home & Kitchen":["kitchen","air fryer","kettle","coffee","toaster","blender","vacuum","lamp","pan","pot","cooker","organizer","storage","home","bottle"],
+  "Fashion":["shirt","hoodie","dress","jacket","coat","shoe","sneaker","sandal","slipper","bag","backpack","wallet","clothing","jeans","pants","watch","hat","cap"],
+  "Beauty & Personal Care":["beauty","makeup","lipstick","mascara","foundation","serum","cream","perfume","fragrance","shampoo","conditioner","lotion","skin","hair","nail","deodorant"],
+  "Toys, Games & Books":["toy","game","puzzle","chess","card","doll","lego","building","blocks","book","novel","notebook","journal","kids","children","educational"]
+};
+function csvRows(text){
+  const rows=[];let row=[],cell="",q=false;
+  for(let i=0;i<text.length;i++){const ch=text[i];
+    if(ch==='"'){if(q&&text[i+1]==='"'){cell+='"';i++;}else q=!q;}
+    else if(ch===','&&!q){row.push(cell);cell="";}
+    else if((ch==='\n'||ch==='\r')&&!q){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(v=>v.trim()!==''))rows.push(row);row=[];cell="";}
+    else cell+=ch;
+  }
+  if(cell!==''||row.length){row.push(cell);rows.push(row);}
+  if(!rows.length)return [];
+  const header=rows.shift().map(x=>x.trim().toLowerCase());
+  return rows.map(r=>Object.fromEntries(header.map((k,i)=>[k,(r[i]||"").trim()])));
+}
+function norm(v){return String(v||"").toLowerCase().replace(/[^a-z0-9]+/g," ")}
+function rowScore(row,cat){
+  const text=norm((row.title||"")+" "+(row.categories||"")+" "+(row.brand||"")+" "+(row.product_details||""));
+  const terms=CAT_TERMS[cat]||[];
+  let score=0;
+  for(const term of terms){if(text.includes(term))score+=term.includes(" ")?7:4;}
+  const generic=["product","amazon","accessory","item"];
+  for(const term of generic){if(text.includes(term))score+=.1}
+  return score;
+}
+async function loadRealAmazonPhotos(){
+  try{
+    const res=await fetch(REAL_CATALOG_URL,{cache:"force-cache"});
+    if(!res.ok)throw new Error("catalog fetch "+res.status);
+    const text=await res.text();
+    const rows=csvRows(text).filter(r=>r.image_url&&/^https?:\/\//i.test(r.image_url)&&r.title);
+    if(rows.length===0)throw new Error("No usable product-image rows were found");
+    const used=new Set();
+    for(const cat of C.slice(1).map(x=>x.k)){
+      const categoryItems=ITEMS.filter(p=>p.cat===cat&&!p.taskAssigned);
+      const pool=rows.map((r,i)=>({r,i,s:rowScore(r,cat)})).sort((a,b)=>b.s-a.s);
+      for(const p of categoryItems){
+        let pick=pool.find(x=>!used.has(x.i)&&x.s>0);
+        if(!pick)pick=pool.find(x=>!used.has(x.i));
+        if(!pick)continue;
+        used.add(pick.i);
+        const r=pick.r;
+        const finalPrice=parseFloat(String(r.final_price||"").replace(/[^0-9.]/g,""));
+        const initialPrice=parseFloat(String(r.initial_price||"").replace(/[^0-9.]/g,""));
+        const rating=parseFloat(r.rating);
+        const reviews=parseInt(String(r.reviews_count||"").replace(/[^0-9]/g,""),10);
+        p.realTitle=r.title;
+        p.realSource="Amazon public sample";
+        p.name=r.title;
+        p.brand=r.brand||p.brand;
+        p.photo=r.image_url;
+        if(Number.isFinite(finalPrice)&&finalPrice>0)p.price=finalPrice;
+        if(Number.isFinite(initialPrice)&&initialPrice>0&&Number.isFinite(finalPrice)&&initialPrice>finalPrice){p.old=initialPrice;p.dis=Math.round((1-finalPrice/initialPrice)*100);}
+        if(Number.isFinite(rating)&&rating>0)p.rating=Math.max(1,Math.min(5,rating));
+        if(Number.isFinite(reviews)&&reviews>0)p.rc=reviews;
+      }
+    }
+    render();
+    document.body.dataset.realImages=String(ITEMS.filter(p=>p.realSource).length);
+    document.body.dataset.uniqueRealImages=String(new Set(ITEMS.filter(p=>p.realSource).map(p=>p.photo)).size);
+    toast("Original product photos loaded ✓");
+  }catch(err){
+    console.warn("Real product catalog load failed",err);document.body.dataset.realImages="0";toast("Product photos are temporarily unavailable");
+  }
+}
+// ---------- REVIEWS ----------
+const FIRST=["Aiden","Amelia","Arjun","Aarav","Aisha","Akira","Alina","Amir","Anaya","Andrei","Anika","Aria","Beatriz","Bella","Benjamin","Camila","Carlos","Chloe","Daniel","Daria","David","Elena","Ethan","Fatima","Felix","Gabriela","Grace","Hana","Hannah","Haruto","Hassan","Helena","Ibrahim","Ines","Isabella","Jae","Jamal","Jasmine","Jonas","Julia","Kenji","Khalid","Kiara","Lara","Layla","Leo","Leila","Liam","Lina","Lucas","Maya","Mei","Miguel","Mila","Nadia","Naomi","Nora","Noah","Omar","Priya","Rafael","Rania","Ravi","Sofia","Tariq","Valentina","William","Yara","Yusuf","Zain"];const LAST=["Adams","Ahmed","Alvarez","Andersen","Bakker","Bennett","Bianchi","Brown","Chen","Costa","Das","Dubois","Evans","Fischer","Garcia","Gonzalez","Haddad","Hansen","Ibrahim","Ivanov","Jensen","Khan","Kim","Kowalski","Kumar","Lee","Martin","Mendes","Miller","Mori","Muller","Nakamura","Nasser","Nguyen","Okafor","Patel","Petrov","Rahman","Rossi","Santos","Schmidt","Silva","Singh","Smit","Tan","Taylor","Torres","Wang","Williams","Yamada","Young","Zhang","Ali","Kaur"];const REVIEW_LINES=["Excellent quality and exactly as described.","Very good value for the price; packaging was neat.","Works well and feels more premium than expected.","Fast delivery and the product matched the listing.","Good build quality. I would purchase this again.","Useful product for everyday use and easy to set up.","The finish is clean and the item feels sturdy.","Happy with the purchase; delivery was smooth.","Looks great in person and performs as expected.","Nice quality overall and good attention to detail."];
+const GOOD=['Excellent quality, exactly as described.','Great value for the price. Delivery was quick.','Works perfectly, I would buy it again.','Better than expected. Packaging was neat.','Looks premium and feels sturdy.'];
+const MID=['Good overall, but it took a while to arrive.','Decent product. Does the job for the price.','Nice, though the colour is slightly different from the photo.'];
+const LOW=['Average quality. Expected a bit more.','Okay for casual use, not for heavy use.'];
+const REVIEW_COUNTRIES=['United States','United Kingdom','Pakistan','United Arab Emirates','Canada','Australia','Germany','France','Japan','Singapore','India','Brazil','Italy','Spain','Netherlands','Malaysia','South Africa','Turkey','Saudi Arabia','New Zealand','Sweden','Norway','Switzerland','Mexico','South Korea','Indonesia','Ireland','Belgium','Austria','Portugal','Denmark','Thailand','Philippines','Poland','Egypt'];
+const UNIQUE_REVIEW_TEMPLATES=['The __PN__ feels well made and matches the product description I checked before ordering.','I like how the __PN__ handles its main job without adding unnecessary complexity.','After using the __PN__ for a few days, the finish and everyday usability stood out.','The __PN__ has been a practical choice for my routine and the details feel thoughtfully designed.','What impressed me about the __PN__ is the balance between appearance, function, and value.','The __PN__ has been reliable in regular use and the overall design is easy to live with.','I compared several options before choosing the __PN__; this one suited my needs best.','For my setup, the __PN__ has been convenient, easy to use, and pleasantly consistent.'];
+function reviews(p){const base=p.id*8;return UNIQUE_REVIEW_TEMPLATES.map((tpl,j)=>{const idx=base+j,fn=FIRST[idx%FIRST.length],ln=LAST[Math.floor(idx/FIRST.length)%LAST.length],country=REVIEW_COUNTRIES[idx%REVIEW_COUNTRIES.length];return{n:fn+' '+ln,country,s:[5,5,4,5,4,5,4,5][j],t:tpl.replaceAll('__PN__',p.name),d:[3,6,10,14,19,27,36,48][j]}})}
+// ---------- UI ----------
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);let cat='All',range='All',sort='f',q=(params.get('q')||'').toLowerCase(),shown=12,cart=0,fav=new Set();const taskId=params.get('task')||'',taskProductId=params.get('product')||'',returnRaw=params.get('return')||'';const safeReturn=(()=>{try{const u=new URL(returnRaw);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;const h=u.hostname.toLowerCase();if(['aegispay-web.aegispay.workers.dev','aegispay-pro.pages.dev'].includes(h))return u;if(h==='appassets.androidplatform.net'&&u.pathname==='/assets/aegispay/client.html')return u}catch(_){ }return null})();
+if(taskId&&taskProductId&&q){const rawTitle=params.get('q')||'Assigned Shop Item';const title=rawTitle.replaceAll('<','').replaceAll('>','').slice(0,120);const rawPrice=Number(params.get('price'));const price=Number.isFinite(rawPrice)&&rawPrice>0?rawPrice:7.8;ITEMS.unshift({id:taskProductId,cat:'Laptop Accessories',name:title,brand:'Logitech',price,old:0,dis:0,rating:4.7,rc:1280,prime:false,free:true,best:false,photo:productPhoto(title,'Laptop Accessories',taskProductId),ord:-1,taskAssigned:true});}
+const RANGES={All:[0,1e9],'Under $10':[0,10],'$10–$50':[10,50],'$50–$200':[50,200],'$200+':[200,1e9]};
+$('cats').innerHTML=C.map(c=>`<div class="cat ${c.k==cat?'on':''}" data-k="${c.k}"><i>${c.e}</i>${c.k.replace(' & ',' &<br>').replace(', ','<br>')}</div>`).join('');
+$('pills').innerHTML=Object.keys(RANGES).map(r=>`<button class="pill ${r=='All'?'on':''}" data-r="${r}">${r}</button>`).join('');
+const stars=r=>'★'.repeat(Math.round(r))+'☆'.repeat(5-Math.round(r));
+function render(){
+ let L=ITEMS.filter(p=>(cat=='All'||p.cat==cat)&&p.price>=RANGES[range][0]&&p.price<RANGES[range][1]&&(p.name+p.brand+p.cat).toLowerCase().includes(q));
+ const S={f:(a,b)=>a.ord-b.ord,pl:(a,b)=>a.price-b.price,ph:(a,b)=>b.price-a.price,r:(a,b)=>b.rating-a.rating,d:(a,b)=>b.dis-a.dis};L.sort(S[sort]);
+ $('cnt').textContent=L.length;$('cn').textContent=cat;
+ $('grid').innerHTML=L.slice(0,shown).map(p=>{const [d,c]=p.price.toFixed(2).split('.');
+ return `<div class="p"><div class="img"><img loading="lazy" decoding="async" src="${p.photo}" alt="${p.name}">${p.dis?`<span class="tag">-${p.dis}%</span>`:p.best?'<span class="tag bs">Best Seller</span>':''}<button class="hrt ${fav.has(p.id)?'on':''}" data-h="${p.id}">${fav.has(p.id)?'♥':'♡'}</button></div>
+ <div class="info"><div class="nm">${p.name}</div><div class="br">${p.brand}</div>
+ <div class="rt" data-r="${p.id}"><span class="st">${stars(p.rating)}</span>${p.rating} (${p.rc.toLocaleString()})</div>
+ <div class="pr"><b>$${d}<sup>${c}</sup></b>${p.old?`<s>$${p.old}</s>`:''}${p.prime?'<span class="prime">prime</span>':''}</div>
+ <div class="dl">${p.free?'FREE Delivery':'Delivery $2.99'}</div><button class="add" data-a="${p.id}">Add to Cart</button></div></div>`}).join('')||'<div class="empty">No items found</div>';
+ $('grid').querySelectorAll('.img img').forEach(function(img){img.onerror=function(){if(img.dataset.proxyFallback==='1')return;img.dataset.proxyFallback='1';const original=img.getAttribute('src')||'';if(/^https:///i.test(original))img.src=location.origin+'/image-proxy?url='+encodeURIComponent(original);};});
+    $('more').style.display=L.length>shown?'block':'none';
+}
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1400)}
+document.addEventListener('click',e=>{const t=e.target;
+ const k=t.closest('.cat');if(k){cat=k.dataset.k;shown=12;document.querySelectorAll('.cat').forEach(x=>x.classList.toggle('on',x==k));render();return}
+ const r=t.closest('.pill');if(r){range=r.dataset.r;shown=12;document.querySelectorAll('.pill').forEach(x=>x.classList.toggle('on',x==r));render();return}
+ const a=t.closest('[data-a]');if(a){$('cc').textContent=++cart;toast('Added to cart ✓');return}
+ const h=t.closest('[data-h]');if(h){const i=+h.dataset.h;fav.has(i)?fav.delete(i):fav.add(i);render();return}
+ const rv=t.closest('[data-r]');if(rv&&rv.classList.contains('rt')){const p=ITEMS[+rv.dataset.r],rs=reviews(p),B=[5,4,3,2,1].map(s=>[s,Math.round(s==5?p.rating*12-30:s==4?25:s==3?10:s==2?4:2)]);
+  $('box').innerHTML=`<h3>${p.name}</h3><div class="br">${p.brand} · ${p.rc.toLocaleString()} ratings</div><div class="sum"><big>${p.rating}</big><div><div class="st">${stars(p.rating)}</div><small style="color:#9aa1ad">out of 5</small></div></div>
+  <div class="bars">${B.map(([s,v])=>`<div>${s}★<i><em style="width:${Math.max(3,v)}%"></em></i>${Math.max(3,v)}%</div>`).join('')}</div>
+  ${rs.map(r=>`<div class="rv"><div class="who"><span class="av">${r.n[0]}</span>${r.n}</div><span class="st">${stars(r.s)}</span> <small>Customer sample · ${r.country} · ${r.d} days ago</small><div>${r.t}</div></div>`).join('')}`;
+  $('sheet').classList.add('show');return}
+ if(t==$('sheet'))$('sheet').classList.remove('show');
+ if(t.closest('#cartb')){if(!cart){toast('Cart is empty');return;}if(taskId&&taskProductId&&safeReturn){$('box').innerHTML='<h3>Shop Purchase Confirmation</h3><div class="br">Assigned AegisPay task '+taskId+'</div><div class="rv" style="border-top:0;padding-top:8px"><b>Cart items:</b> '+cart+'</div><div class="rv"><b>Assigned product:</b> '+taskProductId+'</div><div class="rv">Confirm that you purchased the assigned product, then return to AegisPay to unlock the task completion step.</div><button class="add" id="confirmTaskPurchase" type="button" style="width:100%;margin-top:8px">Confirm Purchase & Return to AegisPay</button>';const cp=$('confirmTaskPurchase');if(cp)cp.onclick=()=>{const u=new URL(safeReturn.toString());u.searchParams.set('shop_purchase','confirmed');u.searchParams.set('task',taskId);u.searchParams.set('product',taskProductId);location.href=u.toString();};$('sheet').classList.add('show');return;}toast(cart+' item(s) in cart');return;}
+});
+$('q').value=q;$('q').oninput=e=>{q=e.target.value.toLowerCase();shown=12;render()};
+$('sort').onchange=e=>{sort=e.target.value;render()};
+loadRealAmazonPhotos();
+$('more').onclick=()=>{shown+=12;render()};
+$('backb').onclick=()=>{if(safeReturn){location.replace(safeReturn.toString());return;}if(history.length>1){history.back();return;}if(params.get('from')==='aegispay'){location.replace('https://aegispay-pro.pages.dev/app/');return;}location.replace('https://aegispay-pro.pages.dev/');};
+render();
+document.documentElement.dataset.shopReady = 'true';
+document.documentElement.dataset.shopProductCount = String(ITEMS.length);
+document.documentElement.dataset.shopCategoryCount = String(C.slice(1).length);
+</script>
+</body>
+</html>
