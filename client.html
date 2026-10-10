@@ -1195,14 +1195,14 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   };
 
   liveActivity=async function(){
-    const p=profile,q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100)]);
+    const p=profile,q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000),db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000),db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(1000)]);
     if(q[0].error||q[1].error||q[2].error){uiNotice('Unable to load activity history.','error');return;}
     const ledger=q[0].data||[],withdrawals=q[1].data||[],referrals=q[2].data||[];
     const sum=function(a){return a.reduce(function(n,x){return n+Math.abs(Number(x.amount||x.platform_reward||0));},0);};
     const deposits=ledger.filter(function(x){return Number(x.amount)>0&&!/profit|task|referral|reward/i.test((x.entry_type||'')+' '+(x.description||''));}),profits=ledger.filter(function(x){return Number(x.amount)>0&&/profit|task/i.test((x.entry_type||'')+' '+(x.description||''));});
     let current='overview';
     const listBox='<div id="activityList"></div>';
-    const card=function(key,title,value,icon,color){return '<button type="button" class="p2-card compact" data-activity-tab="'+key+'" style="width:100%;text-align:left;border-color:'+color+'44"><div class="p2-row"><span class="bub" style="background:'+color+'18;color:'+color+'">'+ic(icon)+'</span><div class="grow"><h3>'+title+'</h3><small>Open history</small></div><div class="p2-amount">'+Number(value).toFixed(2)+'<small>USDT · View</small></div></div></button>';};
+    const card=function(key,title,value,icon,color){return '<button type="button" class="p2-card compact" data-activity-tab="'+key+'" style="width:100%;text-align:left;color:var(--t);font:inherit;appearance:none;-webkit-appearance:none;cursor:pointer;border-color:'+color+'44"><div class="p2-row"><span class="bub" style="background:'+color+'18;color:'+color+'">'+ic(icon)+'</span><div class="grow"><h3>'+title+'</h3><small>Open history</small></div><div class="p2-amount">'+Number(value).toFixed(2)+'<small>USDT · View</small></div></div></button>';};
     const render=function(key){
       current=key;const box=document.getElementById('activityList');if(!box)return;
       let html='';
@@ -1211,6 +1211,13 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
       else if(key==='withdrawal')html=withdrawals.length?withdrawals.map(function(x){return '<div class="row"><div>Withdrawal<small>'+esc(x.status||'REQUESTED')+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="dn">−'+Number(x.net_amount||x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No withdrawals yet</b>Your withdrawal requests will appear here.</div>';
       else if(key==='profit')html=profits.length?profits.map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.amount||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No task profit yet</b>Completed Shop earnings will appear here.</div>';
       else if(key==='referral')html=referrals.length?referrals.map(function(x){return '<div class="row"><div>Referral Reward<small>Level '+esc(x.referral_level)+' · '+new Date(x.created_at).toLocaleString()+'</small></div><em class="up">+'+Number(x.platform_reward||0).toFixed(2)+'<small>USDT</small></em></div>';}).join(''):'<div class="p2-empty"><b>No referral rewards yet</b>New rewards will appear here.</div>';
+      if(key!=='overview'){
+        const pageTitles={deposit:'Deposit History',withdrawal:'Withdrawal History',profit:'Task Profit History',referral:'Referral Rewards History'};
+        const pageTitle=pageTitles[key]||'Activity History';
+        const counts={deposit:deposits.length,withdrawal:withdrawals.length,profit:profits.length,referral:referrals.length};
+        app.innerHTML=top(pageTitle,'activity')+'<div class="p2-head"><h2>'+pageTitle+'</h2><span>'+Number(counts[key]||0)+' records</span></div><div class="p2-card compact p2-history-list" style="color:var(--t)">'+html+'</div>'+nav('activity');
+        return;
+      }
       box.innerHTML='<div class="p2-card compact">'+html+'</div>';
     };
     app.innerHTML=top('Activity')+'<div class="p2-head"><h2>Account Overview</h2><span>Live ledger</span></div><div class="p2-mini-grid"><div class="p2-mini"><small>Total Credits</small><b>+'+sum(deposits).toFixed(2)+'</b></div><div class="p2-mini"><small>Withdrawals</small><b>−'+sum(withdrawals).toFixed(2)+'</b></div><div class="p2-mini"><small>Task Profit</small><b>+'+sum(profits).toFixed(2)+'</b></div><div class="p2-mini"><small>Referral Rewards</small><b>+'+sum(referrals).toFixed(2)+'</b></div></div><div class="p2-head" style="margin-top:17px"><h2>History</h2><span>Tap a category</span></div>'+card('deposit','Deposits',sum(deposits),'dl','#2EE6A6')+card('withdrawal','Withdrawals',sum(withdrawals),'up','#FF5C7A')+card('profit','Task Profit',sum(profits),'check','#FFB84D')+card('referral','Referral Rewards',sum(referrals),'gift','#7C5CFF')+listBox+nav('activity');
