@@ -43,8 +43,11 @@ Deno.serve(async(req:Request)=>{
    mainnet_payout_key:Boolean(MAINNET_PAYOUT_KEY),testnet_payout_key:Boolean(TESTNET_PAYOUT_KEY),
    ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN),telegram_chat:Boolean(TELEGRAM_CHAT_ID),telegram_approvers:TELEGRAM_APPROVER_IDS.length>0
   };
-   const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
-   const unresolvedPayouts=unresolvedPayoutResult.data||[];
+   const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,destination_address,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
+   const unresolvedPayouts=await Promise.all((unresolvedPayoutResult.data||[]).map(async(x:any)=>{
+    const {data:walletValid,error:walletError}=await admin.rpc("is_valid_tron_address",{p_address:String(x.destination_address||"")});
+    return {id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,destination_address:x.destination_address,created_at:x.created_at,payout_started_at:x.payout_started_at,wallet_valid:!walletError&&walletValid===true};
+   }));
    const unresolvedPayoutsClear=!unresolvedPayoutResult.error&&unresolvedPayouts.length===0;
   const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&Boolean(receiving);
    // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
@@ -62,7 +65,7 @@ Deno.serve(async(req:Request)=>{
     const locked=body.payoutsLocked!==false;
 
      if(payouts && (unresolvedPayoutResult.error || unresolvedPayouts.length>0)){
-       return json({error:"Cannot open live payouts until all previously approved or processing withdrawals without a TXID are reconciled.",code:"UNRECONCILED_APPROVED_PAYOUTS",unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at}))},409);
+       return json({error:"Cannot open live payouts until all previously approved or processing withdrawals without a TXID are reconciled.",code:"UNRECONCILED_APPROVED_PAYOUTS",unresolved_payouts:unresolvedPayouts},409);
      }
     if(payouts && (env!=="PRODUCTION" || !approved || locked || !mainnetPayoutEnablementReady)){
       return json({error:"Production payout operations are not ready. Configure the required server-side payout, TRONGrid and Telegram secrets and complete the readiness checks first.",code:"PRODUCTION_PAYOUT_NOT_READY"},409);
