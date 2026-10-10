@@ -153,6 +153,14 @@ function systemCard(){
   '</section>';
 }
 
+function withdrawalAIControl(){
+  const c=state.settings.withdrawal_ai||{},enabled=c.enabled===true,cap=Number(c.max_auto_approve_usdt||100);
+  return '<section class="aa-panel" style="margin:14px 0"><div class="aa-panel-head"><div><h2>Withdrawal AI Approval</h2><p>Automatic approval is limited to eligible, low-risk cases. All uncertain requests stay in the Master Admin queue.</p></div><span class="aa-badge '+(enabled?'aa-badge-green':'aa-badge-amber')+'">'+(enabled?'BOT ON':'BOT OFF')+'</span></div>'+
+    '<div class="aa-detail-grid"><span>Approval limit<b>'+money(cap)+' USDT</b></span><span>Confidence threshold<b>98%+</b></span><span>Current payout gate<b>'+(state.productionDiag&&state.productionDiag.mainnet_payout_operational===true?'READY':'LOCKED')+'</b></span></div>'+
+    '<button type="button" class="aa-system-toggle '+(enabled?'on':'off')+'" data-action="withdrawal-ai-toggle">'+(enabled?'TURN WITHDRAWAL AI OFF':'TURN WITHDRAWAL AI ON')+'</button>'+
+    '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Master Admin escalation enabled</strong><small>Requests that fail confidence, KYC, wallet, balance or risk checks are sent to manual review. This toggle cannot unlock live payouts.</small></div></div></section>';
+}
+
 function dashboard(){
   const s=state.queues.stats||{};
   const pending=(state.queues.deposits.length+state.queues.kyc.length+state.queues.withdrawals.length);
@@ -165,6 +173,7 @@ function dashboard(){
       stat('USDT Paid Out',money(s.completedWithdrawalsUsdt)+' USDT','Completed payouts','amber')+
     '</div>'+
     systemCard()+
+    withdrawalAIControl()+
     '<div class="aa-section-grid">'+
       '<section class="aa-panel">'+
         '<div class="aa-panel-head"><div><h2>Pending Operations</h2><p>Items currently waiting for review.</p></div><span class="aa-count">'+pending+'</span></div>'+
@@ -263,6 +272,7 @@ function queuePage(tab,title,sub,kind){
   const history=kind==='kyc'?(state.queues.kycHistory||[]):(kind==='deposits'?(state.queues.depositHistory||[]):[]);
   const historyHtml=history.length?history.map(x=>reviewCard(kind,x)).join(''):empty('No previous records.','Approved, rejected and completed records will appear here.');
   return '<main class="aa-main">'+pageHeader(title,title==='Deposits'?'Review deposits and verify transaction evidence.':title==='Identity Verification'?'Review private identity documents securely.':'Review client payout requests and approval states.',sub)+
+    (kind==='withdrawals'?withdrawalAIControl():'')+
     '<section class="aa-panel"><div class="aa-panel-head"><div><h2>Pending Review</h2><p>Items currently waiting for manual review.</p></div><span class="aa-count">'+items.length+'</span></div>'+
     '<section class="aa-list">'+(items.length?items.map(x=>reviewCard(kind,x)).join(''):empty('Queue is clear.','There are no items waiting for review.'))+'</section></section>'+
     ((kind==='kyc'||kind==='deposits')?'<section class="aa-panel" style="margin-top:14px"><div class="aa-panel-head"><div><h2>Verification History</h2><p>AI-approved and manually reviewed records remain available for later inspection.</p></div><span class="aa-count">'+history.length+'</span></div>'+
