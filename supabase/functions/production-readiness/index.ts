@@ -43,11 +43,8 @@ Deno.serve(async(req:Request)=>{
    mainnet_payout_key:Boolean(MAINNET_PAYOUT_KEY),testnet_payout_key:Boolean(TESTNET_PAYOUT_KEY),
    ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN),telegram_chat:Boolean(TELEGRAM_CHAT_ID),telegram_approvers:TELEGRAM_APPROVER_IDS.length>0
   };
-   const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,destination_address,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
-   const unresolvedPayouts=await Promise.all((unresolvedPayoutResult.data||[]).map(async(x:any)=>{
-    const {data:walletValid,error:walletError}=await admin.rpc("is_valid_tron_address",{p_address:String(x.destination_address||"")});
-    return {id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,destination_address:x.destination_address,created_at:x.created_at,payout_started_at:x.payout_started_at,wallet_valid:!walletError&&walletValid===true};
-   }));
+   const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
+   const unresolvedPayouts=unresolvedPayoutResult.data||[];
    const unresolvedPayoutsClear=!unresolvedPayoutResult.error&&unresolvedPayouts.length===0;
   const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&Boolean(receiving);
    // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
@@ -97,6 +94,6 @@ Deno.serve(async(req:Request)=>{
    mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits,mainnet_payout_gate_ok:mainnetPayoutGateOk,
    server_side_secrets_required:true,cron_secret_required_for_monitoring:true
   };
-   return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,unresolved_payouts:unresolvedPayouts,unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
+   return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
  }catch(error){return json({error:String((error as Error)?.message||error).slice(0,500)},500);}
 });
