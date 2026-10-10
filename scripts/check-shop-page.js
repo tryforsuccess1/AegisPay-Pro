@@ -9,7 +9,7 @@ const worker = fs.readFileSync(path.join(root, 'workers/aegispay-shopping/index.
 const scripts = Array.from(html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi), match => match[1]);
 assert.ok(scripts.length >= 2, 'Shop page should contain an early error guard and app script.');
 for (const [index, source] of scripts.entries()) new vm.Script(source, { filename: 'shop-inline-' + index + '.js' });
-new vm.Script(worker, { filename: 'workers/aegispay-shopping/index.js' });
+new vm.Script(worker.replace('import SHOP_HTML from "./shop.html";', 'const SHOP_HTML = "";'), { filename: 'workers/aegispay-shopping/index.js' });
 const categories = Array.from(html.matchAll(/\{k:'([^']+)',e:'[^']+',items:\[([\s\S]*?)\]\}/g));
 assert.equal(categories.length, 7, 'Shop should define seven categories.');
 for (const match of categories) assert.equal((match[2].match(/'[^']*'/g) || []).length, 30, match[1] + ' should have 30 products.');
