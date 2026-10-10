@@ -247,7 +247,7 @@ function reviewCard(kind,item){
       '</div></article>';
   }
   return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge aa-badge-green">WITHDRAWAL</span><h3>'+money(item.amount)+' USDT</h3><p>'+esc(user)+'</p></div><span class="aa-status">'+esc(item.status||'PENDING')+'</span></div>'+
-    '<div class="aa-detail-grid"><span>Fee<b>'+money(item.feeAmount)+' USDT</b></span><span>Net<b>'+money(item.netAmount)+' USDT</b></span><span>Panel<b>'+esc(item.panelDecision||'PENDING')+'</b></span><span>Telegram<b>'+esc(item.telegramDecision||'PENDING')+'</b></span></div>'+
+    '<div class="aa-detail-grid"><span>Fee<b>'+money(item.feeAmount)+' USDT</b></span><span>Net<b>'+money(item.netAmount)+' USDT</b></span><span>Panel<b>'+esc(item.panelDecision||'PENDING')+'</b></span><span>Telegram<b>'+esc(item.telegramDecision||'PENDING')+'</b></span><span>AI Decision<b>'+esc(item.aiDecision||'PENDING_REVIEW')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'—':(Number(item.aiConfidence)*100).toFixed(1)+'%')+'</b></span><span>AI Review Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span></div>'+
     '<div class="aa-wallet-box"><span>Destination</span><code>'+esc(item.destinationAddress||'—')+'</code></div>'+
     (item.payoutTxid?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Payout TXID</strong><small class="aa-mono">'+esc(item.payoutTxid)+'</small></div></div>':'')+
     '<div class="aa-review-actions">'+
@@ -346,6 +346,7 @@ function settings(){
       '<div class="aa-span-2 aa-ai-control"><div><strong>AI Evidence Precheck</strong><small>Controls AI precheck for KYC and deposit evidence. This toggle is separate from withdrawal approvals.</small></div><button type="button" class="aa-system-toggle '+((s.ai_review||{}).enabled!==false?'on':'off')+'" data-action="ai-toggle">'+((s.ai_review||{}).enabled!==false?'PRECHECK ON':'PRECHECK OFF')+'</button></div>'+
       '<div class="aa-span-2 aa-ai-control"><div><strong>Withdrawal AI Approval Bot</strong><small>ON: only small, low-risk requests with verified KYC, matching locked wallet, clean balance checks and no recent withdrawals may auto-approve at 98%+ policy confidence. All other cases stay in your manual review queue. Real payouts remain behind the Phase 3 server gate.</small></div><button type="button" class="aa-system-toggle '+((s.withdrawal_ai||{}).enabled===true?'on':'off')+'" data-action="withdrawal-ai-toggle">'+((s.withdrawal_ai||{}).enabled===true?'WITHDRAWAL AI ON':'WITHDRAWAL AI OFF')+'</button></div>'+
       field('setWithdrawalAICap','Maximum automatic withdrawal approval (USDT)',Number((s.withdrawal_ai||{}).max_auto_approve_usdt||100),'number')+
+      '<div class="aa-span-2"><button type="button" class="aa-secondary" data-action="withdrawal-ai-limit">Save Withdrawal AI Limit</button></div>'+
       '<div class="aa-span-2"><button class="aa-primary" type="submit">Save Platform Rules</button></div>'+
     '</form></section>'+
     productionReadiness()+
@@ -637,6 +638,17 @@ async function toggleAiBot(){
     await refreshData();
   });
 }
+async function saveWithdrawalAILimit(){
+  const current=state.settings.withdrawal_ai||{};
+  const cap=Number(document.getElementById('setWithdrawalAICap')?.value||current.max_auto_approve_usdt||100);
+  await setBusy(async function(){
+    const r=await service.invokeFunction('withdrawal-ai-review',{body:{
+      action:'settings',enabled:current.enabled===true,maxAutoApproveUsdt:cap
+    }});
+    if(r.error)throw r.error;
+    await refreshData();
+  });
+}
 async function toggleWithdrawalAI(){
   const current=state.settings.withdrawal_ai||{};
   const enabled=current.enabled!==true;
@@ -720,6 +732,7 @@ root.addEventListener('click',function(e){
   if(action==='runtime'){runtime();return;}
   if(action==='ai-toggle'){toggleAiBot();return;}
   if(action==='withdrawal-ai-toggle'){toggleWithdrawalAI();return;}
+  if(action==='withdrawal-ai-limit'){saveWithdrawalAILimit();return;}
   if(action==='review'){review(el);return;}
   if(action==='payout'){payout(el);return;}
   if(action==='telegram-check'){telegramCheck();return;}
