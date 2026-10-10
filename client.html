@@ -322,9 +322,9 @@ network:()=>`${T('Referral Network','referral')}<div class="card" style="font-si
  <div class="kids" style="grid-template-columns:repeat(6,1fr);gap:5px;font-size:9.5px">${['Ali','Zoya','Bilal','Ayesha','Imran','Sana'].map(n=>`<div class="nd" style="border-color:rgba(124,92,255,.5)"><b style="font-size:11px">${n}</b><br>+2</div>`).join('')}</div></div>
  <div class="card" style="margin-top:18px"><div class="lvl"><div>Level 1<b class="up">8</b></div><div>Level 2<b>14</b></div><div>Earned<b>37</b></div></div></div>`,
 
-shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient(135deg,#0B1330,#16286B);padding:20px"><span class="amz">amazon</span><h2 style="font-size:22px;margin:14px 0 6px;max-width:75%;letter-spacing:0">AegisPay Amazon-Style Shop</h2><small>35 products per category, product photos, worldwide sample reviews and cart-ready browsing.</small></div>
- <div class="in">${ic('search')}Search products…</div><button class="btn" style="margin-bottom:18px" onclick="location.href='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay'">Open Full Shop ${ic('arrow')}</button>
- <div class="card"><div class="row" style="padding-top:4px"><div><b>Full catalog</b><small>7 categories · 35 items each</small></div><em>245 items</em></div><div class="row" style="border:0;padding-bottom:4px"><div><b>Reviews</b><small>8 unique sample reviews per item · worldwide locations</small></div><em>1,960</em></div></div>
+shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient(135deg,#0B1330,#16286B);padding:20px"><span class="amz">amazon</span><h2 style="font-size:22px;margin:14px 0 6px;max-width:75%;letter-spacing:0">AegisPay Amazon-Style Shop</h2><small>30 products per category, product photos, worldwide sample reviews and cart-ready browsing.</small></div>
+ <div class="in">${ic('search')}Search products…</div><button class="btn" style="margin-bottom:18px" onclick="location.href='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&amp;return='+encodeURIComponent(location.href)">Open Full Shop ${ic('arrow')}</button>
+ <div class="card"><div class="row" style="padding-top:4px"><div><b>Full catalog</b><small>7 categories · 30 items each</small></div><em>210 items</em></div><div class="row" style="border:0;padding-bottom:4px"><div><b>Reviews</b><small>8 unique sample reviews per item · worldwide locations</small></div><em>1,960</em></div></div>
  <div class="sh">Shop by Category</div><div class="cats">${[['phone','Laptop &amp; Tech','#22D3EE'],['phone','Mobile Accessories','#22D3EE'],['bot','Audio &amp; Wearables','#8D97BD'],['cook','Home &amp; Kitchen','#2EE6A6'],['shirt','Fashion','#FF5C7A'],['spark','Beauty &amp; Care','#E879F9'],['book','Toys, Games &amp; Books','#FFB84D']].map(c=>`<div class="cat"><b style="background:${c[2]}26;color:${c[2]}">${ic(c[0])}</b>${c[1]}</div>`).join('')}</div>`,account:()=>`${T('Profile')}<div class="card" style="display:flex;gap:14px;align-items:center"><div class="av" style="width:60px;height:60px;border-radius:22px;font-size:24px">A</div><div style="flex:1"><h2 style="font-size:19px">Client Name</h2><small class="mu">Client ID: AP-10023</small><div style="margin-top:6px"><span class="chip">${ic('check')} Verified</span> <span class="chip w">LV 2</span></div></div></div>
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#7C5CFF'],['shield','Security &amp; PIN','#2EE6A6'],['card','Payment Methods','#22D3EE'],['bell','Notifications','#FFB84D'],['set','Settings','#8D97BD'],['out','Log Out','#FF5C7A']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
@@ -421,17 +421,30 @@ async function liveHome(){
  '<div class="sh">Recent Activity</div><div class="card" style="padding:4px 16px">'+((l.data||[]).map(x=>'<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em>'+((Number(x.amount)>=0)?'+':'')+Number(x.amount).toFixed(2)+'</em></div>').join('')||'<div class="mu" style="padding:14px 0">No activity yet.</div>')+'</div>'+nav('home');
 }
 async function activateClientTier(tierId){
+ let chosen=null;
+ const available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0));
  try{
-   const chosen=tiers.find(x=>String(x.id)===String(tierId));
+   chosen=tiers.find(x=>String(x.id)===String(tierId));
    if(!chosen)throw Error('Please select a valid tier.');
-   const available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0));
    if(available<Number(chosen.deposit_amount||0))throw Error('Your available balance is below this tier requirement.');
    const r=await db.rpc('ai_activate_tier',{p_tier_id:String(tierId)});
    if(r.error)throw r.error;
    await initData();
    await liveShop();
    uiNotice('Tier '+String(chosen.name)+' activated. Your Shop tasks are being assigned automatically.','success');
- }catch(e){uiNotice(e.message||'Unable to activate tier.','error')}
+ }catch(e){
+   const message=String(e&&e.message||'Unable to activate tier.');
+   if(/balance is below|tier requirement|insufficient available/i.test(message)){
+     const required=chosen?Number(chosen.deposit_amount||0):0;
+     uiNotice('Not enough available USDT. '+(chosen?chosen.name+' requires '+required.toFixed(2)+' USDT. ':'')+'Your available balance is '+available.toFixed(2)+' USDT.','error');
+   }else if(/current Shop cycle must finish|cycle.*finish before another tier/i.test(message)){
+     uiNotice('Tier switching is locked until the current Shop cycle is finished and settled.','info');
+   }else if(/Selected tier is unavailable/i.test(message)){
+     uiNotice('This tier is currently unavailable. Refresh the tier list and try again.','error');
+   }else{
+     uiNotice(message,'error');
+   }
+ }
 }
 async function completeShopTask(taskId){
  const btn=document.querySelector('[data-complete-task="'+taskId+'"]');
@@ -461,7 +474,7 @@ async function liveTopup(){
  app.innerHTML=top('Top Up')+
  '<div class="card"><div class="sh">Deposit Amount <span style="color:var(--c);font-size:11px">Minimum 10 USDT</span></div><div class="amt" style="padding:18px 10px"><small>Enter any amount you want to deposit</small><div class="ap-field" style="margin-top:12px;margin-bottom:0"><input id="depAmount" type="number" min="10" step="0.01" inputmode="decimal" placeholder="10.00 USDT" autocomplete="off"></div></div></div>'+
  '<div class="card">'+(wallet?qr():'')+'<div class="sh">USDT (TRC20) Deposit Wallet Address</div><div class="in f">'+(wallet?esc(wallet):'Deposit wallet address is not configured')+'</div><div class="mu" style="font-size:11px;margin:-4px 0 12px">Send USDT only on the configured TRON network to this address.</div><div class="ap-field"><label>Transaction ID / TXID</label><input id="txid" type="text" autocomplete="off" placeholder="Enter transaction ID / TXID" required></div><label class="filepick">Choose File — Deposit Screenshot<input id="proof" type="file" accept="image/*"></label><button class="btn" style="margin-top:12px" id="submitDep">Submit Deposit '+ic('arrow')+'</button><div class="mu" style="font-size:11px;margin-top:10px">No deposit fee is charged by AegisPay. After verification, choose one of the six tiers below to activate Shop tasks.</div></div>'+
- '<div class="card"><div class="sh" style="margin-top:0">Choose Your Tier <span>'+Number(available).toFixed(2)+' USDT available</span></div><div class="mu" style="font-size:11px;line-height:1.55">A deposit can remain unactivated. Profit-bearing Shop tasks start only after you select a tier that your available balance can cover.</div><div class="tier-grid">'+tierCards+'</div>'+(activeTier?'<div class="mu" style="font-size:10.5px;margin-top:12px">Current tier: <b style="color:var(--t)">'+esc(activeTier.name)+'</b></div>':'')+'<button class="btn" style="margin-top:14px" id="activateTierBtn" disabled>Activate Selected Tier '+ic('arrow')+'</button></div>';
+ '<div class="card"><div class="sh" style="margin-top:0">Choose Your Tier <span>'+Number(available).toFixed(2)+' USDT available</span></div><div class="mu" style="font-size:11px;line-height:1.55">Deposits start at 10 USDT, but Tier 1 requires 30 USDT and higher tiers require their shown balance. A tier cannot be switched while a Shop cycle is active or waiting for settlement. Only eligible tiers can be selected.</div><div class="tier-grid">'+tierCards+'</div>'+(activeTier?'<div class="mu" style="font-size:10.5px;margin-top:12px">Current tier: <b style="color:var(--t)">'+esc(activeTier.name)+'</b></div>':'')+'<button class="btn" style="margin-top:14px" id="activateTierBtn" disabled>Activate Selected Tier '+ic('arrow')+'</button></div>';
  document.querySelectorAll('[data-tier-id]').forEach(el=>el.onclick=()=>{
    document.querySelectorAll('[data-tier-id]').forEach(x=>x.classList.toggle('selected',x===el));
    const b=document.getElementById('activateTierBtn');if(b){b.disabled=false;b.dataset.tierId=el.getAttribute('data-tier-id');}

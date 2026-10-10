@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aegispay-shopping",
+  "main": "index.js",
+  "compatibility_date": "2026-10-10",
+  "workers_dev": true,
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "**/*.html"
+      ],
+      "fallthrough": true
+    }
+  ]
+}

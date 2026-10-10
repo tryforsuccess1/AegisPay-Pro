@@ -4,6 +4,6 @@
   "version": "2.5.4",
   "description": "AegisPay canonical client and Master Admin application",
   "scripts": {
-    "check": "node --check supabase-client.js && node --check supabase-service.js && node --check aegis-auth-redirect.js && node --check admin-auth.js && node --check app-update.js && node scripts/validate-static.js"
+    "check": "node --check supabase-client.js && node --check supabase-service.js && node --check aegis-auth-redirect.js && node --check admin-auth.js && node --check app-update.js && node scripts/validate-static.js && node scripts/check-shop-page.js"
   }
 }
