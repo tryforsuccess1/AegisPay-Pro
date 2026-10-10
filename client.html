@@ -522,10 +522,30 @@ async function liveNotifications(){
  app.innerHTML='<div class="notif-page">'+top('Notifications','home')+'<div class="notif-head"><div><div class="sh" style="margin:0">Updates</div><small class="mu">'+(unreadNotifications?unreadNotifications+' unread notification'+(unreadNotifications===1?'':'s'):'All notifications are read')+'</small></div>'+(unreadNotifications?'<button id="markAllNotifications" type="button">Mark all as read</button>':'')+'</div><div id="notificationList">'+(items.map(x=>'<button type="button" class="notif-card '+(!x.is_read?'unread':'')+'" data-notification-id="'+esc(x.id)+'"><span class="nicon">'+ic('bell')+'</span><span class="nbody"><span class="ntitle">'+esc(x.title||'AegisPay Update')+'</span><span class="ntext">'+esc(x.body||'')+'</span><span class="ntime">'+esc(new Date(x.created_at).toLocaleString())+'</span></span>'+(!x.is_read?'<span class="dotunread"></span>':'')+'</button>').join('')||'<div class="card" style="text-align:center;padding:28px 16px"><div style="font-size:28px;margin-bottom:8px">🔔</div><div style="font-weight:700">No notifications yet</div><div class="mu" style="font-size:11px;margin-top:6px">New account, deposit, Shop and withdrawal updates will appear here.</div></div>')+'</div></div>'+NV('account');
  document.querySelectorAll('[data-notification-id]').forEach(el=>el.onclick=async()=>{
    const id=el.getAttribute('data-notification-id');if(!id)return;
-   const item=items.find(x=>String(x.id)===String(id));
-   if(item&&!item.is_read){const u=await db.from('notifications').update({is_read:true}).eq('id',id).eq('user_id',p.id);if(!u.error)item.is_read=true;}
+   const item=items.find(x=>String(x.id)===String(id));if(!item)return;
+   el.disabled=true;
+   if(!item.is_read){
+     const u=await db.from('notifications').update({is_read:true}).eq('id',id).eq('user_id',p.id);
+     if(u.error){el.disabled=false;uiNotice('Could not update notification status. Please try again.','error');return;}
+     item.is_read=true;
+   }
    unreadNotifications=items.filter(x=>!x.is_read).length;updateNotificationBadge();
-   if(item){el.classList.remove('unread');const dot=el.querySelector('.dotunread');if(dot)dot.remove();}
+   el.classList.remove('unread');const dot=el.querySelector('.dotunread');if(dot)dot.remove();el.disabled=false;
+   const signal=[item.notification_type,item.title,item.body].filter(Boolean).join(' ').toLowerCase();
+   let destination='';
+   if(/withdraw|payout|cash.?out/.test(signal))destination='withdraw';
+   else if(/deposit|top.?up|funding|txid|transaction/.test(signal))destination='topup';
+   else if(/task|shop|order|purchase|product|cycle|earning task/.test(signal))destination='earn';
+   else if(/referral|invite|affiliate/.test(signal))destination='referral';
+   else if(/kyc|cnic|passport|identity|verification/.test(signal))destination='withdraw';
+   else if(/balance|wallet|credit|debit|profit|reward|earning|ledger/.test(signal))destination='activity';
+   else if(/profile|account|password|security|login|email/.test(signal))destination='profile';
+   if(destination){window.go(destination);return;}
+   const prior=document.getElementById('notificationDetailOverlay');if(prior)prior.remove();
+   const overlay=document.createElement('div');overlay.id='notificationDetailOverlay';overlay.style.cssText='position:fixed;inset:0;z-index:220;background:rgba(3,6,18,.78);backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px';
+   overlay.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="notificationDetailTitle" style="width:min(420px,100%);padding:20px;border-radius:22px;background:#0b1022;border:1px solid var(--ln);box-shadow:0 24px 70px rgba(0,0,0,.5)"><div style="display:flex;align-items:flex-start;gap:12px"><span class="nicon">'+ic('bell')+'</span><div style="flex:1;min-width:0"><h2 id="notificationDetailTitle" style="font-size:17px;line-height:1.4">'+esc(item.title||'AegisPay Update')+'</h2><small class="mu">'+esc(new Date(item.created_at).toLocaleString())+'</small></div><button type="button" id="closeNotificationDetail" aria-label="Close" style="border:1px solid var(--ln);border-radius:10px;background:rgba(255,255,255,.05);color:var(--t);padding:7px 10px;cursor:pointer">✕</button></div><div style="margin-top:16px;font-size:13px;line-height:1.7;color:var(--mu);white-space:pre-wrap;overflow-wrap:anywhere">'+esc(item.body||'No additional details were provided.')+'</div><button type="button" id="notificationDetailDone" class="btn" style="margin-top:18px;width:100%">Done</button></div>';
+   document.body.appendChild(overlay);
+   const close=()=>overlay.remove();overlay.querySelector('#closeNotificationDetail').onclick=close;overlay.querySelector('#notificationDetailDone').onclick=close;overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
  });
  const all=document.getElementById('markAllNotifications');
  if(all)all.onclick=async()=>{
