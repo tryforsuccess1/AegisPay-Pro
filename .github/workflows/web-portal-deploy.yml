@@ -142,7 +142,7 @@ jobs:
           python3 -c 'import json; assert json.load(open("/tmp/cf.json"))["success"] is True'
       - name: Deploy canonical Shop Worker from this repository
         shell: bash
-        run: npx --yes wrangler@4 deploy workers/aegispay-shopping/index.js --config workers/aegispay-shopping/wrangler.jsonc --account-id="${CLOUDFLARE_ACCOUNT_ID}"
+        run: npx --yes wrangler@4 deploy workers/aegispay-shopping/index.js --config workers/aegispay-shopping/wrangler.jsonc
 
       - name: Deploy canonical site to Cloudflare Pages
         shell: bash
