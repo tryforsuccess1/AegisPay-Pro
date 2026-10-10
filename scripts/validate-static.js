@@ -19,6 +19,10 @@ const must=[
   'database/migrations/20261010_fail_closed_shop_cycle_checkout_jwt_role.sql',
   'database/migrations/20261011_ai_support_cases.sql',
   'database/migrations/20261011_block_unreconciled_payout_go_live.sql',
+  'database/migrations/20261011_validate_tron_wallet_base58check.sql',
+  'database/migrations/20261011_fix_tron_address_validator_collation.sql',
+  'database/migrations/20261011_fix_tron_address_validator_bytes.sql',
+  'database/migrations/20261011_exact_integer_tron_address_decode.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
@@ -99,6 +103,15 @@ assert(productionReadinessFunction.includes('mainnet_payout_enablement_ready')&&
 assert(adminAuth.includes('Unreconciled Payouts')&&adminAuth.includes('REAL USDT MAINNET PAYOUT')&&adminAuth.includes('ai-support'),'Master Admin must show payout reconciliation blockers, confirm real payouts and support AI cases');
 const goLiveGuard=fs.readFileSync('database/migrations/20261011_block_unreconciled_payout_go_live.sql','utf8');
 assert(goLiveGuard.includes("status IN ('APPROVED','PROCESSING') AND payout_txid IS NULL"),'Database go-live guard must block unreconciled approved/processing payouts');
+const tronValidator=fs.readFileSync('database/migrations/20261011_exact_integer_tron_address_decode.sql','utf8');
+const walletRpc=fs.readFileSync('database/migrations/20261011_validate_tron_wallet_base58check.sql','utf8');
+const walletOps=fs.readFileSync('supabase/functions/admin-account-ops/index.ts','utf8');
+const payoutSource=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
+assert(tronValidator.includes('v_number := div(v_number,256)')&&tronValidator.includes("extensions.digest(extensions.digest"),'TRON wallet validator must use exact integer Base58 decoding and a double-SHA256 checksum');
+assert(walletRpc.includes('public.is_valid_tron_address(v_wallet)')&&walletRpc.includes('destination_address=v_address'),'Wallet link and withdrawal request must reject case-corrupted addresses');
+assert(walletOps.includes('is_valid_tron_address')&&!walletOps.includes('.trim().toUpperCase()'),'Master Admin wallet changes must preserve case and validate Base58Check');
+assert(!client.includes('withdrawWallet.value.trim().toUpperCase()'),'Client wallet linking must preserve original TRON Base58 case');
+assert(payoutSource.includes('INVALID_WITHDRAWAL_DESTINATION')&&payoutSource.includes('is_valid_tron_address'),'Payout source must reject invalid exact-case recipient addresses');
 
 const payout=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(payout.includes('production_config')&&payout.includes('Production payout gate is locked'),'Phase 3 payout gate is missing');
