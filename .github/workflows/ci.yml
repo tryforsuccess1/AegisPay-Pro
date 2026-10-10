@@ -24,3 +24,5 @@ jobs:
           node-version: 24
       - name: Repository checks
         run: npm run check
+      - name: Bundle Shop Worker without deploying
+        run: npx --yes wrangler@4 deploy --config workers/aegispay-shopping/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-shopping-bundle
