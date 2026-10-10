@@ -26,6 +26,7 @@ import android.webkit.WebViewClient;
 import android.webkit.WebResourceRequest;
 import android.widget.Toast;
 
+import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
@@ -80,6 +81,25 @@ public class MainActivity extends AppCompatActivity {
         configureWebView(webView);
         setNativeBridge(true);
         loadPortal();
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView != null) {
+                    Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
+                    if (isTrustedShop(current)) {
+                        setNativeBridge(true);
+                        webView.loadUrl("https://appassets.androidplatform.net/assets/aegispay/" + getString(R.string.entry_html));
+                        return;
+                    }
+                    if (webView.canGoBack()) {
+                        webView.goBack();
+                        return;
+                    }
+                }
+                setEnabled(false);
+                getOnBackPressedDispatcher().onBackPressed();
+            }
+        });
         handleIncomingIntent(getIntent());
     }
 
