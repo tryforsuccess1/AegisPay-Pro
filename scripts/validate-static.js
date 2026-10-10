@@ -20,6 +20,7 @@ const must=[
   'database/migrations/20261011_ai_support_cases.sql',
   'database/migrations/20261011_block_unreconciled_payout_go_live.sql',
   'database/migrations/20261011_withdrawal_ai_wallet_validation.sql',
+  'database/migrations/20261011_reconcile_invalid_unbroadcast_withdrawal.sql',
   'database/migrations/20261011_validate_tron_wallet_base58check.sql',
   'database/migrations/20261011_fix_tron_address_validator_collation.sql',
   'database/migrations/20261011_fix_tron_address_validator_bytes.sql',
@@ -118,6 +119,10 @@ assert(!client.includes('withdrawWallet.value.trim().toUpperCase()'),'Client wal
 assert(payoutSource.includes('INVALID_WITHDRAWAL_DESTINATION')&&payoutSource.includes('is_valid_tron_address'),'Payout source must reject invalid exact-case recipient addresses');
 assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
 assert(adminAuth.includes('DO NOT EXECUTE THIS PAYOUT')&&adminAuth.includes('Changing the profile wallet does not automatically change this existing request'),'Invalid recipients must be visibly blocked in the Master Admin queue');
+const invalidWalletRefund=fs.readFileSync('database/migrations/20261011_reconcile_invalid_unbroadcast_withdrawal.sql','utf8');
+const accountOps=fs.readFileSync('supabase/functions/admin-account-ops/index.ts','utf8');
+assert(invalidWalletRefund.includes('payout_txid IS NULL')&&invalidWalletRefund.includes('payout_started_at IS NULL')&&invalidWalletRefund.includes('balance_deducted=true')&&invalidWalletRefund.includes('WITHDRAWAL_REFUND'),'Invalid-wallet refund must only run for provably unbroadcast deducted withdrawals and write a ledger entry');
+assert(accountOps.includes('cancel_invalid_withdrawal_refund')&&adminAuth.includes('invalid-withdrawal-refund')&&adminAuth.includes('This will mark the approved request FAILED'),'Master Admin must have an explicitly confirmed invalid-wallet reconciliation workflow');
 
 const payout=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(payout.includes('production_config')&&payout.includes('Production payout gate is locked'),'Phase 3 payout gate is missing');
