@@ -240,6 +240,8 @@ function locations(){
 
 function reviewCard(kind,item){
   const user=item.user?item.user.name+' · '+item.user.email:'Unknown account';
+  const currentMode=state.settings.system_mode||{};
+  const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET'&&currentMode.real_payouts===true;
   if(kind==='deposits'){
     return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge aa-badge-cyan">DEPOSIT</span><h3>'+money(item.grossAmount)+' USDT</h3><p>'+esc(user)+'</p></div><span class="aa-status">'+esc(item.status||'PENDING')+'</span></div>'+
       '<div class="aa-detail-grid"><span>Tier<b>'+esc(item.tierId||'—')+'</b></span><span>TXID<b class="aa-mono">'+esc(item.txid||'—')+'</b></span><span>AI Review<b>'+esc(item.aiReviewStatus||'—')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'n/a':item.aiConfidence)+'</b></span><span>AI Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span><span>Policy<b>'+esc(item.aiPolicyVersion||'—')+'</b></span><span>Submitted<b>'+esc(date(item.createdAt||item.submittedAt))+'</b></span></div>'+
@@ -262,9 +264,9 @@ function reviewCard(kind,item){
     '<div class="aa-wallet-box"><span>Destination</span><code>'+esc(item.destinationAddress||'—')+'</code></div>'+
     (item.payoutTxid?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Payout TXID</strong><small class="aa-mono">'+esc(item.payoutTxid)+'</small></div></div>':'')+
     '<div class="aa-review-actions">'+
-      ((item.status==='PENDING_APPROVAL'&&item.panelDecision==='PENDING')?'<button class="aa-primary" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-decision="approve">Panel Approve</button>':'')+
+      ((item.status==='PENDING_APPROVAL'&&item.panelDecision==='PENDING')?'<button class="aa-primary" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-amount="'+esc(item.amount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'" data-decision="approve">Panel Approve</button>':'')+
       (item.telegramDecision==='PENDING'?'<button class="aa-secondary" data-action="telegram-resend" data-id="'+esc(item.id)+'">Send Telegram</button>':'')+
-      ((item.status==='APPROVED'&&item.panelDecision==='APPROVED'&&item.telegramDecision==='APPROVED'&&!item.payoutTxid)?'<button class="aa-primary" data-action="payout" data-id="'+esc(item.id)+'">Send Testnet Payout</button>':'')+
+      ((item.status==='APPROVED'&&item.panelDecision==='APPROVED'&&item.telegramDecision==='APPROVED'&&!item.payoutTxid)?'<button class="aa-primary" data-action="payout" data-id="'+esc(item.id)+'" data-amount="'+esc(item.netAmount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'">'+(mainnetLive?'Execute MAINNET USDT Payout':'Send Testnet Payout')+'</button>':'')+
       '<button class="aa-danger" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>'+
     '</div></article>';
 }
@@ -558,6 +560,12 @@ async function review(el){
       if(check.data?.status==='PENDING_VERIFICATION')state.error=check.data.message||'On-chain transfer is not confirmed yet.';
     }
     if(kind==='withdrawal'&&decision==='approve'&&r.data?.status==='APPROVED'){
+      const mode=state.settings.system_mode||{};
+      const mainnetLive=String(mode.mode||'').toUpperCase()==='MAINNET'&&mode.real_payouts===true;
+      const amount=Number(el.dataset.amount||0),destination=String(el.dataset.destination||'');
+      if(mainnetLive&&!window.confirm('REAL USDT MAINNET PAYOUT\nThis will broadcast '+amount.toFixed(2)+' USDT gross for this approved withdrawal to:\n'+destination+'\n\nOnly continue if this exact client request and destination have been reconciled and authorized. Continue?')){
+        await refreshData();return;
+      }
       const p=await service.invokeFunction('execute-payout',{body:{withdrawalId:id}});
       if(p.error)throw new Error('Approval saved, but payout needs configuration/review: '+(p.error.message||'payout service failed'));
       if(!p.data||p.data.status!=='PAID')throw new Error((p.data&&p.data.error)||'Payout requires reconciliation.');
@@ -567,6 +575,9 @@ async function review(el){
 }
 
 async function payout(el){
+  const mode=state.settings.system_mode||{};
+  const mainnetLive=String(mode.mode||'').toUpperCase()==='MAINNET'&&mode.real_payouts===true;
+  if(mainnetLive&&!window.confirm('REAL USDT MAINNET PAYOUT\nAmount: '+Number(el.dataset.amount||0).toFixed(2)+' USDT gross\nDestination: '+String(el.dataset.destination||'')+'\n\nThis action can broadcast an irreversible mainnet transfer. Confirm the TXID/history has been reconciled and this payout is authorized. Continue?'))return;
   await setBusy(async function(){
     const r=await service.invokeFunction('execute-payout',{body:{withdrawalId:el.dataset.id}});
     if(r.error)throw r.error;
