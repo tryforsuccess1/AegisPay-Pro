@@ -43,12 +43,15 @@ Deno.serve(async(req:Request)=>{
    mainnet_payout_key:Boolean(MAINNET_PAYOUT_KEY),testnet_payout_key:Boolean(TESTNET_PAYOUT_KEY),
    ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN),telegram_chat:Boolean(TELEGRAM_CHAT_ID),telegram_approvers:TELEGRAM_APPROVER_IDS.length>0
   };
+   const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
+   const unresolvedPayouts=unresolvedPayoutResult.data||[];
+   const unresolvedPayoutsClear=!unresolvedPayoutResult.error&&unresolvedPayouts.length===0;
   const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&Boolean(receiving);
    // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
    const mainnetMonitoringReady=mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&secrets.trongrid_api&&secrets.cron_secret;
    const mainnetDepositEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.cron_secret&&runtimeEnabled;
    const mainnetPayoutGateOk=mainnetBaseConfigOk&&realPayouts&&productionRealPayouts&&goLive&&productionGoLive&&!payoutsLocked&&runtimeEnabled;
-   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers&&runtimeEnabled;
+   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers&&runtimeEnabled&&unresolvedPayoutsClear;
    const mainnetPayoutOperational=mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers;
 
   if(action==="update"){
@@ -58,6 +61,9 @@ Deno.serve(async(req:Request)=>{
     const approved=body.goLiveApproved===true;
     const locked=body.payoutsLocked!==false;
 
+     if(payouts && (unresolvedPayoutResult.error || unresolvedPayouts.length>0)){
+       return json({error:"Cannot open live payouts until all previously approved or processing withdrawals without a TXID are reconciled.",code:"UNRECONCILED_APPROVED_PAYOUTS",unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at}))},409);
+     }
     if(payouts && (env!=="PRODUCTION" || !approved || locked || !mainnetPayoutEnablementReady)){
       return json({error:"Production payout operations are not ready. Configure the required server-side payout, TRONGrid and Telegram secrets and complete the readiness checks first.",code:"PRODUCTION_PAYOUT_NOT_READY"},409);
     }
@@ -88,6 +94,6 @@ Deno.serve(async(req:Request)=>{
    mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits,mainnet_payout_gate_ok:mainnetPayoutGateOk,
    server_side_secrets_required:true,cron_secret_required_for_monitoring:true
   };
-  return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,checked_at:new Date().toISOString()});
+   return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,unresolved_payouts:unresolvedPayouts,unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
  }catch(error){return json({error:String((error as Error)?.message||error).slice(0,500)},500);}
 });
