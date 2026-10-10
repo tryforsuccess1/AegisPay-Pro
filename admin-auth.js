@@ -241,7 +241,7 @@ function locations(){
 function reviewCard(kind,item){
   const user=item.user?item.user.name+' · '+item.user.email:'Unknown account';
   const currentMode=state.settings.system_mode||{};
-  const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET'&&currentMode.real_payouts===true;
+  const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET';
   if(kind==='deposits'){
     return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge aa-badge-cyan">DEPOSIT</span><h3>'+money(item.grossAmount)+' USDT</h3><p>'+esc(user)+'</p></div><span class="aa-status">'+esc(item.status||'PENDING')+'</span></div>'+
       '<div class="aa-detail-grid"><span>Tier<b>'+esc(item.tierId||'—')+'</b></span><span>TXID<b class="aa-mono">'+esc(item.txid||'—')+'</b></span><span>AI Review<b>'+esc(item.aiReviewStatus||'—')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'n/a':item.aiConfidence)+'</b></span><span>AI Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span><span>Policy<b>'+esc(item.aiPolicyVersion||'—')+'</b></span><span>Submitted<b>'+esc(date(item.createdAt||item.submittedAt))+'</b></span></div>'+
@@ -372,7 +372,7 @@ function productionReadiness(){
       '<span>Payout Enablement Check<b>'+esc(d.mainnet_payout_enablement_ready?'READY':'MISSING PREREQUISITES')+'</b></span>'+
       '<span>Unreconciled Payouts<b>'+esc(String(unresolved.length))+'</b></span>'+
     '</div>'+
-    (unresolved.length?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Live payout activation blocked — reconciliation required</strong><small>'+esc(unresolved.length+' previously approved or processing withdrawal(s) have no transaction ID. The oldest is '+unresolved[0].id+' for '+money(unresolved[0].net_amount)+' USDT net. Verify its real-chain status and reconcile it before opening live payout execution.')+'</small></div></div>':'')+
+    (unresolved.length?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Live payout activation blocked — reconciliation required</strong><small>'+esc(unresolved.length+' previously approved or processing withdrawal(s) have no transaction ID. The oldest is '+unresolved[0].id+' for '+money(unresolved[0].net_amount)+' USDT net. Verify its exact-case TRON Base58Check destination and real-chain status, then reconcile the request before opening live payout execution. Do not resend a transfer to an address that has not been confirmed.')+'</small></div></div>':'')+
     '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Phase 3 Safety Gate</strong><small>Real payouts can only be enabled by an active Master Admin when MAINNET, the TRON MAINNET configuration, runtime, go-live approval, payout unlock, required server-side secrets, Telegram approvers, and payout reconciliation are all ready.</small></div></div>'+
     '</section>';
 }
