@@ -336,6 +336,7 @@ function productionReadiness(){
   const approved=Boolean(p.production_config_go_live_approved);
   const payoutReady=Boolean(p.mainnet_payout_gate_ok);
   const secrets=d.secrets||{};
+  const unresolved=Array.isArray(d.unresolved_payouts)?d.unresolved_payouts:[];
   const secretMark=function(v){return v?'READY':'MISSING';};
   return '<section class="aa-panel">'+
     '<div class="aa-panel-head"><div><h2>Production Readiness</h2><p>Phase 3 controls are enforced server-side. Secret values are never exposed.</p></div><span class="aa-count">'+(payoutReady?'READY':'LOCKED')+'</span></div>'+
@@ -367,8 +368,10 @@ function productionReadiness(){
       '<span>Monitoring Gate<b>'+esc(d.mainnet_monitoring_ready?'READY':'NOT READY')+'</b></span>'+
       '<span>Payout Ops Gate<b>'+esc(d.mainnet_payout_operational?'READY':'LOCKED')+'</b></span>'+
       '<span>Payout Enablement Check<b>'+esc(d.mainnet_payout_enablement_ready?'READY':'MISSING PREREQUISITES')+'</b></span>'+
+      '<span>Unreconciled Payouts<b>'+esc(String(unresolved.length))+'</b></span>'+
     '</div>'+
-    '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Phase 3 Safety Gate</strong><small>Real payouts can only be enabled by an active Master Admin when MAINNET, the TRON MAINNET configuration, runtime, go-live approval, payout unlock, and required server-side secrets are all ready.</small></div></div>'+
+    (unresolved.length?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Live payout activation blocked — reconciliation required</strong><small>'+esc(unresolved.length+' previously approved or processing withdrawal(s) have no transaction ID. The oldest is '+unresolved[0].id+' for '+money(unresolved[0].net_amount)+' USDT net. Verify its real-chain status and reconcile it before opening live payout execution.')+'</small></div></div>':'')+
+    '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Phase 3 Safety Gate</strong><small>Real payouts can only be enabled by an active Master Admin when MAINNET, the TRON MAINNET configuration, runtime, go-live approval, payout unlock, required server-side secrets, Telegram approvers, and payout reconciliation are all ready.</small></div></div>'+
     '</section>';
 }
 function settings(){
@@ -738,6 +741,8 @@ async function saveProductionConfig(e){
     const locked=document.getElementById('prodPayoutLock').value==='true';
     if(payouts){
       if(!(state.productionDiag&&state.productionDiag.mainnet_payout_enablement_ready===true)){
+        const unresolved=state.productionDiag&&Array.isArray(state.productionDiag.unresolved_payouts)?state.productionDiag.unresolved_payouts:[];
+        if(unresolved.length)throw new Error('Live payouts are blocked: '+unresolved.length+' approved/processing withdrawal(s) have no TXID. Reconcile the oldest request ('+unresolved[0].id+') for '+money(unresolved[0].net_amount)+' USDT net before enabling production payouts.');
         throw new Error('Production payout operations are not ready. Configure the required server-side secrets and complete the readiness checks before enabling real payouts.');
       }
       if(!window.confirm('You are changing a production payout control. Continue only after server-side payout secrets and operational smoke tests are verified.'))return;
