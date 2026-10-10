@@ -269,6 +269,7 @@ function reviewCard(kind,item){
       (item.telegramDecision==='PENDING'&&item.walletValid===true?'<button class="aa-secondary" data-action="telegram-resend" data-id="'+esc(item.id)+'">Send Telegram</button>':'')+
       ((item.status==='APPROVED'&&item.panelDecision==='APPROVED'&&item.telegramDecision==='APPROVED'&&!item.payoutTxid&&item.walletValid===true)?'<button class="aa-primary" data-action="payout" data-id="'+esc(item.id)+'" data-amount="'+esc(item.netAmount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'">'+(mainnetLive?'Execute MAINNET USDT Payout':'Send Testnet Payout')+'</button>':'')+
       ((item.status==='PENDING_APPROVAL'&&item.panelDecision==='PENDING')?'<button class="aa-danger" data-action="review" data-kind="withdrawal" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>':'')+
+      ((item.walletValid===false&&item.status==='APPROVED'&&!item.payoutTxid&&!item.payoutStartedAt&&item.balanceDeducted===true)?'<button class="aa-danger" data-action="invalid-withdrawal-refund" data-id="'+esc(item.id)+'" data-amount="'+esc(item.amount||0)+'" data-net="'+esc(item.netAmount||0)+'" data-destination="'+esc(item.destinationAddress||'')+'">Cancel Unbroadcast Request &amp; Restore '+money(item.amount)+' USDT</button>':'')+
     '</div></article>';
 }
 
@@ -575,6 +576,26 @@ async function review(el){
   });
 }
 
+async function reconcileInvalidWithdrawal(el){
+  const id=String(el.dataset.id||''),amount=Number(el.dataset.amount||0),net=Number(el.dataset.net||0),destination=String(el.dataset.destination||'');
+  if(!id||!Number.isFinite(amount)||amount<=0){state.error='Invalid withdrawal reconciliation details.';render();return;}
+  const confirmation='CANCEL UNBROADCAST INVALID-WALLET WITHDRAWAL\n\nRequest: '+id+'\nGross balance to restore: '+amount.toFixed(2)+' USDT\nPreviously expected net payout: '+net.toFixed(2)+' USDT\nStored destination: '+destination+'\n\nThis action will mark the approved request FAILED and restore the full gross amount to the client balance. The database will allow it only if the stored address fails Base58Check, there is no TXID or payout-start timestamp, and the original balance deduction is still recorded. No transfer will be sent, and this will NOT enable production payouts.\n\nProceed only after confirming with the client that this request should be cancelled and the wallet must be corrected before they submit again.';
+  if(!window.confirm(confirmation))return;
+  const reason=window.prompt('Reconciliation reason (required for audit):','Client must confirm an exact-case TRON wallet; cancelled before broadcast and gross amount restored.');
+  if(reason===null)return;
+  if(reason.trim().length<10){window.alert('Please enter a clear reason of at least 10 characters.');return;}
+  let done=null;
+  await setBusy(async function(){
+    const r=await service.invokeFunction('admin-account-ops',{body:{
+      action:'cancel_invalid_withdrawal_refund',withdrawalId:id,reason:reason.trim()
+    }});
+    if(r.error)throw r.error;
+    if(!r.data||r.data.ok!==true||r.data.status!=='FAILED')throw new Error(r.data?.error||'Withdrawal reconciliation could not be verified.');
+    done=r.data;
+    await refreshData();
+  });
+  if(done)window.alert('Reconciliation completed. '+money(done.refund_amount)+' USDT gross has been restored to the client balance. The old request is marked FAILED. Confirm the client’s correct wallet before any new request; production payout gates remain unchanged.');
+}
 async function payout(el){
   const mode=state.settings.system_mode||{};
   const mainnetLive=String(mode.mode||'').toUpperCase()==='MAINNET'&&mode.real_payouts===true;
@@ -818,6 +839,7 @@ root.addEventListener('click',function(e){
   if(action==='support-case-status'){updateSupportCase(el);return;}
   if(action==='review'){review(el);return;}
   if(action==='payout'){payout(el);return;}
+  if(action==='invalid-withdrawal-refund'){reconcileInvalidWithdrawal(el);return;}
   if(action==='telegram-check'){telegramCheck();return;}
   if(action==='telegram-resend'){telegramResend(el);return;}
   if(action==='user-status'){userStatus(el);return;}
