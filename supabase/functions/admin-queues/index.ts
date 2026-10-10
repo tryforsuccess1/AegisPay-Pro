@@ -40,7 +40,7 @@ Deno.serve(async (req: Request) => {
     if (statsError) return json({ error: "Unable to load confirmed platform totals." }, 500);
     const { data: appEnabled, error: runtimeError } = await admin.rpc("app_runtime_enabled");
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
-    const [depositResult, kycResult, withdrawalResult, depositHistoryResult, kycHistoryResult] = await Promise.all([
+    const [depositResult, kycResult, withdrawalResult, depositHistoryResult, kycHistoryResult, accessResult] = await Promise.all([
       admin.from("deposit_submissions")
         .select("id,user_id,tier_id,gross_amount,credited_amount,txid,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
         .eq("status", "PENDING_VERIFICATION").order("created_at", { ascending: true }).limit(50),
@@ -48,7 +48,7 @@ Deno.serve(async (req: Request) => {
         .select("id,user_id,document_type,status,ai_review_status,ai_confidence,ai_checks,ai_policy_version,review_reason,front_storage_path,back_storage_path,submitted_at")
         .in("status", ["PENDING_REVIEW","MANUAL_REVIEW"]).order("submitted_at", { ascending: true }).limit(50),
       admin.from("withdrawal_requests")
-        .select("id,user_id,amount,fee_amount,net_amount,destination_address,status,created_at,payout_error,payout_txid,panel_decision,panel_decided_at,telegram_decision,telegram_decided_at,telegram_status,telegram_message_id")
+        .select("id,user_id,amount,fee_amount,net_amount,destination_address,status,created_at,payout_error,payout_txid,panel_decision,panel_decided_at,telegram_decision,telegram_decided_at,telegram_status,telegram_message_id,ai_decision,ai_confidence,ai_review_reason,ai_reviewed_at")
         .in("status", ["PENDING_APPROVAL","APPROVED"]).order("created_at", { ascending: true }).limit(50),
       admin.from("deposit_submissions")
         .select("id,user_id,tier_id,gross_amount,credited_amount,txid,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
@@ -56,8 +56,11 @@ Deno.serve(async (req: Request) => {
       admin.from("kyc_verifications")
         .select("id,user_id,document_type,status,ai_review_status,ai_confidence,ai_checks,ai_policy_version,review_reason,front_storage_path,back_storage_path,submitted_at")
         .not("status", "in", '("PENDING_REVIEW","MANUAL_REVIEW")').order("submitted_at", { ascending: false }).limit(100),
+      admin.from("user_access_events")
+        .select("id,user_id,event_type,ip_address,country_code,country_name,region,city,user_agent,created_at")
+        .order("created_at", { ascending: false }).limit(500),
     ]);
-    if (depositResult.error || kycResult.error || withdrawalResult.error || depositHistoryResult.error || kycHistoryResult.error) {
+    if (depositResult.error || kycResult.error || withdrawalResult.error || depositHistoryResult.error || kycHistoryResult.error || accessResult.error) {
       return json({ error: "Unable to load review queues." }, 500);
     }
 
@@ -66,18 +69,20 @@ Deno.serve(async (req: Request) => {
     const withdrawals = withdrawalResult.data || [];
     const depositHistory = depositHistoryResult.data || [];
     const kycHistory = kycHistoryResult.data || [];
+
     const userIds = Array.from(new Set([
       ...deposits.map((x: any) => x.user_id),
       ...kyc.map((x: any) => x.user_id),
       ...withdrawals.map((x: any) => x.user_id),
       ...depositHistory.map((x: any) => x.user_id),
       ...kycHistory.map((x: any) => x.user_id),
+      ...(accessResult.data || []).map((x: any) => x.user_id).filter(Boolean),
     ]));
     const usersResult = userIds.length
-      ? await admin.from("users").select("id,name,email").in("id", userIds)
+      ? await admin.from("users").select("id,name,email,username").in("id", userIds)
       : { data: [], error: null };
     if (usersResult.error) return json({ error: "Unable to load account labels." }, 500);
-    const users = new Map((usersResult.data || []).map((x: any) => [x.id, { name: x.name, email: x.email }]));
+    const users = new Map((usersResult.data || []).map((x: any) => [x.id, { name: x.name, email: x.email, username: x.username }]));
 
     return json({
       deposits: await Promise.all(deposits.map(async (x: any) => ({
@@ -113,6 +118,13 @@ Deno.serve(async (req: Request) => {
         panelDecision: x.panel_decision, panelDecidedAt: x.panel_decided_at,
         telegramDecision: x.telegram_decision, telegramDecidedAt: x.telegram_decided_at,
         telegramStatus: x.telegram_status, telegramMessageId: x.telegram_message_id,
+        aiDecision: x.ai_decision, aiConfidence: x.ai_confidence, aiReviewReason: x.ai_review_reason, aiReviewedAt: x.ai_reviewed_at,
+        user: users.get(x.user_id) || null,
+      })),
+      accessEvents: (accessResult.data || []).map((x: any) => ({
+        id: x.id, eventType: x.event_type, ipAddress: x.ip_address,
+        countryCode: x.country_code, countryName: x.country_name, region: x.region,
+        city: x.city, userAgent: x.user_agent, createdAt: x.created_at,
         user: users.get(x.user_id) || null,
       })),
       stats,
