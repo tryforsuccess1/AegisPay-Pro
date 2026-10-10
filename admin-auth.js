@@ -361,6 +361,9 @@ function productionReadiness(){
       '<span>Cron Secret<b>'+esc(secretMark(secrets.cron_secret))+'</b></span>'+
       '<span>Mainnet Payout Key<b>'+esc(secretMark(secrets.mainnet_payout_key))+'</b></span>'+
       '<span>AI Review Config<b>'+esc(secretMark(secrets.ai_review_endpoint&&secrets.ai_review_api_key&&secrets.ai_review_model))+'</b></span>'+
+      '<span>Telegram Bot<b>'+esc(secretMark(secrets.telegram_bot_token))+'</b></span>'+
+      '<span>Telegram Chat<b>'+esc(secretMark(secrets.telegram_chat))+'</b></span>'+
+      '<span>Telegram Approvers<b>'+esc(secretMark(secrets.telegram_approvers))+'</b></span>'+
       '<span>Monitoring Gate<b>'+esc(d.mainnet_monitoring_ready?'READY':'NOT READY')+'</b></span>'+
       '<span>Payout Ops Gate<b>'+esc(d.mainnet_payout_operational?'READY':'LOCKED')+'</b></span>'+
       '<span>Payout Enablement Check<b>'+esc(d.mainnet_payout_enablement_ready?'READY':'MISSING PREREQUISITES')+'</b></span>'+
