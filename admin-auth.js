@@ -18,6 +18,7 @@ const state={
   referrals:[],
   audit:[],
   accessEvents:[],
+  supportCases:[],
   settings:{},
   production:null,
   productionDiag:null,
@@ -116,6 +117,7 @@ const tabs=[
   ['deposits','Deposits','wallet'],
   ['kyc','KYC','shield'],
   ['withdrawals','Withdrawals','arrow'],
+  ['support','AI Support Cases','log'],
   ['shop','Shop & Tasks','shop'],
   ['referrals','Referrals','referral'],
   ['audit','Audit Log','log'],
@@ -301,6 +303,30 @@ function audit(){
   const rows=state.audit.slice(0,200).map(x=>'<article class="aa-log-row"><div><strong>'+esc(x.event_type||'AUDIT EVENT')+'</strong><small>'+esc(x.description||'')+'</small></div><span class="aa-mono">'+esc(x.actor_user_id||'system')+'</span><small>'+esc(date(x.created_at))+'</small></article>').join('');
   return '<main class="aa-main">'+pageHeader('SECURITY','Audit Log','Administrative and workflow history from Supabase.')+'<section class="aa-panel">'+(rows||empty('No audit events.','New administrative activity will be recorded here.'))+'</section></main>';
 }
+function supportCasesView(){
+  const cases=(state.supportCases||[]).slice().sort((a,b)=>{
+    const rank=x=>x.status==='OPEN'?0:x.status==='IN_PROGRESS'?1:2;
+    return rank(a)-rank(b)||new Date(b.created_at)-new Date(a.created_at);
+  });
+  const rows=cases.map(x=>{
+    const user=x.user||{};
+    const status=String(x.status||'OPEN').toUpperCase();
+    return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge '+(status==='RESOLVED'||status==='CLOSED'?'aa-badge-green':status==='IN_PROGRESS'?'aa-badge-cyan':'aa-badge-amber')+'">'+esc(status)+'</span><h3 style="font-size:15px;margin-top:9px">'+esc(x.subject||'Client support request')+'</h3><p>'+esc(user.name||'Unknown client')+' · '+esc(user.email||user.username||'')+'</p></div><span class="aa-status">'+esc(x.category||'GENERAL')+'</span></div>'+
+      '<div class="aa-detail-grid"><span>Case ID<b class="aa-mono">'+esc(x.id)+'</b></span><span>Received<b>'+esc(date(x.created_at))+'</b></span><span>Last Updated<b>'+esc(date(x.updated_at||x.created_at))+'</b></span></div>'+
+      '<div class="aa-wallet-box"><span>Client message</span><div style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)">'+esc(x.user_message||'')+'</div></div>'+
+      (x.ai_answer?'<div class="aa-wallet-box"><span>AI response provided</span><div style="font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;color:#b9c4e4">'+esc(x.ai_answer)+'</div></div>':'')+
+      (x.resolution?'<div class="aa-callout aa-callout-success"><div class="aa-callout-dot"></div><div><strong>Resolution note</strong><small>'+esc(x.resolution)+'</small></div></div>':'')+
+      '<div class="aa-review-actions">'+
+      (status==='OPEN'?'<button class="aa-secondary" data-action="support-case-status" data-id="'+esc(x.id)+'" data-status="IN_PROGRESS">Mark In Progress</button>':'')+
+      ((status==='OPEN'||status==='IN_PROGRESS')?'<button class="aa-primary" data-action="support-case-status" data-id="'+esc(x.id)+'" data-status="RESOLVED">Mark Resolved</button>':'')+
+      (status==='RESOLVED'?'<button class="aa-secondary" data-action="support-case-status" data-id="'+esc(x.id)+'" data-status="CLOSED">Close Case</button>':'')+
+      '</div></article>';
+  }).join('');
+  const openCount=cases.filter(x=>['OPEN','IN_PROGRESS'].includes(String(x.status||'').toUpperCase())).length;
+  return '<main class="aa-main">'+pageHeader('CLIENT ASSISTANCE','AI Support Cases','Issues AegisPay AI could not fully resolve. Review the issue, track progress and record a resolution.')+
+    '<div class="aa-info-strip"><strong>'+openCount+'</strong><span>open / in-progress cases · '+cases.length+' recent cases loaded</span></div>'+
+    '<section class="aa-list">'+(rows||empty('No support cases.','Unresolved client issues escalated by AegisPay AI will appear here.'))+'</section></main>';
+}
 
 function productionReadiness(){
   const p=state.production||{},d=state.productionDiag||{};
@@ -384,6 +410,7 @@ function content(){
   if(state.tab==='deposits')return queuePage('deposits','Deposits','Review deposits and verify transaction evidence.','deposits');
   if(state.tab==='kyc')return queuePage('kyc','Identity Verification','Review private identity documents securely.','kyc');
   if(state.tab==='withdrawals')return queuePage('withdrawals','Withdrawals','Review client payout requests and approval states.','withdrawals');
+  if(state.tab==='support')return supportCasesView();
   if(state.tab==='shop')return shop();
   if(state.tab==='referrals')return referrals();
   if(state.tab==='audit')return audit();
@@ -489,6 +516,13 @@ async function refreshData(){
     if(typeof q.data?.appEnabled==='boolean')state.enabled=q.data.appEnabled;
   }catch(e){
     state.error=state.error||'Operational queues are temporarily unavailable.';
+  }
+  try{
+    const support=await service.invokeFunction('ai-support',{body:{action:'admin_list_cases'}});
+    if(support.error)throw support.error;
+    state.supportCases=support.data?.cases||[];
+  }catch(e){
+    state.error=state.error||'AI Support Cases could not be loaded.';
   }
   render();
 }
@@ -672,6 +706,23 @@ async function toggleWithdrawalAI(){
     await refreshData();
   });
 }
+async function updateSupportCase(el){
+  const id=String(el.dataset.id||''),status=String(el.dataset.status||'').toUpperCase();
+  if(!id||!['IN_PROGRESS','RESOLVED','CLOSED'].includes(status))return;
+  let resolution='';
+  if(status==='RESOLVED'||status==='CLOSED'){
+    resolution=window.prompt('Enter the resolution note for this support case:',status==='RESOLVED'?'Reviewed and resolved by Master Admin':'Case closed after review');
+    if(resolution===null)return;
+    resolution=resolution.trim();
+    if(!resolution){window.alert('Please enter a resolution note.');return;}
+  }
+  await setBusy(async function(){
+    const r=await service.invokeFunction('ai-support',{body:{action:'admin_update_case',caseId:id,status:status,resolution:resolution}});
+    if(r.error)throw r.error;
+    if(!r.data||r.data.ok!==true)throw new Error(r.data?.error||'Support case status could not be saved.');
+    await refreshData();
+  });
+}
 async function saveProductionConfig(e){
   e.preventDefault();
   await setBusy(async function(){
@@ -743,6 +794,7 @@ root.addEventListener('click',function(e){
   if(action==='ai-toggle'){toggleAiBot();return;}
   if(action==='withdrawal-ai-toggle'){toggleWithdrawalAI();return;}
   if(action==='withdrawal-ai-limit'){saveWithdrawalAILimit();return;}
+  if(action==='support-case-status'){updateSupportCase(el);return;}
   if(action==='review'){review(el);return;}
   if(action==='payout'){payout(el);return;}
   if(action==='telegram-check'){telegramCheck();return;}
