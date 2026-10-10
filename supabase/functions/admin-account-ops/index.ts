@@ -91,9 +91,10 @@ Deno.serve(async(req:Request)=>{
   }
 
   if(action==="wallet"){
-   const userId=String(body?.userId||""); const wallet=String(body?.wallet||"").trim().toUpperCase();
+   const userId=String(body?.userId||""); const wallet=String(body?.wallet||"").trim();
    if(!isUuid(userId))return json({error:"A valid user is required."},400);
-   if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))return json({error:"Enter a valid TRC20 wallet address."},400);
+   const {data:walletValid,error:walletValidationError}=await admin.rpc("is_valid_tron_address",{p_address:wallet});
+   if(walletValidationError||walletValid!==true)return json({error:"Enter an exact-case, checksum-valid TRON Base58Check wallet address. Do not convert it to uppercase."},400);
    const {data:target,error:targetError}=await admin.from("users").select("id,role").eq("id",userId).maybeSingle();
    if(targetError||!target||target.role!=="USER")return json({error:"Client account not found."},404);
    const {error:updateError}=await admin.from("users").update({destination_address:wallet}).eq("id",userId);
