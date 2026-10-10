@@ -5,6 +5,7 @@ const TRONGRID_KEY=Deno.env.get("TRONGRID_API_KEY"), CRON_SECRET=Deno.env.get("A
 const MAINNET_PAYOUT_KEY=Deno.env.get("TRON_PAYOUT_PRIVATE_KEY"), TESTNET_PAYOUT_KEY=Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY");
 const AI_ENDPOINT=Deno.env.get("AI_REVIEW_ENDPOINT"), AI_KEY=Deno.env.get("AI_REVIEW_API_KEY"), AI_MODEL=Deno.env.get("AI_REVIEW_MODEL");
 const TELEGRAM_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN");
+const TELEGRAM_CHAT_ID=Deno.env.get("TELEGRAM_CHAT_ID"), TELEGRAM_APPROVER_IDS=(Deno.env.get("TELEGRAM_APPROVER_IDS")||"").split(/[\s,]+/).filter((x)=>/^[0-9]{1,20}$/.test(x));
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Content-Type":"application/json"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:cors});
 Deno.serve(async(req:Request)=>{
@@ -40,15 +41,15 @@ Deno.serve(async(req:Request)=>{
   const secrets={
    supabase_service_role:Boolean(SERVICE_KEY),trongrid_api:Boolean(TRONGRID_KEY),cron_secret:Boolean(CRON_SECRET),
    mainnet_payout_key:Boolean(MAINNET_PAYOUT_KEY),testnet_payout_key:Boolean(TESTNET_PAYOUT_KEY),
-   ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN)
+   ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN),telegram_chat:Boolean(TELEGRAM_CHAT_ID),telegram_approvers:TELEGRAM_APPROVER_IDS.length>0
   };
   const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&Boolean(receiving);
    // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
    const mainnetMonitoringReady=mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&secrets.trongrid_api&&secrets.cron_secret;
    const mainnetDepositEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.cron_secret&&runtimeEnabled;
    const mainnetPayoutGateOk=mainnetBaseConfigOk&&realPayouts&&productionRealPayouts&&goLive&&productionGoLive&&!payoutsLocked&&runtimeEnabled;
-   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&runtimeEnabled;
-   const mainnetPayoutOperational=mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token;
+   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers&&runtimeEnabled;
+   const mainnetPayoutOperational=mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers;
 
   if(action==="update"){
     const env=String(body.environment||"PRE_PRODUCTION").toUpperCase();
