@@ -17,6 +17,8 @@ const must=[
   'database/migrations/20261009_harden_shop_task_product_and_runtime.sql',
   'database/migrations/20261009_retire_public_username_email_lookup.sql',
   'database/migrations/20261010_fail_closed_shop_cycle_checkout_jwt_role.sql',
+  'database/migrations/20261011_ai_support_cases.sql',
+  'database/migrations/20261011_block_unreconciled_payout_go_live.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
@@ -93,6 +95,10 @@ const adminAuth=fs.readFileSync('admin-auth.js','utf8');
 const productionReadinessFunction=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
 assert(adminAuth.includes('Production Readiness')&&adminAuth.includes('aaProductionForm')&&adminAuth.includes("invokeFunction('production-readiness'")&&adminAuth.includes('get_production_readiness'),'Phase 3 Master Admin readiness controls are missing');
 assert(productionReadinessFunction.includes('rpc("set_production_config"'),'Phase 3 production settings must be saved through the protected readiness function');
+assert(productionReadinessFunction.includes('mainnet_payout_enablement_ready')&&productionReadinessFunction.includes('UNRECONCILED_APPROVED_PAYOUTS'),'Production payout activation must have secret readiness and unresolved-withdrawal guards');
+assert(adminAuth.includes('Unreconciled Payouts')&&adminAuth.includes('REAL USDT MAINNET PAYOUT')&&adminAuth.includes('ai-support'),'Master Admin must show payout reconciliation blockers, confirm real payouts and support AI cases');
+const goLiveGuard=fs.readFileSync('database/migrations/20261011_block_unreconciled_payout_go_live.sql','utf8');
+assert(goLiveGuard.includes("status IN ('APPROVED','PROCESSING') AND payout_txid IS NULL"),'Database go-live guard must block unreconciled approved/processing payouts');
 
 const payout=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(payout.includes('production_config')&&payout.includes('Production payout gate is locked'),'Phase 3 payout gate is missing');
