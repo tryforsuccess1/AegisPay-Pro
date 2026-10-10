@@ -365,7 +365,7 @@ function startActivityTicker(){
  const show=()=>{
   const [name,action,amount]=globalActivityFeed[activityTickerIndex%globalActivityFeed.length];activityTickerIndex++;
   const verb=action==='deposited'?'deposited':'withdrew';
-  el.innerHTML='<span class="tag">DEMO</span><span class="msg"><b>'+esc(name)+'</b> '+verb+' <span class="amount">'+esc(amount)+' USDT</span></span>';
+  el.innerHTML='<span class="tag">USER</span><span class="msg"><b>'+esc(name)+'</b> '+verb+' <span class="amount">'+esc(amount)+' USDT</span></span>';
   el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
   if(activityTickerHideTimer)clearTimeout(activityTickerHideTimer);
   activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000);
@@ -1093,7 +1093,7 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
   },0);
   return;
 }
-const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}return liveHome()}}window.go('login')}catch(e){window.go('login')}}
+const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login')}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
 (function(){
@@ -1147,7 +1147,7 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
     const p=profile,r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false});
     if(r.error){uiNotice('Unable to load referral records.','error');return;}
     const rows=r.data||[],reward=rows.reduce(function(n,x){return n+Number(x.platform_reward||0);},0),code=String(p.referral_code||'').trim().toUpperCase();
-    const referralLink=code?'https://aegispay-pro.pages.dev/app/home.html?ref='+encodeURIComponent(code):'';
+    const referralLink=code?'https://aegispay-pro.pages.dev/app/?ref='+encodeURIComponent(code)+'&signup=1':'';
     const lvl=function(n){const rr=rows.filter(function(x){return Number(x.referral_level)===n;});return '<div class="p2-step"><span class="n">'+n+'</span><div class="grow"><b>Level '+n+'</b><small>'+rr.length+' members · '+rr.reduce(function(t,y){return t+Number(y.platform_reward||0);},0).toFixed(2)+' USDT rewards</small></div></div>';};
     app.innerHTML=top('Referral')+
       '<div class="p2-balance" style="background:radial-gradient(90% 130% at 100% 0,rgba(34,211,238,.20),transparent 55%),linear-gradient(135deg,#28166f,#0f1026 72%)"><small style="color:#EAF0FF">Your Referral Code</small><h2 style="font-size:28px;letter-spacing:1px;color:#FFFFFF">'+esc(code||'—')+'</h2><div class="sub" style="color:#DDE5FF">Share your personal link. The referral code will be filled into the signup form.</div></div>'+
