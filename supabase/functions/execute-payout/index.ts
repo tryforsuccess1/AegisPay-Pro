@@ -133,8 +133,25 @@ let payoutMayHaveBeenBroadcast = false;
     const chain = testnet ? "https://api.shasta.trongrid.io" : "https://api.trongrid.io";
     const usdtContract = testnet ? SHASTA_USDT : MAINNET_USDT;
 
-    // withdrawalId is validated before payout configuration checks above.
-
+    // Validate the exact case-sensitive recipient before claiming the payout. TRON addresses
+    // use Base58Check and changing letter case can redirect or invalidate a transfer.
+    const { data: payoutTarget, error: payoutTargetError } = await admin
+      .from("withdrawal_requests")
+      .select("id,destination_address")
+      .eq("id", withdrawalId)
+      .maybeSingle();
+    if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
+    if (!payoutTarget) return json({ error: "Withdrawal request not found. No transaction was sent." }, 404);
+    const { data: destinationValid, error: destinationValidationError } = await admin.rpc("is_valid_tron_address", {
+      p_address: String(payoutTarget.destination_address || "")
+    });
+    if (destinationValidationError || destinationValid !== true) {
+      return json({
+        error: "Withdrawal destination is not a valid exact-case TRON Base58Check address. No transaction was sent. Master Admin must verify the correct wallet and reconcile this request.",
+        code: "INVALID_WITHDRAWAL_DESTINATION",
+        withdrawalId,
+      }, 409);
+    }
 
     // Atomic claim: only one invocation can transition an approved request to PROCESSING.
     let claimQuery = admin
