@@ -43,9 +43,12 @@ Deno.serve(async(req:Request)=>{
    ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN)
   };
   const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&Boolean(receiving);
-  const mainnetMonitoringReady=mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&secrets.trongrid_api&&secrets.cron_secret;
-  const mainnetPayoutGateOk=mainnetBaseConfigOk&&realPayouts&&productionRealPayouts&&goLive&&productionGoLive&&!payoutsLocked&&runtimeEnabled;
-  const mainnetPayoutOperational=mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token;
+   // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
+   const mainnetMonitoringReady=mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&secrets.trongrid_api&&secrets.cron_secret;
+   const mainnetDepositEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.cron_secret&&runtimeEnabled;
+   const mainnetPayoutGateOk=mainnetBaseConfigOk&&realPayouts&&productionRealPayouts&&goLive&&productionGoLive&&!payoutsLocked&&runtimeEnabled;
+   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&runtimeEnabled;
+   const mainnetPayoutOperational=mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token;
 
   if(action==="update"){
     const env=String(body.environment||"PRE_PRODUCTION").toUpperCase();
@@ -54,10 +57,10 @@ Deno.serve(async(req:Request)=>{
     const approved=body.goLiveApproved===true;
     const locked=body.payoutsLocked!==false;
 
-    if(payouts && (!mainnetPayoutOperational || !runtimeEnabled)){
+    if(payouts && (env!=="PRODUCTION" || !approved || locked || !mainnetPayoutEnablementReady)){
       return json({error:"Production payout operations are not ready. Configure the required server-side payout, TRONGrid and Telegram secrets and complete the readiness checks first.",code:"PRODUCTION_PAYOUT_NOT_READY"},409);
     }
-    if(live && env==="PRODUCTION" && (!mainnetMonitoringReady || !runtimeEnabled)){
+    if(live && env==="PRODUCTION" && !mainnetDepositEnablementReady){
       return json({error:"Production live-deposit monitoring is not ready. Configure TRONGrid and cron authentication before enabling production live deposits.",code:"PRODUCTION_DEPOSIT_MONITORING_NOT_READY"},409);
     }
 
@@ -84,6 +87,6 @@ Deno.serve(async(req:Request)=>{
    mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits,mainnet_payout_gate_ok:mainnetPayoutGateOk,
    server_side_secrets_required:true,cron_secret_required_for_monitoring:true
   };
-  return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_payout_operational:mainnetPayoutOperational,checked_at:new Date().toISOString()});
+  return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,checked_at:new Date().toISOString()});
  }catch(error){return json({error:String((error as Error)?.message||error).slice(0,500)},500);}
 });
