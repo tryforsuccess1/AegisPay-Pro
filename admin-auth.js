@@ -36,6 +36,8 @@ const icons={
   telegram:'M22 2 11 13M22 2l-7 20-4-9-9-4z',
   log:'M4 5h16M4 10h16M4 15h10M4 20h8',
   refresh:'M20 11a8.1 8.1 0 1 0 1 4M20 4v7h-7',
+  moon:'M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5z',
+  sun:'M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M18.36 5.64l-1.42 1.42M7.06 16.94l-1.42 1.42M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   logout:'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9',
   pause:'M7 5v14M17 5v14',
   play:'m8 5 11 7-11 7z',
@@ -62,13 +64,23 @@ function aegisLogo(size){
   const gradId='aaG'+String(w).replace(/\\W/g,'');
   return '<div class="aa-logo-lockup" style="--aa-logo-width:'+w+'px">'+
     '<svg class="aa-logo-mark" width="'+mark+'" height="'+mark+'" viewBox="0 0 48 48" role="img" aria-label="AegisPay" xmlns="http://www.w3.org/2000/svg">'+
-      '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7C5CFF"/><stop offset="1" stop-color="#22D3EE"/></linearGradient></defs>'+
+      '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f06a4d"/><stop offset="1" stop-color="#c94b8a"/></linearGradient></defs>'+
       '<path d="M24 3 6 11v12c0 11 8 19 18 22 10-3 18-11 18-22V11z" fill="url(#'+gradId+')"/>'+
-      '<path d="M24 14 33 34h-6l-3-7-3 7h-6z" fill="#070A16" opacity=".9"/>'+
+      '<path d="M24 14 33 34h-6l-3-7-3 7h-6z" fill="var(--logo-ink,#2b1d12)" opacity=".9"/>'+
     '</svg>'+
     '<div class="aa-logo-copy"><div>Aegis<span>Pay</span></div><small>Your Payments, Your Way</small></div>'+
   '</div>';
 }
+function toggleAdminTheme(button){
+  const mode=document.documentElement.getAttribute('data-mode')==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-mode',mode);
+  try{localStorage.setItem('ap-mode',mode);}catch(_){}
+  const meta=document.querySelector('meta[name="theme-color"]');
+  if(meta)meta.content=mode==='dark'?'#12100f':'#faf5ec';
+  const control=button||root.querySelector('.aa-theme-toggle');
+  if(control){const label='Switch to '+(mode==='dark'?'light':'dark')+' mode';control.innerHTML=ico(mode==='dark'?'sun':'moon',17);control.title=label;control.setAttribute('aria-label',label);}
+}
+
 function shell(body){
   return '<div class="aa-shell">'+
     '<header class="aa-top">'+
@@ -76,6 +88,7 @@ function shell(body){
         aegisLogo(188)+
       '</div>'+
       '<div class="aa-top-actions">'+
+        '<button class="aa-icon-button aa-theme-toggle" type="button" data-action="theme" title="Switch to '+(document.documentElement.getAttribute('data-mode')==='dark'?'light':'dark')+' mode" aria-label="Switch to '+(document.documentElement.getAttribute('data-mode')==='dark'?'light':'dark')+' mode">'+ico(document.documentElement.getAttribute('data-mode')==='dark'?'sun':'moon',17)+'</button>'+
         (state.profile?'<span class="aa-session">'+ico('shield',14)+' Secure Session</span>':'')+
         (state.profile?'<button class="aa-icon-button" data-action="refresh" title="Refresh">'+ico('refresh',17)+'</button>':'')+
       '</div>'+
@@ -93,7 +106,7 @@ function loginView(){
       '<div class="aa-auth-logo">'+aegisLogo(270)+'</div>'+
       '<div class="aa-eyebrow">MASTER ADMIN</div>'+
       '<h1>Welcome back</h1>'+
-      '<p class="aa-auth-sub">Secure Aurora control center for platform operations.</p>'+
+      '<p class="aa-auth-sub">Secure AegisPay control center for platform operations.</p>'+
       (state.error?'<div class="aa-alert aa-alert-error">'+ico('x',15)+'<span>'+esc(state.error)+'</span></div>':'')+
       (loading?
         '<div class="aa-loading"><span class="aa-spinner"></span><strong>Signing in securely</strong><small>Verifying protected admin access…</small></div>':
@@ -829,6 +842,7 @@ root.addEventListener('submit',function(e){
 root.addEventListener('click',function(e){
   const el=e.target.closest('[data-action]');if(!el)return;
   const action=el.dataset.action;
+  if(action==='theme'){toggleAdminTheme(el);return;}
   if(action==='tab'){state.tab=el.dataset.tab;state.error='';render();return;}
   if(action==='refresh'){setBusy(refreshData);return;}
   if(action==='logout'){service.signOut().finally(function(){state.profile=null;state.queues={deposits:[],kyc:[],withdrawals:[],kycHistory:[],depositHistory:[],stats:{}};render();});return;}
