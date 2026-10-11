@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#faf5ec">
+<meta name="color-scheme" content="light dark">
+<script>(function(){try{var p=localStorage.getItem('ap-mode')||'auto',h=new Date().getHours(),n=h>=19||h<6,sys=window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches;document.documentElement.setAttribute('data-mode',p==='dark'||(p==='auto'&&(sys||n))?'dark':'light')}catch(e){}})();</script>
 <meta name="description" content="AegisPay Sunrise Cream Master Admin Control Center">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>AegisPay — Sunrise Cream Master Admin</title>
@@ -54,10 +56,44 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
 .aa-auth-mark,.aa-stat-icon{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;color:#fff!important}
 .aa-security-box{border-radius:18px!important}
 .aa-login{background:radial-gradient(520px 320px at 92% -4%,rgba(255,154,118,.24),transparent),#faf5ec!important}
-.aa-primary,.aa-actions .aa-primary,.aa-actions .aa-secondary,.aa-actions .aa-danger{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;color:#fff!important;border-color:transparent!important}
+.aa-primary,.aa-actions .aa-primary{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;color:#fff!important;border-color:transparent!important}
+.aa-actions .aa-secondary{background:#fff!important;color:#4a3a2c!important;border-color:var(--line)!important}
+.aa-actions .aa-danger{background:#fff0f1!important;color:#b42318!important;border-color:rgba(214,58,74,.24)!important}
 .aa-status,.aa-task-status{color:#4a3a2c}
 @media(max-width:760px){.aa-top{background:rgba(255,255,255,.97)!important}.aa-sidebar{background:#fff!important}}
-</style></head>
+ </style>
+ <style id="sunrise-admin-dark">
+ html[data-mode="dark"]{color-scheme:dark;--bg:#12100f;--panel:#1c1816;--panel2:#272120;--panel3:#241e1a;--text:#e6d9cc;--muted:#a69a90;--line:rgba(255,235,220,.09);--violet:#ff7a5c;--cyan:#d9609c;--mint:#3fd6a0;--amber:#e8a54a;--red:#ff6b78;--grad:linear-gradient(135deg,#ff7a5c,#d9609c);--shadow:0 10px 26px -16px rgba(0,0,0,.8);--logo-ink:#f7ece0}
+ html[data-mode="light"]{--logo-ink:#2b1d12}
+ html[data-mode="dark"],html[data-mode="dark"] body{background:#12100f!important;color:#e6d9cc!important}
+ html[data-mode="dark"] .aa-shell{background:radial-gradient(520px 320px at 92% -4%,rgba(255,120,90,.12),transparent),radial-gradient(420px 300px at -10% 42%,rgba(217,96,156,.06),transparent),#12100f!important;color:#e6d9cc!important}
+ html[data-mode="dark"] .aa-top,html[data-mode="dark"] .aa-sidebar,html[data-mode="dark"] .aa-mobile-tabs{background:rgba(28,24,22,.94)!important;border-color:var(--line)!important}
+ html[data-mode="dark"] .aa-brand-mark,html[data-mode="dark"] .aa-icon-button{background:var(--panel)!important;border-color:var(--line)!important;color:var(--text)!important;box-shadow:var(--shadow)!important}
+ html[data-mode="dark"] .aa-brand strong,html[data-mode="dark"] .aa-page-head h1,html[data-mode="dark"] .aa-panel h2,html[data-mode="dark"] .aa-stat strong,html[data-mode="dark"] .aa-system-copy strong,html[data-mode="dark"] .aa-queue-row strong,html[data-mode="dark"] .aa-mini strong,html[data-mode="dark"] .aa-user-main strong,html[data-mode="dark"] .aa-review-top h3,html[data-mode="dark"] .aa-offer h3,html[data-mode="dark"] .aa-task strong,html[data-mode="dark"] .aa-telegram-card h2,html[data-mode="dark"] .aa-empty strong,html[data-mode="dark"] .aa-auth-card h1{color:var(--text)!important}
+ html[data-mode="dark"] .aa-brand small,html[data-mode="dark"] .aa-logo-copy small,html[data-mode="dark"] .aa-page-head p,html[data-mode="dark"] .aa-panel-head p,html[data-mode="dark"] .aa-stat span,html[data-mode="dark"] .aa-stat small,html[data-mode="dark"] .aa-system-copy small,html[data-mode="dark"] .aa-queue-row small,html[data-mode="dark"] .aa-mini span,html[data-mode="dark"] .aa-mini small,html[data-mode="dark"] .aa-user-main small,html[data-mode="dark"] .aa-user-meta span,html[data-mode="dark"] .aa-review-top p,html[data-mode="dark"] .aa-offer p,html[data-mode="dark"] .aa-offer small,html[data-mode="dark"] .aa-task small,html[data-mode="dark"] .aa-log-row small,html[data-mode="dark"] .aa-telegram-card p,html[data-mode="dark"] .aa-empty small,html[data-mode="dark"] .aa-muted,html[data-mode="dark"] .aa-footer,html[data-mode="dark"] .aa-auth-sub,html[data-mode="dark"] .aa-security-box small{color:var(--muted)!important}
+ html[data-mode="dark"] .aa-side-item{color:var(--muted)!important}
+ html[data-mode="dark"] .aa-side-item:hover{background:var(--panel2)!important;color:var(--text)!important}
+ html[data-mode="dark"] .aa-side-item.active{background:var(--grad)!important;color:#fff!important}
+ html[data-mode="dark"] .aa-logout{color:#ff6b78!important}
+ html[data-mode="dark"] .aa-panel,html[data-mode="dark"] .aa-stat,html[data-mode="dark"] .aa-system-card,html[data-mode="dark"] .aa-mini,html[data-mode="dark"] .aa-user-card,html[data-mode="dark"] .aa-review-card,html[data-mode="dark"] .aa-offer,html[data-mode="dark"] .aa-task,html[data-mode="dark"] .aa-log-row,html[data-mode="dark"] .aa-wallet-box,html[data-mode="dark"] .aa-telegram-card,html[data-mode="dark"] .aa-auth-card,html[data-mode="dark"] .aa-security-box{background:var(--panel)!important;border-color:var(--line)!important;box-shadow:var(--shadow)!important;color:var(--text)!important}
+ html[data-mode="dark"] .aa-system-card{background:linear-gradient(120deg,rgba(255,122,92,.12),rgba(217,96,156,.08),var(--panel))!important}
+ html[data-mode="dark"] .aa-queue-row{background:var(--panel)!important;border-color:var(--line)!important;color:var(--text)!important}
+ html[data-mode="dark"] .aa-queue-row:hover{background:var(--panel2)!important;border-color:rgba(255,122,92,.35)!important}
+ html[data-mode="dark"] .aa-count,html[data-mode="dark"] .aa-badge-violet,html[data-mode="dark"] .aa-badge-cyan{background:rgba(217,96,156,.14)!important;color:#f4a8ca!important}
+ html[data-mode="dark"] .aa-secondary{background:var(--panel2)!important;color:var(--text)!important;border-color:var(--line)!important}
+ html[data-mode="dark"] .aa-danger{background:rgba(255,107,120,.12)!important;color:#ff9ca7!important;border-color:rgba(255,107,120,.24)!important}
+ html[data-mode="dark"] .aa-field input,html[data-mode="dark"] .aa-field select,html[data-mode="dark"] .aa-field textarea,html[data-mode="dark"] .aa-auth-card input{background:var(--panel2)!important;color:var(--text)!important;border-color:var(--line)!important}
+ html[data-mode="dark"] .aa-field input::placeholder,html[data-mode="dark"] .aa-auth-card input::placeholder{color:var(--muted)!important}
+ html[data-mode="dark"] .aa-callout,html[data-mode="dark"] .aa-info-strip{background:rgba(255,122,92,.09)!important;border-color:rgba(255,122,92,.2)!important;color:var(--text)!important}
+ html[data-mode="dark"] .aa-callout-success{background:rgba(63,214,160,.1)!important;border-color:rgba(63,214,160,.24)!important}
+ html[data-mode="dark"] .aa-status,html[data-mode="dark"] .aa-task-status{background:var(--panel2)!important;color:var(--text)!important;border-color:var(--line)!important}
+ html[data-mode="dark"] .aa-user-meta,html[data-mode="dark"] .aa-detail-grid span{background:var(--panel2)!important;color:var(--muted)!important}
+ html[data-mode="dark"] .aa-wallet-box{background:rgba(217,96,156,.08)!important}
+ html[data-mode="dark"] .aa-login{background:radial-gradient(520px 320px at 92% -4%,rgba(255,154,118,.14),transparent),#12100f!important}
+ html[data-mode="dark"] .aa-login-glow{background:radial-gradient(circle,rgba(255,122,92,.14),transparent 65%)}
+ html[data-mode="dark"] .aa-session{color:var(--mint);background:rgba(63,214,160,.08);border-color:rgba(63,214,160,.2)}
+ html[data-mode="dark"] .aa-footer{border-color:var(--line)!important}
+ </style></head>
 <body>
 <div id="app"></div>
 <script>
@@ -70,6 +106,6 @@ window.AEGIS_ADMIN_PORTAL=true;
 <script src="./aegis-auth-redirect.js"></script>
 <script src="./app-update.js"></script>
 <script src="./shop-catalog.js"></script>
-<script src="./admin-auth.js?v=9d6fc31217c1b1e418ce"></script>
+<script src="./admin-auth.js?v=20261012-sunrise"></script>
 </body>
 </html>
