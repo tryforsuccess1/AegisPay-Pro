@@ -231,6 +231,14 @@ html[data-mode=dark] .notif-card .ntext,html[data-mode=dark] .notif-card .ntime{
 .ap-sheet .sw.on{background:linear-gradient(135deg,var(--p1),var(--p2));border-color:transparent}.ap-sheet .sw.on:after{inset-inline-start:20px}
 #toast{position:fixed;z-index:260;left:50%;top:16px;transform:translate(-50%,-90px);background:var(--hd);color:#fff;font-weight:700;font-size:13px;padding:11px 18px;border-radius:24px;transition:.35s;max-width:90%;text-align:center}
 #toast.on{transform:translate(-50%,0)}
+
+.sh{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:0 0 12px;font-size:15px;font-weight:700;color:var(--hd)}
+.bal .sh{display:block;margin:0;font-size:initial;font-weight:400}
+.msgs .ai-msg{max-width:84%;padding:10px 13px;border-radius:16px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.msgs .ai-msg.m1{background:var(--s1);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;color:var(--tx)}
+.msgs .ai-msg.m2{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+html[data-mode="dark"] .msgs .ai-msg.m1{background:var(--s1)!important;color:var(--tx)!important}
+html[data-mode="dark"] .msgs .ai-msg.m2{background:linear-gradient(135deg,var(--p1),var(--p2))!important;color:#fff!important}
 /* End adapters */
 
 </style>
@@ -557,9 +565,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>`<div class="ai-page"><div class="tb"><div class="av">${ic('spark')}</div><div style="flex:1"><h1 style="font-size:18px">AegisPay AI</h1><small class="up" id="aiOnline">● Online</small></div></div>
- <div class="ai-chat" id="aiMessages" aria-live="polite"></div>
- <div class="ai-composer"><input type="text" id="aiInput" placeholder="Ask me anything…" aria-label="Ask AegisPay AI" maxlength="1000" autocomplete="off"><button type="button" id="aiSend" aria-label="Send">${ic('send')}</button></div>${NV('bot')}</div>`};
+bot:()=>'<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1><div class="sp"></div><button class="ib" data-a="mode">'+apIcon('moon')+'</button></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div style="display:flex;gap:8px"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0 16px" aria-label="Send">'+apIcon('send')+'</button></div>'+nav('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 go('login');
 </script>
@@ -704,7 +710,7 @@ async function liveHome(){
  app.innerHTML='<div class="scr on" id="s-home">'+
   '<div class="bar"><div class="wm">'+apLogo(false)+'<span><b>Aegis</b><i class="gt">Pay</i></span></div><div class="sp"></div>'+
    '<button type="button" class="ib" data-a="mode" aria-label="Night mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="ib" data-go="notifications" aria-label="Notifications">'+apIcon('bell')+'<b id="nb">'+(unreadNotifications||'')+'</b></button><button type="button" class="ib" onclick="go(\'bot\')" aria-label="AI Assistant">'+apIcon('spark')+'</button></div>'+
-  '<div class="greet"><div class="av">'+esc((displayName[0]||'A').toUpperCase())+'</div><div class="who"><small class="gr" data-i18n="g_welcome">'+apGreeting()+'</small><h1 class="un">'+esc(displayName)+'</h1>'+(displayUsername?'<span>@'+esc(displayUsername)+'</span>':'')+'</div><span class="tchip tn">'+esc(tierName)+'</span></div>'+
+  '<div class="greet"><div class="av">'+esc((displayName[0]||'A').toUpperCase())+'</div><div class="who"><small class="gr" data-i18n="'+apGreetingKey()+'">'+apGreeting()+'</small><h1 class="un">'+esc(displayName)+'</h1>'+(displayUsername?'<span>@'+esc(displayUsername)+'</span>':'')+'</div><span class="tchip tn">'+esc(tierName)+'</span></div>'+
   '<div class="balw"><section class="bal"><i class="sh"></i><div class="row"><div class="brand">'+apLogo(true)+'AEGISPAY</div><button type="button" class="eye" id="eye" aria-label="Hide balance"><span id="e1">'+apIcon('eye')+'</span><span id="e2" style="display:none">'+apIcon('eyeoff')+'</span></button></div>'+
    '<div class="lbl" data-i18n="h_available">Available Balance</div><div class="amt"><span class="bv">'+available.toFixed(2)+'</span><small>USDT</small></div>'+
    '<div class="sub"><span data-i18n="h_total">Total</span> <span class="tv">'+total.toFixed(2)+'</span> USDT · <span data-i18n="h_held">Held</span> <span class="hv">'+held.toFixed(2)+'</span> USDT</div><div class="perf"></div>'+
@@ -721,8 +727,8 @@ async function liveHome(){
   '<h2><b data-i18n="h_cycle">Earning Cycle</b><span data-i18n="h_live">Live status</span></h2><div class="card cyc" id="cycH">'+cyc+'</div>'+
   '<h2><b data-i18n="h_setup">Account setup</b><span id="setP">'+doneCount+'/4 done</span></h2><div class="card" id="setC">'+setupHtml+'</div><div class="card" id="tierC" style="margin-top:12px">'+tierHtml+'</div>'+
   '<div class="card aic" data-go="bot" onclick="go(\'bot\')"><div class="md m1" style="margin:0">'+apIcon('spark')+'</div><div><b data-i18n="h_ai">AegisPay AI Assistant</b><p>Deposits, withdrawals, referrals, tasks and troubleshooting.</p></div>'+apIcon('chev')+'</div>'+
-  '<h2><b data-i18n="h_recent">Recent Activity</b><a data-go="activity" onclick="go(\'activity\')" data-i18n="h_viewall">View all</a></h2><div class="card list" id="rec">'+(activities||'<div class="empty">No recent activity yet.</div>')+'</div></div>'+nav('home');
- applyLang();
+  '<h2><b data-i18n="h_recent">Recent Activity</b><a data-go="activity" onclick="go(\'activity\')" data-i18n="h_viewall">View all</a></h2><div class="card list" id="rec">'+(activities||'<div class="empty">No recent activity yet.</div>')+'</div></div>'+nav('shop');
+ if(typeof apApplyLang==='function')apApplyLang();
 }
 async function activateClientTier(tierId){
  let chosen=null;
@@ -914,7 +920,7 @@ async function liveNotifications(){
  const r=await db.from('notifications').select('id,notification_type,title,body,is_read,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
  if(r.error){uiNotice('Unable to load notifications.','error');return liveHome()}
  const items=r.data||[];unreadNotifications=items.filter(x=>!x.is_read).length;
- app.innerHTML='<div class="notif-page">'+top('Notifications','home')+'<div class="notif-head"><div><div class="sh" style="margin:0">Updates</div><small class="mu">'+(unreadNotifications?unreadNotifications+' unread notification'+(unreadNotifications===1?'':'s'):'All notifications are read')+'</small></div>'+(unreadNotifications?'<button id="markAllNotifications" type="button">Mark all as read</button>':'')+'</div><div id="notificationList">'+(items.map(x=>'<button type="button" class="notif-card '+(!x.is_read?'unread':'')+'" data-notification-id="'+esc(x.id)+'"><span class="nicon">'+ic('bell')+'</span><span class="nbody"><span class="ntitle">'+esc(x.title||'AegisPay Update')+'</span><span class="ntext">'+esc(x.body||'')+'</span><span class="ntime">'+esc(new Date(x.created_at).toLocaleString())+'</span></span>'+(!x.is_read?'<span class="dotunread"></span>':'')+'</button>').join('')||'<div class="card" style="text-align:center;padding:28px 16px"><div style="font-size:28px;margin-bottom:8px">🔔</div><div style="font-weight:700">No notifications yet</div><div class="mu" style="font-size:11px;margin-top:6px">New account, deposit, Shop and withdrawal updates will appear here.</div></div>')+'</div></div>'+NV('account');
+ app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_notes">Notifications</h1><div class="sp"></div><button class="ib" data-a="mode" aria-label="Appearance">'+apIcon('moon')+'</button></div><div class="notif-head"><div><b>Updates</b><small class="mu" style="display:block;margin-top:3px">'+(unreadNotifications?unreadNotifications+' unread notification'+(unreadNotifications===1?'':'s'):'All notifications are read')+'</small></div>'+(unreadNotifications?'<button id="markAllNotifications" type="button">Mark all as read</button>':'')+'</div><div id="notificationList">'+(items.map(x=>'<button type="button" class="notif-card '+(!x.is_read?'unread':'')+'" data-notification-id="'+esc(x.id)+'"><span class="nicon">'+apIcon('bell')+'</span><span class="nbody"><span class="ntitle">'+esc(x.title||'AegisPay Update')+'</span><span class="ntext">'+esc(x.body||'')+'</span><span class="ntime">'+esc(new Date(x.created_at).toLocaleString())+'</span></span>'+(!x.is_read?'<span class="dotunread"></span>':'')+'</button>').join('')||'<div class="card empty">No notifications yet.</div>')+'</div>'+nav('account')+'</div>';
  // Open notification details as a dedicated readable page. A click handler outside the list handles all mobile taps.
  window.__aegisOpenNotificationById=async function(id){
    let item=items.find(x=>String(x.id)===String(id));
@@ -931,15 +937,8 @@ async function liveNotifications(){
    const title=item.title||'AegisPay Update';
    const dateText=new Date(item.created_at).toLocaleString();
    const bodyText=item.body||'No additional details were provided.';
-   app.innerHTML=top('Notification Details','notifications')+
-     '<article class="p2-card" style="color:#4a3a2c!important;-webkit-text-fill-color:#4a3a2c!important;padding:20px">'+
-       '<h2 style="color:#FFFFFF!important;-webkit-text-fill-color:#FFFFFF!important;font-size:19px;line-height:1.45;font-weight:800;margin-bottom:10px">'+esc(title)+'</h2>'+
-       '<div style="color:#C5CEE8!important;-webkit-text-fill-color:#C5CEE8!important;font-size:11px;line-height:1.5;margin-bottom:18px">'+esc(dateText)+'</div>'+
-       '<div style="color:#F4F6FF!important;-webkit-text-fill-color:#F4F6FF!important;font-size:15px;line-height:1.85;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word">'+esc(bodyText)+'</div>'+
-       (destination?'<button type="button" id="notificationOpenDestination" class="btn" style="margin-top:22px;width:100%">Open related section</button>':'')+
-       '<button type="button" id="notificationDetailsBack" class="btn o" style="margin-top:10px;width:100%">Back to notifications</button>'+
-     '</article>'+nav('account');
-   window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;
+   app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'notifications\')">'+apIcon('back')+'</button><h1>Notification Details</h1><div class="sp"></div><button class="ib" data-a="mode">'+apIcon('moon')+'</button></div><article class="card" style="padding:20px"><h2 style="display:block;margin:0 0 10px;color:var(--hd);font-size:19px">'+esc(title)+'</h2><div class="note" style="margin:0 0 18px">'+esc(dateText)+'</div><div style="font-size:14px;line-height:1.8;white-space:pre-wrap;overflow-wrap:anywhere">'+esc(bodyText)+'</div>'+(destination?'<button type="button" id="notificationOpenDestination" class="btn" style="margin-top:22px;width:100%">Open related section</button>':'')+'<button type="button" id="notificationDetailsBack" class="btn o" style="margin-top:10px;width:100%">Back to notifications</button></article>'+nav('account')+'</div>';
+ window.scrollTo(0,0);document.documentElement.scrollTop=0;document.body.scrollTop=0;
    const openRelated=document.getElementById('notificationOpenDestination');
    if(openRelated)openRelated.onclick=function(){window.go(destination)};
    const back=document.getElementById('notificationDetailsBack');
@@ -961,24 +960,39 @@ async function liveNotifications(){
 }
 async function liveActivity(){
  const p=profile;
- const l=await db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
- const w=await db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
- const r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
- if(l.error||w.error||r.error){uiNotice('Unable to load activity history right now. Please try again.','error');return}
- const rows=l.data||[], withdrawals=w.data||[], refs=r.data||[];
- const sum=(arr)=>arr.reduce((n,x)=>n+Math.abs(Number(x.amount||x.platform_reward||0)),0);
- const deposits=rows.filter(x=>Number(x.amount)>0&&!/referral|reward|profit|task/i.test((x.description||'')+' '+(x.entry_type||'')));
- const profits=rows.filter(x=>Number(x.amount)>0&&/profit|task/i.test((x.description||'')+' '+(x.entry_type||'')));
- const refTotal=sum(refs);
- const card=(type,title,sub,total,icon,color)=>'<button type="button" class="card activity-history" data-activity-history="'+type+'" style="background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025));border-color:'+color+'55"><div style="display:flex;align-items:center;gap:14px"><span class="bub" style="background:'+color+'22;color:'+color+'">'+ic(icon)+'</span><div style="flex:1"><h3 style="font-size:15px">'+title+'</h3><small class="mu">'+sub+'</small></div><div style="text-align:right"><b style="font-size:17px">'+Number(total).toFixed(2)+' USDT</b><small class="mu" style="display:block;margin-top:3px">View History '+ic('chev')+'</small></div></div></button>';
- app.innerHTML=top('Activity')+
- '<div class="sh">Activity Categories</div>'+
- card('deposit','Deposit','Credit · Deposit history',sum(deposits),'dl','#1a9a6e')+
- card('withdrawal','Withdrawal','Debit · Withdrawal history',sum(withdrawals),'up','#d63a4a')+
- card('profit','Task Profit','Completed task earnings',sum(profits),'check','#d98a1a')+
- card('referral','Referral Rewards','Referral earnings history',refTotal,'gift','#f06a4d')+
- '<div class="warn" style="margin-top:4px">'+ic('alert')+'<span>Select any category to view its dedicated history.</span></div>'+nav('activity');
- document.querySelectorAll('[data-activity-history]').forEach(el=>el.addEventListener('click',()=>activityHistory(el.getAttribute('data-activity-history')||'')));
+ const [lr,wr,rr]=await Promise.all([
+  db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),
+  db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),
+  db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100)
+ ]);
+ if(lr.error||wr.error||rr.error){uiNotice('Unable to load activity history right now. Please try again.','error');return}
+ const ledger=lr.data||[],withdrawals=wr.data||[],refs=rr.data||[];
+ const credited=ledger.filter(x=>Number(x.amount)>0).reduce((n,x)=>n+Number(x.amount),0);
+ const debited=ledger.filter(x=>Number(x.amount)<0).reduce((n,x)=>n+Math.abs(Number(x.amount)),0);
+ const events=ledger.map(x=>{
+  const kind=String((x.description||'')+' '+(x.entry_type||'')).toLowerCase();
+  const filter=/withdraw|payout/.test(kind)?'wd':/deposit|top.?up|funding|txid/.test(kind)?'dep':/settle|cycle credit/.test(kind)?'settle':/task|purchase/.test(kind)?'task':/referral/.test(kind)?'ref':'all';
+  return {label:x.description||x.entry_type||'Account activity',date:x.created_at,amount:Number(x.amount||0),status:x.entry_type||'',filter};
+ });
+ withdrawals.forEach(w=>{
+  const already=events.some(x=>x.filter==='wd'&&Math.abs(x.amount)===Math.abs(Number(w.amount||0))&&Math.abs(new Date(x.date).getTime()-new Date(w.created_at).getTime())<120000);
+  if(!already)events.push({label:'Withdrawal request',date:w.created_at,amount:-Math.abs(Number(w.amount||0)),status:w.status||'Pending approval',filter:'wd'});
+ });
+ refs.forEach(r=>events.push({label:'Referral reward · Level '+Number(r.referral_level||0),date:r.created_at,amount:Number(r.platform_reward||0),status:'Reward',filter:'ref'}));
+ events.sort((a,b)=>new Date(b.date).getTime()-new Date(a.date).getTime());
+ const renderRows=filter=>{
+  const rows=events.filter(x=>filter==='all'||x.filter===filter);
+  return rows.length?rows.map(x=>{
+   const positive=x.amount>=0,icon=x.filter==='dep'?'dep':x.filter==='wd'?'wd':x.filter==='task'?'bag':x.filter==='settle'?'hg':x.filter==='ref'?'users':'hist';
+   const kind=x.filter==='wd'?'db':positive?'cr':'nt';
+   return '<div class="rw"><div class="t '+kind+'">'+apIcon(icon)+'</div><div class="m"><b>'+esc(x.label)+'</b><small>'+esc(new Date(x.date).toLocaleString())+(x.status?' · '+esc(x.status):'')+'</small></div><div class="v '+(positive?'pos':'neg')+'">'+(positive?'+':'−')+Math.abs(x.amount).toFixed(2)+'<small>USDT</small></div></div>';
+  }).join(''):'<div class="empty">No records in this category yet.</div>';
+ };
+ app.innerHTML='<div class="scr on"><div class="pt" data-i18n="p_activity">Activity</div><div class="ps">Deposits, Shop and task events, balance entries and withdrawal status.</div>'+
+  '<div class="sum2"><div><small>Total credited</small><b class="pos">+'+credited.toFixed(2)+'</b></div><div><small>Total debited</small><b class="neg">−'+debited.toFixed(2)+'</b></div></div>'+
+  '<div class="chips"><button class="chip on" type="button" data-f="all">All</button><button class="chip" type="button" data-f="dep">Deposits</button><button class="chip" type="button" data-f="task">Tasks</button><button class="chip" type="button" data-f="settle">Settlement</button><button class="chip" type="button" data-f="wd">Withdrawals</button><button class="chip" type="button" data-f="ref">Referrals</button></div>'+
+  '<div class="card list" id="activityRecords">'+renderRows('all')+'</div>'+nav('activity')+'</div>';
+ document.querySelectorAll('[data-f]').forEach(el=>el.onclick=()=>{document.querySelectorAll('[data-f]').forEach(x=>x.classList.toggle('on',x===el));const list=document.getElementById('activityRecords');if(list)list.innerHTML=renderRows(el.dataset.f||'all')});
 }
 async function activityHistory(type){
  const p=profile;
@@ -1425,6 +1439,7 @@ function bindAiBot(){
     input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiAsk(input.value)}});
   }
 }
+document.addEventListener('click',function(e){const q=e.target.closest('[data-q]');if(q&&document.getElementById('aiMessages'))aiAsk(q.getAttribute('data-q')||'')});
 async function liveBot(){
   if(!profile)return oldGo('login');
   aiLoadHistory();
