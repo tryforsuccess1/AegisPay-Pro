@@ -676,7 +676,7 @@ async function liveHome(){
  const selectedTier=(tiers||[]).find(x=>String(x.id)===String(p.selected_tier_id))||(tiers||[]).find(x=>String(x.name).toLowerCase()===String(p.selected_tier_id||'').toLowerCase())||null;
  const tierName=selectedTier?.name||p.selected_tier_name||p.vip_level||'Not assigned';
  const [ledgerRes,cycleRes,tasksRes,kycRes]=await Promise.all([
-  db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(5),
+  db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100),
   db.from('cycle_runs').select('id,status,cycle_base,task_completed_at,ready_at,settled_at,profit_amount,created_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),
   db.from('tasks').select('id,cycle_id,status,task_value,reward').eq('user_id',p.id).order('id',{ascending:false}).limit(100),
   db.from('kyc_verifications').select('status,submitted_at').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle()
@@ -684,6 +684,7 @@ async function liveHome(){
  const cycle=cycleRes.error?null:cycleRes.data||null;
  const taskRows=(tasksRes.error?[]:(tasksRes.data||[])).filter(x=>!cycle||String(x.cycle_id)===String(cycle.id));
  const taskDone=taskRows.filter(x=>String(x.status).toLowerCase()==='completed').length;
+ const hasVerifiedDeposit=(ledgerRes.data||[]).some(x=>Number(x.amount)>0&&/deposit|top.?up|funding|txid/i.test(String((x.description||'')+' '+(x.entry_type||''))));
  const cycleWaiting=cycle&&cycle.status==='WAITING_18H';
  const readyDate=cycleWaiting&&cycle.ready_at?new Date(cycle.ready_at):null;
  const readyText=readyDate&&!Number.isNaN(readyDate.getTime())?readyDate.toLocaleString():'';
@@ -694,7 +695,7 @@ async function liveHome(){
  else if(cycle)cyc='<div class="dot" style="background:var(--p1);animation:none"></div><div style="flex:1"><b>Cycle active · '+taskDone+'/'+taskRows.length+' tasks</b><p>Complete your assigned tasks in Shop.</p></div><button class="btn sm" data-go="shop" onclick="go(\'shop\')">Open</button>';
  else cyc='<div class="dot" style="background:var(--mut);animation:none"></div><div style="flex:1"><b>No active cycle</b><p>A new cycle is assigned automatically when your verified balance and tier are eligible.</p></div><button class="btn sm" data-go="vip" onclick="go(\'vip\')">View tier</button>';
  const checks=[
-  ['Verified deposit',false,'topup',false],
+  ['Verified deposit',hasVerifiedDeposit,'topup',false],
   ['Select eligible VIP tier',!!selectedTier,'vip',false],
   ['Link TRON wallet',!!p.destination_address,'withdraw',false],
   ['Complete KYC',kycDone,'kyc',kycPending]
@@ -705,7 +706,7 @@ async function liveHome(){
  const nextTier=(tiers||[]).slice().sort((a,b)=>Number(a.deposit_amount||0)-Number(b.deposit_amount||0)).find(x=>Number(x.deposit_amount||0)>Number(selectedTier?.deposit_amount||0));
  const tierHtml='<div class="row"><div><b style="color:var(--hd);font-size:15px">'+esc(tierName)+'</b><p style="font-size:12px;color:var(--mut);margin-top:2px">'+(selectedTier?'Entry requirement '+Number(selectedTier.deposit_amount||0).toFixed(2)+' USDT · Initial profit '+Number(selectedTier.initial_profit||0).toFixed(2)+' USDT':'Choose an eligible tier to activate Shop tasks')+'</p></div><span class="bd '+(selectedTier?'ok':'wa')+'">'+(selectedTier?'Current':'Not selected')+'</span></div>'+
   (nextTier?'<div class="pbar"><i style="width:'+Math.min(100,Number(available)/Math.max(1,Number(nextTier.deposit_amount))*100).toFixed(0)+'%"></i></div><p class="note">'+(available>=Number(nextTier.deposit_amount)?'Eligible for '+esc(nextTier.name):'Next: '+esc(nextTier.name)+' · '+Math.max(0,Number(nextTier.deposit_amount)-available).toFixed(2)+' USDT more verified balance needed')+' · <a data-go="vip" onclick="go(\'vip\')">View tiers</a></p>':'');
- const activities=(ledgerRes.error?[]:(ledgerRes.data||[])).map(x=>{
+ const activities=(ledgerRes.error?[]:(ledgerRes.data||[]).slice(0,5)).map(x=>{
   const amount=Number(x.amount||0),positive=amount>=0,kind=String((x.description||'')+' '+(x.entry_type||'')).toLowerCase();
   const icon=/withdraw|debit|payout/.test(kind)?'wd':/task|profit|reward/.test(kind)?'bag':/refer/.test(kind)?'users':'hist';
   const css=/withdraw|debit|payout/.test(kind)?'db':positive?'cr':'nt';
@@ -825,9 +826,9 @@ async function liveVip(){
  const cycleRes=await db.from('cycle_runs').select('id,status').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle();
  const cycle=cycleRes.data||null;
  const ordered=(tiers||[]).slice().sort((a,b)=>Number(a.deposit_amount||0)-Number(b.deposit_amount||0));
- const current=ordered.find(t=>String(t.id)===String(p.selected_tier_id))||null;
+ const current=ordered.find(t=>String(t.id)===String(p.selected_tier_id))||ordered.find(t=>String(t.name).toLowerCase()===String(p.selected_tier_id||'').toLowerCase())||null;
  const cards=ordered.map((t,i)=>{
-  const affordable=available>=Number(t.deposit_amount||0),selected=String(t.id)===String(p.selected_tier_id);
+  const affordable=available>=Number(t.deposit_amount||0),selected=!!current&&String(t.id)===String(current.id);
   const switchLocked=!!cycle&&!selected;
   return '<div class="card tr'+(selected?' sel':'')+'"><div class="md m'+(i%4+1)+'" style="margin:0">'+apIcon('crown')+'</div><div style="flex:1;min-width:0"><h3>'+esc(t.name)+'</h3><p>Required balance '+Number(t.deposit_amount||0).toFixed(2)+' USDT'+(Number(t.initial_profit||0)>0?' · Configured initial profit '+Number(t.initial_profit||0).toFixed(2)+' USDT':'')+'</p></div><div class="r">'+(selected?'<span class="bd ok">Current</span>':switchLocked?'<span class="bd">Cycle locked</span>':!affordable?'<span class="bd wa">Need '+Math.max(0,Number(t.deposit_amount||0)-available).toFixed(2)+' more</span>':'<button type="button" class="btn sm" data-tier-id="'+esc(t.id)+'">Select</button>')+'</div></div>';
  }).join('');
@@ -1057,7 +1058,7 @@ async function liveReferral(){
  document.getElementById('copyReferralCode').onclick=()=>copyTextToClipboard(String(p.referral_code||''),'Referral code copied.');
  document.getElementById('copyReferralLink').onclick=()=>copyTextToClipboard(location.origin+'/app/?ref='+encodeURIComponent(String(p.referral_code||'')),'Referral link copied.');
 }
-async function liveAssets(){const p=profile;app.innerHTML=top('Assets')+'<div class="card"><div class="donut"><div><b>'+Number(p.current_platform_balance||0).toFixed(2)+'</b><span>USDT</span></div></div><div class="sh"><span>Platform Balance</span><b>'+Number(p.current_platform_balance||0).toFixed(2)+'</b></div><div class="sh"><span>Principal</span><b>'+Number(p.principal_balance||0).toFixed(2)+'</b></div><div class="sh"><span>Profit</span><b>'+Number(p.profit_balance||0).toFixed(2)+'</b></div></div>'+nav('account')}
+async function liveAssets(){return liveAccount()}
 async function liveAccount(){
  const p=profile,displayName=formatName(p.display_name||p.name||'Client')||'Client',displayUsername=formatUsername(p.username||'');
  const available=Math.max(0,Number(p.current_platform_balance||0)-Number(p.withdrawal_held||0));
@@ -1269,7 +1270,7 @@ SC.forgot=()=>'<div class="ap-auth auth"><div class="atools"><button type="butto
 
 SC.reset=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_reset">Reset password</h1><p>Create a new password</p></div><div class="info"><svg class="i"><use href="#info"/></svg><div>A temporary security freeze may apply after a password reset.</div></div><form id="resetForm"><div class="fl">New password</div><input id="rp" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><div style="height:16px"></div><button class="btn" type="submit">Update password</button><div class="lnk"><a data-go="login">Back to login</a></div></form></div>';
 
-SC.signup=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_create">Create account</h1><p>Your Client ID is based on your username</p></div><form id="liveSignup"><div class="fl" data-i18n="a_full">Full name</div><input id="sn" autocomplete="name" required placeholder="Full name"><div class="fl">Username</div><input id="su" autocomplete="username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9_]{3,32}" placeholder="Choose a username"><div class="fl" data-i18n="a_email">Email</div><input id="se" type="email" autocomplete="email" required placeholder="you@email.com"><div class="fl" data-i18n="a_pass">Password</div><input id="sp" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><div class="fl" data-i18n="a_ref">Referral code (optional)</div><input id="sr" placeholder="Referral code"><div style="height:16px"></div><button class="btn" type="submit" data-i18n="a_create">Create account</button><div class="lnk"><span data-i18n="a_have">Already have an account?</span> <a data-go="login" data-i18n="a_login">Login</a></div></form></div>';
+SC.signup=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_create">Create account</h1><p>Your Client ID is based on your username</p></div><form id="liveSignup"><div class="fl" data-i18n="a_full">Full name</div><input id="sn" autocomplete="name" required placeholder="Full name"><div class="fl">Username</div><input id="su" autocomplete="username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9_]{3,32}" placeholder="Choose a username"><div class="fl" data-i18n="a_email">Email</div><input id="se" type="email" autocomplete="email" required placeholder="you@email.com"><div class="fl" data-i18n="a_pass">Password</div><input id="sp" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><div class="fl" data-i18n="a_ref">Referral code (optional)</div><input id="sr" value="'+esc(referralLinkCode||'')+'" placeholder="Referral code"><div style="height:16px"></div><button class="btn" type="submit" data-i18n="a_create">Create account</button><div class="lnk"><span data-i18n="a_have">Already have an account?</span> <a data-go="login" data-i18n="a_login">Login</a></div></form></div>';
 
 SC.verifyPending=(email)=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode" aria-label="Night mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang" aria-label="Change language"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1>Verify your <span class="gt">Email</span></h1><p>One final step before you can sign in</p></div><div class="card"><div style="text-align:center;font-size:42px;margin:4px 0 12px">✉️</div><h2 style="font-size:21px;text-align:center;display:block;margin:0 0 12px">Check your Gmail</h2><p class="mu" style="font-size:13px;line-height:1.6;text-align:center;margin:10px 0 18px">We sent a verification link to <b style="color:var(--hd)">'+esc(email)+'</b>. Open your email and tap <b style="color:var(--p2)">Verify Email</b>. You must verify your email before signing in.</p><button class="btn" id="resendVerify">Resend Verification Email</button><button class="btn o" style="margin-top:10px" onclick="go(\'login\')">I\'ve Verified — Sign In</button></div><div class="note" style="text-align:center">Check your Spam/Promotions folder if you do not see the email.</div></div>';
 const originalGo=window.go;
