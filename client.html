@@ -872,43 +872,76 @@ async function liveKyc(){
  };
 }
 async function liveWithdraw(){
- const p=profile,r=settings.withdrawal_rules||{};const b=Number(p.current_platform_balance||0);
- const k=await db.from('kyc_verifications').select('status,document_type,submitted_at,review_reason').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle();
- const ks=k.data?.status||null;
- if(ks!=='VERIFIED'){
-  const pending=ks==='PENDING_REVIEW'||ks==='MANUAL_REVIEW';
-  const walletBlock=p.destination_address?'<div class="card"><div class="sh" style="margin-top:0">Withdrawal Wallet Address (TRC20)<span class="chip">Linked · Locked</span></div><div class="in f">'+esc(p.destination_address)+'</div><div class="mu" style="font-size:11px;margin-top:-4px">This address is locked for the client. Only Master Admin can change it.</div></div>':'<div class="card"><div class="sh" style="margin-top:0">Withdrawal Wallet Address (TRC20)</div><div class="ap-field"><label>TRC20 Wallet Address</label><input id="withdrawWallet" type="text" autocomplete="off" placeholder="Enter TRC20 wallet address"></div><button class="btn o" id="linkWalletBtn">Link Wallet '+ic('link')+'</button><div class="mu" style="font-size:11px;margin-top:8px">After linking, this address will be locked. Only Master Admin can change it.</div></div>';
-  app.innerHTML=top('Withdraw')+walletBlock+'<div class="card"><div class="sh" style="margin-top:0">Identity Verification</div><p class="mu" style="font-size:12px;line-height:1.55;margin-bottom:14px">'+(pending?'Your verification is under secure review. Withdrawals will unlock after verification is completed.':'For your first withdrawal, complete identity verification. Choose CNIC and upload front + back, or Passport and upload the photo page.')+'</p>'+(!pending?'<div class="fl" style="margin-bottom:14px"><span class="on" id="cnicTab" onclick="setDocType(\'CNIC\')">CNIC</span><span id="passTab" onclick="setDocType(\'PASSPORT\')">Passport</span></div><input type="hidden" id="docType" value="CNIC"><label class="filepick">CNIC / Passport front<input id="kycFront" type="file" accept="image/*"></label><label class="filepick" id="kycBackWrap">CNIC back<input id="kycBack" type="file" accept="image/*"></label><label class="in" style="font-size:12px;cursor:pointer"><input id="kycConsent" type="checkbox" style="width:18px;height:18px"> I consent to secure identity-document review.</label><button class="btn" id="kycBtn">Submit Verification '+ic('arrow')+'</button>':'<div class="warn">'+ic('alert')+'<span>Verification pending. Please wait for the review result.</span></div>')+'</div>';
-  const showWithdrawNotice=function(message,type){const old=document.getElementById('withdrawNotice');if(old)old.remove();const el=document.createElement('div');el.id='withdrawNotice';el.style.cssText='display:flex;align-items:flex-start;gap:10px;margin:0 0 14px;padding:12px 14px;border-radius:14px;border:1px solid '+(type==='success'?'rgba(44,220,164,.35)':'rgba(255,78,112,.35)')+';background:'+(type==='success'?'rgba(44,220,164,.08)':'rgba(255,55,90,.08)')+';color:'+(type==='success'?'#72f0c1':'#ff7892')+';font-size:12px;line-height:1.5;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.16)';el.innerHTML='<span style="font-size:16px;line-height:1">'+(type==='success'?'✓':'!')+'</span><span>'+esc(String(message||''))+'</span>';const card=document.querySelector('.card');if(card)card.parentNode.insertBefore(el,card);};
-  if(!p.destination_address){linkWalletBtn.onclick=async()=>{try{const wallet=withdrawWallet.value.trim();if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address');const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});if(rr.error)throw rr.error;profile.destination_address=wallet;profile.withdrawal_wallet_owner_name=profile.name;showWithdrawNotice('Withdrawal wallet linked and locked.','success');liveWithdraw()}catch(e){showWithdrawNotice(e.message||'Unable to link wallet','error')}};}
-  if(!pending){window.setDocType=function(type){docType.value=type;cnicTab.classList.toggle('on',type==='CNIC');passTab.classList.toggle('on',type==='PASSPORT');kycBackWrap.style.display=type==='CNIC'?'flex':'none';kycFront.accept='image/*';};kycBtn.onclick=async()=>{kycBtn.disabled=true;kycBtn.style.opacity='.65';try{const type=docType.value,front=kycFront.files[0],back=kycBack.files[0];if(!front)throw Error('Front image is required.');if(type==='CNIC'&&!back)throw Error('CNIC back image is required.');if(!kycConsent.checked)throw Error('Please provide verification consent.');const base=authUser.id+'/kyc/';const ext=f=>(f.name.split('.').pop()||'jpg').toLowerCase();const fp=base+crypto.randomUUID()+'.'+ext(front);let bp='';const u1=await db.storage.from('private-verification').upload(fp,front,{contentType:front.type||'image/jpeg'});if(u1.error)throw u1.error;if(type==='CNIC'){bp=base+crypto.randomUUID()+'.'+ext(back);const u2=await db.storage.from('private-verification').upload(bp,back,{contentType:back.type||'image/jpeg'});if(u2.error)throw u2.error;}const rr=await db.functions.invoke('submit-kyc',{body:{documentType:type,frontPath:fp,backPath:bp,processingConsent:true}});if(rr.error){const msg=rr.error.message||'KYC submission could not be completed.';if(String(msg).toLowerCase().includes('still in progress'))throw Error('Your CNIC verification is already under review. You do not need to submit it again.');throw rr.error;}showWithdrawNotice(rr.data?.message||'Verification submitted successfully.','success');setTimeout(liveWithdraw,900)}catch(e){showWithdrawNotice(e.message||'Verification failed. Please try again.','error')}finally{kycBtn.disabled=false;kycBtn.style.opacity='1'}};}
-  return;
+ const p=profile,r=settings.withdrawal_rules||{},balance=Number(p.current_platform_balance||0),held=Math.max(0,Number(p.withdrawal_held||0)),available=Math.max(0,balance-held);
+ const minAmount=Math.max(0,Number(r.minimum||50));
+ const [kycRes,historyRes]=await Promise.all([
+  db.from('kyc_verifications').select('status,document_type,submitted_at,review_reason').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle(),
+  db.from('withdrawal_requests').select('amount,status,created_at,net_amount').eq('user_id',p.id).order('created_at',{ascending:false}).limit(30)
+ ]);
+ if(kycRes.error||historyRes.error){uiNotice('Unable to load withdrawal information right now. Please try again.','error');return}
+ const ks=String(kycRes.data?.status||'').toUpperCase(),verified=ks==='VERIFIED',pending=['PENDING_REVIEW','MANUAL_REVIEW','IN_REVIEW'].includes(ks);
+ const walletValue=p.destination_address?esc(p.destination_address):'Not linked';
+ const walletCard=p.destination_address?
+  '<div class="card"><div class="row"><b>Destination wallet (TRON)</b><span class="bd ok">Linked · Locked</span></div><div class="addr" style="margin-top:12px"><span style="flex:1">'+esc(p.destination_address)+'</span>'+apIcon('lock')+'</div><div class="note">The linked withdrawal wallet cannot be changed from the client app. Only an authorized Master Admin workflow can update it.</div></div>':
+  '<div class="card"><div class="fl" style="margin-top:0">Destination wallet (TRON / TRC20)</div><input id="withdrawWallet" autocomplete="off" placeholder="T..."><div class="note">After linking, this address is locked. Only an authorized Master Admin workflow can change it.</div><div style="height:12px"></div><button class="btn o" type="button" id="linkWalletBtn">Link wallet '+apIcon('wallet')+'</button></div>';
+ const requests=(historyRes.data||[]).map(w=>'<div class="rw"><div class="t '+(/PAID|APPROVED|COMPLETED/i.test(String(w.status||''))?'cr':'nt')+'">'+apIcon('wd')+'</div><div class="m"><b>Withdrawal request</b><small>'+esc(new Date(w.created_at).toLocaleString())+' · '+esc(w.status||'Pending')+'</small></div><div class="v">'+Number(w.amount||0).toFixed(2)+'<small>USDT</small></div></div>').join('');
+ app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_wd">Withdraw</h1><div class="sp"></div><button class="ib" data-a="mode">'+apIcon('moon')+'</button></div>'+
+  '<div class="card big"><small>Available to withdraw</small><div class="n"><span class="bv">'+available.toFixed(2)+'</span> USDT</div><div class="two"><div><small>Held (pending)</small><b class="hv">'+held.toFixed(2)+'</b></div><div><small>Wallet</small><b id="wst">'+(p.destination_address?'Linked':'Not linked')+'</b></div></div></div>'+
+  '<div class="info">'+apIcon('info')+'<div>Withdrawal requests are validated by server-side balance, fee and eligibility rules. Requests can be sent for AI review and Master Admin approval; a transfer is only shown as paid after the payout service confirms it. Current minimum: <b>'+minAmount.toFixed(2)+' USDT</b>.</div></div>'+
+  walletCard+
+  (verified?
+   '<div class="card"><div class="fl" style="margin-top:0">Amount (USDT) <a id="wmax" role="button" tabindex="0">Max</a></div><input id="wa" type="number" min="'+minAmount+'" max="'+available.toFixed(2)+'" step="0.01" inputmode="decimal" placeholder="0.00"><div class="note">Available balance excludes held withdrawal funds. The server checks your final amount, wallet and policy limits.</div><div style="height:16px"></div><button class="btn" id="wsub" type="button">Request withdrawal '+apIcon('chev')+'</button></div>':
+   '<div class="card"><div class="row"><b>Identity verification</b>'+(verified?'<span class="bd ok">Verified</span>':pending?'<span class="bd wa">Under review</span>':'<span class="bd">Required</span>')+'</div><p class="note">'+(pending?'Your KYC documents are under review. Withdrawals unlock after an approved verification.':ks==='REJECTED'?'Your previous verification was not approved. Review the reason shown in KYC and submit updated evidence.':'Complete KYC before making a withdrawal request.')+'</p>'+(kycRes.data?.review_reason?'<div class="info">'+apIcon('info')+'<div>'+esc(kycRes.data.review_reason)+'</div></div>':'')+'<div style="height:12px"></div><button class="btn" type="button" id="goKyc">'+(pending?'View KYC status':'Complete KYC')+' '+apIcon('chev')+'</button></div>')+
+  '<h2><b>Withdrawal requests</b></h2><div class="card list" id="withdrawalHistory">'+(requests||'<div class="empty">No withdrawal requests yet.</div>')+'</div>'+
+  '<div class="note">Flow: Request → server validation / AI review → Master Admin approval when required → payout gate → audit record.</div>'+nav('home')+'</div>';
+
+ async function linkWallet(){
+  try{
+   const field=document.getElementById('withdrawWallet');
+   const wallet=String(field?.value||'').trim();
+   if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address.');
+   const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});
+   if(rr.error)throw rr.error;
+   profile.destination_address=wallet;profile.withdrawal_wallet_owner_name=profile.name;
+   uiNotice('Withdrawal wallet linked and locked.','success');await liveWithdraw();
+  }catch(err){uiNotice(err.message||'Unable to link wallet.','error')}
  }
- app.innerHTML=top('Withdraw')+'<div class="card" style="text-align:center"><small class="mu">Available balance</small><h2 style="font-size:32px;margin:4px 0">'+b.toFixed(2)+' <span class="mu" style="font-size:15px">USDT</span></h2></div><div class="card"><div class="ap-field"><label>Withdrawal amount</label><input id="wAmount" type="number" min="'+(r.minimum||50)+'" step=".01" placeholder="Enter amount"></div><div class="ap-field"><label>Withdrawal Wallet Address (TRC20)</label>'+(p.destination_address?'<div class="in f">'+esc(p.destination_address)+'<span class="chip">Linked · Locked</span></div><div class="mu" style="font-size:11px;margin:-4px 0 12px">This wallet cannot be changed from the client portal. Only Master Admin can change it.</div>':'<input id="withdrawWallet" type="text" autocomplete="off" placeholder="Enter TRC20 wallet address"><button class="btn o" id="linkWalletBtn" style="margin-top:8px">Link Wallet '+ic('link')+'</button><div class="mu" style="font-size:11px;margin:8px 0 12px">After linking, this address will be locked. Only Master Admin can change it.</div>')+'</div><button class="btn" id="wBtn">Request Withdrawal '+ic('arrow')+'</button></div>';
-if(!p.destination_address){linkWalletBtn.onclick=async()=>{try{const wallet=withdrawWallet.value.trim();if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet))throw Error('Enter a valid TRC20 wallet address');const rr=await db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name});if(rr.error)throw rr.error;profile.destination_address=wallet;profile.withdrawal_wallet_owner_name=profile.name;uiNotice('Withdrawal wallet linked and locked.');liveWithdraw()}catch(e){uiNotice(e.message||'Unable to link wallet')}};}
-wBtn.onclick=async()=>{try{
- if(!profile.destination_address)throw Error('Link your withdrawal wallet first.');
- const a=Number(wAmount.value);const x=await db.rpc('request_withdrawal',{p_amount:a});if(x.error)throw x.error;
- let aiDecision=null,aiMessage='';
- try{
-   const ar=await db.functions.invoke('withdrawal-ai-review',{body:{action:'review',withdrawalId:x.data}});
-   if(ar.error)throw ar.error;
-   aiDecision=ar.data||null;
- }catch(aiError){aiMessage=String(aiError&&aiError.message||'AI review is unavailable.');}
- if(aiDecision&&aiDecision.decision==='AUTO_APPROVED'){
-   const payout=await db.functions.invoke('execute-payout',{body:{withdrawalId:x.data}});
-   if(!payout.error&&payout.data&&payout.data.status==='PAID'){
-     go('home');uiNotice('Aegis AI approved the low-risk withdrawal and the payout was confirmed.','success');return;
+ const linkBtn=document.getElementById('linkWalletBtn');if(linkBtn)linkBtn.onclick=linkWallet;
+ const kycBtn=document.getElementById('goKyc');if(kycBtn)kycBtn.onclick=()=>window.go('kyc');
+ const maxBtn=document.getElementById('wmax');if(maxBtn){const fill=()=>{const field=document.getElementById('wa');if(field)field.value=available.toFixed(2)};maxBtn.onclick=fill;maxBtn.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fill()}}}
+ const submit=document.getElementById('wsub');
+ if(submit)submit.onclick=async()=>{
+  try{
+   if(!verified)throw Error('Complete identity verification before requesting a withdrawal.');
+   if(!p.destination_address)throw Error('Link your withdrawal wallet first.');
+   const amount=Number(document.getElementById('wa')?.value);
+   if(!Number.isFinite(amount)||amount<=0)throw Error('Enter a valid withdrawal amount.');
+   if(amount<minAmount)throw Error('Minimum withdrawal amount is '+minAmount.toFixed(2)+' USDT.');
+   if(amount>available)throw Error('Amount exceeds your available balance of '+available.toFixed(2)+' USDT.');
+   submit.disabled=true;submit.textContent='Submitting…';
+   const x=await db.rpc('request_withdrawal',{p_amount:amount});if(x.error)throw x.error;
+   let aiDecision=null,aiMessage='';
+   try{
+    const ar=await db.functions.invoke('withdrawal-ai-review',{body:{action:'review',withdrawalId:x.data}});
+    if(ar.error)throw ar.error;
+    aiDecision=ar.data||null;
+   }catch(aiError){aiMessage=String(aiError&&aiError.message||'AI review is unavailable.')}
+   if(aiDecision&&aiDecision.decision==='AUTO_APPROVED'){
+    const payout=await db.functions.invoke('execute-payout',{body:{withdrawalId:x.data}});
+    if(!payout.error&&payout.data&&payout.data.status==='PAID'){
+     await window.go('home');uiNotice('Aegis AI approved the low-risk withdrawal and the payout was confirmed.','success');return;
+    }
+    await window.go('home');uiNotice('Aegis AI approved this request, but transfer needs reconciliation: '+String((payout.data&&payout.data.error)||(payout.error&&payout.error.message)||'Check withdrawal status in Activity.'),'info');return;
    }
-   go('home');uiNotice('Aegis AI approved this request, but transfer needs reconciliation: '+String((payout.data&&payout.data.error)||(payout.error&&payout.error.message)||'Check withdrawal status in Activity.'),'info');return;
- }
- const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});
- go('home');
- if(tg.error)uiNotice('Withdrawal submitted for Master Admin review, but Telegram alert failed to send.','info');
- else if(aiDecision&&aiDecision.requiresManualReview)uiNotice('Withdrawal sent to Master Admin review. AI confidence: '+Number(aiDecision.confidence||0).toFixed(2)+'. Reason: '+String(aiDecision.reason||aiDecision.decision||'Manual review required')+'.','success');
- else if(aiMessage)uiNotice('Withdrawal submitted for Master Admin review; AI review was unavailable.','info');
- else uiNotice('Withdrawal submitted and sent for Master Admin approval.','success');
- }catch(e){uiNotice(e.message||'Withdrawal failed')} };
+   const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});
+   await window.go('home');
+   if(tg.error)uiNotice('Withdrawal submitted for Master Admin review, but Telegram alert failed to send.','info');
+   else if(aiDecision&&aiDecision.requiresManualReview)uiNotice('Withdrawal sent to Master Admin review. AI confidence: '+Number(aiDecision.confidence||0).toFixed(2)+'. Reason: '+String(aiDecision.reason||aiDecision.decision||'Manual review required')+'.','success');
+   else if(aiMessage)uiNotice('Withdrawal submitted for Master Admin review; AI review was unavailable.','info');
+   else uiNotice('Withdrawal submitted and sent for Master Admin approval.','success');
+  }catch(err){uiNotice(err.message||'Withdrawal failed.','error')}
+  finally{submit.disabled=false;submit.innerHTML='Request withdrawal '+apIcon('chev')}
+ };
 }
 async function recordClientAccess(eventType){
   try{
