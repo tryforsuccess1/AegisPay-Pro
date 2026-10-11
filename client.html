@@ -1557,6 +1557,7 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
   },0);
   return;
 }
+if(qs.get('auth-preview')==='1'){window.go((qs.get('signup')==='1'||referralLinkCode)?'signup':'login');return}
 const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}recordClientAccess('APP_OPEN');return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login')}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
