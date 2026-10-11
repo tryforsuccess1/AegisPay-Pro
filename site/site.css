@@ -1,4 +1,4 @@
-:root{--navy:#07090d;--navy2:#12151b;--blue:#ff2f2f;--cyan:#ff4b4b;--violet:#8f1724;--white:#f4f5f7;--muted:#a7adb7;--line:rgba(255,255,255,.1)}
+:root{--navy:#faf5ec;--navy2:#fff;--blue:#f06a4d;--cyan:#c94b8a;--violet:#c94b8a;--white:#4a3a2c;--muted:#8a7a68;--line:rgba(60,40,20,.1)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;color:var(--white);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(900px 520px at 82% 5%,rgba(255,47,47,.14),transparent 60%),radial-gradient(800px 560px at 20% 22%,rgba(143,23,36,.20),transparent 62%),linear-gradient(180deg,#07090d 0%,#0d1015 42%,#090b10 100%);overflow-x:hidden}
 a{color:inherit;text-decoration:none}.bg-glow{position:fixed;border-radius:50%;filter:blur(90px);pointer-events:none;z-index:0}.glow-a{width:340px;height:340px;background:rgba(255,47,47,.10);right:-120px;top:340px}.glow-b{width:380px;height:380px;background:rgba(143,23,36,.09);left:-140px;bottom:180px}
 .topbar{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:26px;padding:18px clamp(18px,4vw,56px);backdrop-filter:blur(18px);background:rgba(6,18,43,.72);border-bottom:1px solid rgba(255,255,255,.07)}.brand{display:flex;align-items:center;gap:10px;font-size:25px;font-weight:950;letter-spacing:-1px}.brand img{width:40px;height:40px}.brand span span{color:var(--cyan)}nav{display:flex;gap:28px;color:#afc2df;font-size:13px}nav a:hover{color:#fff}.top-cta,.primary-cta,.secondary-cta{border-radius:14px;font-weight:900}.top-cta{padding:11px 15px;background:rgba(255,255,255,.08);border:1px solid var(--line);font-size:12px}
@@ -10,3 +10,30 @@ h1{font-size:clamp(46px,7vw,86px);line-height:.98;letter-spacing:-4.5px;margin:2
 .download-section{text-align:center}.download-copy{max-width:700px;margin:0 auto}.download-card{max-width:760px;margin:24px auto 0;padding:21px;border-radius:25px;border:1px solid rgba(255,255,255,.1);background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025));display:flex;align-items:center;justify-content:space-between;gap:18px;text-align:left}.download-meta{display:flex;flex-direction:column;gap:5px}.download-badge{display:inline-flex;align-self:flex-start;padding:6px 8px;border-radius:999px;background:rgba(255,47,47,.1);color:#ff6b6b;font-size:8px;font-weight:900;letter-spacing:1px}.download-meta strong{font-size:18px}.download-meta small{font-size:9px;color:#879dbe;max-width:360px}.wide{min-width:205px}.admin-link{margin-top:13px;font-size:9px;color:#7088ad}.admin-link a{color:#9fb9df;text-decoration:underline}.footer{position:relative;z-index:1;max-width:1120px;margin:0 auto;padding:25px 24px 42px;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid rgba(255,255,255,.08);color:#7187aa;font-size:9px}.footer a{color:#9bb6d8}
 @media(max-width:900px){nav{display:none}.feature-grid{grid-template-columns:1fr 1fr}.security-card{grid-template-columns:1fr}.download-card{flex-direction:column;align-items:stretch}.wide{width:100%}}
 @media(max-width:640px){.topbar{padding:14px 15px}.top-cta{font-size:10px;padding:9px 11px}.hero{padding:62px 16px 48px}h1{letter-spacing:-2.6px}.hero-copy{font-size:13px}.hero-device{height:390px;margin-top:36px}.phone{transform:scale(.8) perspective(1000px) rotateY(-6deg);transform-origin:bottom center}.section-block{padding:58px 16px}.feature-grid{grid-template-columns:1fr}.section-block h2{letter-spacing:-1.7px}.footer{padding-left:16px;padding-right:16px}}
+
+
+/* Sunrise Cream palette adapted from the supplied AegisPay – Sunrise Cream reference. */
+:root{--navy:#faf5ec;--navy2:#fff;--blue:#f06a4d;--cyan:#c94b8a;--violet:#c94b8a;--white:#4a3a2c;--muted:#8a7a68;--line:rgba(60,40,20,.1)}
+body{color:#4a3a2c!important;background:radial-gradient(520px 320px at 92% -4%,rgba(255,154,118,.23),transparent),radial-gradient(420px 300px at -10% 42%,rgba(201,75,138,.07),transparent),#faf5ec!important}
+.topbar{background:rgba(255,255,255,.92)!important;border-bottom-color:rgba(60,40,20,.1)!important;box-shadow:0 8px 24px -14px rgba(120,70,30,.2)}
+nav{color:#8a7a68!important}nav a:hover{color:#f06a4d!important}
+.top-cta,.secondary-cta{background:#fff!important;border:1px solid rgba(60,40,20,.1)!important;color:#4a3a2c!important}
+.hero h1 span{background:linear-gradient(90deg,#f06a4d,#c94b8a)!important;-webkit-background-clip:text!important;background-clip:text!important;color:transparent!important}
+.hero-copy,.feature-grid p,.security-card p,.download-copy{color:#8a7a68!important}
+.eyebrow,.section-kicker{color:#c94b8a!important}.eyebrow{background:#fff!important;border-color:rgba(60,40,20,.1)!important}
+.primary-cta{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;box-shadow:0 14px 30px rgba(240,106,77,.20)!important;color:#fff!important}
+.pulse{background:#c94b8a!important;box-shadow:0 0 0 6px rgba(201,75,138,.10)!important}
+.hero-trust,.footer,.footer a,.download-meta small,.admin-link,.hero-trust span{color:#8a7a68!important}
+.feature-grid article,.download-card,.security-card{background:#fff!important;border:1px solid rgba(60,40,20,.1)!important;box-shadow:0 8px 24px -14px rgba(120,70,30,.25)!important}
+.feature-grid h3,.security-card h2,.download-meta strong{color:#2b1d12!important}
+.icon{background:linear-gradient(135deg,rgba(240,106,77,.13),rgba(201,75,138,.13))!important;color:#c94b8a!important}
+.security-metrics div{background:#f3ebdd!important;border-color:rgba(60,40,20,.1)!important}
+.security-metrics b,.brand span span{color:#f06a4d!important}
+.phone{background:linear-gradient(150deg,#fff,#f3ebdd)!important;box-shadow:0 22px 55px rgba(120,70,30,.22),inset 0 0 0 1px rgba(60,40,20,.1)!important}
+.phone-notch{background:#2b1d12!important}.phone-screen{background:linear-gradient(180deg,#faf5ec,#fff 56%)!important}
+.screen-top{color:#4a3a2c!important}.mini-brand span{color:#c94b8a!important}
+.screen-pill{background:#f3ebdd!important;color:#8a7a68!important}
+.balance-card{background:linear-gradient(135deg,#ff9a76,#ff6b6b 55%,#c94b8a)!important}
+.mini-grid>div,.mini-panel{background:#fff!important;border-color:rgba(60,40,20,.1)!important;color:#4a3a2c!important}
+.mini-grid b{color:#2b1d12!important}.mini-progress{background:#f3ebdd!important}.mini-progress span{background:linear-gradient(90deg,#f06a4d,#c94b8a)!important}
+.footer{border-top-color:rgba(60,40,20,.1)!important}
