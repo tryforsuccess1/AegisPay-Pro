@@ -99,16 +99,16 @@ def ensureSupabaseSdk = tasks.register('ensureSupabaseSdk') {
     }
 }
 
-def verifyCanonicalAuroraClientUi = tasks.register('verifyCanonicalAuroraClientUi') {
+def verifyCanonicalSunriseClientUi = tasks.register('verifyCanonicalSunriseClientUi') {
     doLast {
         def clientFile = new File(webRoot, 'client.html')
         if (!clientFile.exists()) {
-            throw new GradleException('Canonical Aurora client.html is missing.')
+            throw new GradleException('Canonical client.html is missing.')
         }
         byte[] bytes = clientFile.bytes
         def html = new String(bytes, 'UTF-8')
-        def requiredAuroraMarkers = [
-            '<title>AegisPay – Aurora UI</title>',
+        def requiredClientUiMarkers = [
+            '<title>AegisPay – Sunrise Cream</title>',
             'Select a tier',
             'Activate Selected Tier',
             'Submit Deposit',
@@ -119,9 +119,9 @@ def verifyCanonicalAuroraClientUi = tasks.register('verifyCanonicalAuroraClientU
             'Secure &amp; Verified',
             '© 2023–2026 AegisPay'
         ]
-        def missingAuroraMarkers = requiredAuroraMarkers.findAll { marker -> !html.contains(marker) }
-        if (!missingAuroraMarkers.isEmpty()) {
-            throw new GradleException('Client UI guard failed: missing required Aurora markers: ' + missingAuroraMarkers.join(', '))
+        def missingClientUiMarkers = requiredClientUiMarkers.findAll { marker -> !html.contains(marker) }
+        if (!missingClientUiMarkers.isEmpty()) {
+            throw new GradleException('Client UI guard failed: missing required Client UI markers: ' + missingClientUiMarkers.join(', '))
         }
         if (html.contains('aegispay-client1.netlify.app') || html.contains('aegispay-ali-archive.netlify.app')) {
             throw new GradleException('Client UI guard failed: legacy Netlify client references remain.')
@@ -158,11 +158,11 @@ def syncAdminAegisPayWebAssets = tasks.register('syncAdminAegisPayWebAssets', Co
     into(layout.projectDirectory.dir('src/admin/assets/aegispay'))
 }
 
-tasks.named('syncClientAegisPayWebAssets').configure { dependsOn(verifyCanonicalAuroraClientUi) }
+tasks.named('syncClientAegisPayWebAssets').configure { dependsOn(verifyCanonicalSunriseClientUi) }
 
 tasks.named('preBuild').configure {
     dependsOn(ensureSupabaseSdk)
-    dependsOn(verifyCanonicalAuroraClientUi)
+    dependsOn(verifyCanonicalSunriseClientUi)
     dependsOn(syncClientAegisPayWebAssets)
     dependsOn(syncAdminAegisPayWebAssets)
 }
