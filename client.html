@@ -1783,64 +1783,7 @@ bindTaskDelegation();window.liveLogout=liveLogout;updateNotificationBadge();boot
 </script>
 <script src="./app-update.js"></script>
 
-<style id="sunrise-theme-overrides">
-:root{--bg:#faf5ec;--v:#c94b8a;--c:#f06a4d;--m:#1a9a6e;--a:#d98a1a;--r:#d63a4a;--t:#4a3a2c;--mu:#8a7a68;--ln:rgba(60,40,20,.1);--g:linear-gradient(135deg,#f06a4d,#c94b8a);--sun-surface:#fff;--sun-surface-2:#f3ebdd;--sun-shadow:0 8px 24px -14px rgba(120,70,30,.4)}
-*{font-family:"Plus Jakarta Sans",Sora,system-ui,sans-serif!important}
-html,body{background:radial-gradient(520px 320px at 92% -4%,rgba(255,154,118,.28),transparent),radial-gradient(420px 300px at -10% 42%,rgba(201,75,138,.08),transparent),var(--bg)!important;color:var(--t)}
-#app{background:radial-gradient(520px 320px at 92% -4%,rgba(255,154,118,.18),transparent),radial-gradient(420px 300px at -10% 42%,rgba(201,75,138,.06),transparent),var(--bg)!important;color:var(--t)!important}
-.tb b,.ib,.p2-ai-mini{background:rgba(255,255,255,.88)!important;color:var(--t)!important;border:1px solid var(--ln)!important;box-shadow:var(--sun-shadow)!important}
-.card,.p2-card,.p2-mini,.p2-action,.p2-wallet,.ap-secure .badge,.activity-history{background:var(--sun-surface)!important;color:var(--t)!important;border-color:var(--ln)!important;box-shadow:var(--sun-shadow)!important}
-.card .mu,.p2-card .mu,.p2-card small,.p2-mini small,.p2-action small,.p2-wallet code,.ap-secure .copy{color:var(--mu)!important;-webkit-text-fill-color:var(--mu)!important}
-.card h2,.card h3,.p2-card h2,.p2-card h3,.p2-card b,.p2-mini b,.p2-action,.p2-wallet,.kv b,.row,.row>div,.row em,.sh,.p2-head h2{color:var(--t)!important}
-.p2-balance,.hero,.promo,.big{background:radial-gradient(85% 90% at 92% 0,rgba(255,240,200,.45),transparent 56%),linear-gradient(135deg,#ff9a76,#ff6b6b 55%,#c94b8a)!important;border-color:rgba(201,75,138,.18)!important;box-shadow:0 18px 34px -22px rgba(201,75,138,.42)!important;color:#fff!important}
-.p2-balance h2,.p2-balance .sub,.p2-balance small,.hero h2,.hero small,.big small,.big .n,.promo,.promo b{color:#fff!important;-webkit-text-fill-color:#fff!important}
-.p2-stat{background:rgba(255,255,255,.16)!important;border-color:rgba(255,255,255,.35)!important;color:#fff!important}
-.p2-stat b,.p2-stat small{color:#fff!important;-webkit-text-fill-color:#fff!important}
-.p2-progress{background:#f3ebdd!important}.p2-progress i,.pb i{background:linear-gradient(90deg,#f06a4d,#c94b8a)!important}
-.p2-step .n{background:#f3ebdd!important;color:#4a3a2c!important}
-.p2-status{background:#fff6ee!important;border-color:rgba(240,106,77,.2)!important}
-.p2-status.green{background:#eafaf3!important;border-color:rgba(26,154,110,.25)!important}
-.p2-status.error{background:#fff0f1!important;border-color:rgba(214,58,74,.22)!important}
-.p2-ai{background:linear-gradient(135deg,rgba(240,106,77,.10),rgba(201,75,138,.07))!important;border-color:rgba(201,75,138,.2)!important;color:var(--t)!important}
-.p2-ai .orb,.p2-actions .p2-action i{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important}
-.in,.p2-wallet,input,select,textarea,.ai-composer{background:#fff!important;color:var(--t)!important;border-color:var(--ln)!important}
-input::placeholder,textarea::placeholder,.ai-composer input::placeholder{color:#a29280!important;-webkit-text-fill-color:#a29280!important}
-input:focus,select:focus,textarea:focus{border-color:rgba(240,106,77,.65)!important;box-shadow:0 0 0 3px rgba(240,106,77,.1)!important}
-.ai-composer{box-shadow:0 8px 24px -14px rgba(120,70,30,.4)!important}
-.ai-composer button,.btn,.p2-ai .orb{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;color:#fff!important;box-shadow:0 10px 22px -12px rgba(240,106,77,.6)!important}
-.btn.o{background:#fff!important;color:#c94b8a!important;border:1px solid rgba(201,75,138,.32)!important;box-shadow:none!important}
-.btn.m{background:linear-gradient(135deg,#1a9a6e,#48b98f)!important;color:#fff!important}
-nav{background:rgba(255,255,255,.94)!important;border:1px solid var(--ln)!important;box-shadow:0 12px 32px -18px rgba(120,70,30,.45)!important;backdrop-filter:blur(18px)!important}
-nav a,nav button{color:var(--mu)!important}
-nav a.on,nav .cur{background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;color:#fff!important;box-shadow:0 8px 18px -6px rgba(240,106,77,.55)!important}
-.app-notice{color:var(--t)!important;background:#fff!important;border:1px solid var(--ln)!important}
-.app-notice.success{background:#eafaf3!important;color:#176747!important;border-color:rgba(26,154,110,.22)!important}
-.app-notice.error{background:#fff0f1!important;color:#9f2635!important;border-color:rgba(214,58,74,.22)!important}
-.notif-card,.activity-history,.p2-history-list{background:#fff!important;color:var(--t)!important;border-color:var(--ln)!important}
-.notif-card .ntitle,.notif-card .ntext,.notif-card .ntime,.p2-history-list,.p2-history-list *{color:var(--t)!important;-webkit-text-fill-color:var(--t)!important}
-.notif-card .ntime,.notif-card .ntext,.p2-history-list small{color:var(--mu)!important;-webkit-text-fill-color:var(--mu)!important}
-.p2-history-list [style*="#4a3a2c"]{color:var(--t)!important;-webkit-text-fill-color:var(--t)!important}
-.ap-auth.sunrise-login{min-height:calc(100dvh - 24px);padding:30px 0 28px;justify-content:flex-start;gap:0}
-.sunrise-auth-head{text-align:center;margin:0 auto 21px;width:100%}
-.sunrise-auth-head>svg{display:block;width:64px;height:75px;margin:0 auto 3px;filter:drop-shadow(0 10px 13px rgba(240,106,77,.3))}
-.sunrise-auth-head h1{font-family:"Plus Jakarta Sans",sans-serif!important;font-size:28px!important;font-weight:700!important;letter-spacing:-.6px!important;text-align:center;margin:0!important;color:#2b1d12!important}
-.sunrise-auth-head p{margin:5px 0 0!important;font-size:13px!important;color:#8a7a68!important;text-align:center}
-.ap-auth.sunrise-login .sunrise-login-card{margin:0 0 12px!important;padding:20px 17px!important;border:1px solid var(--ln)!important;border-radius:20px!important;background:#fff!important;box-shadow:var(--sun-shadow)!important}
-.ap-auth.sunrise-login .ap-field{margin-bottom:13px}
-.ap-auth.sunrise-login .ap-field label{display:flex;justify-content:space-between;align-items:center;font-size:12px;font-weight:700;color:#4a3a2c;margin:0 2px 7px}
-.ap-auth.sunrise-login .ap-field input{min-height:50px;border-radius:14px!important;padding:0 14px!important;background:#fff!important;border:1.5px solid var(--ln)!important;color:#2b1d12!important;-webkit-text-fill-color:#2b1d12!important;font:600 14px "Plus Jakarta Sans",sans-serif!important}
-.ap-auth.sunrise-login .ap-field input::placeholder{color:#a29280!important;-webkit-text-fill-color:#a29280!important}
-.ap-auth.sunrise-login .ap-field input:focus{border-color:#f06a4d!important;box-shadow:0 0 0 3px rgba(240,106,77,.10)!important}
-.sunrise-forgot{font-size:12px;color:#f06a4d;cursor:pointer;font-weight:700}
-.sunrise-login .btn{margin-top:3px;min-height:50px;border-radius:15px!important;font:700 14px "Plus Jakarta Sans",sans-serif!important;background:linear-gradient(135deg,#f06a4d,#c94b8a)!important;color:#fff!important;box-shadow:0 12px 22px -12px rgba(240,106,77,.55)!important}
-.sunrise-signup{display:flex;justify-content:center;gap:5px;margin-top:16px;font-size:13px;color:#8a7a68}
-.sunrise-signup a{color:#f06a4d;font-weight:700;cursor:pointer}
-.sunrise-verified{display:flex;align-items:center;gap:9px;padding:12px 14px;margin:0 0 14px;border-radius:14px;background:#eafaf3;border:1px solid rgba(26,154,110,.25);color:#176747;font-size:12px;font-weight:700}
-.sunrise-secure{margin:22px 0 8px;gap:9px}
-.sunrise-secure .badge{background:#fff!important;border:1px solid var(--ln)!important;border-radius:16px!important;box-shadow:var(--sun-shadow)!important;color:var(--t)!important}
-.sunrise-secure .badge strong{color:#2b1d12!important}.sunrise-secure .badge small,.sunrise-secure .copy{color:#8a7a68!important;-webkit-text-fill-color:#8a7a68!important}
-@media(max-width:430px){.ap-auth.sunrise-login{padding-top:28px}.sunrise-auth-head{margin-bottom:18px}}
-</style>
+
 <script>
 /* Exact Sunrise Cream mode/language controls, isolated from demo financial logic. */
 var apLang='en',AP_LANG={
