@@ -194,6 +194,8 @@ const gradleSource=fs.readFileSync('android/app/build.gradle','utf8');
 assert(gradleSource.includes("include 'app-version.json'"),'Android client build must bundle app-version.json');
 assert(fs.readFileSync('_redirects','utf8').includes('/app /app/ 301')&&fs.readFileSync('_redirects','utf8').includes('/app/ /app/home.html 200'),'Canonical app redirect missing');
 
+const signupSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
+
 const functions=[
   'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset',
   'public-signup','submit-deposit','submit-kyc','telegram-withdrawal','verify-deposit','username-login','withdrawal-ai-review','record-user-access'
@@ -214,6 +216,9 @@ assert(client.includes('encodeURIComponent(wallet)'),'Active deposit flow must e
 assert(!client.includes('DEPOSIT_QR')&&!client.includes('TPr8f6Qx2J9mN4kR7vY8sZmU'),'Legacy deposit UI must not contain a hard-coded QR or receiving address');
 assert(!client.includes('globalActivityFeed')&&!client.includes('aegisActivityTicker')&&!client.includes("Olivia - UK"),'Client must not show simulated deposits/withdrawals as real user activity');
 assert(!client.includes('timed demo activity ticker'),'Legacy code comments must not advertise the removed simulated ticker as active functionality');
+
+assert(signupSource.includes('pruneExpiredRateLimits(now)'), 'Public signup must periodically prune expired in-memory rate-limit keys');
+assert(signupSource.includes('now - lastSeen >= 15_000') && signupSource.includes('now - lastSeen >= 60_000'), 'Signup rate-limit cleanup must preserve existing IP and email cooldown windows');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
