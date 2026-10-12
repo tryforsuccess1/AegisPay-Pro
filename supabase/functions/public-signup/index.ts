@@ -18,6 +18,19 @@ function json(body: unknown, status = 200) {
 
 const ipLastSeen = new Map<string, number>();
 const emailLastSeen = new Map<string, number>();
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 15_000;
+let lastRateLimitCleanupAt = 0;
+
+function pruneExpiredRateLimits(now: number) {
+  if (now - lastRateLimitCleanupAt < RATE_LIMIT_CLEANUP_INTERVAL_MS) return;
+  for (const [key, lastSeen] of ipLastSeen) {
+    if (now - lastSeen >= 15_000) ipLastSeen.delete(key);
+  }
+  for (const [key, lastSeen] of emailLastSeen) {
+    if (now - lastSeen >= 60_000) emailLastSeen.delete(key);
+  }
+  lastRateLimitCleanupAt = now;
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -46,6 +59,7 @@ Deno.serve(async (req: Request) => {
 
     const ip = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown").split(",")[0].trim();
     const now = Date.now();
+    pruneExpiredRateLimits(now);
     if ((now - (ipLastSeen.get(ip) || 0)) < 15_000 || (now - (emailLastSeen.get(email) || 0)) < 60_000) {
       return json({ error: "Please wait a moment before trying signup again.", code: "SIGNUP_RATE_LIMIT", requestId }, 429);
     }
