@@ -3,48 +3,10 @@
 -- event prove the withdrawal was approved, deducted, then cancelled before broadcast.
 BEGIN;
 
-INSERT INTO public.account_ledger (
-  user_id, actor_user_id, entry_type, amount, description, reference_id, metadata, created_at
-)
-SELECT
-  w.user_id,
-  w.approved_by,
-  'WITHDRAWAL_DEBIT',
-  -w.amount,
-  'Withdrawal debit backfilled during ledger reconciliation',
-  w.id::text,
-  jsonb_build_object(
-    'withdrawal_id', w.id,
-    'audit_reconciliation', true,
-    'reason', 'Approved withdrawal was deducted from balance but its debit ledger entry was missing',
-    'original_approval_date', w.approval_date
-  ),
-  COALESCE(w.approval_date, w.created_at)
-FROM public.withdrawal_requests AS w
-WHERE w.status = 'FAILED'
-  AND w.balance_deducted IS FALSE
-  AND w.payout_txid IS NULL
-  AND w.payout_started_at IS NULL
-  AND w.panel_decision = 'APPROVED'
-  AND w.approved_by IS NOT NULL
-  AND EXISTS (
-    SELECT 1
-    FROM public.account_ledger AS refund
-    WHERE refund.user_id = w.user_id
-      AND refund.entry_type = 'WITHDRAWAL_REFUND'
-      AND refund.reference_id = w.id::text
-      AND refund.amount = w.amount
-  )
-  AND EXISTS (
-    SELECT 1
-    FROM public.audit_events AS ae
-    WHERE ae.event_type = 'WITHDRAWAL_INVALID_WALLET_REFUNDED'
-      AND ae.reference_id = w.id::text
-  )
 -- Do not silently ignore a pre-existing debit with a conflicting owner/amount,
 -- and fail if legacy data already contains duplicate debits for one withdrawal.
 -- This runs only against the same narrowly eligible refund-reconciliation cohort.
-DO $
+DO $$
 BEGIN
   IF EXISTS (
     SELECT 1
@@ -105,8 +67,46 @@ BEGIN
     RAISE EXCEPTION 'Duplicate WITHDRAWAL_DEBIT references already exist; manual reconciliation required';
   END IF;
 END;
-$;
+$$;
 
+INSERT INTO public.account_ledger (
+  user_id, actor_user_id, entry_type, amount, description, reference_id, metadata, created_at
+)
+SELECT
+  w.user_id,
+  w.approved_by,
+  'WITHDRAWAL_DEBIT',
+  -w.amount,
+  'Withdrawal debit backfilled during ledger reconciliation',
+  w.id::text,
+  jsonb_build_object(
+    'withdrawal_id', w.id,
+    'audit_reconciliation', true,
+    'reason', 'Approved withdrawal was deducted from balance but its debit ledger entry was missing',
+    'original_approval_date', w.approval_date
+  ),
+  COALESCE(w.approval_date, w.created_at)
+FROM public.withdrawal_requests AS w
+WHERE w.status = 'FAILED'
+  AND w.balance_deducted IS FALSE
+  AND w.payout_txid IS NULL
+  AND w.payout_started_at IS NULL
+  AND w.panel_decision = 'APPROVED'
+  AND w.approved_by IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM public.account_ledger AS refund
+    WHERE refund.user_id = w.user_id
+      AND refund.entry_type = 'WITHDRAWAL_REFUND'
+      AND refund.reference_id = w.id::text
+      AND refund.amount = w.amount
+  )
+  AND EXISTS (
+    SELECT 1
+    FROM public.audit_events AS ae
+    WHERE ae.event_type = 'WITHDRAWAL_INVALID_WALLET_REFUNDED'
+      AND ae.reference_id = w.id::text
+  )
   AND NOT EXISTS (
     SELECT 1
     FROM public.account_ledger AS debit
