@@ -219,7 +219,7 @@ const withdrawalApproveStart = withdrawalLedgerFix.indexOf('IF p_approve THEN');
 const withdrawalBalanceCheck = withdrawalLedgerFix.indexOf('PERFORM 1', withdrawalApproveStart);
 const withdrawalApproveGuard = withdrawalLedgerFix.slice(withdrawalApproveStart, withdrawalBalanceCheck);
 assert(withdrawalApproveGuard.includes("WHERE entry_type = 'WITHDRAWAL_DEBIT'") && withdrawalApproveGuard.includes('AND reference_id = p_request_id::text') && !withdrawalApproveGuard.includes('user_id = w.user_id'),'Withdrawal approval duplicate guard must reject any existing debit reference, regardless of owner or amount');
-const withdrawalFunctionBody = withdrawalLedgerFix.slice(withdrawalFinalize);
+const withdrawalFunctionBody = withdrawalLedgerFix.slice(withdrawalLedgerFix.indexOf('CREATE OR REPLACE FUNCTION public.finalize_withdrawal'));
 const withdrawalApprovalInsert = withdrawalFunctionBody.indexOf('INSERT INTO public.account_ledger (');
 assert(withdrawalApprovalInsert > 0 && !withdrawalFunctionBody.slice(0, withdrawalApprovalInsert).includes('IF NOT EXISTS'),'Approval path must write one debit after rejecting existing references, not silently suppress a conflicting debit');
 assert(withdrawalLedgerFix.includes("reference_id = p_request_id::text"),'Withdrawal ledger entries must carry the withdrawal reference');
