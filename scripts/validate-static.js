@@ -213,7 +213,8 @@ const withdrawalLedgerFix=fs.readFileSync('database/migrations/20261012_withdraw
 assert(withdrawalLedgerFix.includes("'WITHDRAWAL_DEBIT'"),'Approved withdrawals must write a debit ledger entry');
 assert(withdrawalLedgerFix.includes("'WITHDRAWAL_REFUND'"),'Historical debit backfill must be linked to a refund record');
 assert(withdrawalLedgerFix.includes("'WITHDRAWAL_INVALID_WALLET_REFUNDED'"),'Historical debit backfill must require the audited invalid-wallet refund event');
-assert(withdrawalLedgerFix.includes("IF NOT p_approve THEN")&&withdrawalLedgerFix.includes("current_platform_balance = GREATEST"),'Withdrawal approval/rejection balance paths must remain distinct');
+assert(withdrawalLedgerFix.includes("IF NOT p_approve THEN")&&withdrawalLedgerFix.includes("current_platform_balance = COALESCE(current_platform_balance, 0) - w.amount"),'Withdrawal approval must deduct only after balance/reservation validation');
+assert(withdrawalLedgerFix.includes("A withdrawal debit already exists for this request")&&withdrawalLedgerFix.includes("IS DISTINCT FROM 'PENDING'"),'Withdrawal approval must reject duplicate debit references and null decisions safely');
 assert(withdrawalLedgerFix.includes("reference_id = p_request_id::text"),'Withdrawal ledger entries must carry the withdrawal reference');
 
 console.log('AegisPay canonical architecture validation: PASS');
