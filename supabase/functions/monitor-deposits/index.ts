@@ -49,11 +49,17 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST" && req.method !== "GET") return json({ error: "Method not allowed." }, 405);
-  if (!CRON_SECRET || req.headers.get("x-aegis-cron-secret") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
   if (!SUPABASE_URL || !SERVICE_KEY) return json({ error: "Deposit monitor is not configured." }, 503);
 
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+    const suppliedSecret = req.headers.get("x-aegis-cron-secret");
+    const environmentSecretMatches = Boolean(CRON_SECRET && suppliedSecret && suppliedSecret === CRON_SECRET);
+    if (!environmentSecretMatches) {
+      if (!suppliedSecret) return json({ error: "Unauthorized." }, 401);
+      const { data: secretMatches, error: secretError } = await admin.rpc("verify_deposit_monitor_cron_secret", { p_token: suppliedSecret });
+      if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401);
+    }
     const { data: appEnabled, error: runtimeError } = await admin.rpc("app_runtime_enabled");
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ appEnabled: false, checked: 0, results: [] });
@@ -63,18 +69,30 @@ Deno.serve(async (req: Request) => {
     const receiving = String(rules.receiving_address || "").trim();
     if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) return json({ error: "Valid receiving address is not configured." }, 503);
 
+    const { data: pending, error } = await admin.from("deposit_submissions").select("*")
+      .eq("status", "PENDING_VERIFICATION")
+      .in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])
+      .order("created_at", { ascending: true }).limit(100);
+    if (error) return json({ error: "Unable to load pending deposits." }, 500);
+
+    if (network === "TRON MAINNET") {
+      const { data: modeRow } = await admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle();
+      const mode = modeRow?.value_json || {};
+      if (mode.mode !== "MAINNET" || mode.live_deposits !== true) {
+        return json({ error: "Mainnet deposit monitoring is disabled while live deposits are off." }, 403);
+      }
+      if (!TRONGRID_KEY) {
+        if (!pending?.length) return json({ monitorStatus: "AWAITING_PROVIDER_KEY", checked: 0, results: [] });
+        return json({ error: "TRONGRID_API_KEY is not configured; approved deposits cannot be checked automatically." }, 503);
+      }
+    }
+
     let baseUrl = "";
     let contract = "";
     if (network === "TRON TESTNET") {
       baseUrl = "https://api.shasta.trongrid.io";
       contract = String(rules.token_contract || SHASTA_TEST_USDT).trim();
     } else if (network === "TRON MAINNET") {
-      const { data: modeRow } = await admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle();
-      const mode = modeRow?.value_json || {};
-      if (mode.mode !== "MAINNET" || mode.live_deposits !== true) {
-        return json({ error: "Mainnet deposit monitoring is disabled while live deposits are off." }, 403);
-      }
-      if (!TRONGRID_KEY) return json({ error: "TRONGRID_API_KEY is not configured." }, 503);
       baseUrl = "https://api.trongrid.io";
       contract = String(rules.token_contract || MAINNET_USDT).trim();
     } else {
@@ -82,11 +100,6 @@ Deno.serve(async (req: Request) => {
     }
     if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(contract)) return json({ error: "Valid TRC-20 contract is not configured." }, 503);
 
-    const { data: pending, error } = await admin.from("deposit_submissions").select("*")
-      .eq("status", "PENDING_VERIFICATION")
-      .in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])
-      .order("created_at", { ascending: true }).limit(100);
-    if (error) return json({ error: "Unable to load pending deposits." }, 500);
     const results = [];
     for (const deposit of pending || []) {
       try {
@@ -100,3 +113,4 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Deposit monitor failed." }, 500);
   }
 });
+

@@ -117,6 +117,12 @@ const walletAiGuard=fs.readFileSync('database/migrations/20261011_withdrawal_ai_
 assert(walletAiGuard.includes('WITHDRAWAL_WALLET_INVALID_CASE_OR_CHECKSUM'),'Withdrawal AI must send invalid-case wallets to manual review');
 assert(!client.includes('withdrawWallet.value.trim().toUpperCase()'),'Client wallet linking must preserve original TRON Base58 case');
 assert(payoutSource.includes('INVALID_WITHDRAWAL_DESTINATION')&&payoutSource.includes('is_valid_tron_address'),'Payout source must reject invalid exact-case recipient addresses');
+assert((payoutSource.match(/is_valid_tron_address/g)||[]).length===1,'Payout source must contain one exact-case recipient validation guard, not duplicate copies');
+const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
+assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
+const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
+assert(depositMonitorSource.includes('verify_deposit_monitor_cron_secret')&&depositMonitorSource.includes('x-aegis-cron-secret'),'Deposit monitor must validate the configured Vault-backed cron secret');
+assert(depositMonitorSource.includes('.in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])'),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
 assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
 assert(adminAuth.includes('DO NOT EXECUTE THIS PAYOUT')&&adminAuth.includes('Changing the profile wallet does not automatically change this existing request'),'Invalid recipients must be visibly blocked in the Master Admin queue');
 const invalidWalletRefund=fs.readFileSync('database/migrations/20261011_reconcile_invalid_unbroadcast_withdrawal.sql','utf8');
@@ -196,6 +202,11 @@ for(const f of functions)assert(exists('supabase/functions/'+f+'/index.ts'),'Mis
 
 const stale=['index.html','app.js','aegis-core.js','backend','preview','apk-artifact','database/schema.sql','scripts/smoke-api.js','scripts/test-core-auth.js','assets/apps'];
 for(const p of stale)assert(!exists(p),'Legacy path remains in canonical main: '+p);
+for(const p of [
+  '20261011_exact_integer_tron_address_decode.sql',
+  '20261011_fix_tron_address_validator_bytes.sql',
+  '20261011_fix_tron_address_validator_collation.sql'
+])assert(!exists(p),'Obsolete duplicate root-level SQL file must not be used instead of database/migrations: '+p);
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
