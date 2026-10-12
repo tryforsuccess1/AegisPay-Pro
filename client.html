@@ -1582,7 +1582,7 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
     el.innerHTML='<span>'+(type==='success'?'✓':type==='info'?'i':'!')+'</span><span style="flex:1">'+esc(String(message||''))+'</span>';
     root.prepend(el);setTimeout(function(){if(el.isConnected)el.remove();},6500);
   };
-  // Keep the timed demo activity ticker enabled; it was previously disabled by this no-op override.
+  // Persisted account_ledger history is the only source for payment activity.
 
   top=function(t,b){return '<div class="tb" style="padding-top:18px"><b onclick="go(\''+(b||'home')+'\')" aria-label="Back">'+ic('back')+'</b><div style="flex:1;min-width:0"><small class="mu" style="font-size:9.5px;letter-spacing:.7px;text-transform:uppercase">AEGISPAY</small><h1 style="font-size:18px;margin-top:1px">'+esc(t)+'</h1></div><b class="dot" aria-label="Notifications">'+ic('bell')+'</b></div>'};
   nav=function(a){return '<nav>'+[['home','Home','home'],['wallet','Wallet','pie'],['earn','Earn','check'],['activity','Activity','clock'],['profile','Profile','user']].map(function(n){return '<a class="'+(n[0]===a?'on':'')+'" onclick="go(\''+n[0]+'\')">'+ic(n[2])+'<span>'+n[1]+'</span></a>';}).join('')+'</nav>'};
