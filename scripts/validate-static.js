@@ -225,7 +225,8 @@ const withdrawalBackfillGuard = withdrawalLedgerFix.indexOf('AND NOT EXISTS (', 
 const withdrawalFinalize = withdrawalLedgerFix.indexOf('CREATE OR REPLACE FUNCTION public.finalize_withdrawal');
 assert(withdrawalPreflight > withdrawalLedgerFix.indexOf('BEGIN;') && withdrawalPreflight < withdrawalBackfillInsert,'Conflicting-reference preflight must be a valid DO block before the backfill INSERT');
 assert(withdrawalBackfillGuard > withdrawalBackfillInsert && withdrawalBackfillGuard < withdrawalFinalize,'Backfill NOT EXISTS guard must remain inside the INSERT SELECT WHERE clause');
-assert(withdrawalLedgerFix.includes('END;\\n$;\\n\\nINSERT INTO public.account_ledger ('),'Migration preflight dollar-quoting and statement boundary must be valid');
+const withdrawalDollarQuoteEnd = withdrawalLedgerFix.indexOf('$;', withdrawalPreflight);
+assert(withdrawalDollarQuoteEnd > withdrawalPreflight && withdrawalDollarQuoteEnd < withdrawalBackfillInsert && withdrawalLedgerFix.slice(withdrawalDollarQuoteEnd + 3, withdrawalBackfillInsert).trim() === '', 'Migration preflight dollar-quoting and statement boundary must be valid');
 assert(withdrawalFinalize > withdrawalBackfillGuard && withdrawalLedgerFix.includes('COMMIT;'),'Withdrawal migration must remain ordered and transaction-bounded');
 
 console.log('AegisPay canonical architecture validation: PASS');
