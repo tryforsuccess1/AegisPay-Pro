@@ -13,10 +13,12 @@ This entry records the latest read-only verification. Phase 2 is **not complete*
 - Supabase Security Advisor observed two RLS-enabled tables without policies, 14 authenticated-callable SECURITY DEFINER function findings, and leaked-password protection disabled. Findings remain under review; do not bulk-revoke RPCs or add blanket policies.
 - PR #7 remains open and draft. A source-only fix was committed to its branch in `dad16f191a3e876884ac7f906b545b7a3864bbdb`: the withdrawal debit backfill now fails closed on conflicting owner/amount references and duplicate references, and the insertion guard matches reference independently of amount. The new static assertion was corrected in `5e40a712d6487f866cd503f91d9ac7997425a908` after CI run #137 exposed an over-escaped test regex. Fresh GitHub CI run #138 was pending at the time this note was authored. This migration has not been applied to live Supabase.
 
+- Deposit-monitor setup is confirmed: `aegispay-mainnet-deposit-monitor` runs every minute, Vault secret `aegispay_monitor_deposit_cron` is present and non-empty (value not read), and sampled logs from 17:00–17:19 UTC showed repeated HTTP 200 responses. The deposit table had zero rows, so the deposit verification/credit state transition has not been exercised.
+
 ### Phase 2 items still open
 1. Wait for and inspect fresh CI/Android workflow results for PR #7; review the final migration and withdrawal function changes before any merge.
 2. Run deposit submission, review, monitoring, credit/ledger, withdrawal request/approval/recovery, referral, and Shop task/cycle-settlement transition tests only in an isolated TESTNET_DEMO/staging database with synthetic fixtures. The connected project is currently configured as MAINNET with live deposits enabled, so no transaction-mutating test was performed.
-3. Verify the deposit-monitor cron secret is configured safely without exposing its value, and verify scheduled monitoring in the isolated test environment.
+3. Deposit-monitor scheduling and a non-empty Vault secret are verified read-only; still validate chain-evidence matching and ledger credit with synthetic deposits in an isolated TESTNET_DEMO environment. The connected project is currently MAINNET with live deposits enabled, and the deposit submissions table was empty during this check.
 4. Resolve the `record-user-access` 503 root cause using sanitized diagnostics; recent queried logs in the latest short window contained no matching new events, which is not proof of a fix.
 5. Keep real payouts disabled/locked and preserve all live deposit settings and financial records until the operator-approved release checklist and backup/reconciliation plan exist.
 6. Confirm Cloudflare production deployment commit contains the merged notification fixes before closing the deployment gate.
@@ -86,7 +88,7 @@ This audit pass was read-only against Supabase. Code changes, if any, remain on 
 - Code and privilege review is complete for verified-deposit credit, Telegram withdrawal decisions, admin dashboard totals, and cycle settlement; the remaining task is live TESTNET_DEMO state-transition verification.
 - Cycle settlement cron is active every minute and `settle_due_cycles()` is not executable by anon/authenticated roles.
 - TESTNET_DEMO is still enforced with live deposits and real payouts disabled.
-- Automatic `monitor-deposits` scheduling remains blocked until its server-side cron authentication secret is securely configured; no live monitoring was enabled during this session.
+- Automatic mainnet deposit monitoring is active under `aegispay-mainnet-deposit-monitor` every minute. The Vault secret `aegispay_monitor_deposit_cron` was confirmed present and non-empty without reading its value; recent logs showed repeated HTTP 200 responses from `monitor-deposits`. This is request-level evidence only, not proof of chain evidence matching or ledger credit. No deposit submissions existed during the read-only check, so end-to-end credit verification remains pending.
 
 1. Validate deposit evidence submission and review.
 2. Validate deposit verification/monitoring and ledger crediting in TESTNET_DEMO.
