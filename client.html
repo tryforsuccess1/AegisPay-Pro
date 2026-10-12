@@ -194,6 +194,12 @@ html[data-mode=dark] .notif-card .ntext,html[data-mode=dark] .notif-card .ntime{
 .pb{height:6px;border-radius:8px;background:var(--s2);overflow:hidden}.pb i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,var(--p1),var(--p2))}
 .notif-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}
 .notif-head button{border:1px solid var(--line);background:var(--s1);color:var(--p2);border-radius:12px;padding:8px 11px;font:600 10px var(--ff);cursor:pointer}
+.notification-actions{display:flex;justify-content:flex-end;margin:-2px 0 10px}
+.notification-actions button,.notification-page-button{border:1px solid var(--line);background:var(--s1);color:var(--hd);border-radius:12px;padding:9px 12px;font:600 11px var(--ff);cursor:pointer;min-height:38px}
+.notification-actions button{color:var(--p2)}
+.notification-pager{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:14px 2px 4px}
+.notification-page-status{color:var(--mut);font-size:11px;font-weight:600;text-align:center;flex:1}
+.notification-page-button:disabled{opacity:.45;cursor:not-allowed}
 .notif-card{position:relative;display:flex;gap:12px;align-items:flex-start;width:100%;padding:14px;border:1px solid var(--line);border-radius:18px;background:var(--s1);margin-bottom:10px;text-align:left;color:var(--tx);cursor:pointer}
 .notif-card.unread{border-color:rgba(201,75,138,.34);background:linear-gradient(135deg,rgba(201,75,138,.08),rgba(240,106,77,.06))}
 .notif-card .nicon{width:40px;height:40px;display:grid;place-items:center;flex:none;border-radius:13px;background:rgba(240,106,77,.12);color:var(--p2)}
@@ -576,7 +582,7 @@ go('login');
 (function(){
 const U='https://wtcspnrmsoisroavojop.supabase.co',K='sb_publishable_pDg6Ef_P6fZnNvrKkuBm0Q_uEQMItB2';
 const db=supabase.createClient(U,K,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
-const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='';
+const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='',notificationPage=0,notificationRequestId=0;
 function uiNotice(message,type='error',duration=4200){
   const root=document.getElementById('app');if(!root)return;
   const old=root.querySelector('.app-notice');if(old)old.remove();
@@ -954,12 +960,19 @@ async function recordClientAccess(eventType){
 }
 async function liveNotifications(){
  const p=profile;
- const r=await db.from('notifications').select('id,notification_type,title,body,is_read,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(100);
+ const pageSize=10,requestId=++notificationRequestId,from=notificationPage*pageSize;
+ const r=await db.from('notifications').select('id,notification_type,title,body,is_read,created_at',{count:'exact'}).eq('user_id',p.id).order('created_at',{ascending:false}).order('id',{ascending:false}).range(from,from+pageSize-1);
+ if(requestId!==notificationRequestId)return;
  if(r.error){uiNotice('Unable to load notifications.','error');return liveHome()}
- const items=r.data||[];unreadNotifications=items.filter(x=>!x.is_read).length;
+ const totalCount=Number(r.count||0),pageCount=Math.max(1,Math.ceil(totalCount/pageSize));
+ if(notificationPage>=pageCount&&notificationPage>0){notificationPage=pageCount-1;return liveNotifications()}
+ const items=r.data||[];
+ await refreshNotificationCount();
+ if(requestId!==notificationRequestId)return;
  app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_notes">Notifications</h1></div>'+
-  '<h2><b>Updates</b>'+(unreadNotifications?'<span id="markAllNotifications" role="button" tabindex="0">Mark all as read</span>':'<span>'+items.length+' total</span>')+'</h2>'+
-  '<div class="card list" id="notificationList">'+(items.map(x=>'<button type="button" class="nt-i" data-notification-id="'+esc(x.id)+'" style="width:100%;background:transparent;border:0;text-align:left;color:var(--tx);font-family:var(--ff);padding:14px 0"><span class="u '+(x.is_read?'r':'')+'"></span><span style="flex:1;min-width:0"><b>'+esc(x.title||'AegisPay Update')+'</b><p>'+esc(x.body||'')+'</p><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></span></button>').join('')||'<div class="empty">No notifications yet.</div>')+'</div>'+nav('hidden')+'</div>';
+  '<h2><b>Updates</b><span>'+totalCount+' total</span></h2>'+
+  (unreadNotifications?'<div class="notification-actions"><button type="button" id="markAllNotifications">Mark all as read</button></div>':'')+
+  '<div class="card list" id="notificationList">'+(items.map(x=>'<button type="button" class="nt-i" data-notification-id="'+esc(x.id)+'" style="width:100%;background:transparent;border:0;text-align:left;color:var(--tx);font-family:var(--ff);padding:14px 0"><span class="u '+(x.is_read?'r':'')+'"></span><span style="flex:1;min-width:0"><b>'+esc(x.title||'AegisPay Update')+'</b><p>'+esc(x.body||'')+'</p><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></span></button>').join('')||'<div class="empty">No notifications yet.</div>')+'</div>'+(pageCount>1?'<nav class="notification-pager" aria-label="Notification pages"><button type="button" class="notification-page-button" id="notificationPrevious"'+(notificationPage===0?' disabled':'')+'>Previous</button><span class="notification-page-status" aria-live="polite">Page '+(notificationPage+1)+' of '+pageCount+'</span><button type="button" class="notification-page-button" id="notificationNext"'+(notificationPage>=pageCount-1?' disabled':'')+'>Next</button></nav>':'')+nav('hidden')+'</div>';
  // Open notification details as a dedicated readable page. A click handler outside the list handles all mobile taps.
  window.__aegisOpenNotificationById=async function(id){
    let item=items.find(x=>String(x.id)===String(id));
@@ -985,16 +998,20 @@ async function liveNotifications(){
    if(!item.is_read){
      item.is_read=true;unreadNotifications=Math.max(0,unreadNotifications-1);updateNotificationBadge();
      db.from('notifications').update({is_read:true}).eq('id',id).eq('user_id',p.id).then(u=>{
-       if(u.error){item.is_read=false;uiNotice('Notification opened, but its read status could not be saved.','error');}
-     }).catch(()=>uiNotice('Notification opened, but its read status could not be saved.','error'));
+       if(u.error){item.is_read=false;unreadNotifications++;updateNotificationBadge();uiNotice('Notification opened, but its read status could not be saved.','error');}
+     }).catch(()=>{item.is_read=false;unreadNotifications++;updateNotificationBadge();uiNotice('Notification opened, but its read status could not be saved.','error')});
    }
  };
  const all=document.getElementById('markAllNotifications');
  if(all)all.onclick=async()=>{
+   all.disabled=true;
    const u=await db.from('notifications').update({is_read:true}).eq('user_id',p.id).eq('is_read',false);
-   if(u.error){uiNotice('Unable to mark notifications as read.','error');return}
-   unreadNotifications=0;updateNotificationBadge();liveNotifications();
+   if(u.error){all.disabled=false;uiNotice('Unable to mark notifications as read.','error');return}
+   unreadNotifications=0;updateNotificationBadge();await liveNotifications();
  };
+ const previous=document.getElementById('notificationPrevious'),next=document.getElementById('notificationNext');
+ if(previous)previous.onclick=async()=>{if(notificationPage>0){previous.disabled=true;if(next)next.disabled=true;notificationPage--;await liveNotifications()}};
+ if(next)next.onclick=async()=>{if(notificationPage<pageCount-1){next.disabled=true;if(previous)previous.disabled=true;notificationPage++;await liveNotifications()}};
  updateNotificationBadge();
 }
 async function liveActivity(){
