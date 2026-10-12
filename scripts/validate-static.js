@@ -25,6 +25,7 @@ const must=[
   'database/migrations/20261011_fix_tron_address_validator_collation.sql',
   'database/migrations/20261011_fix_tron_address_validator_bytes.sql',
   'database/migrations/20261011_exact_integer_tron_address_decode.sql',
+  'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
@@ -207,6 +208,13 @@ for(const p of [
   '20261011_fix_tron_address_validator_bytes.sql',
   '20261011_fix_tron_address_validator_collation.sql'
 ])assert(!exists(p),'Obsolete duplicate root-level SQL file must not be used instead of database/migrations: '+p);
+
+const withdrawalLedgerFix=fs.readFileSync('database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql','utf8');
+assert(withdrawalLedgerFix.includes("'WITHDRAWAL_DEBIT'"),'Approved withdrawals must write a debit ledger entry');
+assert(withdrawalLedgerFix.includes("'WITHDRAWAL_REFUND'"),'Historical debit backfill must be linked to a refund record');
+assert(withdrawalLedgerFix.includes("'WITHDRAWAL_INVALID_WALLET_REFUNDED'"),'Historical debit backfill must require the audited invalid-wallet refund event');
+assert(withdrawalLedgerFix.includes("IF NOT p_approve THEN")&&withdrawalLedgerFix.includes("current_platform_balance = GREATEST"),'Withdrawal approval/rejection balance paths must remain distinct');
+assert(withdrawalLedgerFix.includes("reference_id = p_request_id::text"),'Withdrawal ledger entries must carry the withdrawal reference');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
