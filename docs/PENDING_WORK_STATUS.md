@@ -2,6 +2,29 @@
 
 Last aligned: 2026-10-12
 
+## Phase 2 financial workflow audit continuation — 2026-10-12
+
+This entry records the latest read-only verification. Phase 2 is **not complete** yet.
+
+### Verified in this pass
+- Cloudflare Pages project `aegispay-pro` latest production deployment remains `ea422b43-a91b-47a7-9de3-8cf4daaa29cf`, deployed from commit `3b3a906c3bb9a8c8c6752847c85b9f028d62b1ce`. GitHub `main` is `63c164795147d53f45a96ffd07998b05b9f23e69`, which includes notification-fix merge `632d5f6a39f2e39c083984beb7367a3f944b9d56`. Production parity remains an open release gate.
+- Live withdrawal `d97aae8b-6666-40fe-a7ce-4b6470cf6263` is `FAILED`, amount `100.00`, `balance_deducted=false`, no payout transaction ID/start timestamp, one matching `WITHDRAWAL_REFUND` and zero matching `WITHDRAWAL_DEBIT` ledger entries. No financial record was changed.
+- Read-only configuration check found `platform_settings.system_mode.mode=MAINNET`, `live_deposits=true`, `real_payouts=false`; `production_config.environment=PRE_PRODUCTION`, `real_payouts_enabled=false`, `go_live_approved=false`, and `payouts_locked=true`. Do not change these settings as part of this audit. The mismatch means transaction-mutating TESTNET_DEMO tests must not be run against this connected configuration.
+- Supabase Security Advisor observed two RLS-enabled tables without policies, 14 authenticated-callable SECURITY DEFINER function findings, and leaked-password protection disabled. Findings remain under review; do not bulk-revoke RPCs or add blanket policies.
+- PR #7 remains open and draft. A source-only fix was committed to its branch in `dad16f191a3e876884ac7f906b545b7a3864bbdb`: the withdrawal debit backfill now fails closed on conflicting owner/amount references and duplicate references, and the insertion guard matches reference independently of amount. The new static assertion was corrected in `5e40a712d6487f866cd503f91d9ac7997425a908` after CI run #137 exposed an over-escaped test regex. Fresh GitHub CI run #138 was pending at the time this note was authored. This migration has not been applied to live Supabase.
+
+### Phase 2 items still open
+1. Wait for and inspect fresh CI/Android workflow results for PR #7; review the final migration and withdrawal function changes before any merge.
+2. Run deposit submission, review, monitoring, credit/ledger, withdrawal request/approval/recovery, referral, and Shop task/cycle-settlement transition tests only in an isolated TESTNET_DEMO/staging database with synthetic fixtures. The connected project is currently configured as MAINNET with live deposits enabled, so no transaction-mutating test was performed.
+3. Verify the deposit-monitor cron secret is configured safely without exposing its value, and verify scheduled monitoring in the isolated test environment.
+4. Resolve the `record-user-access` 503 root cause using sanitized diagnostics; recent queried logs in the latest short window contained no matching new events, which is not proof of a fix.
+5. Keep real payouts disabled/locked and preserve all live deposit settings and financial records until the operator-approved release checklist and backup/reconciliation plan exist.
+6. Confirm Cloudflare production deployment commit contains the merged notification fixes before closing the deployment gate.
+
+### Change boundary
+This audit pass was read-only against Supabase. Code changes, if any, remain on review branches/PRs. No live migration, payout, deposit setting, balance, or ledger write was performed.
+
+
 
 ## Repository sync and notification review — 2026-10-12
 
