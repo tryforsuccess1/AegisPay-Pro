@@ -11,6 +11,7 @@ Last aligned: 2026-10-12
 - GitHub Actions `AegisPay CI` passed for PR head `1642d3958770a22b17b885639313419cc07a2597`. The repository check includes parsing inline scripts in `client.html` and `master-admin.html`, and the Shop Worker dry-run bundle passed.
 - Android client and Master Admin debug APK/AAB build and artifact-existence checks passed for the same PR head. Artifact `AegisPay-Client-and-Master-Admin-Android-Bundles` was uploaded; these are debug/test artifacts, not proof of a signed production release or physical-device runtime pass.
 - Manual browser/device interaction tests have not been performed in this session. Cloudflare Pages deployment parity must be confirmed against the merged `main` commit before this repository sync/review phase can be considered fully closed.
+- Cloudflare parity check after the merge found the latest Pages production deployment still points to pre-fix commit `3b3a906c3bb9a8c8c6752847c85b9f028d62b1ce`; the merged source includes the notification fixes, but production has not yet been shown to contain them. Keep this as an open release gate until a deployment from the merged `main` commit is confirmed.
 
 ## Current status
 
