@@ -215,6 +215,13 @@ assert(withdrawalLedgerFix.includes("'WITHDRAWAL_REFUND'"),'Historical debit bac
 assert(withdrawalLedgerFix.includes("'WITHDRAWAL_INVALID_WALLET_REFUNDED'"),'Historical debit backfill must require the audited invalid-wallet refund event');
 assert(withdrawalLedgerFix.includes("IF NOT p_approve THEN")&&withdrawalLedgerFix.includes("current_platform_balance = COALESCE(current_platform_balance, 0) - w.amount"),'Withdrawal approval must deduct only after balance/reservation validation');
 assert(withdrawalLedgerFix.includes("A withdrawal debit already exists for this request")&&withdrawalLedgerFix.includes("IS DISTINCT FROM 'PENDING'"),'Withdrawal approval must reject duplicate debit references and null decisions safely');
+const withdrawalApproveStart = withdrawalLedgerFix.indexOf('IF p_approve THEN');
+const withdrawalBalanceCheck = withdrawalLedgerFix.indexOf('PERFORM 1', withdrawalApproveStart);
+const withdrawalApproveGuard = withdrawalLedgerFix.slice(withdrawalApproveStart, withdrawalBalanceCheck);
+assert(withdrawalApproveGuard.includes("WHERE entry_type = 'WITHDRAWAL_DEBIT'\\n        AND reference_id = p_request_id::text") && !withdrawalApproveGuard.includes('user_id = w.user_id'),'Withdrawal approval duplicate guard must reject any existing debit reference, regardless of owner or amount');
+const withdrawalFunctionBody = withdrawalLedgerFix.slice(withdrawalFinalize);
+const withdrawalApprovalInsert = withdrawalFunctionBody.indexOf('INSERT INTO public.account_ledger (');
+assert(withdrawalApprovalInsert > 0 && !withdrawalFunctionBody.slice(0, withdrawalApprovalInsert).includes('IF NOT EXISTS'),'Approval path must write one debit after rejecting existing references, not silently suppress a conflicting debit');
 assert(withdrawalLedgerFix.includes("reference_id = p_request_id::text"),'Withdrawal ledger entries must carry the withdrawal reference');
 assert(withdrawalLedgerFix.includes("Conflicting WITHDRAWAL_DEBIT reference already exists; manual reconciliation required"),'Backfill must fail closed when a debit reference has a conflicting owner or amount');
 assert(withdrawalLedgerFix.includes("Duplicate WITHDRAWAL_DEBIT references already exist; manual reconciliation required"),'Backfill must fail closed when duplicate debit references already exist');
