@@ -219,6 +219,14 @@ assert(withdrawalLedgerFix.includes("reference_id = p_request_id::text"),'Withdr
 assert(withdrawalLedgerFix.includes("Conflicting WITHDRAWAL_DEBIT reference already exists; manual reconciliation required"),'Backfill must fail closed when a debit reference has a conflicting owner or amount');
 assert(withdrawalLedgerFix.includes("Duplicate WITHDRAWAL_DEBIT references already exist; manual reconciliation required"),'Backfill must fail closed when duplicate debit references already exist');
 assert(withdrawalLedgerFix.includes("AND NOT EXISTS (\n    SELECT 1\n    FROM public.account_ledger AS debit\n    WHERE debit.entry_type = 'WITHDRAWAL_DEBIT'\n      AND debit.reference_id = w.id::text\n  );"),'Backfill idempotency guard must match debit references independent of amount and owner');
+const withdrawalBackfillInsert = withdrawalLedgerFix.indexOf('INSERT INTO public.account_ledger (');
+const withdrawalPreflight = withdrawalLedgerFix.indexOf('DO $');
+const withdrawalBackfillGuard = withdrawalLedgerFix.indexOf('AND NOT EXISTS (', withdrawalBackfillInsert);
+const withdrawalFinalize = withdrawalLedgerFix.indexOf('CREATE OR REPLACE FUNCTION public.finalize_withdrawal');
+assert(withdrawalPreflight > withdrawalLedgerFix.indexOf('BEGIN;') && withdrawalPreflight < withdrawalBackfillInsert,'Conflicting-reference preflight must be a valid DO block before the backfill INSERT');
+assert(withdrawalBackfillGuard > withdrawalBackfillInsert && withdrawalBackfillGuard < withdrawalFinalize,'Backfill NOT EXISTS guard must remain inside the INSERT SELECT WHERE clause');
+assert(withdrawalLedgerFix.includes('END;\\n$;\\n\\nINSERT INTO public.account_ledger ('),'Migration preflight dollar-quoting and statement boundary must be valid');
+assert(withdrawalFinalize > withdrawalBackfillGuard && withdrawalLedgerFix.includes('COMMIT;'),'Withdrawal migration must remain ordered and transaction-bounded');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
