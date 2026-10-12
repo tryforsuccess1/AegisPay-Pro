@@ -166,8 +166,7 @@ BEGIN
     IF EXISTS (
       SELECT 1
       FROM public.account_ledger
-      WHERE user_id = w.user_id
-        AND entry_type = 'WITHDRAWAL_DEBIT'
+      WHERE entry_type = 'WITHDRAWAL_DEBIT'
         AND reference_id = p_request_id::text
     ) THEN
       RAISE EXCEPTION 'A withdrawal debit already exists for this request';
@@ -213,32 +212,23 @@ BEGIN
     -- The approval path changes the balance, so it must create the matching
     -- debit in the ledger in the same transaction. The reference guard prevents
     -- accidental duplication if a future workflow reuses this code.
-    IF NOT EXISTS (
-      SELECT 1
-      FROM public.account_ledger
-      WHERE user_id = w.user_id
-        AND entry_type = 'WITHDRAWAL_DEBIT'
-        AND reference_id = p_request_id::text
-        AND amount = -w.amount
-    ) THEN
-      INSERT INTO public.account_ledger (
-        user_id, entry_type, amount, description, actor_user_id, reference_id, metadata
+    INSERT INTO public.account_ledger (
+      user_id, entry_type, amount, description, actor_user_id, reference_id, metadata
+    )
+    VALUES (
+      w.user_id,
+      'WITHDRAWAL_DEBIT',
+      -w.amount,
+      'Withdrawal amount deducted after Master Admin approval',
+      v_actor,
+      p_request_id::text,
+      jsonb_build_object(
+        'withdrawal_id', p_request_id,
+        'gross_amount', w.amount,
+        'balance_after', v_new_balance,
+        'status', 'APPROVED'
       )
-      VALUES (
-        w.user_id,
-        'WITHDRAWAL_DEBIT',
-        -w.amount,
-        'Withdrawal amount deducted after Master Admin approval',
-        v_actor,
-        p_request_id::text,
-        jsonb_build_object(
-          'withdrawal_id', p_request_id,
-          'gross_amount', w.amount,
-          'balance_after', v_new_balance,
-          'status', 'APPROVED'
-        )
-      );
-    END IF;
+    );
   END IF;
 
   INSERT INTO public.audit_events(actor_user_id, target_user_id, event_type, description, reference_id)
