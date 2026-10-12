@@ -1,6 +1,16 @@
 # AegisPay Pending Work Status
 
-Last aligned: 2026-10-09
+Last aligned: 2026-10-12
+
+
+## Repository sync and notification review — 2026-10-12
+
+- Safe integration PR #2 was merged into `main`; it preserves the current notification-details flow and restores the Sunrise Cream Shop wordmark.
+- Follow-up review PR #6 was merged into `main` at merge commit `632d5f6a39f2e39c083984beb7367a3f944b9d56`.
+- Notification pagination now uses a stable `created_at,id` cursor, the pager uses a scoped non-navigation container, fresh entries reset to the latest page, and stale in-flight renders are invalidated on app route changes.
+- GitHub Actions `AegisPay CI` passed for PR head `1642d3958770a22b17b885639313419cc07a2597`. The repository check includes parsing inline scripts in `client.html` and `master-admin.html`, and the Shop Worker dry-run bundle passed.
+- Android client and Master Admin debug APK/AAB build and artifact-existence checks passed for the same PR head. Artifact `AegisPay-Client-and-Master-Admin-Android-Bundles` was uploaded; these are debug/test artifacts, not proof of a signed production release or physical-device runtime pass.
+- Manual browser/device interaction tests have not been performed in this session. Cloudflare Pages deployment parity must be confirmed against the merged `main` commit before this repository sync/review phase can be considered fully closed.
 
 ## Current status
 
