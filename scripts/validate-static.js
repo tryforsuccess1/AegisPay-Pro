@@ -216,6 +216,9 @@ assert(withdrawalLedgerFix.includes("'WITHDRAWAL_INVALID_WALLET_REFUNDED'"),'His
 assert(withdrawalLedgerFix.includes("IF NOT p_approve THEN")&&withdrawalLedgerFix.includes("current_platform_balance = COALESCE(current_platform_balance, 0) - w.amount"),'Withdrawal approval must deduct only after balance/reservation validation');
 assert(withdrawalLedgerFix.includes("A withdrawal debit already exists for this request")&&withdrawalLedgerFix.includes("IS DISTINCT FROM 'PENDING'"),'Withdrawal approval must reject duplicate debit references and null decisions safely');
 assert(withdrawalLedgerFix.includes("reference_id = p_request_id::text"),'Withdrawal ledger entries must carry the withdrawal reference');
+assert(withdrawalLedgerFix.includes("Conflicting WITHDRAWAL_DEBIT reference already exists; manual reconciliation required"),'Backfill must fail closed when a debit reference has a conflicting owner or amount');
+assert(withdrawalLedgerFix.includes("Duplicate WITHDRAWAL_DEBIT references already exist; manual reconciliation required"),'Backfill must fail closed when duplicate debit references already exist');
+assert(/AND NOT EXISTS\\s*\\(\\s*SELECT 1\\s*FROM public\\.account_ledger AS debit\\s*WHERE debit\\.entry_type = 'WITHDRAWAL_DEBIT'\\s+AND debit\\.reference_id = w\\.id::text\\s*\\)/.test(withdrawalLedgerFix),'Backfill idempotency guard must match debit references independent of amount and owner');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
