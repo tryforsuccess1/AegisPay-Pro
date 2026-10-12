@@ -691,7 +691,7 @@ async function liveHome(){
  const kycDone=kycStatus==='VERIFIED',kycPending=['PENDING_REVIEW','MANUAL_REVIEW','IN_REVIEW'].includes(kycStatus);
  let cyc;
  if(cycleWaiting)cyc='<div class="dot"></div><div style="flex:1"><b>Settlement in progress</b><p>All tasks are complete · Next settlement '+esc(readyText||'scheduled by the system')+'</p>'+(readyDate?'<div class="cd cdv" data-ready-at="'+readyDate.getTime()+'"></div>':'')+'</div>';
- else if(cycle)cyc='<div class="dot" style="background:var(--p1);animation:none"></div><div style="flex:1"><b>Cycle active · '+taskDone+'/'+taskRows.length+' tasks</b><p>Complete your assigned tasks in Shop.</p></div><button class="btn sm" data-go="shop" onclick="go(\'shop\')">Open</button>';
+ else if(cycle)cyc='<div class="dot"></div><div style="flex:1"><b>Cycle active · '+taskDone+'/'+taskRows.length+' tasks</b><p>Complete your assigned tasks in Shop.</p></div><button class="btn sm" data-go="shop" onclick="go(\'shop\')">Open</button>';
  else cyc='<div class="dot" style="background:var(--mut);animation:none"></div><div style="flex:1"><b>No active cycle</b><p>A new cycle is assigned automatically when your verified balance and tier are eligible.</p></div><button class="btn sm" data-go="vip" onclick="go(\'vip\')">View tier</button>';
  const checks=[
   ['Verified deposit',hasVerifiedDeposit,'topup',false],
