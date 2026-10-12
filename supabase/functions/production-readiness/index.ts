@@ -62,7 +62,7 @@ Deno.serve(async(req:Request)=>{
     const locked=body.payoutsLocked!==false;
 
      if(payouts && (unresolvedPayoutResult.error || unresolvedPayouts.length>0)){
-       return json({error:"Cannot open live payouts until all previously approved or processing withdrawals without a TXID are reconciled.",code:"UNRECONCILED_APPROVED_PAYOUTS",unresolved_payouts:unresolvedPayouts},409);
+       return json({error:"Cannot open live payouts until all previously approved or processing withdrawals without a TXID are reconciled.",code:"UNRECONCILED_APPROVED_PAYOUTS",unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at}))},409);
      }
     if(payouts && (env!=="PRODUCTION" || !approved || locked || !mainnetPayoutEnablementReady)){
       return json({error:"Production payout operations are not ready. Configure the required server-side payout, TRONGrid and Telegram secrets and complete the readiness checks first.",code:"PRODUCTION_PAYOUT_NOT_READY"},409);

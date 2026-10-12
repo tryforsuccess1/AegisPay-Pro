@@ -2,14 +2,14 @@
 
 Project: `wtcspnrmsoisroavojop`
 
-Verified on 2026-10-03: ACTIVE/HEALTHY, region `ap-northeast-1`.
+Verified on 2026-10-12: ACTIVE_HEALTHY, region `ap-northeast-1`.
 
 ## Live application surface
 
 RLS-enabled public application tables:
-`users`, `tasks`, `referrals`, `withdrawal_requests`, `activity_logs`, `notifications`, `platform_settings`, `vip_tiers`, `deposit_submissions`, `cycle_runs`, `account_ledger`, `admin_adjustments`, `shop_offers`, `audit_events`, `kyc_verifications`.
+`users`, `tasks`, `referrals`, `withdrawal_requests`, `activity_logs`, `notifications`, `platform_settings`, `vip_tiers`, `deposit_submissions`, `cycle_runs`, `account_ledger`, `admin_adjustments`, `shop_offers`, `audit_events`, `kyc_verifications`, `user_access_events`, `ai_support_cases`.
 
-Active Edge Functions align with the repository function directories: `public-signup`, `username-login`, `submit-deposit`, `submit-kyc`, `admin-queues`, `admin-review`, `ai-support`, `verify-deposit`, `monitor-deposits`, `telegram-withdrawal`, `execute-payout`, `admin-account-ops`, `complete-cycle-checkout`, `complete-password-reset`, `production-readiness`.
+Active Edge Functions align with the repository function directories: `public-signup`, `username-login`, `submit-deposit`, `submit-kyc`, `admin-queues`, `admin-review`, `ai-support`, `verify-deposit`, `monitor-deposits`, `telegram-withdrawal`, `execute-payout`, `admin-account-ops`, `complete-cycle-checkout`, `complete-password-reset`, `production-readiness`, `withdrawal-ai-review`, `record-user-access`.
 
 ## Storage
 
@@ -27,7 +27,7 @@ The canonical repository tracks this policy in `database/migrations/20261003_pri
 
 Current `platform_settings.system_mode` is `MAINNET / LIVE_DEPOSIT_TEST` with controlled live-deposit testing enabled and real payouts disabled behind the Phase 3 production gate.
 
-One active pg_cron job, `aegispay-cycle-settlement`, runs every minute.
+Two active pg_cron jobs run every minute: `aegispay-cycle-settlement` settles due cycles and `aegispay-mainnet-deposit-monitor` invokes `monitor-deposits`. The cron secret is stored in Supabase Vault and the monitor's current deployed code verifies it via the restricted `verify_deposit_monitor_cron_secret` RPC when the Edge Function environment secret is absent or does not match. The latest 10 recorded monitor runs succeeded on 2026-10-12; the `deposit_submissions` table currently has zero rows, so actual on-chain deposit reconciliation has not been exercised by this snapshot.
 
 ## Current review items
 
@@ -35,7 +35,7 @@ Security Advisor reports authenticated execution of several SECURITY DEFINER RPC
 
 Leaked-password protection is currently reported as disabled and should be enabled before real production use.
 
-Performance Advisor reports several unused indexes. With the present small dataset, these are review candidates rather than automatic deletion targets.
+Performance Advisor reports 15 unused-index candidates and one unindexed foreign key (`ai_support_cases.resolved_by`). The unused indexes are review candidates, not automatic deletion targets. A forward-only index migration for the resolved-by foreign key is tracked in `database/migrations/20261012_ai_support_cases_resolved_by_index.sql`.
 
 ## Migration alignment
 

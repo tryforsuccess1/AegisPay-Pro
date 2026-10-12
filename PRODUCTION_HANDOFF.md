@@ -2,7 +2,7 @@
 
 ## Canonical technical baseline
 
-- Repository: `msmgroups5/AegisPay-pro`
+- Repository: `tryforsuccess1/AegisPay-Pro`
 - Production branch: `main`
 - Supabase project: `wtcspnrmsoisroavojop`
 - Cloudflare Pages project: `aegispay-pro`
@@ -26,17 +26,16 @@
 - Supabase database changes are forward-only migrations under `database/migrations/`.
 - Supabase Edge Function source is under `supabase/functions/`.
 
-## Verified Supabase state on 2026-10-08
+## Supabase operational snapshot on 2026-10-12
 
 - Project status: ACTIVE_HEALTHY.
-- Two Auth users exist and both are email-confirmed.
-- Two application profiles are linked: one active MASTER ADMIN and one active USER.
 - Private `private-verification` Storage bucket exists, public access is disabled, max size is 10 MB, and allowed MIME types are JPEG/PNG/WebP.
 - Storage policies are owner-scoped and guarded by the application runtime switch.
-- One active pg_cron job runs `public.settle_due_cycles()` every minute.
+- Two active pg_cron jobs run every minute: `aegispay-cycle-settlement` and `aegispay-mainnet-deposit-monitor`.
+- The monitor cron secret exists in Supabase Vault. The latest 10 monitor cron invocations succeeded, but `deposit_submissions` currently has zero rows, so on-chain matching has not been tested against a real submitted deposit.
 - Current system mode is `MAINNET / LIVE_DEPOSIT_TEST`; controlled live-deposit testing is enabled, while real payouts remain disabled and the Phase 3 production payout gate is locked.
 - No Supabase development branches currently exist.
-- `monitor-deposits` is deployed, but automatic chain monitoring remains intentionally disabled until the server-side cron authentication secret is securely configured.
+- `monitor-deposits` is deployed and its Vault-backed cron secret validation path is configured. Real payouts remain disabled (`real_payouts=false`, `production_go_live_approved=false`, `production_config.payouts_locked=true`).
 
 ## Security review
 
@@ -45,7 +44,7 @@ Supabase Security Advisor currently reports:
 - The stale one-argument `link_withdrawal_wallet(text)` overload is no longer executable by `authenticated`; the canonical two-argument wallet RPC is the authenticated client path.
 - Leaked Password Protection is disabled and remains a production security prerequisite.
 
-Supabase Performance Advisor currently reports 12 unused indexes. These are review candidates and should not be deleted solely because the current dataset is small.
+Supabase Performance Advisor currently reports 15 unused-index candidates and one unindexed foreign key (`ai_support_cases.resolved_by`). The unused indexes should not be deleted solely because the current dataset is small.
 
 ## Production prerequisites
 
