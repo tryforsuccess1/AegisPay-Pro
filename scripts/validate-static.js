@@ -199,6 +199,9 @@ const functions=[
   'public-signup','submit-deposit','submit-kyc','telegram-withdrawal','verify-deposit','username-login','withdrawal-ai-review','record-user-access'
 ];
 for(const f of functions)assert(exists('supabase/functions/'+f+'/index.ts'),'Missing Edge Function source: '+f);
+const signupSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
+assert(signupSource.includes('pruneExpiredRateLimits(now)'), 'Public signup must periodically prune expired in-memory rate-limit keys');
+assert(signupSource.includes('now - lastSeen >= 15_000') && signupSource.includes('now - lastSeen >= 60_000'), 'Public signup rate-limit cleanup must preserve the IP and email cooldown windows');
 
 const stale=['index.html','app.js','aegis-core.js','backend','preview','apk-artifact','database/schema.sql','scripts/smoke-api.js','scripts/test-core-auth.js','assets/apps'];
 for(const p of stale)assert(!exists(p),'Legacy path remains in canonical main: '+p);
