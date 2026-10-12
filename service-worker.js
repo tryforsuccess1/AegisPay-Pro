@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v27-webview-fix';
+const CACHE='aegispay-shell-v28-navigation-network-first';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
@@ -22,12 +22,13 @@ self.addEventListener('fetch',event=>{
   if(event.request.method!=='GET')return;
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin)return;
-  const networkFirst=url.pathname.endsWith('.js')||url.pathname.endsWith('.html')||url.pathname.endsWith('/app-version.json');
+  const navigationFallback=APP_MODE?'./index.html':url.pathname.startsWith('/app/')?'./app/index.html':'./index.html';
+  const networkFirst=event.request.mode==='navigate'||url.pathname.endsWith('.js')||url.pathname.endsWith('.html')||url.pathname.endsWith('/app-version.json');
   if(networkFirst){
     event.respondWith(fetch(event.request,{cache:'no-store'}).then(response=>{
       if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy)).catch(()=>{});}
       return response;
-    }).catch(()=>caches.match(event.request).then(cached=>cached||caches.match(APP_MODE?'./index.html':'./index.html'))));
+    }).catch(()=>caches.match(event.request).then(cached=>cached||caches.match(navigationFallback))));
     return;
   }
   event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{
