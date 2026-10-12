@@ -208,5 +208,12 @@ for(const p of [
   '20261011_fix_tron_address_validator_collation.sql'
 ])assert(!exists(p),'Obsolete duplicate root-level SQL file must not be used instead of database/migrations: '+p);
 
+
+assert(client.includes('const qr=(address)=>')&&client.includes('wallet?qr(wallet)'),'Deposit QR must be generated from the configured receiving address, not a hard-coded image');
+assert(client.includes('encodeURIComponent(wallet)'),'Active deposit flow must encode its configured wallet into the QR generator URL');
+assert(!client.includes('DEPOSIT_QR')&&!client.includes('TPr8f6Qx2J9mN4kR7vY8sZmU'),'Legacy deposit UI must not contain a hard-coded QR or receiving address');
+assert(!client.includes('globalActivityFeed')&&!client.includes('aegisActivityTicker')&&!client.includes("Olivia - UK"),'Client must not show simulated deposits/withdrawals as real user activity');
+assert(!client.includes('timed demo activity ticker'),'Legacy code comments must not advertise the removed simulated ticker as active functionality');
+
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
