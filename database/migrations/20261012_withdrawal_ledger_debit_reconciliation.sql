@@ -91,8 +91,34 @@ BEGIN
     RAISE EXCEPTION 'Request not found or already finalized';
   END IF;
 
-  IF w.panel_decision <> 'PENDING' THEN
+  IF w.panel_decision IS DISTINCT FROM 'PENDING' THEN
     RAISE EXCEPTION 'Master Admin has already reviewed this withdrawal';
+  END IF;
+
+  -- Never deduct twice if a ledger debit already exists, and do not silently
+  -- clamp a short balance to zero. Validate both balance and the held amount
+  -- while locking the user's row before any approval mutation.
+  IF p_approve THEN
+    IF EXISTS (
+      SELECT 1
+      FROM public.account_ledger
+      WHERE user_id = w.user_id
+        AND entry_type = 'WITHDRAWAL_DEBIT'
+        AND reference_id = p_request_id::text
+    ) THEN
+      RAISE EXCEPTION 'A withdrawal debit already exists for this request';
+    END IF;
+
+    PERFORM 1
+    FROM public.users
+    WHERE id = w.user_id
+      AND COALESCE(current_platform_balance, 0) >= w.amount
+      AND COALESCE(withdrawal_held, 0) >= w.amount
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'Insufficient balance or withdrawal reservation for approval';
+    END IF;
   END IF;
 
   UPDATE public.withdrawal_requests
@@ -115,8 +141,8 @@ BEGIN
      WHERE id = w.user_id;
   ELSE
     UPDATE public.users
-       SET withdrawal_held = GREATEST(0, COALESCE(withdrawal_held, 0) - w.amount),
-           current_platform_balance = GREATEST(0, COALESCE(current_platform_balance, 0) - w.amount)
+       SET withdrawal_held = COALESCE(withdrawal_held, 0) - w.amount,
+           current_platform_balance = COALESCE(current_platform_balance, 0) - w.amount
      WHERE id = w.user_id
      RETURNING current_platform_balance INTO v_new_balance;
 
