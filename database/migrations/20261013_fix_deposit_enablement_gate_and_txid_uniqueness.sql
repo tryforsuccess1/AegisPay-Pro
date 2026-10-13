@@ -92,7 +92,24 @@ BEGIN
   IF COALESCE(d.ai_review_status,'') NOT IN ('APPROVED','MANUAL_APPROVED') THEN
     RAISE EXCEPTION 'Deposit evidence must be approved before credit';
   END IF;
-  IF COALESCE(btrim(d.txid),'') !~ '^[A-Fa-f0-9]{64}
+  IF length(COALESCE(btrim(d.txid),'')) <> 64
+     OR COALESCE(btrim(d.txid),'') !~ '^[A-Fa-f0-9]+$' THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='A valid 64-character chain transaction ID is required before deposit credit';
+  END IF;
+  IF d.gross_amount IS NULL OR d.gross_amount <= 0
+     OR d.deposit_fee IS NULL OR d.deposit_fee < 0
+     OR d.deposit_fee > d.gross_amount THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Deposit amount or fee is invalid';
+  END IF;
+
+  -- Both supported USDT TRC-20 contracts use six decimal places. Validate the
+  -- raw confirmed transfer amount again inside the database boundary.
+  v_chain_amount := p_raw_amount::numeric / 1000000;
+  IF v_chain_amount <> d.gross_amount THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='On-chain raw amount does not match the submitted deposit amount';
+  END IF;
+
+  SELECT COALESCE(value_json,'{}'::jsonb) INTO v_rules
   FROM public.platform_settings WHERE key = 'deposit_rules';
   v_network := upper(btrim(COALESCE(v_rules ->> 'network','')));
   v_contract := btrim(COALESCE(v_rules ->> 'token_contract',''));
