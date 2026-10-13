@@ -5,11 +5,12 @@ import { loadPrivateImage, runVisionReview } from "./ai-review.ts";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
+const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
-const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
+const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const POLICY_VERSION = "2026-10-08-v1";
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -49,12 +50,16 @@ Deno.serve(async (req: Request) => {
     const rules = depositRulesRow.value_json;
     const depositNetwork = String(rules.network || "").toUpperCase();
     if (depositNetwork === "TRON MAINNET") {
+      const mainnetTokenContract = String(rules.token_contract || "").trim();
+      if (mainnetTokenContract !== MAINNET_USDT) {
+        return json({ error: "Mainnet deposits require the official TRON USDT token contract.", code: "UNSUPPORTED_MAINNET_TOKEN_CONTRACT" }, 423);
+      }
       const { data: unresolvedPayouts, error: unresolvedPayoutError } = await admin
         .from("withdrawal_requests").select("id").in("status", ["APPROVED", "PROCESSING"])
         .is("payout_txid", null).limit(1);
       if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
       const payoutCredentialsReady = Boolean(TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0);
-      const mainnetDepositsOpen = mode.mode === "MAINNET" && mode.live_deposits === true &&
+      const mainnetDepositsOpen = mainnetTokenContract === MAINNET_USDT && mode.mode === "MAINNET" && mode.live_deposits === true &&
         mode.real_payouts === true && mode.production_go_live_approved === true &&
         String(production.environment || "").toUpperCase() === "PRODUCTION" &&
         production.live_deposits_enabled === true && production.real_payouts_enabled === true &&
@@ -72,10 +77,14 @@ Deno.serve(async (req: Request) => {
     if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
     const body = await req.json().catch(() => null);
-    const amount = Number(body?.amount);
+    const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
+    const amount = Number(amountInput);
     const txid = typeof body?.txid === "string" ? body.txid.trim() : "";
     const screenshotPath = typeof body?.screenshotPath === "string" ? body.screenshotPath : "";
-    if (!Number.isFinite(amount) || amount < 10) return json({ error: "Minimum deposit amount is 10 USDT." }, 400);
+    if (!/^\d+(?:\.\d{1,2})?$/.test(amountInput) || !Number.isFinite(amount) || amount < 10
+      || !Number.isSafeInteger(Math.round(amount * 100))) {
+      return json({ error: "Deposit amount must be at least 10 USDT, use at most two decimal places, and be within the supported precision." }, 400);
+    }
     if (!/^[a-f\d]{64}$/i.test(txid)) return json({ error: "Enter the 64-character TRON transaction ID." }, 400);
     if (!screenshotPath.startsWith(auth.user.id + "/deposits/")) return json({ error: "Upload the deposit screenshot first." }, 400);
 
@@ -86,7 +95,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
-      credited_amount: Math.max(0, amount), txid, screenshot_path,
+      credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path: screenshotPath,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
     }).select("id,status,ai_review_status,gross_amount,created_at").single();

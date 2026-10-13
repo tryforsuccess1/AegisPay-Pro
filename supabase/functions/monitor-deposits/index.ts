@@ -8,7 +8,7 @@ const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
-const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
+const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SHASTA_TEST_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 function json(body: unknown, status = 200) {
@@ -80,6 +80,10 @@ Deno.serve(async (req: Request) => {
     if (error) return json({ error: "Unable to load pending deposits." }, 500);
 
     if (network === "TRON MAINNET") {
+      const mainnetTokenContract = String(rules.token_contract || "").trim();
+      if (mainnetTokenContract !== MAINNET_USDT) {
+        return json({ error: "Mainnet deposit monitoring requires the official TRON USDT token contract.", code: "UNSUPPORTED_MAINNET_TOKEN_CONTRACT" }, 403);
+      }
       const [{ data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
         admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
         admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
@@ -94,7 +98,7 @@ Deno.serve(async (req: Request) => {
         .is("payout_txid", null).limit(1);
       if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
       const payoutCredentialsReady = Boolean(TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0);
-      const mainnetDepositsOpen = mode.mode === "MAINNET" && mode.live_deposits === true &&
+      const mainnetDepositsOpen = mainnetTokenContract === MAINNET_USDT && mode.mode === "MAINNET" && mode.live_deposits === true &&
         mode.real_payouts === true && mode.production_go_live_approved === true &&
         String(production.environment || "").toUpperCase() === "PRODUCTION" &&
         production.live_deposits_enabled === true && production.real_payouts_enabled === true &&
