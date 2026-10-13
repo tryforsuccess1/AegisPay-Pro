@@ -29,6 +29,10 @@ const must=[
   'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
   'database/migrations/20261013_harden_security_definer_search_paths.sql',
   'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
+  'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
+  'scripts/sql-tests/deposit_migration_fixture.sql',
+  'scripts/sql-tests/deposit_migration_assertions.sql',
+  '.github/workflows/sql-migration-tests.yml',
   'docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql',
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
@@ -268,6 +272,17 @@ assert(withdrawalHardening.includes("'WITHDRAWAL_DEBIT'")&&withdrawalHardening.i
 assert(withdrawalHardening.includes("Insufficient balance, inactive user, or inconsistent withdrawal reservation"),'Withdrawal approval must fail closed on invalid balance/hold state');
 assert(withdrawalHardening.includes("FROM PUBLIC, anon, service_role")&&withdrawalHardening.includes("TO authenticated"),'Master Admin RPC must not be executable through anon or service_role roles');
 assert(withdrawalHardening.includes("FROM PUBLIC, anon, authenticated")&&withdrawalHardening.includes("TO service_role"),'Telegram decision and AI RPCs must remain service-role only');
+
+const depositCreditFix=fs.readFileSync('database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql','utf8');
+assert(depositCreditFix.includes("SET search_path TO ''"),'Verified deposit credit function must use an empty fixed search_path');
+assert(depositCreditFix.includes("COALESCE((v_mode ->> 'live_deposits')::BOOLEAN,FALSE)")&&!depositCreditFix.includes("COALESCE((v_mode ->> 'real_payouts')::BOOLEAN,FALSE) IS NOT TRUE"),'MAINNET credit must use the live-deposit flag, not a payout flag');
+assert(depositCreditFix.includes('CREATE UNIQUE INDEX IF NOT EXISTS deposit_submissions_network_txid_uq'),'Deposit credit must have a database-enforced unique chain transaction reference');
+assert(depositCreditFix.includes('NULLIF(btrim(network), \'\') IS NULL')&&depositCreditFix.includes('manual reconciliation before adding the unique index'),'Legacy submissions without a network must fail closed before the unique index is added');
+assert(depositCreditFix.includes("FROM public.platform_settings WHERE key = 'referral_rules'")&&depositCreditFix.includes('v_l1')&&depositCreditFix.includes('v_l2'),'Deposit migration must preserve configurable referral reward values');
+assert(depositCreditFix.includes('REVOKE ALL ON FUNCTION public.apply_verified_deposit')&&depositCreditFix.includes('TO service_role'),'Deposit credit RPC must not default to PUBLIC execution and must grant service_role explicitly');
+assert(depositSubmitSource.includes('network: depositNetwork'),'Deposit submission must persist the selected network before verification');
+assert(depositSubmitSource.includes('amountInput')&&depositSubmitSource.includes('Number.isSafeInteger(Math.round(amount * 100))'),'Deposit submission must reject excess decimal precision and unsafe numeric inputs');
+assert(fs.readFileSync('.github/workflows/sql-migration-tests.yml','utf8').includes('postgres:17'),'Deposit SQL migrations must be tested on a disposable PostgreSQL service');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
