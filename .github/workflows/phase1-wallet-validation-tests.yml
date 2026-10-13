@@ -1,0 +1,57 @@
+name: AegisPay Phase 1 Wallet Validation Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql'
+      - 'database/migrations/20261011_validate_tron_wallet_base58check.sql'
+      - 'scripts/sql-tests/phase1_wallet_validation_*.sql'
+      - '.github/workflows/phase1-wallet-validation-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql'
+      - 'database/migrations/20261011_validate_tron_wallet_base58check.sql'
+      - 'scripts/sql-tests/phase1_wallet_validation_*.sql'
+      - '.github/workflows/phase1-wallet-validation-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wallet-validation:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_wallet_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_wallet_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_wallet_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL is ready
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create isolated wallet-validation fixture
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/phase1_wallet_validation_fixture.sql
+      - name: Apply Phase 1 migration to disposable database
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261014_phase1_validate_withdrawal_wallets.sql
+      - name: Verify exact-case validation, fail-closed writes, and both triggers
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/phase1_wallet_validation_assertions.sql
