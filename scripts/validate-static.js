@@ -147,6 +147,7 @@ assert((payoutSource.match(/is_valid_tron_address/g)||[]).length===1,'Payout sou
 const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
 assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
 const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
+assert(depositSubmitSource.includes(String.raw`split(/[\s,]+/)`) && depositMonitorSource.includes(String.raw`split(/[\s,]+/)`),'Telegram approver IDs must parse whitespace or comma separators correctly');
 const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
