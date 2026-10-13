@@ -22,7 +22,8 @@ RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT '{}'::jsonb $$;
 
 CREATE TABLE public.platform_settings (
   key text PRIMARY KEY,
-  value_json jsonb NOT NULL DEFAULT '{}'::jsonb
+  value_json jsonb NOT NULL DEFAULT '{}'::jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
 
 CREATE TABLE public.users (
@@ -77,6 +78,7 @@ CREATE TABLE public.account_ledger (
   entry_type text NOT NULL,
   amount numeric(18,2) NOT NULL,
   description text NOT NULL,
+  actor_user_id uuid,
   reference_id text,
   metadata jsonb
 );
