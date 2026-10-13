@@ -211,6 +211,17 @@ assert(fs.readFileSync('_redirects','utf8').includes('/app /app/ 301')&&fs.readF
 
 const signupSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
 
+const usernameLoginSource=fs.readFileSync('supabase/functions/username-login/index.ts','utf8');
+const adminAccountOpsSource=fs.readFileSync('supabase/functions/admin-account-ops/index.ts','utf8');
+for(const [source,label] of [[signupSource,'signup'],[usernameLoginSource,'username login']]){
+  assert(source.includes('function trustedClientIp(req: Request)')&&source.includes('req.headers.get("cf-connecting-ip")'),'Trusted Cloudflare client IP handling is missing from '+label);
+  assert(source.includes('forwardedFor[forwardedFor.length - 1]'),'Forwarded IP fallback must use the right-most gateway-appended address for '+label);
+  assert(!source.includes('.split(",")[0].trim()'),'Client-controlled first X-Forwarded-For entry must not drive '+label+' throttling');
+}
+assert(adminAccountOpsSource.includes('auth.user.email_confirmed_at')&&adminAccountOpsSource.includes('A confirmed Auth email is required to repair the Master Admin link.'),'Master Admin email-link recovery must require a confirmed Auth email');
+assert(adminAccountOpsSource.includes('String(candidate.email||"").trim().toLowerCase()===normalizedAuthEmail'),'Master Admin email recovery must strictly match normalized email after wildcard lookup');
+
+
 const functions=[
   'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset',
   'public-signup','submit-deposit','submit-kyc','telegram-withdrawal','verify-deposit','username-login','withdrawal-ai-review','record-user-access'

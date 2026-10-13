@@ -32,8 +32,10 @@ Deno.serve(async(req:Request)=>{
   actor=direct.data||null; actorError=direct.error||null;
 
   if(!isActiveMaster(actor)&&auth.user.email){
-   const fallback=await admin.from("users").select("id,auth_user_id,email,role,status").ilike("email",auth.user.email).limit(5);
-   const candidates=(fallback.data||[]).filter(isActiveMaster);
+   if(!auth.user.email_confirmed_at)return json({error:"A confirmed Auth email is required to repair the Master Admin link."},403);
+   const normalizedAuthEmail=auth.user.email.trim().toLowerCase();
+   const fallback=await admin.from("users").select("id,auth_user_id,email,role,status").ilike("email",normalizedAuthEmail).limit(5);
+   const candidates=(fallback.data||[]).filter((candidate:any)=>isActiveMaster(candidate)&&String(candidate.email||"").trim().toLowerCase()===normalizedAuthEmail);
    if(candidates.length===1){
     actor=candidates[0]; actorError=fallback.error||null;
     if(actor.auth_user_id!==auth.user.id){

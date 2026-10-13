@@ -41,6 +41,14 @@ function trimExpired(map: Map<string, RateWindow>, now: number) {
   }
 }
 
+function trustedClientIp(req: Request): string {
+  const cloudflareIp = (req.headers.get("cf-connecting-ip") || "").trim();
+  if (cloudflareIp) return cloudflareIp.slice(0, 64);
+  const forwardedFor = (req.headers.get("x-forwarded-for") || "")
+    .split(",").map((part) => part.trim()).filter(Boolean);
+  return (forwardedFor[forwardedFor.length - 1] || "unknown").slice(0, 64);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -62,7 +70,7 @@ Deno.serve(async (req: Request) => {
     const now = Date.now();
     trimExpired(ipWindows, now);
     trimExpired(usernameWindows, now);
-    const ip = (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "unknown").split(",")[0].trim();
+    const ip = trustedClientIp(req);
     if (!allowed(ipWindows, ip, MAX_IP_ATTEMPTS, now) ||
         !allowed(usernameWindows, username, MAX_USERNAME_ATTEMPTS, now)) {
       return json({ error: "Too many login attempts. Please wait before trying again.", code: "LOGIN_RATE_LIMIT", requestId }, 429);

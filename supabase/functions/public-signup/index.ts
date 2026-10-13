@@ -33,6 +33,14 @@ function pruneExpiredRateLimits(now: number) {
   lastRateLimitCleanupAt = now;
 }
 
+function trustedClientIp(req: Request): string {
+  const cloudflareIp = (req.headers.get("cf-connecting-ip") || "").trim();
+  if (cloudflareIp) return cloudflareIp.slice(0, 64);
+  const forwardedFor = (req.headers.get("x-forwarded-for") || "")
+    .split(",").map((part) => part.trim()).filter(Boolean);
+  return (forwardedFor[forwardedFor.length - 1] || "unknown").slice(0, 64);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
@@ -58,7 +66,7 @@ Deno.serve(async (req: Request) => {
     if (password.length < 8 || password.length > 128) return json({ error: "Password must contain 8 to 128 characters.", code: "INVALID_PASSWORD", requestId }, 400);
     if (referralCode.length > 32) return json({ error: "Referral code is too long.", code: "INVALID_REFERRAL", requestId }, 400);
 
-    const ip = (req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown").split(",")[0].trim();
+    const ip = trustedClientIp(req);
     const now = Date.now();
     pruneExpiredRateLimits(now);
     if ((now - (ipLastSeen.get(ip) || 0)) < 15_000 || (now - (emailLastSeen.get(email) || 0)) < 60_000) {
