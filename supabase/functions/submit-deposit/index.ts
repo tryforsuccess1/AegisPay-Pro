@@ -72,10 +72,14 @@ Deno.serve(async (req: Request) => {
     if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
     const body = await req.json().catch(() => null);
-    const amount = Number(body?.amount);
+    const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
+    const amount = Number(amountInput);
     const txid = typeof body?.txid === "string" ? body.txid.trim() : "";
     const screenshotPath = typeof body?.screenshotPath === "string" ? body.screenshotPath : "";
-    if (!Number.isFinite(amount) || amount < 10) return json({ error: "Minimum deposit amount is 10 USDT." }, 400);
+    if (!/^\d+(?:\.\d{1,2})?$/.test(amountInput) || !Number.isFinite(amount) || amount < 10
+      || !Number.isSafeInteger(Math.round(amount * 100))) {
+      return json({ error: "Deposit amount must be at least 10 USDT, use at most two decimal places, and be within the supported precision." }, 400);
+    }
     if (!/^[a-f\d]{64}$/i.test(txid)) return json({ error: "Enter the 64-character TRON transaction ID." }, 400);
     if (!screenshotPath.startsWith(auth.user.id + "/deposits/")) return json({ error: "Upload the deposit screenshot first." }, 400);
 
@@ -86,7 +90,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
-      credited_amount: Math.max(0, amount), txid, screenshot_path,
+      credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
     }).select("id,status,ai_review_status,gross_amount,created_at").single();
