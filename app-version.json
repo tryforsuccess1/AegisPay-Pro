@@ -1,13 +1,14 @@
 {
   "versionCode": 41,
   "versionName": "2.6.2",
-  "releaseChannel": "stable",
-  "releasedAt": "2026-10-13T22:00:00Z",
-  "clientApkUrl": "https://aegispay-pro.pages.dev/downloads/aegispay-client-v2.6.2-b41.apk",
+  "releaseChannel": "test",
+  "candidateBuiltAt": "2026-10-13T18:51:31Z",
+  "clientApkUrl": "https://aegispay-pro.pages.dev/downloads/aegispay-client-v2.5.9-b38.apk",
   "clientSha256": "e5a39e00d8791ce20b98193d4838e64f2cc8568d38131848f88d03929cee46a5",
   "notes": [
+    "Build 41 is a test candidate, not a stable release.",
     "Canonical Aurora Client UI APK baseline.",
     "Premium Client dashboard and username login are included.",
-    "APK delivery uses a versioned filename and SHA-256 verification."
+    "Promote to stable only after the release APK is published and its SHA-256 is verified."
   ]
 }
