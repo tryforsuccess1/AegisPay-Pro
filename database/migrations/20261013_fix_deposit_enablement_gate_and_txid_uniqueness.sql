@@ -59,7 +59,7 @@ BEGIN
   v_network := upper(COALESCE(v_deposit->>'network', ''));
   v_contract := trim(COALESCE(v_deposit->>'token_contract', ''));
   v_mode := upper(COALESCE(v_system->>'mode', ''));
-  v_mainnet_ready := (v_mode = 'MAINNET' AND v_network = 'TRON MAINNET' AND v_addr ~ '^T[1-9A-HJ-NP-Za-km-z]{33}
+  v_mainnet_ready := (v_mode = 'MAINNET' AND v_network = 'TRON MAINNET' AND v_addr ~ '^T[1-9A-HJ-NP-Za-km-z]{33}$' AND v_contract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t');
 
   BEGIN
     v_runtime := public.app_runtime_enabled();
