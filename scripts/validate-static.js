@@ -31,6 +31,7 @@ const must=[
   'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
   'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
   'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql',
+  'database/migrations/20261014120000_revoke_trigger_only_function_execute.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   '.github/workflows/sql-migration-tests.yml',
@@ -49,6 +50,11 @@ for(const p of must)assert(exists(p),'Missing canonical source file: '+p);
 const weightedTaskReference=fs.readFileSync('docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql','utf8');
 assert(weightedTaskReference.includes('REFERENCE SNAPSHOT ONLY')&&weightedTaskReference.includes('NOT THE ORIGINAL MIGRATION SOURCE'),'Recovered weighted Shop function must remain explicitly marked as reference-only');
 assert(weightedTaskReference.includes('so.task_weight')&&weightedTaskReference.includes('weight_sum'),'Recovered weighted Shop function must preserve product-weighted allocation logic');
+
+const triggerOnlyGrantMigration=fs.readFileSync('database/migrations/20261014120000_revoke_trigger_only_function_execute.sql','utf8');
+assert(triggerOnlyGrantMigration.includes('REVOKE ALL ON FUNCTION public.enforce_valid_tron_withdrawal_address()'),'Trigger-only wallet validator must not remain callable as an RPC');
+assert(/FROM PUBLIC, anon, authenticated\s*;/i.test(triggerOnlyGrantMigration),'Trigger-only wallet validator must revoke public and authenticated client execution');
+assert(!/FROM[^;]*service_role/i.test(triggerOnlyGrantMigration),'Keep service_role maintenance permission for controlled trigger maintenance');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
