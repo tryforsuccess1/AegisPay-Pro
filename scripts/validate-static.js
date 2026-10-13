@@ -224,7 +224,7 @@ assert(signupSource.includes('now - lastSeen >= 15_000') && signupSource.include
 
 const depositCreditFix=fs.readFileSync('database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql','utf8');
 assert(depositCreditFix.includes("SET search_path TO ''"),'Verified deposit credit function must use an empty fixed search_path');
-assert(depositCreditFix.includes("COALESCE(v_mode ->> 'live_deposits'")&&!depositCreditFix.includes("COALESCE((v_mode ->> 'real_payouts')::BOOLEAN,FALSE) IS NOT TRUE"),'MAINNET deposit credit must use its own live-deposit switch, independent of payouts');
+assert(depositCreditFix.includes("COALESCE((v_mode ->> 'live_deposits')::BOOLEAN,FALSE)")&&!depositCreditFix.includes("COALESCE((v_mode ->> 'real_payouts')::BOOLEAN,FALSE) IS NOT TRUE"),'MAINNET deposit credit must use its own live-deposit switch, independent of payouts');
 assert(depositCreditFix.includes('CREATE UNIQUE INDEX IF NOT EXISTS deposit_submissions_network_txid_uq'),'Deposit credit must have a database-enforced unique chain transaction reference');
 assert(depositCreditFix.includes('HAVING count(*) > 1')&&depositCreditFix.includes('manual reconciliation is required before adding the unique index'),'Duplicate transaction preflight must fail closed and require reconciliation');
 assert(depositCreditFix.includes('WHERE id = p_deposit_id')&&depositCreditFix.includes('FOR UPDATE'),'Deposit credit state transition must lock the pending submission');
