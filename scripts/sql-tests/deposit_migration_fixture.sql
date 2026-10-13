@@ -9,6 +9,17 @@ BEGIN
 END;
 $roles$;
 
+CREATE SCHEMA IF NOT EXISTS auth;
+CREATE OR REPLACE FUNCTION auth.uid()
+RETURNS uuid LANGUAGE sql STABLE
+AS $$ SELECT NULLIF(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
+
+CREATE OR REPLACE FUNCTION public.app_runtime_enabled()
+RETURNS boolean LANGUAGE sql STABLE AS $$ SELECT true $$;
+
+CREATE OR REPLACE FUNCTION public.get_production_readiness()
+RETURNS jsonb LANGUAGE sql STABLE AS $$ SELECT '{}'::jsonb $$;
+
 CREATE TABLE public.platform_settings (
   key text PRIMARY KEY,
   value_json jsonb NOT NULL DEFAULT '{}'::jsonb
@@ -16,6 +27,9 @@ CREATE TABLE public.platform_settings (
 
 CREATE TABLE public.users (
   id uuid PRIMARY KEY,
+  auth_user_id uuid,
+  role text NOT NULL DEFAULT 'USER',
+  status text NOT NULL DEFAULT 'ACTIVE',
   current_platform_balance numeric(18,2) NOT NULL DEFAULT 0,
   principal_balance numeric(18,2) NOT NULL DEFAULT 0,
   first_deposit_done boolean NOT NULL DEFAULT false,
@@ -77,9 +91,12 @@ CREATE TABLE public.audit_events (
 );
 
 INSERT INTO public.platform_settings(key,value_json) VALUES
-  ('deposit_rules', '{"network":"TRON MAINNET","token_contract":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"}'::jsonb),
+  ('deposit_rules', '{"network":"TRON MAINNET","token_contract":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t","receiving_address":"TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn"}'::jsonb),
   ('system_mode', '{"mode":"MAINNET","live_deposits":true,"real_payouts":false}'::jsonb),
   ('referral_rules', '{"level_1":3.50,"level_2":1.25}'::jsonb);
+
+INSERT INTO public.users(id,auth_user_id,role,status,referred_by) VALUES
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','MASTER ADMIN','ACTIVE',NULL);
 
 INSERT INTO public.users(id,referred_by) VALUES
   ('11111111-1111-4111-8111-111111111111','66666666-6666-4666-8666-666666666666'),
