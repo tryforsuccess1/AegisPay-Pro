@@ -27,6 +27,7 @@ const must=[
   'database/migrations/20261011_exact_integer_tron_address_decode.sql',
   'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql',
   'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
+  'database/migrations/20261013_harden_security_definer_search_paths.sql',
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
   'supabase/functions/production-readiness/index.ts',
@@ -37,6 +38,16 @@ const must=[
   '.github/workflows/web-portal-deploy.yml','.github/workflows/website-apk-release.yml','.github/workflows/withdrawal-migration-tests.yml'
 ];
 for(const p of must)assert(exists(p),'Missing canonical source file: '+p);
+
+const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
+for(const header of [
+  'x-content-type-options: nosniff',
+  'referrer-policy: strict-origin-when-cross-origin',
+  'x-frame-options: deny',
+  'permissions-policy: camera=(), microphone=(), geolocation=()',
+  'strict-transport-security: max-age=31536000'
+])assert(securityHeaders.includes(header),'Missing browser security header: '+header);
+
 
 function assertInlineScriptsParse(file){
   const html=fs.readFileSync(file,'utf8');
