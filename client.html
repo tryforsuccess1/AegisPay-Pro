@@ -1769,7 +1769,12 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   window.__aegisGlobalTapHandler=function(e){
     let target=e.target;
     if(!target||!target.closest)return;
-    const notification=target.closest('.notif-card[data-notification-id]');
+    const botEntry=target.closest('[data-go="bot"],[data-a="sup"],button[aria-label="AI Assistant"],nav a[onclick*="bot"]');
+    if(botEntry&&typeof window.go==='function'){
+      e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
+      window.go('bot');return;
+    }
+    const notification=target.closest('.notif-card[data-notification-id],.nt-i[data-notification-id]');
     if(notification&&typeof window.__aegisOpenNotificationById==='function'){
       e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
       window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'));return;
