@@ -29,6 +29,10 @@ const must=[
   'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
   'database/migrations/20261013_harden_security_definer_search_paths.sql',
   'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
+  'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
+  'scripts/sql-tests/deposit_migration_fixture.sql',
+  'scripts/sql-tests/deposit_migration_assertions.sql',
+  '.github/workflows/sql-migration-tests.yml',
   'docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql',
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
@@ -143,11 +147,19 @@ assert((payoutSource.match(/is_valid_tron_address/g)||[]).length===1,'Payout sou
 const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
 assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
 const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
+const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
+const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+assert(depositSubmitSource.includes(String.raw`split(/[\s,]+/)`) && depositMonitorSource.includes(String.raw`split(/[\s,]+/)`),'Telegram approver IDs must parse whitespace or comma separators correctly');
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
 assert(client.includes('Deposits temporarily paused')&&client.includes('settings.production_config'),'Client must hide the Mainnet deposit wallet until payout readiness is approved');
 assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
 assert(depositMonitorSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositMonitorSource.includes('production.payouts_locked === false'),'Deposit monitor must not credit Mainnet deposits while payouts are locked');
+assert(depositVerifySource.includes('MAINNET_DEPOSITS_PAUSED')&&depositVerifySource.includes('production.payouts_locked === false')&&depositVerifySource.includes('payoutCredentialsReady'),'Direct Mainnet deposit verification must enforce the same production payout-readiness gate');
+assert(depositSubmitSource.includes('mainnetTokenContract !== MAINNET_USDT')&&depositSubmitSource.includes('UNSUPPORTED_MAINNET_TOKEN_CONTRACT'),'Mainnet deposit submission must require the exact official TRON USDT token contract');
+assert(depositMonitorSource.includes('mainnetTokenContract !== MAINNET_USDT')&&depositMonitorSource.includes('UNSUPPORTED_MAINNET_TOKEN_CONTRACT'),'Mainnet monitor must require the exact official TRON USDT token contract');
+assert(depositVerifySource.includes('mainnetTokenContract !== MAINNET_USDT')&&depositVerifySource.includes('UNSUPPORTED_MAINNET_TOKEN_CONTRACT'),'Direct Mainnet verification must require the exact official TRON USDT token contract');
+assert(depositReadinessSource.includes('mainnetUsdtContractOk')&&depositReadinessSource.includes('mainnetBaseConfigOk')&&depositReadinessSource.includes('mainnet_usdt_contract_ok'),'Production readiness must fail closed and report official USDT token-contract readiness');
 assert(depositSafetyMigration.includes('Live mainnet deposits require approved PRODUCTION mode')&&depositSafetyMigration.includes('PRE_PRODUCTION_PAYOUTS_LOCKED'),'Database settings RPC and current Mainnet configuration must fail closed');
 assert(depositMonitorSource.includes('verify_deposit_monitor_cron_secret')&&depositMonitorSource.includes('x-aegis-cron-secret'),'Deposit monitor must validate the configured Vault-backed cron secret');
 assert(depositMonitorSource.includes('.in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])'),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
@@ -268,6 +280,26 @@ assert(withdrawalHardening.includes("'WITHDRAWAL_DEBIT'")&&withdrawalHardening.i
 assert(withdrawalHardening.includes("Insufficient balance, inactive user, or inconsistent withdrawal reservation"),'Withdrawal approval must fail closed on invalid balance/hold state');
 assert(withdrawalHardening.includes("FROM PUBLIC, anon, service_role")&&withdrawalHardening.includes("TO authenticated"),'Master Admin RPC must not be executable through anon or service_role roles');
 assert(withdrawalHardening.includes("FROM PUBLIC, anon, authenticated")&&withdrawalHardening.includes("TO service_role"),'Telegram decision and AI RPCs must remain service-role only');
+
+const depositCreditFix=fs.readFileSync('database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql','utf8');
+assert(depositCreditFix.includes("SET search_path TO ''"),'Verified deposit credit function must use an empty fixed search_path');
+assert(depositCreditFix.includes("COALESCE((v_mode ->> 'live_deposits')::BOOLEAN,FALSE)")&&!depositCreditFix.includes("COALESCE((v_mode ->> 'real_payouts')::BOOLEAN,FALSE) IS NOT TRUE"),'MAINNET credit must use the live-deposit flag, not a payout flag');
+assert(depositCreditFix.includes('CREATE UNIQUE INDEX IF NOT EXISTS deposit_submissions_network_txid_uq'),'Deposit credit must have a database-enforced unique chain transaction reference');
+assert(depositCreditFix.includes('NULLIF(btrim(network), \'\') IS NULL')&&depositCreditFix.includes('manual reconciliation before adding the unique index'),'Legacy submissions without a network must fail closed before the unique index is added');
+assert(depositCreditFix.includes("FROM public.platform_settings WHERE key = 'referral_rules'")&&depositCreditFix.includes('v_l1')&&depositCreditFix.includes('v_l2'),'Deposit migration must preserve configurable referral reward values');
+assert(depositCreditFix.includes("v_contract <> 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'"),'Mainnet deposit credit must reject any token other than official TRON USDT');
+assert(depositCreditFix.includes("v_contract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'")&&depositCreditFix.includes('v_mainnet_ready'), 'Production SQL go-live gate must require the official TRON USDT contract');
+assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Production go-live accepted a non-USDT Mainnet token contract'),'SQL integration tests must reject a fake Mainnet token contract before go-live');
+assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Fake Mainnet token contract was credited as USDT'),'SQL integration tests must prevent fake Mainnet tokens from being credited as USDT');
+assert(depositCreditFix.includes('REVOKE ALL ON FUNCTION public.apply_verified_deposit')&&depositCreditFix.includes('TO service_role'),'Deposit credit RPC must not default to PUBLIC execution and must grant service_role explicitly');
+assert(depositCreditFix.includes("length(COALESCE(btrim(d.txid),'')) <> 64")&&depositCreditFix.includes("^[A-Fa-f0-9]+$")&&depositCreditFix.includes("v_chain_amount := p_raw_amount::numeric / 1000000")&&depositCreditFix.includes("v_chain_amount <> d.gross_amount"),'Deposit credit must validate the chain transaction hash and exact raw USDT amount at the database boundary');
+assert(depositCreditFix.includes("Deposit network differs from current settings")&&depositCreditFix.includes("Deposit submission has no recorded network"),'Deposit credit must fail closed if the submitted chain no longer matches deposit settings');
+assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Deposit network change was accepted'),'Disposable SQL tests must cover configuration drift between submission and verification');
+assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Raw chain amount mismatch was accepted'),'Disposable SQL tests must cover raw chain amount mismatch');
+assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Malformed chain transaction ID was accepted'),'Disposable SQL tests must cover malformed transaction IDs');
+assert(depositSubmitSource.includes('network: depositNetwork'),'Deposit submission must persist the selected network before verification');
+assert(depositSubmitSource.includes('amountInput')&&depositSubmitSource.includes('Number.isSafeInteger(Math.round(amount * 100))'),'Deposit submission must reject excess decimal precision and unsafe numeric inputs');
+assert(fs.readFileSync('.github/workflows/sql-migration-tests.yml','utf8').includes('postgres:17'),'Deposit SQL migrations must be tested on a disposable PostgreSQL service');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
