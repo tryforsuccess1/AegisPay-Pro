@@ -49,12 +49,16 @@ Deno.serve(async (req: Request) => {
     const rules = depositRulesRow.value_json;
     const depositNetwork = String(rules.network || "").toUpperCase();
     if (depositNetwork === "TRON MAINNET") {
+      const mainnetTokenContract = String(rules.token_contract || "").trim();
+      if (mainnetTokenContract !== MAINNET_USDT) {
+        return json({ error: "Mainnet deposits require the official TRON USDT token contract.", code: "UNSUPPORTED_MAINNET_TOKEN_CONTRACT" }, 423);
+      }
       const { data: unresolvedPayouts, error: unresolvedPayoutError } = await admin
         .from("withdrawal_requests").select("id").in("status", ["APPROVED", "PROCESSING"])
         .is("payout_txid", null).limit(1);
       if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
       const payoutCredentialsReady = Boolean(TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0);
-      const mainnetDepositsOpen = mode.mode === "MAINNET" && mode.live_deposits === true &&
+      const mainnetDepositsOpen = mainnetTokenContract === MAINNET_USDT && mode.mode === "MAINNET" && mode.live_deposits === true
         mode.real_payouts === true && mode.production_go_live_approved === true &&
         String(production.environment || "").toUpperCase() === "PRODUCTION" &&
         production.live_deposits_enabled === true && production.real_payouts_enabled === true &&
