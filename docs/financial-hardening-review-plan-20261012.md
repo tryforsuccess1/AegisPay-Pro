@@ -98,3 +98,43 @@ The current draft withdrawal migration in PR #7 was reviewed without applying it
 - PR #7's own description confirms the legacy `record_withdrawal_telegram_decision` path is still unresolved. It must call the same canonical transition or be safely retired with grants and callers audited.
 - The migration's static CI and Android artifact workflows passed on head `2d3a4b2b4fb5f7d40c2e8949dc1ce498a1e3250e` (workflow runs 38284673554 and 38284673266). Those results validate repository/build checks only; they do not prove PostgreSQL transaction behavior, idempotency under concurrent calls, or live user end-to-end financial correctness.
 - **PR #7 remains draft and must not be merged as-is.** No code edit or database execution was made during this review.
+
+
+## Source-specific correction checklist — 2026-10-13
+
+This is a read-only source review. The following observations are from the current `main` source and are not a claim that the live database's effective grants or runtime rows were changed.
+
+### Deposit credit
+
+Source: `database/migrations/20260930_network_aware_deposit_credit.sql`
+
+- The MAINNET branch currently requires `system_mode.real_payouts = true`. In contrast, `supabase/functions/verify-deposit/index.ts` permits the chain-verification step when `system_mode.mode = 'MAINNET'` and `system_mode.live_deposits = true`. This couples customer deposit credit to payout enablement and is inconsistent with the separate production-gate helpers that model deposits and payouts as different gates.
+- The function is `SECURITY DEFINER SET search_path TO 'public'`. The corrective migration must use a fixed empty search path and schema-qualify every object name, then explicitly set least-privilege execute grants for the intended trusted server role. Verify the effective grants against the database rather than assuming from one historical migration.
+- The row lock/status check makes repeated calls for the same deposit row return without re-crediting, but it does not by itself stop two different deposit rows from claiming the same chain transaction. Preflight duplicates and add a database-enforced uniqueness/idempotency rule for the relevant verified TRON transaction identity (network + token contract + transaction ID) before enabling new credit logic.
+- Keep trusted on-chain proof checks in the service verifier and fail closed for wrong receiving address, token contract, transaction hash, transfer direction/type, token decimals/amount, unsuccessful or unconfirmed transfers, disabled live-deposit gate, and unapproved evidence. Do not require `real_payouts=true` merely to credit an otherwise valid deposit.
+- Preserve the configured deposit fee and referral semantics. Test that a duplicate or concurrent verification produces exactly one user credit, one deposit ledger entry, and at most one set of referral side effects.
+
+### Withdrawal decision accounting
+
+Sources: `database/migrations/20260930_telegram_withdrawal_txid_guard.sql` and draft PR #7's `database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql`.
+
+- In `record_withdrawal_telegram_decision`, rejecting a withdrawal that was already deducted adds the amount back to `current_platform_balance` without inserting a matching `WITHDRAWAL_REFUND` ledger row.
+- In the same function, rejecting a non-deducted withdrawal uses `GREATEST(0, withdrawal_held - amount)`, and dual approval uses `GREATEST(0, current_platform_balance - amount)` plus clamped hold subtraction. The dual-approval path does not add a matching `WITHDRAWAL_DEBIT` ledger row.
+- PR #7 adds a debit to the Master Admin `finalize_withdrawal` path, but does not unify or retire the Telegram path. Its rejection path also uses a clamped hold release. It is therefore incomplete and must stay draft.
+- Correct both decision routes with one canonical transactional state machine. Lock the withdrawal and user rows, verify the exact hold/balance invariants before any status or money mutation, fail and roll back on insufficient hold/balance, write exactly one debit/refund/release ledger entry using the withdrawal ID as the idempotency reference, and audit the decision. Never mask a mismatch by clamping to zero.
+- An uncertain or potentially broadcast payout must remain in reconciliation; never auto-refund it based only on a callback or timeout.
+
+### Required tests before approval
+
+Use synthetic fixtures in an explicitly permitted isolated test database only:
+
+- MAINNET verified deposit credit with live deposits enabled and real payouts disabled.
+- Duplicate transaction identity across two submitted deposit rows and repeated/concurrent verifier calls.
+- Unapproved evidence, wrong contract/recipient/amount, and unconfirmed transfer all result in no credit.
+- Telegram rejection before deduction releases the exact hold once with a matching release ledger record.
+- Telegram rejection after deduction refunds exactly once with a matching refund ledger record.
+- Combined approval writes exactly one debit ledger record; insufficient hold or balance fails with full rollback.
+- Repeat/cross-channel races between Telegram and Master Admin cannot finalize twice or drive balances/holds negative.
+- Verify effective RPC grants and safe `SECURITY DEFINER` search path.
+
+**Status:** These are source-verified defects and acceptance tests only. No financial source, migration, live ledger, balance, or payout configuration was edited or executed during this review.
