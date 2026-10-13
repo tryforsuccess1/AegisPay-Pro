@@ -33,6 +33,8 @@ Deno.serve(async(req:Request)=>{
   ]);
   const system=systemRow?.value_json||{},deposit=depositRow?.value_json||{},prod=prodRow?.value_json||{};
   const network=String(deposit.network||"").toUpperCase(), receiving=String(deposit.receiving_address||"").trim();
+  const mainnetTokenContract=String(deposit.token_contract||"").trim();
+  const mainnetUsdtContractOk=mainnetTokenContract==="TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
   const environment=String(prod.environment||"PRE_PRODUCTION").toUpperCase();
   const liveDeposits=system.live_deposits===true, realPayouts=system.real_payouts===true, goLive=system.production_go_live_approved===true;
   const productionLiveDeposits=prod.live_deposits_enabled===true, productionRealPayouts=prod.real_payouts_enabled===true, productionGoLive=prod.go_live_approved===true;
@@ -46,7 +48,7 @@ Deno.serve(async(req:Request)=>{
    const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
    const unresolvedPayouts=unresolvedPayoutResult.data||[];
    const unresolvedPayoutsClear=!unresolvedPayoutResult.error&&unresolvedPayouts.length===0;
-  const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&Boolean(receiving);
+  const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)&&mainnetUsdtContractOk;
    // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
    const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers&&runtimeEnabled&&unresolvedPayoutsClear;
    const mainnetPayoutGateOk=environment==="PRODUCTION"&&mainnetBaseConfigOk&&realPayouts&&productionRealPayouts&&goLive&&productionGoLive&&!payoutsLocked&&runtimeEnabled;
@@ -94,9 +96,9 @@ Deno.serve(async(req:Request)=>{
    receiving_address_configured:Boolean(receiving),live_deposits:liveDeposits,real_payouts:realPayouts,production_go_live_approved:goLive,payouts_locked:payoutsLocked,
    production_config_live_deposits:Boolean(prod.live_deposits_enabled),production_config_real_payouts:Boolean(prod.real_payouts_enabled),
    production_config_go_live_approved:Boolean(prod.go_live_approved),runtime_enabled:runtimeEnabled,configuration_consistent:configurationConsistent,
-   mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&mainnetPayoutGateOk&&mainnetDepositEnablementReady,mainnet_payout_gate_ok:mainnetPayoutGateOk,
+   mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&mainnetPayoutGateOk&&mainnetDepositEnablementReady,mainnet_payout_gate_ok:mainnetPayoutGateOk,
    server_side_secrets_required:true,cron_secret_required_for_monitoring:true
   };
-   return json({readiness,secrets,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
+   return json({readiness,secrets,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
  }catch(error){return json({error:String((error as Error)?.message||error).slice(0,500)},500);}
 });
