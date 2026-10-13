@@ -114,6 +114,15 @@ BEGIN
   v_network := upper(btrim(COALESCE(v_rules ->> 'network','')));
   v_contract := btrim(COALESCE(v_rules ->> 'token_contract',''));
 
+  -- The configured chain may not be changed underneath a submitted transaction.
+  -- A missing/mismatched network must be reconciled manually, never guessed.
+  IF NULLIF(btrim(d.network),'') IS NULL THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Deposit submission has no recorded network; manual reconciliation is required';
+  END IF;
+  IF upper(btrim(d.network)) <> v_network THEN
+    RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Deposit network differs from current settings; manual reconciliation is required';
+  END IF;
+
   IF v_network = 'TRON TESTNET' THEN
     v_contract := COALESCE(NULLIF(v_contract,''),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs');
   ELSIF v_network = 'TRON MAINNET' THEN
