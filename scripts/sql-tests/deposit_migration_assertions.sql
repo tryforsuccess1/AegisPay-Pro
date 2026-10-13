@@ -120,14 +120,39 @@ BEGIN
       'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','100000000',
       '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
     );
-  EXCEPTION WHEN unique_violation THEN
+  EXCEPTION WHEN SQLSTATE '22023' THEN
     v_failed := true;
   END;
-  IF NOT v_failed THEN RAISE EXCEPTION 'Duplicate legacy transaction was not rejected at credit'; END IF;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Deposit with no recorded network was credited'; END IF;
   IF (SELECT status FROM public.deposit_submissions
       WHERE id='33333333-3333-4333-8333-333333333334') <> 'PENDING_VERIFICATION' THEN
     RAISE EXCEPTION 'Rejected duplicate should remain pending for manual reconciliation';
   END IF;
+
+  -- A pending deposit must not be re-bound to a different chain when settings change.
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network
+  ) VALUES (
+    'abababab-abab-4bab-8bab-abababababab',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',50.00,0.00,50.00,'PENDING_VERIFICATION','APPROVED',
+    'fefefe0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    'TRON TESTNET'
+  );
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      'abababab-abab-4bab-8bab-abababababab',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','50000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Deposit network change was accepted'; END IF;
+  IF (SELECT status FROM public.deposit_submissions
+      WHERE id='abababab-abab-4bab-8bab-abababababab') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'Deposit network mismatch changed the deposit status'; END IF;
 
   -- The database boundary must independently reject a raw on-chain amount
   -- that differs from the submitted amount, even if the caller bypasses its pre-check.
