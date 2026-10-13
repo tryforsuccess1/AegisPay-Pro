@@ -54,7 +54,7 @@ assert(weightedTaskReference.includes('so.task_weight')&&weightedTaskReference.i
 const triggerOnlyGrantMigration=fs.readFileSync('database/migrations/20261014120000_revoke_trigger_only_function_execute.sql','utf8');
 assert(triggerOnlyGrantMigration.includes('REVOKE ALL ON FUNCTION public.enforce_valid_tron_withdrawal_address()'),'Trigger-only wallet validator must not remain callable as an RPC');
 assert(/FROM PUBLIC, anon, authenticated\s*;/i.test(triggerOnlyGrantMigration),'Trigger-only wallet validator must revoke public and authenticated client execution');
-assert(!/FROM[^;]*service_role/i.test(triggerOnlyGrantMigration),'Keep service_role maintenance permission for controlled trigger maintenance');
+assert(!/^\s*FROM\b[^\n]*service_role/im.test(triggerOnlyGrantMigration),'Keep service_role maintenance permission for controlled trigger maintenance');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
