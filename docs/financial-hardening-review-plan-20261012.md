@@ -88,3 +88,13 @@ Production must remain untouched until all three feature PRs pass and are review
 - Therefore the isolated database test matrix is still **BLOCKED / NOT RUN**. Static CI and Android build checks do not prove deposit-credit or withdrawal-ledger correctness.
 - No production migration, balance change, ledger repair, payout-setting change, or payout unlock is permitted. Real payouts remain disabled/locked.
 - Safe work may continue as read-only source review, static analysis, and review-plan documentation on GitHub feature branches. Any financial implementation must wait for a permitted, explicitly authorized test environment and a reviewed code-change path.
+
+
+## Read-only review notes — 2026-10-13
+
+The current draft withdrawal migration in PR #7 was reviewed without applying it:
+
+- The rejection path uses `GREATEST(0, withdrawal_held - w.amount)`. This can hide a short/mismatched hold instead of failing the whole transaction. Replace this with a locked, explicit sufficiency check and an exception before mutation.
+- PR #7's own description confirms the legacy `record_withdrawal_telegram_decision` path is still unresolved. It must call the same canonical transition or be safely retired with grants and callers audited.
+- The migration's static CI and Android artifact workflows passed on head `2d3a4b2b4fb5f7d40c2e8949dc1ce498a1e3250e` (workflow runs 38284673554 and 38284673266). Those results validate repository/build checks only; they do not prove PostgreSQL transaction behavior, idempotency under concurrent calls, or live user end-to-end financial correctness.
+- **PR #7 remains draft and must not be merged as-is.** No code edit or database execution was made during this review.
