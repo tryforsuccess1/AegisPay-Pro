@@ -168,3 +168,11 @@ Live settings returned by the same read-only audit:
 This directly confirms the mismatch: the operational deposit switches are on while real payouts and go-live approval are off, but `apply_verified_deposit` still requires `real_payouts=true` for TRON MAINNET credit. The correct repair must separate the deposit gate from payout permission without weakening or toggling the payout lock/go-live gates. No specific customer failure is inferred solely from this settings snapshot; verify deposit rows and chain evidence before any remediation.
 
 The Telegram function's service-role-only execute grant also means its input allowlist and all mutation invariants must be enforced by the trusted Edge Function plus canonical database transition. The database RPC currently contains the clamping/ledger defects described above.
+
+
+Read-only aggregate reconciliation counts from the connected database (2026-10-13; no IDs or customer-level values exported):
+
+- `deposit_submissions` row count: **0** at query time. Therefore this audit did not identify a currently stored deposit submission or prove a particular customer deposit was blocked; the gate mismatch remains a code/configuration risk that must be fixed before submissions are accepted.
+- Withdrawals matching the narrow historical invalid-wallet refund/audit-event cohort but missing `WITHDRAWAL_DEBIT`: **1** candidate. It was not modified; inspect the individual audit trail and obtain explicit reconciliation approval before any historical ledger repair.
+- Approved withdrawals marked `balance_deducted = true` but missing a `WITHDRAWAL_DEBIT` reference: **0** in the broader aggregate check.
+- User rows with negative `current_platform_balance`: **0**; rows with negative `withdrawal_held`: **0**.
