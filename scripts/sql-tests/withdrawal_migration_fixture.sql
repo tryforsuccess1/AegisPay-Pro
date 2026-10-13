@@ -1,5 +1,8 @@
 -- Disposable schema for the withdrawal decision + ledger migration integration test.
 -- Test only: do not copy this simplified schema over Supabase production.
+CREATE ROLE anon NOLOGIN;
+CREATE ROLE authenticated NOLOGIN;
+CREATE ROLE service_role NOLOGIN;
 CREATE TABLE public.users (
   id uuid PRIMARY KEY,
   role text NOT NULL,
