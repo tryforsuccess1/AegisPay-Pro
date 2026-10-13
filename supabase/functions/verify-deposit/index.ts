@@ -4,6 +4,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
+const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
+const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
+const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
+const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
+const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SHASTA_TEST_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 const cors = {
@@ -67,13 +72,38 @@ Deno.serve(async (req: Request) => {
       baseUrl = "https://api.shasta.trongrid.io";
       contract = String(rules.token_contract || SHASTA_TEST_USDT).trim();
     } else if (network === "TRON MAINNET") {
-      const { data: modeRow } = await admin.from("platform_settings")
-        .select("value_json").eq("key", "system_mode").maybeSingle();
-      const mode = modeRow?.value_json || {};
-      if (mode.mode !== "MAINNET" || mode.live_deposits !== true) {
-        return json({ error: "Mainnet deposits are disabled while live deposits are off." }, 403);
+      const [
+        { data: modeRow, error: modeError },
+        { data: productionRow, error: productionError },
+      ] = await Promise.all([
+        admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
+        admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+      ]);
+      if (modeError || productionError || !modeRow?.value_json || !productionRow?.value_json) {
+        return json({ error: "Unable to confirm production deposit readiness.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
       }
-      if (!TRONGRID_KEY) return json({ error: "TRONGRID_API_KEY is not configured." }, 503);
+      const mode = modeRow.value_json;
+      const production = productionRow.value_json;
+      const { data: unresolvedPayouts, error: unresolvedPayoutError } = await admin
+        .from("withdrawal_requests").select("id").in("status", ["APPROVED", "PROCESSING"])
+        .is("payout_txid", null).limit(1);
+      if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
+      const payoutCredentialsReady = Boolean(
+        TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN &&
+        TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0
+      );
+      const mainnetDepositsOpen = mode.mode === "MAINNET" && mode.live_deposits === true &&
+        mode.real_payouts === true && mode.production_go_live_approved === true &&
+        String(production.environment || "").toUpperCase() === "PRODUCTION" &&
+        production.live_deposits_enabled === true && production.real_payouts_enabled === true &&
+        production.go_live_approved === true && production.payouts_locked === false &&
+        payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
+      if (!mainnetDepositsOpen) {
+        return json({
+          error: "Mainnet deposit verification is paused until production payouts are fully configured, approved, reconciled, and unlocked.",
+          code: "MAINNET_DEPOSITS_PAUSED",
+        }, 403);
+      }
       baseUrl = "https://api.trongrid.io";
       contract = String(rules.token_contract || MAINNET_USDT).trim();
     } else {
