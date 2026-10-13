@@ -31,6 +31,7 @@ const must=[
   'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
   'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
   'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql',
+  'database/migrations/20261014120000_revoke_trigger_only_function_execute.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   '.github/workflows/sql-migration-tests.yml',
@@ -49,6 +50,11 @@ for(const p of must)assert(exists(p),'Missing canonical source file: '+p);
 const weightedTaskReference=fs.readFileSync('docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql','utf8');
 assert(weightedTaskReference.includes('REFERENCE SNAPSHOT ONLY')&&weightedTaskReference.includes('NOT THE ORIGINAL MIGRATION SOURCE'),'Recovered weighted Shop function must remain explicitly marked as reference-only');
 assert(weightedTaskReference.includes('so.task_weight')&&weightedTaskReference.includes('weight_sum'),'Recovered weighted Shop function must preserve product-weighted allocation logic');
+
+const triggerOnlyGrantMigration=fs.readFileSync('database/migrations/20261014120000_revoke_trigger_only_function_execute.sql','utf8');
+assert(triggerOnlyGrantMigration.includes('REVOKE ALL ON FUNCTION public.enforce_valid_tron_withdrawal_address()'),'Trigger-only wallet validator must not remain callable as an RPC');
+assert(/FROM PUBLIC, anon, authenticated\s*;/i.test(triggerOnlyGrantMigration),'Trigger-only wallet validator must revoke public and authenticated client execution');
+assert(!/^\s*FROM\b[^\n]*service_role/im.test(triggerOnlyGrantMigration),'Keep service_role maintenance permission for controlled trigger maintenance');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
@@ -86,6 +92,10 @@ assert(withdrawalMigration.includes('BEFORE INSERT OR UPDATE OF destination_addr
 assert(withdrawalMigration.includes("TG_TABLE_NAME = 'users'")&&withdrawalMigration.includes("COALESCE(trim(NEW.destination_address), '') = ''"),'A blank saved user wallet must remain allowed until a user sets one');
 assert(withdrawalMigration.includes("SET search_path TO ''"),'Trigger function must use a locked-down search_path');
 assert(client.includes('bootLive'),'Client inline runtime bootstrap is missing');
+assert(client.includes("const botEntry=target.closest(")&&client.includes('[data-go="bot"]')&&client.includes('[data-a="sup"]'),'AI Assistant and Support taps must route through the central mobile-safe handler');
+assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notification-id]"),'Both notification-card renderers must open their selected notification details');
+assert(client.includes("window.go('bot');return;"),'AI Assistant and Support must navigate to the bot page from delegated taps');
+assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
 assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
@@ -94,6 +104,10 @@ assert(client.includes('liveHome'),'Client Home runtime is missing');
 assert(client.includes('liveTopup'),'Client Top Up runtime is missing');
 assert(client.includes('liveWithdraw'),'Client Withdrawal runtime is missing');
 assert(client.includes('Username or Email'),'Canonical client login must accept username or email');
+assert(/<input id="le" type="text"[^>]*autocomplete="username"[^>]*autocapitalize="none"[^>]*spellcheck="false"[^>]*style="-webkit-text-security:none!important;text-security:none!important"/.test(client),'Client login identifier must remain readable and not use password text masking');
+assert(/<input id="lp" type="password"/.test(client),'Client login password must remain masked');
+assert(client.includes('#ov.show{display:flex}'),'Language and appearance sheets must override the hidden overlay ID style when opened');
+assert(client.includes("function apLangSheet()")&&client.includes("if(a==='lang'){apLangSheet();return}")&&client.includes("localStorage.setItem('ap-lang',apLang)"),'Language picker must open, allow language selection, and persist the selected language');
 assert(client.includes("db.functions.invoke('username-login'"),'Username login must use the protected Edge Function');
 assert(!client.includes('resolve_login_email'),'Client must not call the public username-to-email RPC');
 assert(client.includes('public-signup'),'Canonical client signup function is not wired');
