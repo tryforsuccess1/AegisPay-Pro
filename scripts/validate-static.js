@@ -86,6 +86,10 @@ assert(withdrawalMigration.includes('BEFORE INSERT OR UPDATE OF destination_addr
 assert(withdrawalMigration.includes("TG_TABLE_NAME = 'users'")&&withdrawalMigration.includes("COALESCE(trim(NEW.destination_address), '') = ''"),'A blank saved user wallet must remain allowed until a user sets one');
 assert(withdrawalMigration.includes("SET search_path TO ''"),'Trigger function must use a locked-down search_path');
 assert(client.includes('bootLive'),'Client inline runtime bootstrap is missing');
+assert(client.includes("target.closest('[data-go=\"bot\"],[data-a=\"sup\"],button[aria-label=\"AI Assistant\"],nav a[onclick*=\"bot\"]')"),'AI Assistant and Support taps must route through the central mobile-safe handler');
+assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notification-id]"),'Both notification-card renderers must open their selected notification details');
+assert(client.includes("window.go('bot');return;"),'AI Assistant and Support must navigate to the bot page from delegated taps');
+assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
 assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
