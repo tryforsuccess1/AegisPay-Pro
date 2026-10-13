@@ -146,3 +146,18 @@ These are integration checks for the existing Shop and withdrawal database workf
 **Live operational state and the tested Shop/withdrawal paths: verified by read-only checks and rolled-back synthetic RPC tests.**
 
 **Migration history/source reconciliation: improved but still not fully closed.** Current effects have now been mapped for the 23 ledger names that lack normalized one-to-one source filenames, but several original submitted SQL bodies—especially the earliest foundation migrations and the weighted-task update—remain absent from the canonical migration history. The current weighted-task function has been preserved as a clearly labeled reference-only snapshot outside `database/migrations/`; it is not claimed to be the original SQL. No missing migration was replayed, no migration history row was edited, and no synthetic test data was committed.
+
+
+## Follow-up: deposit-credit hardening prepared in PR #15
+
+The follow-up source change is on branch `fix/deposit-idempotency-and-migration-tests-20261013` and remains a forward-only candidate until reviewed and rolled out deliberately.
+
+- Adds a unique index on normalized `network + txid` and a preflight that refuses to build it if legacy rows are missing a network or duplicate transaction references exist.
+- Replaces the source definition of `apply_verified_deposit` so it validates approved evidence, the 64-character transaction ID, exact six-decimal raw USDT amount, recorded network, idempotent row state, fixed empty `search_path`, and service-role-only execution. It uses configured referral rewards rather than hard-coded amounts.
+- Hardens `set_production_config` and all three Edge routes (`submit-deposit`, `verify-deposit`, `monitor-deposits`) to require the official TRON Mainnet USDT token contract `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t`; readiness reports that contract check explicitly.
+- Persisting the submitted network, validating amount precision, and correcting the Telegram approver separator parser are included. CI now type-checks the three deposit Edge Functions with Deno.
+- Disposable PostgreSQL 17 tests cover duplicate TXIDs, networkless/mismatched legacy submissions, configured referral values and idempotency, raw-amount mismatch, malformed TXID, unapproved evidence, fake token contract, Mainnet-live-deposit gate, RPC grants, and Testnet behavior. Latest recorded run on candidate commit `fa9f70397878c0ebcf5b601e564099f85cddf283`: SQL migration tests PASS and repository CI/type-check PASS.
+
+**Deployment boundary:** This source migration has not been applied to the live Supabase project, and the Edge Functions have not been deployed by this PR. The live project's deposit submissions were zero during the last read-only scan, with production still `PRE_PRODUCTION`, live deposits disabled, real payouts disabled, go-live approval false, and payout lock closed. Do not unlock mainnet based on synthetic tests alone. A real TRON on-chain end-to-end deposit is still unverified.
+
+**Migration history is still partially reconciled:** this new candidate file changes the repository-side file count only; it does not change the live ledger's 83 applied records. The original SQL for several early ledger records remains unavailable, so a guaranteed clean fresh-bootstrap path is still not claimed.
