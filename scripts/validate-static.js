@@ -29,6 +29,7 @@ const must=[
   'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
   'database/migrations/20261013_harden_security_definer_search_paths.sql',
   'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
+  'docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql',
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
   'supabase/functions/production-readiness/index.ts',
@@ -39,6 +40,10 @@ const must=[
   '.github/workflows/web-portal-deploy.yml','.github/workflows/website-apk-release.yml','.github/workflows/withdrawal-migration-tests.yml'
 ];
 for(const p of must)assert(exists(p),'Missing canonical source file: '+p);
+
+const weightedTaskReference=fs.readFileSync('docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql','utf8');
+assert(weightedTaskReference.includes('REFERENCE SNAPSHOT ONLY')&&weightedTaskReference.includes('NOT THE ORIGINAL MIGRATION SOURCE'),'Recovered weighted Shop function must remain explicitly marked as reference-only');
+assert(weightedTaskReference.includes('so.task_weight')&&weightedTaskReference.includes('weight_sum'),'Recovered weighted Shop function must preserve product-weighted allocation logic');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
