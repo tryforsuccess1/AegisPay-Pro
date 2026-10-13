@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
-      credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path,
+      credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path: screenshotPath,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
     }).select("id,status,ai_review_status,gross_amount,created_at").single();
