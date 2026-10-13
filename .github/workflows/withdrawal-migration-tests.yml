@@ -1,0 +1,59 @@
+name: AegisPay Withdrawal Migration Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql'
+      - 'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql'
+      - 'scripts/sql-tests/withdrawal_migration_*.sql'
+      - '.github/workflows/withdrawal-migration-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql'
+      - 'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql'
+      - 'scripts/sql-tests/withdrawal_migration_*.sql'
+      - '.github/workflows/withdrawal-migration-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  withdrawal-migration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_withdrawal_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_withdrawal_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_withdrawal_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL is ready
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create isolated fixture schema and history
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/withdrawal_migration_fixture.sql
+      - name: Apply historical reconciliation, then atomic approval migration
+        run: |
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql
+          psql -v ON_ERROR_STOP=1 -f database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql
+      - name: Verify dual approval, replays, rejects, balance guards, and AI manual review
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/withdrawal_migration_assertions.sql

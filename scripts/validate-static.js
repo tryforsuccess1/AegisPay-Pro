@@ -25,12 +25,16 @@ const must=[
   'database/migrations/20261011_fix_tron_address_validator_collation.sql',
   'database/migrations/20261011_fix_tron_address_validator_bytes.sql',
   'database/migrations/20261011_exact_integer_tron_address_decode.sql',
+  'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql',
+  'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
+  'scripts/sql-tests/withdrawal_migration_fixture.sql',
+  'scripts/sql-tests/withdrawal_migration_assertions.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
   'android/app/src/main/java/com/aegispay/app/MainActivity.java',
   '.github/workflows/ci.yml','.github/workflows/android-apk.yml',
-  '.github/workflows/web-portal-deploy.yml','.github/workflows/website-apk-release.yml'
+  '.github/workflows/web-portal-deploy.yml','.github/workflows/website-apk-release.yml','.github/workflows/withdrawal-migration-tests.yml'
 ];
 for(const p of must)assert(exists(p),'Missing canonical source file: '+p);
 
@@ -219,6 +223,16 @@ assert(!client.includes('timed demo activity ticker'),'Legacy code comments must
 
 assert(signupSource.includes('pruneExpiredRateLimits(now)'), 'Public signup must periodically prune expired in-memory rate-limit keys');
 assert(signupSource.includes('now - lastSeen >= 15_000') && signupSource.includes('now - lastSeen >= 60_000'), 'Signup rate-limit cleanup must preserve existing IP and email cooldown windows');
+
+const withdrawalHardening=fs.readFileSync('database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql','utf8');
+assert(withdrawalHardening.includes("account_ledger_withdrawal_debit_reference_uq"),'Withdrawal debit references must be unique per withdrawal');
+assert(withdrawalHardening.includes("status = 'PENDING_APPROVAL'")&&withdrawalHardening.includes("w.telegram_decision = 'APPROVED'"),'Master Admin and Telegram must be distinct approval gates');
+assert(withdrawalHardening.includes("TELEGRAM_HUMAN_APPROVAL_REQUIRED")&&withdrawalHardening.includes("'decision', 'MANUAL_REVIEW'"),'AI must fail closed to human withdrawal approval');
+assert(withdrawalHardening.includes("current_platform_balance = current_platform_balance - w.amount")&&withdrawalHardening.includes("withdrawal_held = withdrawal_held - w.amount"),'Withdrawal deductions/releases must be exact and must not clamp with GREATEST');
+assert(withdrawalHardening.includes("'WITHDRAWAL_DEBIT'")&&withdrawalHardening.includes("-w.amount"),'Every actual withdrawal deduction must have a negative ledger debit');
+assert(withdrawalHardening.includes("Insufficient balance, inactive user, or inconsistent withdrawal reservation"),'Withdrawal approval must fail closed on invalid balance/hold state');
+assert(withdrawalHardening.includes("FROM PUBLIC, anon, service_role")&&withdrawalHardening.includes("TO authenticated"),'Master Admin RPC must not be executable through anon or service_role roles');
+assert(withdrawalHardening.includes("FROM PUBLIC, anon, authenticated")&&withdrawalHardening.includes("TO service_role"),'Telegram decision and AI RPCs must remain service-role only');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
