@@ -25,6 +25,7 @@ const must=[
   'database/migrations/20261011_fix_tron_address_validator_collation.sql',
   'database/migrations/20261011_fix_tron_address_validator_bytes.sql',
   'database/migrations/20261011_exact_integer_tron_address_decode.sql',
+  'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
@@ -219,6 +220,16 @@ assert(!client.includes('timed demo activity ticker'),'Legacy code comments must
 
 assert(signupSource.includes('pruneExpiredRateLimits(now)'), 'Public signup must periodically prune expired in-memory rate-limit keys');
 assert(signupSource.includes('now - lastSeen >= 15_000') && signupSource.includes('now - lastSeen >= 60_000'), 'Signup rate-limit cleanup must preserve existing IP and email cooldown windows');
+
+
+const depositCreditFix=fs.readFileSync('database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql','utf8');
+assert(depositCreditFix.includes("SET search_path TO ''"),'Verified deposit credit function must use an empty fixed search_path');
+assert(depositCreditFix.includes("COALESCE(v_mode ->> 'live_deposits'")&&!depositCreditFix.includes("COALESCE((v_mode ->> 'real_payouts')::BOOLEAN,FALSE) IS NOT TRUE"),'MAINNET deposit credit must use its own live-deposit switch, independent of payouts');
+assert(depositCreditFix.includes('CREATE UNIQUE INDEX IF NOT EXISTS deposit_submissions_network_txid_uq'),'Deposit credit must have a database-enforced unique chain transaction reference');
+assert(depositCreditFix.includes('HAVING count(*) > 1')&&depositCreditFix.includes('manual reconciliation is required before adding the unique index'),'Duplicate transaction preflight must fail closed and require reconciliation');
+assert(depositCreditFix.includes('WHERE id = p_deposit_id')&&depositCreditFix.includes('FOR UPDATE'),'Deposit credit state transition must lock the pending submission');
+assert(depositCreditFix.includes("COALESCE(d.ai_review_status,'') NOT IN ('APPROVED','MANUAL_APPROVED')"),'Deposit credit must fail closed when evidence review status is missing or unapproved');
+assert(depositCreditFix.includes("IF d.status IS DISTINCT FROM 'PENDING_VERIFICATION' THEN"),'Deposit credit must be idempotent for non-pending states');
 
 console.log('AegisPay canonical architecture validation: PASS');
 assert(!fs.existsSync('netlify.toml'),'Obsolete Netlify production configuration must not return to canonical main');
