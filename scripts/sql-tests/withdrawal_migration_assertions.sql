@@ -1,3 +1,4 @@
+-- Every assertion runs on disposable PostgreSQL data; no production credentials or accounts are used.
 DO $tests$
 DECLARE
   v_user uuid := '11111111-1111-4111-8111-111111111111';
