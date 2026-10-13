@@ -147,11 +147,13 @@ assert((payoutSource.match(/is_valid_tron_address/g)||[]).length===1,'Payout sou
 const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
 assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
 const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
+const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
 assert(client.includes('Deposits temporarily paused')&&client.includes('settings.production_config'),'Client must hide the Mainnet deposit wallet until payout readiness is approved');
 assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
 assert(depositMonitorSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositMonitorSource.includes('production.payouts_locked === false'),'Deposit monitor must not credit Mainnet deposits while payouts are locked');
+assert(depositVerifySource.includes('MAINNET_DEPOSITS_PAUSED')&&depositVerifySource.includes('production.payouts_locked === false')&&depositVerifySource.includes('payoutCredentialsReady'),'Direct Mainnet deposit verification must enforce the same production payout-readiness gate');
 assert(depositSafetyMigration.includes('Live mainnet deposits require approved PRODUCTION mode')&&depositSafetyMigration.includes('PRE_PRODUCTION_PAYOUTS_LOCKED'),'Database settings RPC and current Mainnet configuration must fail closed');
 assert(depositMonitorSource.includes('verify_deposit_monitor_cron_secret')&&depositMonitorSource.includes('x-aegis-cron-secret'),'Deposit monitor must validate the configured Vault-backed cron secret');
 assert(depositMonitorSource.includes('.in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])'),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
