@@ -78,3 +78,13 @@ Production must remain untouched until all three feature PRs pass and are review
 7. Define a tested rollback/forward-repair plan for schema/code deployment. Do not use a blind balance rollback once financial activity may have occurred.
 
 **No production commands were run or authorized by this document.**
+
+## Current execution state — 2026-10-13
+
+- The connected Supabase organization `ali.shahid9181` is on the **Free** plan.
+- Supabase rejected development-branch creation with: `Branching is supported only on the Pro plan or above`.
+- A branch price of **$0.01344 per hour** was quoted, but the branch was **not created**. No branch-hourly resource was started.
+- The project owner explicitly instructed us not to create the development branch yet and to stop before incurring branch cost. **Do not retry branch creation, upgrade the plan, create another paid development resource, or apply financial migrations unless the owner explicitly reauthorizes that path.**
+- Therefore the isolated database test matrix is still **BLOCKED / NOT RUN**. Static CI and Android build checks do not prove deposit-credit or withdrawal-ledger correctness.
+- No production migration, balance change, ledger repair, payout-setting change, or payout unlock is permitted. Real payouts remain disabled/locked.
+- Safe work may continue as read-only source review, static analysis, and review-plan documentation on GitHub feature branches. Any financial implementation must wait for a permitted, explicitly authorized test environment and a reviewed code-change path.
