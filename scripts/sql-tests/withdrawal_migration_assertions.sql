@@ -8,6 +8,8 @@ DECLARE
   v_count integer;
   v_ok boolean;
   v_result jsonb;
+  v_panel text;
+  v_status text;
 BEGIN
   PERFORM set_config('aegis.test_actor_id',v_admin::text,true);
   PERFORM set_config('aegis.test_role','MASTER ADMIN',true);
@@ -125,10 +127,10 @@ BEGIN
   EXCEPTION WHEN raise_exception THEN v_ok:=true;
   END;
   IF NOT v_ok THEN RAISE EXCEPTION 'Approval must reject a pre-existing debit reference'; END IF;
-  SELECT panel_decision,status INTO v_w.panel_decision,v_w.status
+  SELECT panel_decision,status INTO v_panel,v_status
     FROM public.withdrawal_requests WHERE id='66666666-6666-4666-8666-666666666666';
   SELECT current_platform_balance INTO v_balance FROM public.users WHERE id=v_user;
-  IF v_w.panel_decision<>'PENDING' OR v_w.status<>'PENDING_APPROVAL' OR v_balance<>40 THEN
+  IF v_panel<>'PENDING' OR v_status<>'PENDING_APPROVAL' OR v_balance<>40 THEN
     RAISE EXCEPTION 'Conflicting debit guard allowed a partial approval';
   END IF;
   UPDATE public.users SET withdrawal_held=0 WHERE id=v_user;
