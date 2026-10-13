@@ -138,3 +138,33 @@ Use synthetic fixtures in an explicitly permitted isolated test database only:
 - Verify effective RPC grants and safe `SECURITY DEFINER` search path.
 
 **Status:** These are source-verified defects and acceptance tests only. No financial source, migration, live ledger, balance, or payout configuration was edited or executed during this review.
+
+
+## Read-only live configuration and RPC permission check — 2026-10-13
+
+Queries against the connected production database were SELECT-only; no writes or migrations were run.
+
+Effective function privileges returned by PostgreSQL:
+
+| Function | anon EXECUTE | authenticated EXECUTE | service_role EXECUTE | SECURITY DEFINER search_path |
+|---|---:|---:|---:|---|
+| `apply_verified_deposit(uuid,text,text,timestamptz,text)` | false | false | true | `public` |
+| `record_withdrawal_telegram_decision(uuid,boolean,text)` | false | false | true | empty |
+| `finalize_withdrawal(uuid,boolean)` | false | true | false | empty |
+
+The deposit credit RPC is not executable by anon/authenticated according to this live privilege check; do not describe it as publicly exposed. It still needs a fixed empty `search_path` and schema-qualified references as defense in depth.
+
+Live settings returned by the same read-only audit:
+
+- `production_config.environment = PRE_PRODUCTION`
+- `system_mode.mode = MAINNET`
+- `system_mode.live_deposits = true`
+- `system_mode.real_payouts = false`
+- `production_config.live_deposits_enabled = true`
+- `production_config.real_payouts_enabled = false`
+- `production_config.go_live_approved = false`
+- `production_config.payouts_locked = true`
+
+This directly confirms the mismatch: the operational deposit switches are on while real payouts and go-live approval are off, but `apply_verified_deposit` still requires `real_payouts=true` for TRON MAINNET credit. The correct repair must separate the deposit gate from payout permission without weakening or toggling the payout lock/go-live gates. No specific customer failure is inferred solely from this settings snapshot; verify deposit rows and chain evidence before any remediation.
+
+The Telegram function's service-role-only execute grant also means its input allowlist and all mutation invariants must be enforced by the trusted Edge Function plus canonical database transition. The database RPC currently contains the clamping/ledger defects described above.
