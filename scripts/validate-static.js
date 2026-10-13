@@ -30,6 +30,7 @@ const must=[
   'database/migrations/20261013_harden_security_definer_search_paths.sql',
   'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
   'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
+  'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   '.github/workflows/sql-migration-tests.yml',
@@ -77,6 +78,13 @@ assertInlineScriptsParse('client.html');
 assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
+const withdrawalMigration=fs.readFileSync('database/migrations/20261014_phase1_validate_withdrawal_wallets.sql','utf8');
+assert(withdrawalMigration.includes('COALESCE(public.is_valid_tron_address(NEW.destination_address), false) IS NOT TRUE'),'Database writes must fail closed on invalid or NULL TRON addresses');
+assert(withdrawalMigration.includes('users_validate_withdrawal_destination'),'Saved user wallets must be validated server-side');
+assert(withdrawalMigration.includes('BEFORE INSERT OR UPDATE OF destination_address ON public.users'),'Saved-wallet validation must cover inserts and address changes');
+assert(withdrawalMigration.includes('BEFORE INSERT OR UPDATE OF destination_address ON public.withdrawal_requests'),'Withdrawal destination validation must cover inserts and address changes');
+assert(withdrawalMigration.includes("TG_TABLE_NAME = 'users'")&&withdrawalMigration.includes("COALESCE(trim(NEW.destination_address), '') = ''"),'A blank saved user wallet must remain allowed until a user sets one');
+assert(withdrawalMigration.includes("SET search_path TO ''"),'Trigger function must use a locked-down search_path');
 assert(client.includes('bootLive'),'Client inline runtime bootstrap is missing');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
