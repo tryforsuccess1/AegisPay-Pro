@@ -12,6 +12,29 @@ DECLARE
   v_referral_entries integer;
   v_function regprocedure := to_regprocedure('public.apply_verified_deposit(uuid,text,text,timestamptz,text)');
 BEGIN
+  -- A Master Admin must not be able to open Mainnet production when a fake token contract is configured.
+  PERFORM set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',true);
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"token_contract":"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"}'::jsonb
+   WHERE key='deposit_rules';
+  v_failed := false;
+  BEGIN
+    PERFORM public.set_production_config('PRODUCTION',true,true,true,false);
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Production go-live accepted a non-USDT Mainnet token contract'; END IF;
+  IF EXISTS (SELECT 1 FROM public.platform_settings WHERE key='production_config') THEN
+    RAISE EXCEPTION 'Rejected production go-live unexpectedly wrote production_config';
+  END IF;
+  IF (SELECT (value_json->>'live_deposits')::boolean FROM public.platform_settings WHERE key='system_mode') IS DISTINCT FROM true
+     OR (SELECT (value_json->>'real_payouts')::boolean FROM public.platform_settings WHERE key='system_mode') IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'Rejected production go-live changed live system flags';
+  END IF;
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"token_contract":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"}'::jsonb
+   WHERE key='deposit_rules';
+
   -- The privileged credit function must not be callable directly by public app roles.
   IF has_function_privilege('anon', v_function, 'EXECUTE')
      OR has_function_privilege('authenticated', v_function, 'EXECUTE') THEN
@@ -59,6 +82,45 @@ BEGIN
      OR v_referral_entries <> 2 THEN
     RAISE EXCEPTION 'Configured referral rewards were not applied exactly once';
   END IF;
+
+  -- A valid-looking but non-USDT Mainnet token must never be credited as USDT.
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"token_contract":"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"}'::jsonb
+   WHERE key='deposit_rules';
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network
+  ) VALUES (
+    '12121212-1212-4121-8121-121212121212',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',40.00,0.00,40.00,'PENDING_VERIFICATION','APPROVED',
+    'ababab0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    'TRON MAINNET'
+  );
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      '12121212-1212-4121-8121-121212121212',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','40000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Fake Mainnet token contract was credited as USDT'; END IF;
+  IF (SELECT status FROM public.deposit_submissions
+      WHERE id='12121212-1212-4121-8121-121212121212') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'Fake-token rejection changed the deposit status'; END IF;
+  SELECT current_platform_balance,principal_balance
+    INTO v_balance,v_principal
+    FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
+  SELECT count(*) INTO v_user_deposits FROM public.account_ledger
+    WHERE entry_type='USER_DEPOSIT';
+  IF v_balance <> 100 OR v_principal <> 100 OR v_user_deposits <> 1 THEN
+    RAISE EXCEPTION 'Fake-token rejection had a partial financial side effect';
+  END IF;
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"token_contract":"TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"}'::jsonb
+   WHERE key='deposit_rules';
 
   -- Repeating the same verified request must have no second financial effect.
   PERFORM public.apply_verified_deposit(
