@@ -4,6 +4,12 @@ import { loadPrivateImage, runVisionReview } from "./ai-review.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
+const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
+const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
+const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
+const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
+const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const POLICY_VERSION = "2026-10-08-v1";
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -30,6 +36,35 @@ Deno.serve(async (req: Request) => {
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
 
+    const [{ data: modeRow, error: modeError }, { data: productionRow, error: productionError }, { data: depositRulesRow, error: depositRulesError }] = await Promise.all([
+      admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
+    ]);
+    if (modeError || productionError || depositRulesError || !modeRow?.value_json || !productionRow?.value_json || !depositRulesRow?.value_json) {
+      return json({ error: "Unable to confirm Mainnet deposit readiness.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
+    }
+    const mode = modeRow.value_json;
+    const production = productionRow.value_json;
+    const rules = depositRulesRow.value_json;
+    const depositNetwork = String(rules.network || "").toUpperCase();
+    if (depositNetwork === "TRON MAINNET") {
+      const { data: unresolvedPayouts, error: unresolvedPayoutError } = await admin
+        .from("withdrawal_requests").select("id").in("status", ["APPROVED", "PROCESSING"])
+        .is("payout_txid", null).limit(1);
+      if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
+      const payoutCredentialsReady = Boolean(TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0);
+      const mainnetDepositsOpen = mode.mode === "MAINNET" && mode.live_deposits === true &&
+        mode.real_payouts === true && mode.production_go_live_approved === true &&
+        String(production.environment || "").toUpperCase() === "PRODUCTION" &&
+        production.live_deposits_enabled === true && production.real_payouts_enabled === true &&
+        production.go_live_approved === true && production.payouts_locked === false &&
+        payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
+      if (!mainnetDepositsOpen) return json({ error: "New Mainnet deposits are paused until production payouts are fully configured, approved, reconciled, and unlocked.", code: "MAINNET_DEPOSITS_PAUSED" }, 423);
+    } else if (depositNetwork !== "TRON TESTNET") {
+      return json({ error: "Unsupported deposit network." }, 503);
+    }
+
     const { data: profile, error: profileError } = await admin.from("users")
       .select("id,auth_user_id,role,status,first_deposit_done,frozen_until").eq("auth_user_id", auth.user.id).maybeSingle();
     if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
@@ -48,8 +83,6 @@ Deno.serve(async (req: Request) => {
     const fallbackTier = !tierQuery.data ? await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).order("deposit_amount", { ascending: true }).limit(1).maybeSingle() : { data: tierQuery.data, error: null };
     const tier = fallbackTier.data;
     if (!tier) return json({ error: "No active AegisPay tier is available for deposit processing." }, 503);
-    const settings = await admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle();
-    const rules = settings.data?.value_json || {};
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,

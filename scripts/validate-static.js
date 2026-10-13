@@ -28,6 +28,7 @@ const must=[
   'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql',
   'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
   'database/migrations/20261013_harden_security_definer_search_paths.sql',
+  'database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql',
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
   'supabase/functions/production-readiness/index.ts',
@@ -117,6 +118,7 @@ const productionReadinessFunction=fs.readFileSync('supabase/functions/production
 assert(adminAuth.includes('Production Readiness')&&adminAuth.includes('aaProductionForm')&&adminAuth.includes("invokeFunction('production-readiness'")&&adminAuth.includes('get_production_readiness'),'Phase 3 Master Admin readiness controls are missing');
 assert(productionReadinessFunction.includes('rpc("set_production_config"'),'Phase 3 production settings must be saved through the protected readiness function');
 assert(productionReadinessFunction.includes('mainnet_payout_enablement_ready')&&productionReadinessFunction.includes('UNRECONCILED_APPROVED_PAYOUTS'),'Production payout activation must have secret readiness and unresolved-withdrawal guards');
+assert(productionReadinessFunction.includes('PRODUCTION_DEPOSITS_REQUIRE_PAYOUT_READINESS')&&productionReadinessFunction.includes('mainnetDepositEnablementReady'),'Mainnet deposits must not be enabled before production payout readiness');
 assert(adminAuth.includes('Unreconciled Payouts')&&adminAuth.includes('REAL USDT MAINNET PAYOUT')&&adminAuth.includes('ai-support'),'Master Admin must show payout reconciliation blockers, confirm real payouts and support AI cases');
 const goLiveGuard=fs.readFileSync('database/migrations/20261011_block_unreconciled_payout_go_live.sql','utf8');
 assert(goLiveGuard.includes("status IN ('APPROVED','PROCESSING') AND payout_txid IS NULL"),'Database go-live guard must block unreconciled approved/processing payouts');
@@ -136,6 +138,12 @@ assert((payoutSource.match(/is_valid_tron_address/g)||[]).length===1,'Payout sou
 const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
 assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
 const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
+const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
+const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
+assert(client.includes('Deposits temporarily paused')&&client.includes('settings.production_config'),'Client must hide the Mainnet deposit wallet until payout readiness is approved');
+assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
+assert(depositMonitorSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositMonitorSource.includes('production.payouts_locked === false'),'Deposit monitor must not credit Mainnet deposits while payouts are locked');
+assert(depositSafetyMigration.includes('Live mainnet deposits require approved PRODUCTION mode')&&depositSafetyMigration.includes('PRE_PRODUCTION_PAYOUTS_LOCKED'),'Database settings RPC and current Mainnet configuration must fail closed');
 assert(depositMonitorSource.includes('verify_deposit_monitor_cron_secret')&&depositMonitorSource.includes('x-aegis-cron-secret'),'Deposit monitor must validate the configured Vault-backed cron secret');
 assert(depositMonitorSource.includes('.in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])'),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
 assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
