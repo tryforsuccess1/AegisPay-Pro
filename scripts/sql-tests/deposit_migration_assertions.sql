@@ -147,7 +147,7 @@ BEGIN
       'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','10000000',
       '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
     );
-  EXCEPTION WHEN raise_exception THEN
+  EXCEPTION WHEN SQLSTATE '22023' THEN
     v_failed := true;
   END;
   IF NOT v_failed THEN RAISE EXCEPTION 'Raw chain amount mismatch was accepted'; END IF;
@@ -180,7 +180,7 @@ BEGIN
       'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','12000000',
       '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
     );
-  EXCEPTION WHEN raise_exception THEN
+  EXCEPTION WHEN SQLSTATE '22023' THEN
     v_failed := true;
   END;
   IF NOT v_failed THEN RAISE EXCEPTION 'Malformed chain transaction ID was accepted'; END IF;
