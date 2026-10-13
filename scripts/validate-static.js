@@ -101,7 +101,7 @@ assert(client.includes('Username or Email'),'Canonical client login must accept 
 assert(/<input id="le" type="text"[^>]*autocomplete="username"[^>]*autocapitalize="none"[^>]*spellcheck="false"[^>]*style="-webkit-text-security:none!important;text-security:none!important"/.test(client),'Client login identifier must remain readable and not use password text masking');
 assert(/<input id="lp" type="password"/.test(client),'Client login password must remain masked');
 assert(client.includes('#ov.show{display:flex}'),'Language and appearance sheets must override the hidden overlay ID style when opened');
-assert(client.includes("function apLangSheet()")&&client.includes("if(a==='lang'){apLangSheet();return}")&&client.includes("localStorage.setItem('ap-lang',apLang)'),'Language picker must open, allow language selection, and persist the selected language');
+assert(client.includes("function apLangSheet()")&&client.includes("if(a==='lang'){apLangSheet();return}")&&client.includes("localStorage.setItem('ap-lang',apLang)"),'Language picker must open, allow language selection, and persist the selected language');
 assert(client.includes("db.functions.invoke('username-login'"),'Username login must use the protected Edge Function');
 assert(!client.includes('resolve_login_email'),'Client must not call the public username-to-email RPC');
 assert(client.includes('public-signup'),'Canonical client signup function is not wired');
