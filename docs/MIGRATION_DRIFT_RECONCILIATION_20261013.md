@@ -135,6 +135,10 @@ The SQL executor's explicit `BEGIN / ROLLBACK` path was verified first. Subseque
 4. **Withdrawal dual approval.** Both approval orders passed: Telegram-first and Master-Admin-first. A single approval did not debit funds, the second approval wrote one debit, repeated decisions were rejected, and panel rejection released the reservation without a debit.
 5. **Post-rollback integrity.** Synthetic users, Shop tasks/cycles, withdrawals, account-ledger entries, notifications, and audit events all returned to zero remaining rows. Live counts remained at 4 users, 10 tasks, 4 cycles, 17 account-ledger rows, 1 existing withdrawal, and 0 deposit submissions. Migration history remained at 83 rows; no approved/processing withdrawal without a payout TXID was found. Production settings remained locked in PRE_PRODUCTION, and zero public SECURITY DEFINER functions were found without an empty search path.
 
+
+
+6. **Production-config negative gates.** In a separate rolled-back transaction, a synthetic active Master Admin attempted four unsafe configurations. The live RPC rejected live deposits in PRE_PRODUCTION, payouts without go-live approval, payouts while the payout lock was closed, and live deposits without payouts enabled. The test asserted that `production_config` and `system_mode` stayed unchanged for these rejected attempts; the synthetic admin and audit rows were zero after rollback. No valid go-live activation was attempted.
+
 These are integration checks for the existing Shop and withdrawal database workflows. They do not validate a real on-chain deposit: the deposit table is empty and real deposits are intentionally disabled.
 
 ## Updated status
