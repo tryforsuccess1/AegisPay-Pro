@@ -58,7 +58,8 @@ BEGIN
   END IF;
   IF COALESCE(btrim(p_sender_address),'') = ''
      OR COALESCE(btrim(p_raw_amount),'') !~ '^[0-9]+$'
-     OR p_block_timestamp IS NULL THEN
+     OR p_block_timestamp IS NULL
+     OR COALESCE(btrim(p_verification_source),'') = '' THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Verified chain transfer evidence is incomplete';
   END IF;
 
@@ -72,11 +73,11 @@ BEGIN
   END IF;
 
   -- Idempotency: never apply a second credit or repeat referral effects.
-  IF d.status <> 'PENDING_VERIFICATION' THEN
+  IF d.status IS DISTINCT FROM 'PENDING_VERIFICATION' THEN
     RETURN d;
   END IF;
 
-  IF d.ai_review_status NOT IN ('APPROVED','MANUAL_APPROVED') THEN
+  IF COALESCE(d.ai_review_status,'') NOT IN ('APPROVED','MANUAL_APPROVED') THEN
     RAISE EXCEPTION 'Deposit evidence must be approved before credit';
   END IF;
   IF COALESCE(btrim(d.txid),'') = '' THEN
