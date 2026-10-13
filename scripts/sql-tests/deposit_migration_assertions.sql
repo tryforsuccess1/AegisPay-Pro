@@ -129,6 +129,65 @@ BEGIN
     RAISE EXCEPTION 'Rejected duplicate should remain pending for manual reconciliation';
   END IF;
 
+  -- The database boundary must independently reject a raw on-chain amount
+  -- that differs from the submitted amount, even if the caller bypasses its pre-check.
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network
+  ) VALUES (
+    '88888888-8888-4888-8888-888888888888',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',25.00,0.00,25.00,'PENDING_VERIFICATION','APPROVED',
+    'eeeeee0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+    'TRON MAINNET'
+  );
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      '88888888-8888-4888-8888-888888888888',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','10000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN raise_exception THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Raw chain amount mismatch was accepted'; END IF;
+  IF (SELECT status FROM public.deposit_submissions
+      WHERE id='88888888-8888-4888-8888-888888888888') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'A mismatched raw amount changed the deposit status'; END IF;
+  SELECT current_platform_balance,principal_balance
+    INTO v_balance,v_principal
+    FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
+  SELECT count(*) INTO v_user_deposits FROM public.account_ledger
+    WHERE entry_type='USER_DEPOSIT';
+  IF v_balance <> 100 OR v_principal <> 100 OR v_user_deposits <> 1 THEN
+    RAISE EXCEPTION 'Raw amount mismatch had a partial financial side effect';
+  END IF;
+
+  -- A malformed chain transaction ID must not be creditable.
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network
+  ) VALUES (
+    '99999999-9999-4999-8999-999999999999',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',12.00,0.00,12.00,'PENDING_VERIFICATION','APPROVED',
+    'not-a-valid-transaction-hash',
+    'TRON MAINNET'
+  );
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      '99999999-9999-4999-8999-999999999999',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','12000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN raise_exception THEN
+    v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Malformed chain transaction ID was accepted'; END IF;
+  IF (SELECT status FROM public.deposit_submissions
+      WHERE id='99999999-9999-4999-8999-999999999999') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'Malformed chain transaction changed the deposit status'; END IF;
+
   -- Missing/unapproved review must fail without a financial side effect.
   INSERT INTO public.deposit_submissions(
     id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network
