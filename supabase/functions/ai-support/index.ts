@@ -365,13 +365,19 @@ Deno.serve(async (req: Request) => {
     const chat = Deno.env.get("TELEGRAM_CHAT_ID") || "";
     if (!bot || !chat) return false;
     try {
+      const representativeRequest = caseRow.requestType === "CUSTOMER_REPRESENTATIVE";
       const res = await fetch("https://api.telegram.org/bot" + bot + "/sendMessage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chat_id: chat, text:
-          "AegisPay AI Support Case\n" +
-          "Case: " + caseRow.id + "\nCategory: " + caseRow.category + "\nClient: " + String(profile.name || profile.email || profile.id).slice(0, 100) +
-          "\nStatus: OPEN\nMessage: " + String(caseRow.user_message || "").slice(0, 900)
+          (representativeRequest ? "AegisPay Customer Representative Request" : "AegisPay AI Support Escalation") + "\n" +
+          "Action required: Please contact this client and review the issue.\n" +
+          "Case ID: " + caseRow.id + "\nCategory: " + caseRow.category +
+          "\nClient: " + String(profile.name || profile.email || profile.id).slice(0, 100) +
+          "\nContact email: " + String(profile.email || "Not available").slice(0, 120) +
+          "\nStatus: " + String(caseRow.status || "OPEN") +
+          "\nIssue:\n" + String(caseRow.user_message || "").slice(-900) +
+          "\n\nMaster Admin: open AI Support Cases to review and resolve."
         }),
         signal: AbortSignal.timeout(4500)
       });
@@ -379,17 +385,17 @@ Deno.serve(async (req: Request) => {
       return Boolean(res.ok && body?.ok);
     } catch (_) { return false; }
   }
-  async function openSupportCase(admin: ReturnType<typeof createClient<any>>, user: any, profile: any, message: string, answer: string) {
+  async function openSupportCase(admin: ReturnType<typeof createClient<any>>, user: any, profile: any, message: string, answer: string, requestType = "AI_ESCALATION") {
     const subject = message.replace(/\s+/g, " ").trim().slice(0, 120) || "Client requested assistance";
     const { data, error } = await admin.from("ai_support_cases").insert({
       user_id: profile.id, auth_user_id: user.id, category: caseCategory(message),
       subject, user_message: message.slice(0, 1000), ai_answer: answer.slice(0, 2000), status: "OPEN"
     }).select("id,category,status,created_at").single();
     if (error || !data) throw new Error("Unable to create a Master Admin support case.");
-    const notified = await notifySupport(admin, profile, { ...data, user_message: message });
+    const notified = await notifySupport(admin, profile, { ...data, user_message: message, requestType });
     await admin.from("audit_events").insert({
       actor_user_id: null, target_user_id: profile.id, event_type: "AI_SUPPORT_CASE_OPENED",
-      description: "AegisPay AI escalated an unresolved client issue to Master Admin. Case=" + data.id + "; category=" + data.category + "; TelegramNotified=" + String(notified),
+      description: (requestType === "CUSTOMER_REPRESENTATIVE" ? "Client requested a customer representative." : "AegisPay AI escalated an unresolved client issue to Master Admin.") + " Case=" + data.id + "; category=" + data.category + "; TelegramNotified=" + String(notified),
       reference_id: data.id
     });
     return { ...data, telegramNotified: notified };
@@ -434,6 +440,62 @@ Deno.serve(async (req: Request) => {
         reference_id: caseId
       });
       return json({ ok: true, case: updated });
+    }
+
+    if (action === "create_support_case") {
+      if (profile.role !== "USER" || !["ACTIVE", "NORMAL"].includes(String(profile.status || "").toUpperCase())) {
+        return json({ error: "An active client account is required to contact a representative." }, 403);
+      }
+      const message = String(body?.message || "").trim().slice(0, 1000);
+      if (message.length < 8) return json({ error: "Please describe the issue before contacting a representative." }, 400);
+      const rawHistory = Array.isArray(body?.history) ? body.history : [];
+      const history = rawHistory.map((x: any) => ({
+        role: String(x?.role || ""),
+        content: String(x?.content || "").trim().slice(0, 1000),
+      })).filter((x: any) => ["user", "assistant"].includes(x.role) && x.content).slice(-10);
+      const transcript = history.map((x: any) => (x.role === "user" ? "Client: " : "Aegis AI: ") + x.content).join("\n").slice(-1600);
+      const category = caseCategory(message);
+      const { data: activeCase, error: activeCaseError } = await admin.from("ai_support_cases")
+        .select("id,user_id,auth_user_id,category,subject,user_message,ai_answer,status,created_at")
+        .eq("user_id", profile.id).in("status", ["OPEN", "IN_PROGRESS"])
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (activeCaseError) return json({ error: "Unable to check your existing support requests." }, 500);
+
+      let supportCase: any;
+      const canReuse = Boolean(activeCase && activeCase.category === category &&
+        Date.now() - new Date(activeCase.created_at).getTime() < 12 * 60 * 60 * 1000);
+      if (canReuse && activeCase) {
+        const updatedMessage = String(activeCase.user_message || "").includes(message)
+          ? String(activeCase.user_message || "").slice(0, 1000)
+          : ("Previous issue: " + String(activeCase.user_message || "").slice(0, 300) +
+             "\nCustomer representative request: " + message).slice(-1000);
+        const updatedTranscript = (String(activeCase.ai_answer || "") +
+          "\n\nCustomer representative request and recent conversation:\n" + transcript).slice(-2000);
+        const now = new Date().toISOString();
+        const { data: updated, error } = await admin.from("ai_support_cases").update({
+          subject: message.replace(/\s+/g, " ").trim().slice(0, 120) || activeCase.subject,
+          category, user_message: updatedMessage, ai_answer: updatedTranscript, updated_at: now,
+        }).eq("id", activeCase.id).select("id,category,status,created_at,updated_at").single();
+        if (error || !updated) return json({ error: "Your existing support request could not be updated." }, 500);
+        const notified = await notifySupport(admin, profile, { ...updated, user_message: updatedMessage, requestType: "CUSTOMER_REPRESENTATIVE" });
+        await admin.from("audit_events").insert({
+          actor_user_id: null, target_user_id: profile.id, event_type: "AI_SUPPORT_REPRESENTATIVE_REQUESTED",
+          description: "Client requested a representative for support case " + updated.id + "; TelegramNotified=" + String(notified),
+          reference_id: updated.id
+        });
+        supportCase = { ...updated, telegramNotified: notified, reused: true };
+      } else {
+        supportCase = await openSupportCase(admin, { id: profile.auth_user_id }, profile, message,
+          "Client requested a customer representative. Recent conversation:\n" + transcript, "CUSTOMER_REPRESENTATIVE");
+      }
+      return json({
+        ok: true,
+        answer: "Your request has been recorded. Support case " + supportCase.id + " is now in the Master Admin queue. " +
+          (supportCase.telegramNotified
+            ? "Master Admin has been notified on Telegram to contact you about this issue."
+            : "The case is saved, but Telegram delivery could not be confirmed. The request remains in the Master Admin queue."),
+        supportCase
+      });
     }
 
     const { data: enabled, error: runtimeError } = await admin.rpc("app_runtime_enabled");
