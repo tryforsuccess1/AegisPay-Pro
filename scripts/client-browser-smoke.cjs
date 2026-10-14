@@ -98,8 +98,39 @@ const server = http.createServer((req, res) => {
       assert.ok(dimension.documentWidth <= dimension.width, 'Horizontal overflow at viewport width ' + width + ': ' + JSON.stringify(dimension));
       viewportResults.push(width);
     }
-    assert.deepEqual(pageErrors, [], 'Uncaught browser JavaScript errors: ' + pageErrors.join(' | '));
-    console.log('Client browser smoke passed: readable login ID, masked password, language open/select/persist, theme toggle/persist, control sizes, and no horizontal overflow at ' + viewportResults.join(', ') + 'px.');
+    const adminPage = await context.newPage();
+    await adminPage.setViewportSize({ width: 390, height: 844 });
+    const adminErrors = [];
+    adminPage.on('pageerror', error => adminErrors.push(error.message));
+    await adminPage.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', route =>
+      route.fulfill({ path: path.join(root, 'supabase-sdk.js'), contentType: 'application/javascript' })
+    );
+    await adminPage.goto('http://127.0.0.1:4173/master-admin.html', { waitUntil: 'domcontentloaded' });
+    await adminPage.locator('#aaLoginForm').waitFor({ state: 'visible', timeout: 15000 });
+    const adminControls = await adminPage.evaluate(() => ({
+      usernameType: document.querySelector('#aaUsername')?.type,
+      passwordType: document.querySelector('#aaPassword')?.type,
+      submitHeight: Math.round(document.querySelector('#aaLoginForm button[type="submit"]')?.getBoundingClientRect().height || 0),
+      themeHeight: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().height || 0)
+    }));
+    assert.equal(adminControls.usernameType, 'text', 'Master Admin username must be readable.');
+    assert.equal(adminControls.passwordType, 'password', 'Master Admin password must remain masked.');
+    assert.ok(adminControls.submitHeight >= 40, 'Master Admin primary button should have a 40px minimum touch target.');
+    assert.ok(adminControls.themeHeight >= 40, 'Master Admin theme button should have a 40px minimum touch target.');
+    const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
+    await adminPage.locator('.aa-theme-toggle').click();
+    const adminModeAfter = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
+    assert.notEqual(adminModeAfter, adminModeBefore, 'Master Admin theme button should change the theme.');
+
+    const adminViewportResults = [];
+    for (const width of [320, 390, 768, 1280]) {
+      await adminPage.setViewportSize({ width, height: 844 });
+      const dims = await adminPage.evaluate(() => ({width: window.innerWidth, documentWidth: document.documentElement.scrollWidth}));
+      assert.ok(dims.documentWidth <= dims.width, 'Master Admin horizontal overflow at ' + width + 'px: ' + JSON.stringify(dims));
+      adminViewportResults.push(width);
+    }
+    assert.deepEqual(adminErrors, [], 'Master Admin uncaught browser JavaScript errors: ' + adminErrors.join(' | '));
+    console.log('Client browser smoke passed at ' + viewportResults.join(', ') + 'px; Master Admin login/theme smoke passed at ' + adminViewportResults.join(', ') + 'px.');
     await context.close();
   } catch (error) {
     console.error(error && error.stack || error);
