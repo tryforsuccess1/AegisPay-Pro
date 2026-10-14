@@ -116,6 +116,9 @@ assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notificatio
 assert(client.includes("openAegisSupport();return;")&&client.includes("return await openAegisSupport();"),'AI Assistant and Support must use the guarded direct navigation handler');
 assert(client.includes('async function openAegisSupport()')&&client.includes("root.innerHTML=SC.bot();")&&client.includes('data-support-error')&&client.includes('data-support-retry')&&client.includes('data-support-home'),'AI Assistant must render directly and expose actionable diagnostics if rendering fails');
 assert(client.includes('id="aiOnline"')&&client.includes('Sign-in required')&&client.includes('Support temporarily unavailable'),'AI failures must display visible status and session/network guidance');
+assert(client.includes('id="aiRepresentative"')&&client.includes('Talk to a Customer Representative'),'Client must offer an explicit customer representative escalation path');
+assert(client.includes("action:'create_support_case'")&&client.includes('awaitingRepresentativeIssue')&&client.includes('submitRepresentativeRequest'),'Client must submit prior chat context or ask for issue details before creating a support case');
+assert(client.includes('class="ai-input-shell"'),'AI input must use a dedicated, evenly framed pink shell (layout geometry is checked in Playwright)');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 
 const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
@@ -138,6 +141,9 @@ assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwne
 const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
 assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
+assert(aiSupportSource.includes('action === "create_support_case"')&&aiSupportSource.includes('CUSTOMER_REPRESENTATIVE'),'AI support backend must accept authenticated representative requests and classify their Telegram alerts');
+assert(aiSupportSource.includes('Action required: Please contact this client and review the issue.'),'Telegram support alerts must tell Master Admin to contact the client');
+assert(adminAuth.includes('AI Support Cases')&&adminAuth.includes('admin_update_case')&&adminAuth.includes('Mark Resolved'),'Master Admin must retain the workflow to review and resolve customer representative cases');
 for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
 assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
 assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
