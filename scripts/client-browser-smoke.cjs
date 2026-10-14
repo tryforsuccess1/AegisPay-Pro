@@ -99,8 +99,8 @@ const server = http.createServer((req, res) => {
     assert.equal(loginFields.passwordAutocomplete, 'off', 'Login password should disable browser autofill.');
     assert.equal(loginFields.usernameReadonly, true, 'Login identifier should resist autofill until user focus.');
     assert.equal(loginFields.passwordReadonly, true, 'Login password should resist autofill until user focus.');
-    assert.equal(loginFields.usernamePlaceholder, 'Enter username or Client ID', 'Login identifier should not display a demo username.');
-    assert.equal(loginFields.passwordPlaceholder, 'Enter your password', 'Password placeholder should not resemble a prefilled password.');
+    assert.equal(loginFields.usernamePlaceholder, '', 'Login identifier should have no placeholder text.');
+    assert.equal(loginFields.passwordPlaceholder, '', 'Password should have no dot-only placeholder text.');
     await page.locator('#le').focus();
     assert.equal(await page.locator('#le').evaluate(el => el.readOnly), false, 'Username should become editable on focus.');
     await page.locator('#lp').focus();
