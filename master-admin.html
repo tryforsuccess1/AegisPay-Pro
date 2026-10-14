@@ -25,6 +25,16 @@
 .aa-login{min-height:calc(100vh - 76px);display:grid;place-items:center;padding:35px 18px 60px;position:relative;overflow:hidden}.aa-login-glow{position:absolute;width:520px;height:520px;border-radius:50%;background:radial-gradient(circle,rgba(240,106,77,.16),transparent 65%);filter:blur(10px)}.aa-auth-card{position:relative;width:min(100%,430px);padding:28px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(160deg,rgba(18,24,46,.92),rgba(8,13,26,.96));box-shadow:0 30px 90px rgba(0,0,0,.38),0 0 60px rgba(240,106,77,.08)}.aa-auth-mark{width:76px;height:76px;display:grid;place-items:center;margin:0 auto 15px;border-radius:24px;background:var(--grad);box-shadow:0 22px 50px -20px var(--violet)}.aa-auth-mark img{filter:brightness(1.08)}.aa-auth-card{text-align:center}.aa-auth-card h1{margin:8px 0 5px;font-size:31px;letter-spacing:-1px}.aa-auth-sub{margin:0 0 21px;color:var(--muted);font-size:11px;line-height:1.6}.aa-field{text-align:left;margin-bottom:12px}.aa-field input{color:var(--text)}.aa-field input::placeholder{color:#8a7a68}.aa-arrow{margin-left:2px;font-size:18px}.aa-security-box{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:17px;padding:11px;border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.025)}.aa-security-icon{width:30px;height:30px;display:grid;place-items:center;border-radius:10px;color:var(--cyan);background:rgba(201,75,138,.08)}.aa-security-box{text-align:left}.aa-security-box strong{display:block;font-size:10px}.aa-security-box small{display:block;margin-top:2px;color:var(--muted);font-size:8px}.aa-loading{display:grid;justify-items:center;gap:5px;padding:18px 0}.aa-spinner{width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.10);border-top-color:var(--cyan);animation:aaSpin .75s linear infinite;margin-bottom:8px}.aa-loading strong{font-size:12px}.aa-loading small{color:var(--muted);font-size:9px}@keyframes aaSpin{to{transform:rotate(360deg)}}
 @media(max-width:1000px){.aa-grid-stats{grid-template-columns:1fr 1fr}.aa-section-grid{grid-template-columns:1fr}.aa-sidebar{width:210px}.aa-app-layout{grid-template-columns:210px minmax(0,1fr)}}
 @media(max-width:760px){.aa-top{min-height:68px;padding:12px 14px}.aa-brand strong{font-size:17px}.aa-brand small{font-size:8px}.aa-session{display:none}.aa-app-layout{display:block}.aa-sidebar{display:none}.aa-mobile-tabs{display:flex;gap:6px;position:sticky;top:68px;z-index:40;overflow:auto;padding:8px 10px;background:rgba(5,8,18,.91);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}.aa-mobile-tabs button{flex:0 0 auto;display:flex;align-items:center;gap:6px;min-height:36px;padding:0 11px;border:1px solid var(--line);border-radius:12px;background:rgba(255,255,255,.03);color:#8a7a68;font-size:8px;font-weight:800}.aa-mobile-tabs button.active{background:var(--grad);color:#fff;border-color:transparent}.aa-main{padding:18px 13px 35px}.aa-page-head{align-items:flex-start}.aa-page-head h1{font-size:24px}.aa-page-head .aa-secondary{display:none}.aa-grid-stats{grid-template-columns:1fr 1fr;gap:9px}.aa-stat{padding:12px;border-radius:17px}.aa-stat-icon{width:36px;height:36px;border-radius:11px}.aa-stat strong{font-size:15px}.aa-system-card{align-items:flex-start;flex-direction:column}.aa-system-toggle{width:100%}.aa-user-meta{grid-template-columns:1fr 1fr}.aa-detail-grid{grid-template-columns:1fr 1fr}.aa-form-grid{grid-template-columns:1fr}.aa-span-2{grid-column:auto}.aa-log-row{grid-template-columns:1fr}.aa-telegram-card{align-items:flex-start;flex-wrap:wrap}.aa-telegram-card>button{width:100%}.aa-footer{padding:14px;flex-direction:column}.aa-auth-card{padding:22px 17px;border-radius:24px}}
+
+/* Interaction and accessibility polish: admin controls use consistent touch targets. */
+button{min-height:40px}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[role="button"]:focus-visible{outline:3px solid var(--cyan);outline-offset:3px}
+button,a,[role="button"]{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+@media(max-width:360px){
+ .aa-top{gap:8px;flex-wrap:wrap}
+ .aa-shell{overflow-wrap:anywhere}
+}
+
 </style>
 
 <style id="sunrise-admin-theme">
@@ -93,7 +103,16 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
  html[data-mode="dark"] .aa-login-glow{background:radial-gradient(circle,rgba(255,122,92,.14),transparent 65%)}
  html[data-mode="dark"] .aa-session{color:var(--mint);background:rgba(63,214,160,.08);border-color:rgba(63,214,160,.2)}
  html[data-mode="dark"] .aa-footer{border-color:var(--line)!important}
- </style></head>
+ 
+@media(max-width:760px){.aa-mobile-tabs button{min-height:40px}}
+</style>
+<style id="aegis-audit-contrast">
+/* Keep white labels above AA contrast on all primary gradient actions. */
+.aa-primary,.aa-actions .aa-primary,.aa-system-toggle.off,.aa-mobile-tabs button.active{background:linear-gradient(135deg,#c94932,#b83b7d)!important;color:#fff!important}
+.aa-icon-button{width:40px;height:40px;min-width:40px;min-height:40px}
+</style>
+
+</head>
 <body>
 <div id="app"></div>
 <script>

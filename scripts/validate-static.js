@@ -4,7 +4,7 @@ const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
 
 const must=[
-  'client.html','master-admin.html','admin-auth.js',
+  'client.html','master-admin.html','admin-auth.js','scripts/client-browser-smoke.cjs',
   'supabase-client.js','supabase-service.js','aegis-auth-redirect.js','app-update.js',
    'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','package.json',
   'database/migrations/20261003_private_verification_storage_policies.sql','database/migrations/20261004_restore_baseline_demo_configuration.sql',
@@ -84,6 +84,14 @@ assertInlineScriptsParse('client.html');
 assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
+const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+assert(masterAdmin.includes('Interaction and accessibility polish: admin controls use consistent touch targets'),'Master Admin touch target styles are missing');
+assert(masterAdmin.includes('button{min-height:40px}'),'Master Admin controls must have a consistent minimum height');
+assert(masterAdmin.includes('button:focus-visible,a:focus-visible'),'Master Admin keyboard focus indicators are missing');
+assert(masterAdmin.includes('@media(max-width:360px)'),'Master Admin needs a narrow-screen layout adjustment');
+assert(masterAdmin.includes('id="aegis-audit-contrast"'),'Master Admin primary-action contrast overrides are missing');
+assert(masterAdmin.includes('linear-gradient(135deg,#c94932,#b83b7d)!important'),'Master Admin primary action gradient must pass white-text contrast');
+assert(masterAdmin.includes('.aa-icon-button{width:40px;height:40px;min-width:40px;min-height:40px}'),'Master Admin icon controls must remain square and aligned');
 const withdrawalMigration=fs.readFileSync('database/migrations/20261014_phase1_validate_withdrawal_wallets.sql','utf8');
 assert(withdrawalMigration.includes('COALESCE(public.is_valid_tron_address(NEW.destination_address), false) IS NOT TRUE'),'Database writes must fail closed on invalid or NULL TRON addresses');
 assert(withdrawalMigration.includes('users_validate_withdrawal_destination'),'Saved user wallets must be validated server-side');
@@ -96,6 +104,18 @@ assert(client.includes("const botEntry=target.closest(")&&client.includes('[data
 assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notification-id]"),'Both notification-card renderers must open their selected notification details');
 assert(client.includes("window.go('bot');return;"),'AI Assistant and Support must navigate to the bot page from delegated taps');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
+
+const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
+for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
+assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
+assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
+assert(client.includes('.btn.sm{min-height:40px}')&&client.includes('.chip{min-height:40px}'),'Compact button and chip touch targets must be enlarged');
+assert(client.includes('.eye{width:40px;height:40px;min-width:40px;min-height:40px}'),'Balance visibility controls must have adequate touch targets');
+assert(client.includes('.task-view-product{min-height:40px;')&&client.includes('.task-complete{min-height:40px;'),'Shop task controls must have adequate touch targets');
+assert(client.includes('button:focus-visible,a:focus-visible'),'Keyboard focus indicators must be visible for interactive controls');
+assert(client.includes('@media(max-width:360px)'),'Very narrow mobile layouts must have specific responsive adjustments');
+assert(client.includes('linear-gradient(135deg,#c94932,#b83b7d)'),'Client primary action gradient must pass white-text contrast');
+assert(client.includes('.bk{width:44px;height:44px;min-width:44px;min-height:44px}'),'Client back controls must have consistent touch targets');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
 assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');

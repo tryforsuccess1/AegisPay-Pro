@@ -24,6 +24,16 @@ jobs:
           node-version: 24
       - name: Repository checks
         run: npm run check
+      - name: Install browser smoke-test dependencies
+        run: npm install --no-save --no-package-lock playwright@1.55.0 @supabase/supabase-js@2.117.2
+      - name: Prepare the pinned Supabase browser SDK for local smoke testing
+        run: |
+          cp node_modules/@supabase/supabase-js/dist/umd/supabase.js supabase-sdk.js
+          test -s supabase-sdk.js
+      - name: Install Chromium for browser smoke tests
+        run: npx playwright install --with-deps chromium
+      - name: Test login controls and responsive client UI in Chromium
+        run: node scripts/client-browser-smoke.cjs
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
