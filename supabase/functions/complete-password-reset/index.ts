@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { assertPasswordNotPwned, PasswordSecurityUnavailableError, PwnedPasswordError } from "../_shared/pwned-passwords.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -48,6 +49,18 @@ Deno.serve(async (req: Request) => {
     if (profile.role !== "USER") return json({ error: "Only client accounts can use password recovery." }, 403);
     if (!["ACTIVE", "NORMAL"].includes(String(profile.status || "").toUpperCase())) {
       return json({ error: "This account is not eligible for password recovery." }, 403);
+    }
+
+    try {
+      await assertPasswordNotPwned(password);
+    } catch (error) {
+      if (error instanceof PwnedPasswordError) {
+        return json({ error: error.message, code: "COMPROMISED_PASSWORD" }, 400);
+      }
+      if (error instanceof PasswordSecurityUnavailableError) {
+        return json({ error: "Password security check is temporarily unavailable. Password was not changed; please try again shortly.", code: "PASSWORD_SECURITY_UNAVAILABLE" }, 503);
+      }
+      return json({ error: "Password security check failed. Password was not changed; please try again.", code: "PASSWORD_SECURITY_UNAVAILABLE" }, 503);
     }
 
     const oldResetAt = profile.password_reset_at;
