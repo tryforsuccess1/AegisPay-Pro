@@ -1,12 +1,13 @@
 {
-  "versionCode": 41,
-  "versionName": "2.6.2",
+  "versionCode": 42,
+  "versionName": "2.6.3",
   "releaseChannel": "test",
-  "candidateBuiltAt": "2026-10-13T18:51:31Z",
+  "candidateBuiltAt": null,
   "notes": [
-    "Build 41 is a test candidate, not a stable release.",
-    "No Build 41 APK URL or SHA-256 is published yet; do not offer this candidate as an update.",
-    "Canonical Aurora Client UI and username login are included.",
+    "Build 42 is a test candidate, not a stable release.",
+    "No Build 42 APK URL or SHA-256 is published yet; do not offer this candidate as an update until CI publishes and verifies the APK.",
+    "Google OAuth client sign-in and the Android callback are included; verify Supabase OAuth credentials and redirect allowlists before production use.",
+    "Canonical AegisPay Client UI and existing username/password login remain included.",
     "The web deployment workflow generates versioned APK URLs and SHA-256 values from the exact APKs it packages.",
     "Promote to stable only after a signed release APK is published and its SHA-256 is verified."
   ]
