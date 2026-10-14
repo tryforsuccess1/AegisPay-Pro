@@ -59,7 +59,7 @@ assert(/FROM PUBLIC, anon, authenticated\s*;/i.test(triggerOnlyGrantMigration),'
 assert(!/^\s*FROM\b[^\n]*service_role/im.test(triggerOnlyGrantMigration),'Keep service_role maintenance permission for controlled trigger maintenance');
 const googleOAuthMigration=fs.readFileSync('database/migrations/20261014150000_google_oauth_profile_linking.sql','utf8');
 assert(googleOAuthMigration.includes("NEW.raw_app_meta_data ->> 'provider', '')) = 'google'")&&googleOAuthMigration.includes('NEW.email_confirmed_at IS NOT NULL'),'Google OAuth profile changes must only apply to Google identities with verified email');
-assert(googleOAuthMigration.includes('auth_user_id = NEW.id')&&googleOAuthMigration.includes('auth_user_id IS NULL')&&googleOAuthMigration.includes("upper(status) <> 'DELETED'"),'Google OAuth must only claim matching unlinked non-deleted profiles');
+assert(googleOAuthMigration.includes('auth_user_id = NEW.id')&&googleOAuthMigration.includes('auth_user_id IS NULL')&&googleOAuthMigration.includes("upper(status) <> 'DELETED'")&&googleOAuthMigration.includes("role = 'USER'"),'Google OAuth must only claim matching unlinked non-deleted profiles');
 assert(googleOAuthMigration.includes('v_username_base')&&googleOAuthMigration.includes('v_username_suffix')&&googleOAuthMigration.includes('regexp_replace'),'New Google OAuth signups must receive a unique generated Client ID when metadata has no username');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
