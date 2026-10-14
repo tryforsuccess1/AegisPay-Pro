@@ -59,6 +59,23 @@ const server = http.createServer((req, res) => {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     await page.goto('http://127.0.0.1:4173/client.html', { waitUntil: 'domcontentloaded' });
+    const chipScroll = await page.evaluate(() => {
+      const strip = document.createElement('div');
+      strip.className = 'chips';
+      strip.style.cssText = 'position:fixed;left:0;top:0;width:180px;visibility:hidden';
+      strip.innerHTML = ['All','Deposits','Tasks','Settlement','Withdrawals','Referrals'].map((label,i) => '<button type="button" class="chip '+(i===0?'on':'')+'">'+label+'</button>').join('');
+      document.body.appendChild(strip);
+      const style = getComputedStyle(strip);
+      const before = strip.scrollLeft;
+      strip.scrollLeft = 100;
+      const result = {clientWidth:strip.clientWidth,scrollWidth:strip.scrollWidth,scrollbarWidth:style.scrollbarWidth,webkitScrollbar:getComputedStyle(strip,'::-webkit-scrollbar').display,scrollLeft:strip.scrollLeft,before};
+      strip.remove();
+      return result;
+    });
+    assert.ok(chipScroll.scrollWidth > chipScroll.clientWidth, 'Activity filter chips must overflow horizontally on narrow screens.');
+    assert.equal(chipScroll.scrollbarWidth, 'none', 'Activity filter row must hide the visible horizontal scrollbar.');
+    assert.equal(chipScroll.webkitScrollbar, 'none', 'WebKit scrollbar arrows/track must be hidden for Activity filters.');
+    assert.ok(chipScroll.scrollLeft > chipScroll.before, 'Activity filter row must retain native horizontal scrolling.');
     await page.locator('#liveLogin').waitFor({ state: 'visible', timeout: 15000 });
     const googleButton = page.locator('#liveLogin [data-google-auth]');
     await googleButton.waitFor({ state: 'visible', timeout: 5000 });

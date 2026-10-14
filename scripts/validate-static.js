@@ -160,6 +160,7 @@ assert(client.includes('liveHome'),'Client Home runtime is missing');
 assert(client.includes('liveTopup'),'Client Top Up runtime is missing');
 assert(client.includes('liveWithdraw'),'Client Withdrawal runtime is missing');
 assert(client.includes('Username or Email'),'Canonical client login must accept username or email');
+assert(client.includes('.chips{display:flex;gap:8px;margin-bottom:14px;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}')&&client.includes('.chips::-webkit-scrollbar{display:none;width:0;height:0}')&&client.includes('.chip{flex:0 0 auto;'),'Activity filters must hide visible horizontal scrollbar controls while preserving native horizontal touch scrolling and non-shrinking chips');
 assert(/<input id="le" type="text"[^>]*autocomplete="off"[^>]*autocapitalize="none"[^>]*spellcheck="false"[^>]*readonly[^>]*aria-label="Username or Email \/ Client ID" required>/.test(client),'Client login identifier must start blank, resist autofill, and remain readable without a preset value');
 assert(/<input id="lp" type="password"[^>]*autocomplete="off"[^>]*readonly[^>]*required>/.test(client),'Client login password must start blank and resist autofill while remaining masked');
 assert(!/placeholder=["'](?:tryforsuccess1|[•*]{3,}|Enter (?:username|your password))/i.test(client),'Login fields must not display sample credentials or password-looking placeholders');
