@@ -109,7 +109,7 @@ assert(client.includes('bootLive'),'Client inline runtime bootstrap is missing')
 assert(client.includes("const botEntry=target.closest(")&&client.includes('[data-go="bot"]')&&client.includes('[data-a="sup"]'),'AI Assistant and Support taps must route through the central mobile-safe handler');
 assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notification-id]"),'Both notification-card renderers must open their selected notification details');
 assert(client.includes("openAegisSupport();return;")&&client.includes("return await openAegisSupport();"),'AI Assistant and Support must use the guarded direct navigation handler');
-assert(client.includes('async function openAegisSupport()')&&client.includes('await liveBot();')&&client.includes('data-support-retry')&&client.includes('data-support-home'),'AI Assistant navigation must show actionable feedback if its screen cannot render');
+assert(client.includes('async function openAegisSupport()')&&client.includes("root.innerHTML=SC.bot();")&&client.includes('data-support-error')&&client.includes('data-support-retry')&&client.includes('data-support-home'),'AI Assistant must render directly and expose actionable diagnostics if rendering fails');
 assert(client.includes('id="aiOnline"')&&client.includes('Sign-in required')&&client.includes('Support temporarily unavailable'),'AI failures must display visible status and session/network guidance');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 
