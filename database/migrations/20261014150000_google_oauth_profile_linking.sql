@@ -44,6 +44,7 @@ BEGIN
       SET auth_user_id = NEW.id
       WHERE lower(email) = lower(trim(NEW.email))
         AND auth_user_id IS NULL
+        AND role = 'USER'
         AND upper(status) <> 'DELETED'
       RETURNING id INTO v_profile_id;
     IF v_profile_id IS NOT NULL THEN RETURN NEW; END IF;
