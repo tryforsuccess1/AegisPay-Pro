@@ -118,7 +118,7 @@ function normalizeContext(row: any, tier: any, cycle: any, tasks: any[], kyc: an
   };
 }
 
-async function loadSupportContext(admin: ReturnType<typeof createClient>, profile: any): Promise<SupportContext> {
+async function loadSupportContext(admin: ReturnType<typeof createClient<any>>, profile: any): Promise<SupportContext> {
   const [userR, cycleR, taskR, kycR, withdrawalR, referralR] = await Promise.all([
     admin.from("users")
       .select("id,name,display_name,status,current_platform_balance,withdrawal_held,first_deposit_done,selected_tier_id,destination_address")
@@ -157,7 +157,7 @@ async function loadSupportContext(admin: ReturnType<typeof createClient>, profil
   return normalizeContext(user, tier, cycleR.data, taskR.data || [], kycR.data, withdrawalR.data, referralR.data || []);
 }
 
-async function handleSafeOperation(admin: ReturnType<typeof createClient>, profile: any, message: string, context: SupportContext) {
+async function handleSafeOperation(admin: ReturnType<typeof createClient<any>>, profile: any, message: string, context: SupportContext) {
   const q = message.trim();
   const m = q.match(/(?:change|update|edit|set)\s+(?:my\s+)?(?:display\s+)?name\s+(?:to|as)\s+["“']?([^"”']{2,60})["”']?\s*$/i);
   if (m) {
@@ -321,7 +321,7 @@ function fallback(message: string, ctx: SupportContext, history: Array<{role:str
     "میں AegisPay support کے سوالات آپ کے account اور platform rules کے مطابق سمجھ کر guide کر سکتا ہوں۔ بتائیں آپ کیا کرنا چاہتے ہیں یا کہاں مسئلہ آ رہا ہے، میں step by step مدد کرتا ہوں۔"
   );
 }
-async function actor(req: Request, admin: ReturnType<typeof createClient>) {
+async function actor(req: Request, admin: ReturnType<typeof createClient<any>>) {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   if (!token) throw new Response("Authorization required.", { status: 401 });
   const { data: auth, error } = await admin.auth.getUser(token);
@@ -360,7 +360,7 @@ Deno.serve(async (req: Request) => {
     const stillUnresolved = /\b(still|again|same problem|keeps|already tried|does not help|did not help)\b/.test(q);
     return explicitlyNeedsHelp || issue && (answerDefers || degraded || stillUnresolved);
   };
-  async function notifySupport(admin: ReturnType<typeof createClient>, profile: any, caseRow: any) {
+  async function notifySupport(admin: ReturnType<typeof createClient<any>>, profile: any, caseRow: any) {
     const bot = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
     const chat = Deno.env.get("TELEGRAM_CHAT_ID") || "";
     if (!bot || !chat) return false;
@@ -379,7 +379,7 @@ Deno.serve(async (req: Request) => {
       return Boolean(res.ok && body?.ok);
     } catch (_) { return false; }
   }
-  async function openSupportCase(admin: ReturnType<typeof createClient>, user: any, profile: any, message: string, answer: string) {
+  async function openSupportCase(admin: ReturnType<typeof createClient<any>>, user: any, profile: any, message: string, answer: string) {
     const subject = message.replace(/\s+/g, " ").trim().slice(0, 120) || "Client requested assistance";
     const { data, error } = await admin.from("ai_support_cases").insert({
       user_id: profile.id, auth_user_id: user.id, category: caseCategory(message),
