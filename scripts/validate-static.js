@@ -4,7 +4,7 @@ const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
 
 const must=[
-  'client.html','master-admin.html','admin-auth.js',
+  'client.html','master-admin.html','admin-auth.js','scripts/client-browser-smoke.cjs',
   'supabase-client.js','supabase-service.js','aegis-auth-redirect.js','app-update.js',
    'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','package.json',
   'database/migrations/20261003_private_verification_storage_policies.sql','database/migrations/20261004_restore_baseline_demo_configuration.sql',
@@ -84,6 +84,11 @@ assertInlineScriptsParse('client.html');
 assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
+const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+assert(masterAdmin.includes('Interaction and accessibility polish: admin controls use consistent touch targets'),'Master Admin touch target styles are missing');
+assert(masterAdmin.includes('button{min-height:40px}'),'Master Admin controls must have a consistent minimum height');
+assert(masterAdmin.includes('button:focus-visible,a:focus-visible'),'Master Admin keyboard focus indicators are missing');
+assert(masterAdmin.includes('@media(max-width:360px)'),'Master Admin needs a narrow-screen layout adjustment');
 const withdrawalMigration=fs.readFileSync('database/migrations/20261014_phase1_validate_withdrawal_wallets.sql','utf8');
 assert(withdrawalMigration.includes('COALESCE(public.is_valid_tron_address(NEW.destination_address), false) IS NOT TRUE'),'Database writes must fail closed on invalid or NULL TRON addresses');
 assert(withdrawalMigration.includes('users_validate_withdrawal_destination'),'Saved user wallets must be validated server-side');
