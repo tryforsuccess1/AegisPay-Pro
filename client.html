@@ -273,7 +273,7 @@ button,[role="button"],.chip,.task-view-product,.task-complete{touch-action:mani
 .btn:not(.o):not(.rd):not(:disabled),.chip.on{background:linear-gradient(135deg,#c94932,#b83b7d);color:#fff}
 .bk{width:44px;height:44px;min-width:44px;min-height:44px}
 
-</style>
+.google-auth-btn{width:100%;min-height:46px;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:12px;padding:12px 14px;border:1px solid #d7d4ce;border-radius:14px;background:#fff;color:#242424;font:600 13px var(--ff);cursor:pointer;box-shadow:var(--cs);transition:transform .15s ease,opacity .15s ease}.google-auth-btn:active{transform:scale(.985)}.google-auth-btn:disabled{opacity:.65;cursor:wait}.google-g{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font:bold 19px Arial,sans-serif;background:conic-gradient(from -45deg,#4285f4 0 25%,#34a853 25% 50%,#fbbc05 50% 75%,#ea4335 75% 100%);color:transparent;background-clip:text;-webkit-background-clip:text}.google-auth-note{font-size:10.5px;color:var(--mut);line-height:1.5;text-align:center;margin:7px 0 0}</style>
 <script>window.AEGIS_ANDROID_APP=!!window.AegisNative;window.AEGIS_ADMIN_PORTAL=false;</script>
 </head>
 <body>
@@ -610,6 +610,7 @@ go('login');
 (function(){
 const U='https://wtcspnrmsoisroavojop.supabase.co',K='sb_publishable_pDg6Ef_P6fZnNvrKkuBm0Q_uEQMItB2';
 const db=supabase.createClient(U,K,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
+window.AegisSupabaseClient=db;
 const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='',notificationPage=0,notificationRequestId=0,notificationCursors=[null],notificationNavigationInProgress=false,notificationReturnFromDetails=false,notificationRouteObserver=null;
 function uiNotice(message,type='error',duration=4200){
   const root=document.getElementById('app');if(!root)return;
@@ -664,6 +665,106 @@ async function refreshNotificationCount(){
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const formatName=v=>String(v??'').trim().replace(/\s+/g,' ').split(' ').filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const formatUsername=v=>String(v??'').trim().toLowerCase();
+
+function googleOAuthRedirectTo(){
+  return window.AegisNative
+    ? 'com.aegispay.app.client://auth/callback'
+    : new URL('/app/',window.location.origin).href;
+}
+async function startGoogleAuth(button){
+  if(!button||button.disabled)return;
+  if(referralLinkCode || (document.getElementById('sr')&&document.getElementById('sr').value.trim())){
+    uiNotice('To apply a referral code, please finish signup with the email form. Google signup does not currently apply referral codes.');
+    return;
+  }
+  const original=button.innerHTML;
+  button.disabled=true;
+  button.innerHTML='<span class="google-g" aria-hidden="true">G</span><span>Opening Google…</span>';
+  try{
+    const result=await db.auth.signInWithOAuth({
+      provider:'google',
+      options:{
+        redirectTo:googleOAuthRedirectTo(),
+        queryParams:{prompt:'select_account'},
+        skipBrowserRedirect:true
+      }
+    });
+    if(result.error)throw result.error;
+    if(!result.data||!result.data.url)throw new Error('Google sign-in did not return an authorization URL.');
+    window.location.assign(result.data.url);
+  }catch(error){
+    button.disabled=false;
+    button.innerHTML=original;
+    uiNotice('Google sign-in could not start. Please check the Google provider configuration and allowed redirect URLs. '+(error&&error.message?error.message:''));
+  }
+}
+function installGoogleAuthButtons(){
+  const root=document.getElementById('app');
+  if(!root)return;
+  const target=root.querySelector('#liveLogin,#liveSignup');
+  if(!target||target.querySelector('[data-google-auth]'))return;
+  if(referralLinkCode)return;
+  const button=document.createElement('button');
+  button.type='button';
+  button.className='google-auth-btn';
+  button.setAttribute('data-google-auth','');
+  button.innerHTML='<span class="google-g" aria-hidden="true">G</span><span>Continue with Google</span>';
+  const note=document.createElement('p');
+  note.className='google-auth-note';
+  note.textContent=target.id==='liveSignup'
+    ? 'Google verifies your email. AegisPay will generate your Client ID automatically.'
+    : 'Sign in or create an account securely with Google.';
+  const link=target.querySelector('.lnk');
+  target.insertBefore(button,link||null);
+  target.insertBefore(note,link||null);
+}
+document.addEventListener('click',function(event){
+  const button=event.target.closest('[data-google-auth]');
+  if(!button)return;
+  event.preventDefault();
+  event.stopPropagation();
+  startGoogleAuth(button);
+},true);
+const googleAuthRoot=document.getElementById('app');
+if(googleAuthRoot&&window.MutationObserver){
+  new MutationObserver(installGoogleAuthButtons).observe(googleAuthRoot,{childList:true,subtree:true});
+}
+window.AegisAuthRedirect={
+  handle:async function(rawUrl){
+    const url=new URL(String(rawUrl||window.location.href),window.location.href);
+    const query=url.searchParams;
+    const hash=new URLSearchParams(String(url.hash||'').replace(/^#/,''));
+    const authError=query.get('error')||hash.get('error');
+    if(authError)throw new Error(query.get('error_description')||hash.get('error_description')||authError);
+    const code=query.get('code');
+    if(code){
+      const exchange=await db.auth.exchangeCodeForSession(code);
+      if(exchange.error)throw exchange.error;
+    }else{
+      const accessToken=hash.get('access_token')||query.get('access_token');
+      const refreshToken=hash.get('refresh_token')||query.get('refresh_token');
+      if(accessToken&&refreshToken){
+        const saved=await db.auth.setSession({access_token:accessToken,refresh_token:refreshToken});
+        if(saved.error)throw saved.error;
+      }
+    }
+    if(!window.AegisNative&&(window.location.protocol==='https:'||window.location.protocol==='http:')){
+      try{window.history.replaceState({},document.title,'/app/')}catch(_){}
+    }
+    window.dispatchEvent(new CustomEvent('aegispay:auth-confirmed',{
+      detail:{type:query.get('type')||hash.get('type')||'google-oauth'}
+    }));
+    return true;
+  },
+  shouldHandleCurrentPage:function(){
+    if(window.location.protocol!=='https:'&&window.location.protocol!=='http:')return false;
+    const url=new URL(window.location.href);
+    if(url.searchParams.has('reset'))return false;
+    return url.pathname==='/auth/callback'||url.pathname==='/app/auth/callback'
+      ||url.searchParams.has('code')||url.searchParams.has('error')
+      ||url.hash.indexOf('access_token=')>=0;
+  }
+};
 async function initData(){
  const r=await db.rpc('claim_aegispay_profile'); if(r.error)throw r.error; profile=Array.isArray(r.data)?r.data[0]:r.data;
  authUser=(await db.auth.getUser()).data.user;
@@ -1818,7 +1919,13 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   liveHome=sunriseReferenceUI.home;liveTopup=sunriseReferenceUI.topup;liveVip=sunriseReferenceUI.vip;liveKyc=sunriseReferenceUI.kyc;liveWithdraw=sunriseReferenceUI.withdraw;liveNotifications=sunriseReferenceUI.notifications;liveActivity=sunriseReferenceUI.activity;liveReferral=sunriseReferenceUI.referral;liveAssets=sunriseReferenceUI.assets;liveAccount=sunriseReferenceUI.account;liveShop=sunriseReferenceUI.shop;liveTasks=sunriseReferenceUI.tasks;liveBot=sunriseReferenceUI.bot;
   window.go=sunriseReferenceUI.go;
 })();
-bindTaskDelegation();window.liveLogout=liveLogout;updateNotificationBadge();bootLive();
+bindTaskDelegation();window.liveLogout=liveLogout;updateNotificationBadge();
+window.addEventListener('aegispay:auth-confirmed',function(){bootLive().catch(function(error){window.go('login');uiNotice(error&&error.message?error.message:'Google sign-in completed, but the AegisPay profile could not be loaded.');});});
+if(window.AegisAuthRedirect.shouldHandleCurrentPage()){
+  window.AegisAuthRedirect.handle(window.location.href).catch(function(error){window.go('login');uiNotice(error&&error.message?error.message:'Google sign-in failed.');});
+}else{
+  bootLive();
+}
 })();
 </script>
 <script src="./app-update.js"></script>

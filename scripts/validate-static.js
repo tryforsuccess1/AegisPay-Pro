@@ -32,6 +32,7 @@ const must=[
   'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql',
   'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql',
   'database/migrations/20261014120000_revoke_trigger_only_function_execute.sql',
+  'database/migrations/20261014150000_google_oauth_profile_linking.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   '.github/workflows/sql-migration-tests.yml',
@@ -56,6 +57,10 @@ const triggerOnlyGrantMigration=fs.readFileSync('database/migrations/20261014120
 assert(triggerOnlyGrantMigration.includes('REVOKE ALL ON FUNCTION public.enforce_valid_tron_withdrawal_address()'),'Trigger-only wallet validator must not remain callable as an RPC');
 assert(/FROM PUBLIC, anon, authenticated\s*;/i.test(triggerOnlyGrantMigration),'Trigger-only wallet validator must revoke public and authenticated client execution');
 assert(!/^\s*FROM\b[^\n]*service_role/im.test(triggerOnlyGrantMigration),'Keep service_role maintenance permission for controlled trigger maintenance');
+const googleOAuthMigration=fs.readFileSync('database/migrations/20261014150000_google_oauth_profile_linking.sql','utf8');
+assert(googleOAuthMigration.includes("NEW.raw_app_meta_data ->> 'provider', '')) = 'google'")&&googleOAuthMigration.includes('NEW.email_confirmed_at IS NOT NULL'),'Google OAuth profile changes must only apply to Google identities with verified email');
+assert(googleOAuthMigration.includes('auth_user_id = NEW.id')&&googleOAuthMigration.includes('auth_user_id IS NULL')&&googleOAuthMigration.includes("upper(status) <> 'DELETED'")&&googleOAuthMigration.includes("role = 'USER'"),'Google OAuth must only claim matching unlinked non-deleted profiles');
+assert(googleOAuthMigration.includes('v_username_base')&&googleOAuthMigration.includes('v_username_suffix')&&googleOAuthMigration.includes('regexp_replace'),'New Google OAuth signups must receive a unique generated Client ID when metadata has no username');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
@@ -139,6 +144,10 @@ assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local S
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
 assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
 assert(androidBuild.includes("'Activate Selected Tier'"),'Android build guard must match the current tier UI');
+assert(client.includes("provider:'google'")&&client.includes('data-google-auth'),'Client UI must offer a wired Google authentication button');
+assert(client.includes('window.AegisSupabaseClient=db;')&&client.includes('window.AegisAuthRedirect={'),'Client must expose a same-session OAuth callback handler for the Android deep-link bridge');
+assert(client.includes("com.aegispay.app.client://auth/callback")&&client.includes("new URL('/app/'"),'Google OAuth must have both native APK and canonical web callback URLs');
+assert(client.includes("aegispay:auth-confirmed")&&client.includes("exchangeCodeForSession(code)"),'Google OAuth callbacks must exchange PKCE codes and resume the client session');
 assert(client.includes('liveHome'),'Client Home runtime is missing');
 assert(client.includes('liveTopup'),'Client Top Up runtime is missing');
 assert(client.includes('liveWithdraw'),'Client Withdrawal runtime is missing');
