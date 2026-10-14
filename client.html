@@ -601,7 +601,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>'<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div style="display:flex;gap:8px"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0 16px" aria-label="Send">'+apIcon('send')+'</button></div>'+nav('bot')+'</div>'};
+bot:()=>'<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div style="display:flex;gap:8px"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0 16px" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 go('login');
 </script>
@@ -1576,7 +1576,8 @@ async function aiAsk(raw){
           detail=body&&body.error?String(body.error):'';
         }
       }catch(_){}
-      throw Error(detail||rr.error.message||'AI support is temporarily unavailable.');
+      const httpStatus=Number(rr.error.status||(rr.error.context&&rr.error.context.status)||0);
+      throw Error((httpStatus?String(httpStatus)+' ':'')+(detail||rr.error.message||'AI support is temporarily unavailable.'));
     }
     const answer=String(rr.data?.answer||'').trim();
     if(!answer)throw Error('AegisPay AI did not return an answer.');
@@ -1626,18 +1627,33 @@ async function liveBot(){
 }
 async function openAegisSupport(){
   if(!profile)return oldGo('login');
+  const root=document.getElementById('app');
   try{
-    await liveBot();
-    if(!document.getElementById('aiMessages'))throw Error('Assistant panel was not rendered.');
+    if(!root)throw Error('Client application root is missing.');
+    if(typeof SC==='undefined'||!SC||typeof SC.bot!=='function')throw Error('AI Assistant screen template is unavailable.');
+    root.innerHTML=SC.bot();
+    const panel=root.querySelector('#aiMessages');
+    if(!panel)throw Error('AI Assistant screen rendered without its message panel.');
+    aiLoadHistory();
+    aiRender();
+    bindAiBot();
+    const input=root.querySelector('#aiInput');
+    if(input)input.focus();
+    const status=root.querySelector('#aiOnline');
+    if(status)status.textContent='● Ready to help';
     return true;
   }catch(error){
+    const detail=String(error&&error.message||error||'Unknown rendering error').slice(0,180);
     console.error('[AegisPay] Unable to open Support / AI Assistant:',error);
-    app.innerHTML='<div class="scr on"><div class="hd"><h1>Support</h1></div><div class="card"><h3>Support is temporarily unavailable</h3><p class="mu" style="margin-top:8px">The AI Assistant could not be opened. Please retry or return to Home.</p><button class="btn" type="button" data-support-retry>Retry Aegis AI</button><button class="btn o" style="margin-top:8px" type="button" data-support-home>Back to Home</button></div></div>';
-    const retry=app.querySelector('[data-support-retry]');
+    if(!root)return false;
+    root.innerHTML='<div class="scr on"><div class="hd"><h1>Support</h1></div><div class="card"><h3>Support is temporarily unavailable</h3><p class="mu" style="margin-top:8px">The assistant failed to render. Details: <span data-support-error></span></p><button class="btn" type="button" data-support-retry>Retry Aegis AI</button><button class="btn o" style="margin-top:8px" type="button" data-support-home>Back to Home</button></div></div>';
+    const detailNode=root.querySelector('[data-support-error]');
+    if(detailNode)detailNode.textContent=detail;
+    const retry=root.querySelector('[data-support-retry]');
     if(retry)retry.onclick=()=>openAegisSupport();
-    const home=app.querySelector('[data-support-home]');
+    const home=root.querySelector('[data-support-home]');
     if(home)home.onclick=()=>window.go('home');
-    uiNotice('AegisPay Support could not open. Please try again.','error');
+    try{uiNotice('AegisPay Support could not open. Please try again.','error');}catch(noticeError){console.warn('[AegisPay] Support notice failed:',noticeError);}
     return false;
   }
 }

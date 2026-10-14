@@ -109,12 +109,13 @@ assert(client.includes('bootLive'),'Client inline runtime bootstrap is missing')
 assert(client.includes("const botEntry=target.closest(")&&client.includes('[data-go="bot"]')&&client.includes('[data-a="sup"]'),'AI Assistant and Support taps must route through the central mobile-safe handler');
 assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notification-id]"),'Both notification-card renderers must open their selected notification details');
 assert(client.includes("openAegisSupport();return;")&&client.includes("return await openAegisSupport();"),'AI Assistant and Support must use the guarded direct navigation handler');
-assert(client.includes('async function openAegisSupport()')&&client.includes('await liveBot();')&&client.includes('data-support-retry')&&client.includes('data-support-home'),'AI Assistant navigation must show actionable feedback if its screen cannot render');
+assert(client.includes('async function openAegisSupport()')&&client.includes("root.innerHTML=SC.bot();")&&client.includes('data-support-error')&&client.includes('data-support-retry')&&client.includes('data-support-home'),'AI Assistant must render directly and expose actionable diagnostics if rendering fails');
 assert(client.includes('id="aiOnline"')&&client.includes('Sign-in required')&&client.includes('Support temporarily unavailable'),'AI failures must display visible status and session/network guidance');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 
 const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
 assert(client.includes('id="aiMessages"')&&client.includes('id="aiInput"')&&client.includes('id="aiSend"'),'AI Assistant must render its message panel, input, and send control');
+assert(client.includes("+NV('bot')+'</div>'"),'AI Assistant template must use a navigation helper available in its own script scope');
 assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:previous}})"),'AI Assistant must submit its message and conversation history to ai-support');
 assert(client.includes("button.onclick=()=>aiAsk(input?.value||'')"),'AI send button must invoke the AI request handler');
 assert(client.includes("if(e.key==='Enter'&&!e.shiftKey)"),'AI input must support Enter-to-send without swallowing Shift+Enter');
