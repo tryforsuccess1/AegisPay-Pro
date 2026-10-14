@@ -326,13 +326,39 @@ nav.aegis-bottom-nav a.on {
   flex: 1 1 auto; min-height: 100px; max-height: none;
   margin: 10px 0; overscroll-behavior: contain;
 }
+.ai-support-cta { flex: 0 0 auto; margin: 0 0 2px; min-width: 0; }
+.ai-support-button {
+  width: 100%; min-width: 0; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border: 1px solid rgba(217,96,156,.32); border-radius: 15px;
+  color: var(--hd); background: linear-gradient(115deg,rgba(240,106,77,.12),rgba(217,96,156,.10));
+  text-align: left; cursor: pointer; font-family: var(--ff); box-shadow: var(--cs);
+}
+.ai-support-button:disabled { opacity: .58; cursor: wait; }
+.ai-support-icon { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center;
+  border-radius: 11px; color: #fff; background: linear-gradient(135deg,var(--p1),var(--p2)); font: 800 16px var(--ff); }
+.ai-support-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ai-support-copy strong { font: 700 11.5px/1.25 var(--ff); color: var(--hd); }
+.ai-support-copy small { font: 500 10px/1.35 var(--ff); color: var(--mut); }
+.ai-support-chevron { color: var(--p2); flex: 0 0 18px; text-align: center; font: 700 20px/1 var(--ff); }
+.ai-support-status { margin: 6px 2px 0; color: var(--mut); font: 600 10.5px/1.4 var(--ff); overflow-wrap: anywhere; }
 .ai-composer {
   display: flex; align-items: center; gap: 8px; width: 100%;
   margin-top: 10px; padding: 0;
 }
-.ai-composer input#aiInput {
-  flex: 1 1 auto; min-width: 0; width: 100%; height: 54px;
-  padding: 0 16px; border-radius: 22px; font-size: 14px;
+/* A real shell, not an outline-offset ring, keeps the pink frame visible equally on every edge. */
+.ai-input-shell {
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 60px; padding: 3px;
+  box-sizing: border-box; display: flex; align-items: stretch;
+  border: 2px solid transparent; border-radius: 24px;
+  background: linear-gradient(var(--s1),var(--s1)) padding-box,
+              linear-gradient(135deg,var(--p1),var(--p2)) border-box;
+  transition: box-shadow .15s ease;
+}
+.ai-input-shell:focus-within { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--p2); }
+.ai-input-shell input#aiInput {
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 100%; min-height: 0;
+  padding: 0 16px; border: 1px solid var(--line); border-radius: 17px;
+  outline: none !important; box-shadow: none !important; font-size: 14px;
 }
 .ai-composer button#aiSend {
   display: grid; place-items: center; flex: 0 0 54px;
@@ -344,7 +370,9 @@ nav.aegis-bottom-nav a.on {
   .scr.on.ai-assistant-screen {
     min-height: calc(100dvh - 108px - env(safe-area-inset-bottom, 0px));
   }
-  .ai-assistant-screen > .msgs { min-height: 72px; }
+  .ai-assistant-screen > .msgs { min-height: 56px; }
+  .ai-support-button { padding: 8px 10px; gap: 8px; }
+  .ai-support-copy small { font-size: 9.5px; }
 }
 </style>
 </head>
@@ -673,7 +701,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div class="ai-composer"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
+bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><section class="ai-support-cta" aria-label="Customer support"><button class="ai-support-button" id="aiRepresentative" type="button"><span class="ai-support-icon">i</span><span class="ai-support-copy"><strong>Talk to a Customer Representative</strong><small>Need more help? Our support team can review your issue.</small></span><span class="ai-support-chevron">›</span></button><div id="aiRepresentativeStatus" class="ai-support-status" aria-live="polite" hidden></div></section><div class="ai-composer"><div class="ai-input-shell"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"></div><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 go('login');
 </script>
@@ -1601,6 +1629,8 @@ function bindAuthForms(){
 
 const AI_HISTORY_KEY='aegispay_ai_history_v2';
 let aiHistory=[];
+let awaitingRepresentativeIssue=false;
+let representativeRequestInFlight=false;
 
 function aiLoadHistory(){
   try{
@@ -1624,13 +1654,93 @@ function aiRender(){
   box.scrollTop=box.scrollHeight;
 }
 function aiSetBusy(busy){
-  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend');
+  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative');
   if(input)input.disabled=busy;
   if(button)button.disabled=busy;
+  if(representative)representative.disabled=busy||representativeRequestInFlight;
+}
+function usefulSupportMessage(value){
+  const text=String(value||'').trim();
+  if(text.length<10)return false;
+  return !/^(hi|hello|hey|good morning|good afternoon|good evening|deposit \/ txid|withdrawal status|withdrawal|referrals|shop tasks|tasks|password reset|password)$/i.test(text);
+}
+async function submitRepresentativeRequest(issueText){
+  if(representativeRequestInFlight)return;
+  if(!profile){oldGo('login');return;}
+  const message=String(issueText||'').trim().slice(0,1000);
+  if(message.length<8){
+    awaitingRepresentativeIssue=true;
+    aiHistory.push({role:'assistant',content:'Of course. Please briefly describe the issue you need help with, and I will send it to our customer representative.'});
+    aiSaveHistory();aiRender();
+    const status=document.getElementById('aiRepresentativeStatus');
+    if(status){status.hidden=false;status.textContent='Please describe your issue in the message box below.';}
+    const input=document.getElementById('aiInput');if(input)input.focus();
+    return;
+  }
+  representativeRequestInFlight=true;
+  awaitingRepresentativeIssue=false;
+  const input=document.getElementById('aiInput');if(input)input.value='';
+  const status=document.getElementById('aiOnline');
+  if(status)status.textContent='● Contacting customer support…';
+  const supportStatus=document.getElementById('aiRepresentativeStatus');
+  if(supportStatus){supportStatus.hidden=false;supportStatus.textContent='Sending your request securely to the support team…';}
+  aiSetBusy(true);
+  const box=document.getElementById('aiMessages');
+  if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Sending your support request…</div>');box.scrollTop=box.scrollHeight;}
+  try{
+    const history=aiHistory.filter(x=>x&&['user','assistant'].includes(x.role)).slice(-10);
+    const result=await db.functions.invoke('ai-support',{body:{action:'create_support_case',message,history}});
+    if(result.error){
+      let detail='';
+      try{if(result.error.context&&typeof result.error.context.clone==='function'){const body=await result.error.context.clone().json();detail=body&&body.error?String(body.error):'';}}catch(_){}
+      throw Error(detail||result.error.message||'The support request could not be sent.');
+    }
+    const data=result.data||{};
+    if(data.ok!==true||!data.supportCase)throw Error(data.error||'The support request could not be confirmed.');
+    const answer=String(data.answer||'Your request has been saved to the support queue.').trim();
+    aiHistory.push({role:'assistant',content:answer});
+    aiSaveHistory();
+    if(status)status.textContent=data.supportCase.telegramNotified?'● Representative notified':'● Support request recorded';
+    if(supportStatus){
+      supportStatus.hidden=false;
+      supportStatus.textContent='Case '+String(data.supportCase.id||'')+' · '+(data.supportCase.telegramNotified?'Telegram notification sent to Master Admin.':'Saved in the Master Admin queue; Telegram delivery was not confirmed.');
+    }
+  }catch(error){
+    const answer='I could not confirm that your support request was sent. '+String(error&&error.message||'Please try again.');
+    aiHistory.push({role:'assistant',content:answer});aiSaveHistory();
+    if(status)status.textContent='● Support request not confirmed';
+    if(supportStatus){supportStatus.hidden=false;supportStatus.textContent='Request not confirmed. Please try again.';}
+  }finally{
+    representativeRequestInFlight=false;
+    const thinking=document.getElementById('aiThinking');if(thinking)thinking.remove();
+    aiRender();aiSetBusy(false);if(input)input.focus();
+  }
+}
+async function talkToRepresentative(){
+  if(representativeRequestInFlight)return;
+  const earlier=aiHistory.filter(x=>x&&x.role==='user'&&usefulSupportMessage(x.content)).slice(-4);
+  if(!earlier.length){
+    awaitingRepresentativeIssue=true;
+    aiHistory.push({role:'assistant',content:'Of course. Please briefly describe the issue you need help with, and I will send it to our customer representative.'});
+    aiSaveHistory();aiRender();
+    const status=document.getElementById('aiOnline');if(status)status.textContent='● Waiting for your issue details';
+    const supportStatus=document.getElementById('aiRepresentativeStatus');
+    if(supportStatus){supportStatus.hidden=false;supportStatus.textContent='Describe your issue in the message box; you will not need to contact support separately.';}
+    const input=document.getElementById('aiInput');if(input)input.focus();
+    return;
+  }
+  const issueText=earlier.map((x,i)=>(i+1)+'. '+String(x.content||'').trim()).join('\n').slice(-1000);
+  await submitRepresentativeRequest(issueText);
 }
 async function aiAsk(raw){
   const message=String(raw||'').trim().slice(0,1000);
   if(!message)return;
+  if(awaitingRepresentativeIssue){
+    awaitingRepresentativeIssue=false;
+    aiHistory.push({role:'user',content:message});aiSaveHistory();aiRender();
+    await submitRepresentativeRequest(message);
+    return;
+  }
   const input=document.getElementById('aiInput');
   if(input)input.value='';
   const previous=aiHistory.filter(x=>x&&['user','assistant'].includes(x.role)).slice(-10);
@@ -1677,7 +1787,7 @@ async function aiAsk(raw){
   }
 }
 function bindAiBot(){
-  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend');
+  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative');
   if(button&&!button.dataset.bound){
     button.dataset.bound='1';
     button.onclick=()=>aiAsk(input?.value||'');
@@ -1685,6 +1795,10 @@ function bindAiBot(){
   if(input&&!input.dataset.bound){
     input.dataset.bound='1';
     input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();aiAsk(input.value)}});
+  }
+  if(representative&&!representative.dataset.bound){
+    representative.dataset.bound='1';
+    representative.onclick=()=>talkToRepresentative();
   }
 }
 document.addEventListener('click',function(e){const q=e.target.closest('[data-q]');if(q&&document.getElementById('aiMessages'))aiAsk(q.getAttribute('data-q')||'')});
