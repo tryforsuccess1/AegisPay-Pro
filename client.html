@@ -1666,7 +1666,9 @@ function aiSetBusy(busy){
 function usefulSupportMessage(value){
   const text=String(value||'').trim();
   if(text.length<10)return false;
-  return !/^(hi|hello|hey|good morning|good afternoon|good evening|deposit \/ txid|withdrawal status|withdrawal|referrals|shop tasks|tasks|password reset|password)$/i.test(text);
+  if(/^(hi|hello|hey|good morning|good afternoon|good evening|deposit \/ txid|withdrawal status|withdrawal|referrals|shop tasks|tasks|password reset|password)$/i.test(text))return false;
+  /* Route immediately only when earlier messages actually describe an issue, not a routine question. */
+  return /\b(not working|doesn't work|does not work|can't|cannot|unable|failed|failure|stuck|missing|disappeared|error|bug|complaint|problem|issue|wrong|incorrect|pending|not showing|not appear|not received|not credited|not updated|not reflected|rejected|blocked|suspended|tried again|still not|keeps failing|need help|help me|manual review|verification delay)\b|\b(nahi|nahin|nhi|masla|maslay|galat|galt|nahi chal|kaam nahi|show nahi|credit nahi|receive nahi|update nahi)\b/i.test(text);
 }
 async function submitRepresentativeRequest(issueText){
   if(representativeRequestInFlight)return;
