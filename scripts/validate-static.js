@@ -106,6 +106,14 @@ assert(client.includes("window.go('bot');return;"),'AI Assistant and Support mus
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 
 const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
+assert(client.includes('id="aiMessages"')&&client.includes('id="aiInput"')&&client.includes('id="aiSend"'),'AI Assistant must render its message panel, input, and send control');
+assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:previous}})"),'AI Assistant must submit its message and conversation history to ai-support');
+assert(client.includes("button.onclick=()=>aiAsk(input?.value||'')"),'AI send button must invoke the AI request handler');
+assert(client.includes("if(e.key==='Enter'&&!e.shiftKey)"),'AI input must support Enter-to-send without swallowing Shift+Enter');
+assert(client.includes("document.addEventListener('click',function(e){const q=e.target.closest('[data-q]')"),'AI quick prompts must invoke the AI request handler');
+const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
+assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
+assert(aiSupportSource.includes('if(!answer)')&&aiSupportSource.includes('SUPPORT_CONTEXT_UNAVAILABLE'),'AI support must reject empty answers and handle unavailable account context');
 for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
 assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
 assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
@@ -197,6 +205,8 @@ assert(accessLogSource.includes('event_type: eventType'), 'User access event log
 const telegramApproverSplitter = String.raw`split(/[\s,]+/)`;
 assert(depositSubmitSource.includes(telegramApproverSplitter) && depositMonitorSource.includes(telegramApproverSplitter),'Telegram approver IDs must parse whitespace or comma separators correctly');
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
+const depositEnablementMigration=fs.readFileSync('database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql','utf8');
+assert(depositEnablementMigration.includes("v_contract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'")&&depositEnablementMigration.includes('Live mainnet deposits require approved PRODUCTION mode'),'Direct production-config RPC must enforce the official USDT contract and payout-readiness gate');
 assert(client.includes('Deposits temporarily paused')&&client.includes('settings.production_config'),'Client must hide the Mainnet deposit wallet until payout readiness is approved');
 assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
 assert(depositMonitorSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositMonitorSource.includes('production.payouts_locked === false'),'Deposit monitor must not credit Mainnet deposits while payouts are locked');
@@ -220,6 +230,9 @@ assert(accountOps.includes('cancel_invalid_withdrawal_refund')&&adminAuth.includ
 
 const payout=fs.readFileSync('supabase/functions/execute-payout/index.ts','utf8');
 assert(payout.includes('production_config')&&payout.includes('Production payout gate is locked'),'Phase 3 payout gate is missing');
+assert(payout.includes('if (profile.role !== "MASTER ADMIN")')&&payout.includes('ownRequest.ai_decision !== "AUTO_APPROVED"'),'Non-admin payout execution must be restricted to the authenticated client’s own AI-approved request');
+assert(payout.includes('ownRequest.panel_decision !== "APPROVED"')&&payout.includes('ownRequest.telegram_decision !== "APPROVED"')&&payout.includes('ownRequest.payout_txid'),'AI payout path must require all approvals and no existing payout TXID');
+assert(payout.includes('const finalGateOpen =')&&payout.includes('finalProduction.payouts_locked === false')&&payout.includes('finalRuntimeEnabled === true'),'Payout must re-check production lock and runtime immediately before broadcast');
 
 const service=fs.readFileSync('supabase-service.js','utf8');
 assert(service.includes("'username-login'"),'Shared auth helper must use protected username login');
