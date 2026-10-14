@@ -7,7 +7,7 @@ const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
 function whiteTextMinContrast(backgroundImage) {
-  const rgb = [...String(backgroundImage).matchAll(/rgb\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)/g)]
+  const rgb = [...String(backgroundImage).matchAll(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/g)]
     .map(m => m.slice(1, 4).map(n => Number(n) / 255));
   if (!rgb.length) return 0;
   const linear = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
