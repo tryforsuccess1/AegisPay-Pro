@@ -147,3 +147,18 @@ jobs:
       - name: Deploy canonical site to Cloudflare Pages
         shell: bash
         run: npx --yes wrangler@4 pages deploy site --project-name=aegispay-pro --branch=main --commit-hash="${GITHUB_SHA}" --commit-message="AegisPay canonical client UI" --commit-dirty=false
+
+      - name: Set up Node for live browser smoke tests
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install Playwright and Chromium for live browser smoke tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock playwright@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Verify deployed production landing, Client and Master Admin flows
+        env:
+          AEGIS_LIVE_URL: https://aegispay-pro.pages.dev
+        run: node scripts/client-live-smoke.cjs
