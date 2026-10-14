@@ -6,6 +6,14 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 
 const root = path.resolve(__dirname, '..');
+function whiteTextMinContrast(backgroundImage) {
+  const rgb = [...String(backgroundImage).matchAll(/rgb\\(\\s*(\\d+)\\s*,\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\)/g)]
+    .map(m => m.slice(1, 4).map(n => Number(n) / 255));
+  if (!rgb.length) return 0;
+  const linear = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  const luminance = c => 0.2126 * linear(c[0]) + 0.7152 * linear(c[1]) + 0.0722 * linear(c[2]);
+  return Math.min(...rgb.map(c => 1.05 / (luminance(c) + 0.05)));
+}
 const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -59,13 +67,16 @@ const server = http.createServer((req, res) => {
       usernameVisible: !!document.querySelector('#le') && getComputedStyle(document.querySelector('#le')).visibility !== 'hidden',
       usernameTextSecurity: getComputedStyle(document.querySelector('#le')).webkitTextSecurity || 'not-exposed',
       loginHeight: Math.round(document.querySelector('#liveLogin button[type="submit"]')?.getBoundingClientRect().height || 0),
-      langHeight: Math.round(document.querySelector('.ap-auth [data-a="lang"]')?.getBoundingClientRect().height || 0)
+      langHeight: Math.round(document.querySelector('.ap-auth [data-a="lang"]')?.getBoundingClientRect().height || 0),
+      loginBackground: getComputedStyle(document.querySelector('#liveLogin button[type="submit"]')).backgroundImage
     }));
     assert.equal(loginFields.usernameType, 'text', 'Login identifier must be a readable text input.');
     assert.equal(loginFields.passwordType, 'password', 'Password input must remain masked.');
     assert.equal(loginFields.usernameVisible, true, 'Login identifier must be visible.');
     assert.ok(loginFields.loginHeight >= 44, 'Primary login button should provide a 44px minimum touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Language control should provide a 40px minimum touch target.');
+    const clientContrast = whiteTextMinContrast(loginFields.loginBackground);
+    assert.ok(clientContrast >= 4.5, 'Client primary button white-text contrast is below WCAG AA: ' + clientContrast.toFixed(2));
 
     await page.locator('.ap-auth [data-a="lang"]').first().click();
     await page.locator('#ov.show').waitFor({ state: 'visible', timeout: 3000 });
@@ -111,12 +122,17 @@ const server = http.createServer((req, res) => {
       usernameType: document.querySelector('#aaUsername')?.type,
       passwordType: document.querySelector('#aaPassword')?.type,
       submitHeight: Math.round(document.querySelector('#aaLoginForm button[type="submit"]')?.getBoundingClientRect().height || 0),
-      themeHeight: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().height || 0)
+      themeHeight: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().height || 0),
+      themeWidth: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().width || 0),
+      loginBackground: getComputedStyle(document.querySelector('#aaLoginForm button[type="submit"]')).backgroundImage
     }));
     assert.equal(adminControls.usernameType, 'text', 'Master Admin username must be readable.');
     assert.equal(adminControls.passwordType, 'password', 'Master Admin password must remain masked.');
     assert.ok(adminControls.submitHeight >= 40, 'Master Admin primary button should have a 40px minimum touch target.');
     assert.ok(adminControls.themeHeight >= 40, 'Master Admin theme button should have a 40px minimum touch target.');
+    assert.ok(Math.abs(adminControls.themeWidth - adminControls.themeHeight) <= 1, 'Master Admin icon control should be square: ' + JSON.stringify(adminControls));
+    const adminContrast = whiteTextMinContrast(adminControls.loginBackground);
+    assert.ok(adminContrast >= 4.5, 'Master Admin primary button white-text contrast is below WCAG AA: ' + adminContrast.toFixed(2));
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
     const adminModeAfter = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
@@ -130,7 +146,7 @@ const server = http.createServer((req, res) => {
       adminViewportResults.push(width);
     }
     assert.deepEqual(adminErrors, [], 'Master Admin uncaught browser JavaScript errors: ' + adminErrors.join(' | '));
-    console.log('Client browser smoke passed at ' + viewportResults.join(', ') + 'px; Master Admin login/theme smoke passed at ' + adminViewportResults.join(', ') + 'px.');
+    console.log('Client browser smoke passed at ' + viewportResults.join(', ') + 'px (primary contrast ' + clientContrast.toFixed(2) + ':1); Master Admin login/theme smoke passed at ' + adminViewportResults.join(', ') + 'px (primary contrast ' + adminContrast.toFixed(2) + ':1).');
     await context.close();
   } catch (error) {
     console.error(error && error.stack || error);
