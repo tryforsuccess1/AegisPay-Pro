@@ -192,7 +192,8 @@ const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/
 const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
-assert(depositSubmitSource.includes('split(/[\s,]+/)') && depositMonitorSource.includes('split(/[\s,]+/)'),'Telegram approver IDs must parse whitespace or comma separators correctly');
+const telegramApproverSplitter = String.raw`split(/[\s,]+/)`;
+assert(depositSubmitSource.includes(telegramApproverSplitter) && depositMonitorSource.includes(telegramApproverSplitter),'Telegram approver IDs must parse whitespace or comma separators correctly');
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
 assert(client.includes('Deposits temporarily paused')&&client.includes('settings.production_config'),'Client must hide the Mainnet deposit wallet until payout readiness is approved');
 assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
