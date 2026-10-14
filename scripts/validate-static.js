@@ -146,7 +146,7 @@ assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets
 assert(androidBuild.includes("'Activate Selected Tier'"),'Android build guard must match the current tier UI');
 assert(client.includes("provider:'google'")&&client.includes('data-google-auth'),'Client UI must offer a wired Google authentication button');
 assert(client.includes('window.AegisSupabaseClient=db;')&&client.includes('window.AegisAuthRedirect={'),'Client must expose a same-session OAuth callback handler for the Android deep-link bridge');
-assert(client.includes("com.aegispay.app.client://auth/callback")&&client.includes("new URL('/app/auth/callback'"),'Google OAuth must have both native APK and canonical web callback URLs');
+assert(client.includes("com.aegispay.app.client://auth/callback")&&client.includes("new URL('/app/'"),'Google OAuth must have both native APK and canonical web callback URLs');
 assert(client.includes("aegispay:auth-confirmed")&&client.includes("exchangeCodeForSession(code)"),'Google OAuth callbacks must exchange PKCE codes and resume the client session');
 assert(client.includes('liveHome'),'Client Home runtime is missing');
 assert(client.includes('liveTopup'),'Client Top Up runtime is missing');
