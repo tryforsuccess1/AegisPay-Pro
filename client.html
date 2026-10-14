@@ -601,7 +601,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>'<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div style="display:flex;gap:8px"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0 16px" aria-label="Send">'+apIcon('send')+'</button></div>'+nav('bot')+'</div>'};
+bot:()=>'<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div style="display:flex;gap:8px"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0 16px" aria-label="Send">'+apIcon('send')+'</button></div>'+nav('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 go('login');
 </script>
@@ -1585,10 +1585,17 @@ async function aiAsk(raw){
     const status=document.getElementById('aiOnline');
     if(status)status.textContent=rr.data?.degraded?'● Support mode':'● Online';
   }catch(e){
-    aiHistory.push({role:'assistant',content:'Sorry, I could not process that request right now. Please try again in a moment.'});
+    const reason=String(e&&e.message||'');
+    const needsSignin=/401|unauthori[sz]ed|jwt|expired|session|token/i.test(reason);
+    const friendly=needsSignin
+      ? 'Your sign-in session may have expired. Please return to Home, sign in again, and retry your question.'
+      : /network|fetch|timeout|connection/i.test(reason)
+        ? 'A network or support-service issue prevented a response. Please try again in a moment.'
+        : 'Sorry, I could not process that request right now. Please try again in a moment.';
+    aiHistory.push({role:'assistant',content:friendly});
     aiSaveHistory();
     const status=document.getElementById('aiOnline');
-    if(status)status.textContent='● Support available';
+    if(status)status.textContent=needsSignin?'● Sign-in required':'● Support temporarily unavailable';
   }finally{
     const thinking=document.getElementById('aiThinking');
     if(thinking)thinking.remove();
@@ -1617,9 +1624,27 @@ async function liveBot(){
   const input=document.getElementById('aiInput');
   if(input)input.focus();
 }
+async function openAegisSupport(){
+  if(!profile)return oldGo('login');
+  try{
+    await liveBot();
+    if(!document.getElementById('aiMessages'))throw Error('Assistant panel was not rendered.');
+    return true;
+  }catch(error){
+    console.error('[AegisPay] Unable to open Support / AI Assistant:',error);
+    app.innerHTML='<div class="scr on"><div class="hd"><h1>Support</h1></div><div class="card"><h3>Support is temporarily unavailable</h3><p class="mu" style="margin-top:8px">The AI Assistant could not be opened. Please retry or return to Home.</p><button class="btn" type="button" data-support-retry>Retry Aegis AI</button><button class="btn o" style="margin-top:8px" type="button" data-support-home>Back to Home</button></div></div>';
+    const retry=app.querySelector('[data-support-retry]');
+    if(retry)retry.onclick=()=>openAegisSupport();
+    const home=app.querySelector('[data-support-home]');
+    if(home)home.onclick=()=>window.go('home');
+    uiNotice('AegisPay Support could not open. Please try again.','error');
+    return false;
+  }
+}
+window.openAegisSupport=openAegisSupport;
 
 window.__aegisDataGoBound=true;document.addEventListener('click',function(e){const el=e.target.closest('[data-go]');if(!el||el.hasAttribute('onclick'))return;const route=el.getAttribute('data-go');if(route){e.preventDefault();window.go(route)}});
-window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return liveBot();if(id==='home')return liveHome();if(id==='topup'||id==='deposit')return liveTopup();if(id==='vip')return liveVip();if(id==='kyc')return liveKyc();if(id==='withdraw')return liveWithdraw();if(id==='referral'||id==='refs')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account'||id==='profile')return liveAccount();if(id==='notifications'||id==='notes')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
+window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return await openAegisSupport();if(id==='home')return liveHome();if(id==='topup'||id==='deposit')return liveTopup();if(id==='vip')return liveVip();if(id==='kyc')return liveKyc();if(id==='withdraw')return liveWithdraw();if(id==='referral'||id==='refs')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account'||id==='profile')return liveAccount();if(id==='notifications'||id==='notes')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
 async function bootLive(){try{const qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
 if(qs.get('shop_purchase')==='confirmed'){
   const shopTaskId=String(qs.get('task')||'').trim();
@@ -1888,7 +1913,7 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
     try{
       if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const rr=oldGo(id);setTimeout(function(){bindAuthForms();if(id==='signup'&&referralLinkCode){const rf=document.getElementById('sr');if(rf&&!rf.value)rf.value=referralLinkCode;}},0);return rr;}
       if(!profile)return oldGo('login');
-      if(id==='bot')return liveBot();if(id==='home')return liveHome();if(id==='wallet'||id==='assets')return liveAssets();if(id==='earn'||id==='tasks'||id==='shop')return liveShop();
+      if(id==='bot')return await openAegisSupport();if(id==='home')return liveHome();if(id==='wallet'||id==='assets')return liveAssets();if(id==='earn'||id==='tasks'||id==='shop')return liveShop();
       if(id==='topup')return liveTopup();if(id==='withdraw')return liveWithdraw();if(id==='referral')return liveReferral();if(id==='activity')return liveActivity();if(id==='profile'||id==='account')return liveAccount();if(id==='notifications')return liveNotifications();
       return oldGo(id);
     }catch(e){app.innerHTML='<div class="p2-card" style="margin-top:30px"><div class="p2-status error"><span class="dot"></span><div><b>Unable to load this section</b><small>'+esc(e.message||'Please try again.')+'</small></div></div>'+nav('home')+'</div>';}finally{setTimeout(updateNotificationBadge,0);}
@@ -1899,9 +1924,9 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
     let target=e.target;
     if(!target||!target.closest)return;
     const botEntry=target.closest('[data-go="bot"],[data-a="sup"],button[aria-label="AI Assistant"],nav a[onclick*="bot"]');
-    if(botEntry&&typeof window.go==='function'){
+    if(botEntry){
       e.preventDefault();e.stopPropagation();if(e.stopImmediatePropagation)e.stopImmediatePropagation();
-      window.go('bot');return;
+      openAegisSupport();return;
     }
     const notification=target.closest('.notif-card[data-notification-id],.nt-i[data-notification-id]');
     if(notification&&typeof window.__aegisOpenNotificationById==='function'){
@@ -1967,7 +1992,7 @@ document.addEventListener('click',function(e){
  if(a==='mode'){apPref=apResolve()==='dark'?'light':'dark';try{localStorage.setItem('ap-mode',apPref)}catch(_){}apApplyMode();return}
 });
 document.addEventListener('click',function(e){if(e.target.closest('#eye')){var hide=document.querySelector('.bv');var e1=document.getElementById('e1'),e2=document.getElementById('e2');var hidden=e1&&e1.style.display==='none';document.querySelectorAll('.bv,.tv').forEach(function(n){if(!n.dataset.real)n.dataset.real=n.textContent; n.textContent=hidden?n.dataset.real:'••••'});if(e1)e1.style.display=hidden?'grid':'none';if(e2)e2.style.display=hidden?'none':'grid';e.target.closest('#eye').setAttribute('aria-label',hidden?'Hide balance':'Show balance')}});
-document.addEventListener('click',function(e){var a=e.target.closest('[data-a="wal"],[data-a="sinfo"],[data-a="sec"],[data-a="sup"]');if(!a)return;var k=a.getAttribute('data-a');if(k==='wal'){window.go('account');setTimeout(function(){var target=document.getElementById('walletBlock');if(target)target.scrollIntoView({behavior:'smooth',block:'center'})},120)}else if(k==='sinfo'){window.go('shop')}else if(k==='sec'){window.go('account')}else if(k==='sup'){window.go('bot')}});
+document.addEventListener('click',function(e){var a=e.target.closest('[data-a="wal"],[data-a="sinfo"],[data-a="sec"],[data-a="sup"]');if(!a)return;var k=a.getAttribute('data-a');if(k==='wal'){window.go('account');setTimeout(function(){var target=document.getElementById('walletBlock');if(target)target.scrollIntoView({behavior:'smooth',block:'center'})},120)}else if(k==='sinfo'){window.go('shop')}else if(k==='sec'){window.go('account')}else if(k==='sup'){window.openAegisSupport()}});
 (function(){apApplyMode();apApplyLang();var root=document.getElementById('app');if(root&&window.MutationObserver)new MutationObserver(function(){apApplyMode();apApplyLang()}).observe(root,{childList:true,subtree:true});
  if(window.matchMedia){var mm=window.matchMedia('(prefers-color-scheme: dark)');if(mm.addEventListener)mm.addEventListener('change',function(){if(apPref==='auto')apApplyMode()})}
  window.setInterval(function(){if(apPref==='auto')apApplyMode();document.querySelectorAll('[data-ready-at]').forEach(function(el){var s=Math.max(0,Math.floor((Number(el.dataset.readyAt)-Date.now())/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;el.textContent=(h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec})},1000);
