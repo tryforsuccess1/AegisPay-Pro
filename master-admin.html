@@ -105,7 +105,14 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
  html[data-mode="dark"] .aa-footer{border-color:var(--line)!important}
  
 @media(max-width:760px){.aa-mobile-tabs button{min-height:40px}}
-</style></head>
+</style>
+<style id="aegis-audit-contrast">
+/* Keep white labels above AA contrast on all primary gradient actions. */
+.aa-primary,.aa-actions .aa-primary,.aa-system-toggle.off,.aa-mobile-tabs button.active{background:linear-gradient(135deg,#c94932,#b83b7d)!important;color:#fff!important}
+.aa-icon-button{width:40px;height:40px;min-width:40px;min-height:40px}
+</style>
+
+</head>
 <body>
 <div id="app"></div>
 <script>
