@@ -108,6 +108,22 @@ const server = http.createServer((req, res) => {
     assert.ok(['light', 'dark'].includes(modeAfter.pref), 'Appearance button should persist an explicit theme.');
     assert.notEqual(modeAfter.attr, modeBefore, 'Appearance button should change the current theme.');
 
+    // Render the real AI template without a live session so unresolved template-scope dependencies fail in CI.
+    const aiTemplate = await page.evaluate(() => {
+      const html = SC.bot();
+      const scratch = document.createElement('div');
+      scratch.innerHTML = html;
+      return {
+        hasMessages: !!scratch.querySelector('#aiMessages'),
+        hasInput: !!scratch.querySelector('#aiInput'),
+        hasSend: !!scratch.querySelector('#aiSend'),
+        navLinks: scratch.querySelectorAll('nav a').length
+      };
+    });
+    assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
+    assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
+    assert.ok(aiTemplate.navLinks >= 3, 'AI Assistant template must render its navigation without scope errors.');
+
     const viewportResults = [];
     for (const width of [320, 360, 390, 430, 768, 1280]) {
       await page.setViewportSize({ width, height: 844 });
