@@ -39,6 +39,7 @@ const must=[
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
   'supabase/functions/production-readiness/index.ts',
+  'supabase/functions/_shared/pwned-passwords.ts','supabase/functions/_shared/pwned-passwords_test.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
   'android/app/src/main/java/com/aegispay/app/MainActivity.java',
@@ -111,6 +112,15 @@ assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:
 assert(client.includes("button.onclick=()=>aiAsk(input?.value||'')"),'AI send button must invoke the AI request handler');
 assert(client.includes("if(e.key==='Enter'&&!e.shiftKey)"),'AI input must support Enter-to-send without swallowing Shift+Enter');
 assert(client.includes("document.addEventListener('click',function(e){const q=e.target.closest('[data-q]')"),'AI quick prompts must invoke the AI request handler');
+const pwnedPasswordHelper=fs.readFileSync('supabase/functions/_shared/pwned-passwords.ts','utf8');
+const publicSignupSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
+const passwordResetSource=fs.readFileSync('supabase/functions/complete-password-reset/index.ts','utf8');
+const pwnedPasswordTests=fs.readFileSync('supabase/functions/_shared/pwned-passwords_test.ts','utf8');
+assert(pwnedPasswordHelper.includes('crypto.subtle.digest("SHA-1"')&&pwnedPasswordHelper.includes('https://api.pwnedpasswords.com/range/')&&pwnedPasswordHelper.includes('fullHash.slice(0, 5)'),'Password screening must query the HIBP range API using only a five-character SHA-1 prefix');
+assert(pwnedPasswordHelper.includes('"Add-Padding": "true"')&&pwnedPasswordHelper.includes('PasswordSecurityUnavailableError'),'Password screening must request privacy padding and fail closed if the provider is unavailable');
+assert(publicSignupSource.includes('assertPasswordNotPwned(password)')&&publicSignupSource.includes('COMPROMISED_PASSWORD')&&publicSignupSource.includes('PASSWORD_SECURITY_UNAVAILABLE'),'Signup must reject compromised passwords before creating an Auth user');
+assert(passwordResetSource.includes('assertPasswordNotPwned(password)')&&passwordResetSource.includes('COMPROMISED_PASSWORD')&&passwordResetSource.includes('PASSWORD_SECURITY_UNAVAILABLE'),'Password reset must reject compromised passwords before changing the Auth password');
+assert(pwnedPasswordTests.includes('breached passwords are rejected')&&pwnedPasswordTests.includes('only the first five hash characters')&&pwnedPasswordTests.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
 const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
 assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
