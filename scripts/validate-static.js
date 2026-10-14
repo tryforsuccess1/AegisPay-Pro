@@ -33,6 +33,7 @@ const must=[
   'database/migrations/20261014_phase1_validate_withdrawal_wallets.sql',
   'database/migrations/20261014120000_revoke_trigger_only_function_execute.sql',
   'database/migrations/20261014150000_google_oauth_profile_linking.sql',
+  'database/migrations/20261014174000_fix_google_oauth_username_generation.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   '.github/workflows/sql-migration-tests.yml',
@@ -61,6 +62,10 @@ const googleOAuthMigration=fs.readFileSync('database/migrations/20261014150000_g
 assert(googleOAuthMigration.includes("NEW.raw_app_meta_data ->> 'provider', '')) = 'google'")&&googleOAuthMigration.includes('NEW.email_confirmed_at IS NOT NULL'),'Google OAuth profile changes must only apply to Google identities with verified email');
 assert(googleOAuthMigration.includes('auth_user_id = NEW.id')&&googleOAuthMigration.includes('auth_user_id IS NULL')&&googleOAuthMigration.includes("upper(status) <> 'DELETED'")&&googleOAuthMigration.includes("role = 'USER'"),'Google OAuth must only claim matching unlinked non-deleted profiles');
 assert(googleOAuthMigration.includes('v_username_base')&&googleOAuthMigration.includes('v_username_suffix')&&googleOAuthMigration.includes('regexp_replace'),'New Google OAuth signups must receive a unique generated Client ID when metadata has no username');
+const googleUsernameFixMigration=fs.readFileSync('database/migrations/20261014174000_fix_google_oauth_username_generation.sql','utf8');
+assert(googleUsernameFixMigration.includes("NEW.email_confirmed_at IS NOT NULL")&&googleUsernameFixMigration.includes("AND role = 'USER'"),'Google OAuth existing-profile linking must remain limited to confirmed emails and USER role');
+assert(googleUsernameFixMigration.includes("NEW.raw_app_meta_data -> 'providers', '[]'::jsonb) @> '[\"google\"]'::jsonb")&&googleUsernameFixMigration.includes("IF lower(COALESCE(NEW.raw_app_meta_data ->> 'provider', '')) = 'google'"),'Google username generation must rely on trusted Supabase Google provider metadata, not the email-confirmation timestamp');
+assert(!googleUsernameFixMigration.includes("AND NEW.email_confirmed_at IS NOT NULL THEN\n      v_username_base"),'Google username generation must tolerate email_confirmed_at being unset during the initial Auth insert');
 
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
