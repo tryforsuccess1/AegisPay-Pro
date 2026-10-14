@@ -197,18 +197,20 @@ const server = http.createServer((req, res) => {
       const sendRect = send.getBoundingClientRect();
       return {
         borderWidths: [st.borderTopWidth,st.borderRightWidth,st.borderBottomWidth,st.borderLeftWidth],
-        focusRing: st.boxShadow,
+        backgroundImage: st.backgroundImage,
         shell: {left:shellRect.left,right:shellRect.right,top:shellRect.top,bottom:shellRect.bottom},
         input: {left:inputRect.left,right:inputRect.right,top:inputRect.top,bottom:inputRect.bottom},
         send: {left:sendRect.left,right:sendRect.right,top:sendRect.top,bottom:sendRect.bottom},
-        navTop: navRect.top,
+        nav: {top:navRect.top,bottom:navRect.bottom,height:navRect.height},
+        viewportHeight: window.innerHeight,
         composerBottom: Math.max(shellRect.bottom,sendRect.bottom),
+        support: (() => { const r=root.querySelector('.ai-support-cta').getBoundingClientRect(); return {top:r.top,bottom:r.bottom}; })(),
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: window.innerWidth
       };
     });
     assert.deepEqual(composerLayout.borderWidths, ['2px','2px','2px','2px'], 'Pink focus frame must have equal border thickness on all four sides.');
-    assert.notEqual(composerLayout.focusRing, 'none', 'Focused message input must show a balanced visible pink focus frame.');
+    assert.match(composerLayout.backgroundImage, /linear-gradient/i, 'The input shell must render the visible pink gradient border.');
     assert.ok(composerLayout.input.left > composerLayout.shell.left && composerLayout.input.right < composerLayout.shell.right, 'The input border must sit evenly inside the pink shell.');
     assert.ok(composerLayout.composerBottom < composerLayout.navTop, 'The message composer must remain above the fixed bottom navigation: ' + JSON.stringify(composerLayout));
     assert.ok(composerLayout.scrollWidth <= composerLayout.clientWidth, 'AI composer must not create horizontal overflow.');
