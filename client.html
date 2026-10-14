@@ -283,6 +283,70 @@ button,[role="button"],.chip,.task-view-product,.task-complete{touch-action:mani
 .pills::-webkit-scrollbar,.pills::-webkit-scrollbar-button,.pills::-webkit-scrollbar-button:horizontal:decrement,.pills::-webkit-scrollbar-button:horizontal:increment,.pills::-webkit-scrollbar-thumb,.pills::-webkit-scrollbar-track,.pills::-webkit-scrollbar-track-piece,.pills::-webkit-scrollbar-corner,
 .aa-mobile-tabs::-webkit-scrollbar,.aa-mobile-tabs::-webkit-scrollbar-button,.aa-mobile-tabs::-webkit-scrollbar-button:horizontal:decrement,.aa-mobile-tabs::-webkit-scrollbar-button:horizontal:increment,.aa-mobile-tabs::-webkit-scrollbar-thumb,.aa-mobile-tabs::-webkit-scrollbar-track,.aa-mobile-tabs::-webkit-scrollbar-track-piece,.aa-mobile-tabs::-webkit-scrollbar-corner{display:none!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important;background:transparent!important;border:0!important;-webkit-appearance:none!important}
 </style>
+<style id="aegis-ai-bottom-layout">
+/* Keep the four primary destinations legible, balanced, and consistently aligned. */
+nav.aegis-bottom-nav {
+  position: fixed; z-index: 5; left: 50%; transform: translateX(-50%);
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  width: calc(100% - 28px); max-width: 402px;
+  display: flex; align-items: stretch; justify-content: space-around; gap: 4px;
+  padding: 6px; border-radius: 28px; background: rgba(255,255,255,.92);
+  backdrop-filter: blur(18px); border: 1px solid var(--line);
+  box-shadow: 0 18px 40px -16px rgba(120,70,30,.45);
+}
+nav.aegis-bottom-nav a {
+  flex: 1 1 0; min-width: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px; padding: 7px 3px;
+  border-radius: 22px; color: var(--mut); font: 600 10.5px/1.1 var(--ff);
+  text-decoration: none; white-space: nowrap; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+nav.aegis-bottom-nav a .i { display: block; width: 21px; height: 21px; flex: none; }
+nav.aegis-bottom-nav a.on {
+  color: #fff; background: linear-gradient(135deg,var(--p1),var(--p2));
+  box-shadow: 0 8px 18px -6px rgba(240,106,77,.55);
+}
+[data-mode="dark"] nav.aegis-bottom-nav {
+  background: rgba(28,24,22,.94); box-shadow: 0 18px 40px -16px rgba(0,0,0,.8);
+}
+[data-mode="dark"] nav.aegis-bottom-nav a.on { color: #fff; }
+
+/* The chat panel grows to fill the screen and keeps its composer above navigation. */
+.scr.on.ai-assistant-screen {
+  display: flex; flex-direction: column;
+  min-height: calc(100dvh - 108px - env(safe-area-inset-bottom, 0px));
+  overflow: hidden;
+}
+.ai-assistant-screen > .hd,
+.ai-assistant-screen > .info,
+.ai-assistant-screen > .chips,
+.ai-assistant-screen > .ai-composer { flex-shrink: 0; }
+.ai-assistant-screen > .chips { margin-bottom: 0; }
+.ai-assistant-screen > .msgs {
+  flex: 1 1 auto; min-height: 100px; max-height: none;
+  margin: 10px 0; overscroll-behavior: contain;
+}
+.ai-composer {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  margin-top: 10px; padding: 0;
+}
+.ai-composer input#aiInput {
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 54px;
+  padding: 0 16px; border-radius: 22px; font-size: 14px;
+}
+.ai-composer button#aiSend {
+  display: grid; place-items: center; flex: 0 0 54px;
+  width: 54px; height: 54px; min-width: 54px; min-height: 54px;
+  padding: 0; border-radius: 20px;
+}
+.ai-composer button#aiSend svg { width: 22px; height: 22px; }
+@media (max-height: 620px) {
+  .scr.on.ai-assistant-screen {
+    min-height: calc(100dvh - 108px - env(safe-area-inset-bottom, 0px));
+  }
+  .ai-assistant-screen > .msgs { min-height: 72px; }
+}
+</style>
 </head>
 <body>
 <!-- Accessibility/build-contract markers; not visible UI text. Select a tier · Activate Selected Tier · Submit Deposit · Identity Verification · Secure &amp; Verified · © 2023–2026 AegisPay -->
@@ -536,7 +600,7 @@ const REF_ICON_MAP={pie:'hist',clock:'hist',bot:'spark',share:'users',search:'hi
 const ic=n=>{const id=REF_ICON_MAP[n]||n;if(document.getElementById(id))return '<svg class="i"><use href="#'+id+'"/></svg>';const d=P[n];return d?'<svg class="i" viewBox="0 0 24 24"><path d="'+d+'"/></svg>':''};
 const bub=(i,c)=>`<span class="bub" style="background:${c}26;color:${c}">${i}</span>`;
 const T=(t,b)=>`<div class="tb">${b?`<b onclick="go('${b}')">${ic('back')}</b>`:''}<h1>${t}</h1><b class="dot">${ic('bell')}</b></div>`;
-const NV=a=>`<nav>${[['home','Home','home'],['assets','Assets','pie'],['bot','AI Bot','bot'],['account','Profile','user']].map(n=>`<a class="${n[0]==a?'on':''}" onclick="go('${n[0]}')">${ic(n[2])}<span>${n[1]}</span></a>`).join('')}</nav>`;
+const NV=a=>`<nav class="aegis-bottom-nav" aria-label="Main navigation">${[['home','Home','home'],['assets','Assets','wallet'],['bot','AI Bot','bot'],['account','Profile','user']].map(n=>`<a class="${n[0]==a?'on':''}" onclick="go('${n[0]}')">${ic(n[2])}<span>${n[1]}</span></a>`).join('')}</nav>`;
 const logo=s=>'<svg width="'+s+'" height="'+Math.round(s*56/48)+'" viewBox="0 0 48 56"><use href="#logo"/></svg>';
 const sp=(a,c)=>{const m=Math.max(...a),n=Math.min(...a);return `<svg width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${a.map((v,i)=>`${i*64/(a.length-1)},${24-(v-n)/(m-n||1)*22}`).join(' ')}"/></svg>`};
 const tx=(i,c,t,s,a,k)=>`<div class="row">${bub(ic(i),c)}<div>${t}<small>${s}</small></div><em class="${k}">${a}</em></div>`;
@@ -609,7 +673,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>'<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div style="display:flex;gap:8px"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0 16px" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
+bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><div class="ai-composer"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 go('login');
 </script>
