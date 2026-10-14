@@ -43,12 +43,20 @@ async function visit(page, url, expectedSelector) {
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
       passwordType: document.querySelector('#lp')?.type,
+      usernameValue: document.querySelector('#le')?.value,
+      passwordValue: document.querySelector('#lp')?.value,
+      usernameAutocomplete: document.querySelector('#le')?.autocomplete,
+      passwordAutocomplete: document.querySelector('#lp')?.autocomplete,
       loginHeight: Math.round(document.querySelector('#liveLogin button[type="submit"]')?.getBoundingClientRect().height || 0),
       langHeight: Math.round(document.querySelector('.ap-auth [data-a="lang"]')?.getBoundingClientRect().height || 0),
       appVisible: !!document.querySelector('#app')
     }));
     assert.equal(loginFields.usernameType, 'text', 'Live Client login identifier must be readable.');
     assert.equal(loginFields.passwordType, 'password', 'Live Client password must remain masked.');
+    assert.equal(loginFields.usernameValue, '', 'Live Client username must start empty.');
+    assert.equal(loginFields.passwordValue, '', 'Live Client password must start empty.');
+    assert.equal(loginFields.usernameAutocomplete, 'off', 'Live Client username must disable browser autofill.');
+    assert.equal(loginFields.passwordAutocomplete, 'off', 'Live Client password must disable browser autofill.');
     assert.ok(loginFields.loginHeight >= 44, 'Live Client login button must provide a 44px touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Live Client language button must provide a 40px touch target.');
     assert.ok(loginFields.appVisible, 'Live Client app root must render.');
