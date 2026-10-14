@@ -60,6 +60,18 @@ const server = http.createServer((req, res) => {
     page.on('pageerror', error => pageErrors.push(error.message));
     await page.goto('http://127.0.0.1:4173/client.html', { waitUntil: 'domcontentloaded' });
     await page.locator('#liveLogin').waitFor({ state: 'visible', timeout: 15000 });
+    const googleButton = page.locator('#liveLogin [data-google-auth]');
+    await googleButton.waitFor({ state: 'visible', timeout: 5000 });
+    const googleControl = await googleButton.evaluate(el => ({
+      text: el.textContent,
+      height: Math.round(el.getBoundingClientRect().height),
+      disabled: el.disabled,
+      buttonType: el.type
+    }));
+    assert.match(googleControl.text, /Continue with Google/i, 'Client login should present Google sign-in.');
+    assert.equal(googleControl.buttonType, 'button', 'Google sign-in must not submit the password form.');
+    assert.ok(googleControl.height >= 44, 'Google sign-in should provide a 44px minimum touch target.');
+    assert.equal(googleControl.disabled, false, 'Google sign-in should be enabled before interaction.');
 
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
