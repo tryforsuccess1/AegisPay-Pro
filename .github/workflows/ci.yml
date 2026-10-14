@@ -24,6 +24,8 @@ jobs:
           node-version: 24
       - name: Repository checks
         run: npm run check
+      - name: Syntax-check live production browser smoke test
+        run: node --check scripts/client-live-smoke.cjs
       - name: Install browser smoke-test dependencies
         run: npm install --no-save --no-package-lock playwright@1.55.0 @supabase/supabase-js@2.117.2
       - name: Prepare the pinned Supabase browser SDK for local smoke testing
@@ -34,6 +36,10 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Test login controls and responsive client UI in Chromium
         run: node scripts/client-browser-smoke.cjs
+      - name: Smoke-test deployed production landing, Client and Master Admin
+        env:
+          AEGIS_LIVE_URL: https://aegispay-pro.pages.dev
+        run: node scripts/client-live-smoke.cjs
       - name: Setup Deno
         uses: denoland/setup-deno@v2
         with:
