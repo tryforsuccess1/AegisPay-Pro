@@ -192,6 +192,8 @@ const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/
 const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+const accessLogSource=fs.readFileSync('supabase/functions/record-user-access/index.ts','utf8');
+assert(accessLogSource.includes('event_type: eventType'), 'User access event logger must persist the declared eventType using the database event_type column');
 const telegramApproverSplitter = String.raw`split(/[\s,]+/)`;
 assert(depositSubmitSource.includes(telegramApproverSplitter) && depositMonitorSource.includes(telegramApproverSplitter),'Telegram approver IDs must parse whitespace or comma separators correctly');
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
