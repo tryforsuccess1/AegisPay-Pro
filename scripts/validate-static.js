@@ -113,7 +113,7 @@ assert(client.includes("if(e.key==='Enter'&&!e.shiftKey)"),'AI input must suppor
 assert(client.includes("document.addEventListener('click',function(e){const q=e.target.closest('[data-q]')"),'AI quick prompts must invoke the AI request handler');
 const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
-assert(aiSupportSource.includes('if(!answer)')&&aiSupportSource.includes('SUPPORT_CONTEXT_UNAVAILABLE'),'AI support must reject empty answers and handle unavailable account context');
+assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
 for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
 assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
 assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
