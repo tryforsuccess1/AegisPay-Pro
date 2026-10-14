@@ -76,6 +76,14 @@ const server = http.createServer((req, res) => {
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
       passwordType: document.querySelector('#lp')?.type,
+      usernameValue: document.querySelector('#le')?.value,
+      passwordValue: document.querySelector('#lp')?.value,
+      usernameAutocomplete: document.querySelector('#le')?.autocomplete,
+      passwordAutocomplete: document.querySelector('#lp')?.autocomplete,
+      usernameReadonly: document.querySelector('#le')?.readOnly,
+      passwordReadonly: document.querySelector('#lp')?.readOnly,
+      usernamePlaceholder: document.querySelector('#le')?.placeholder,
+      passwordPlaceholder: document.querySelector('#lp')?.placeholder,
       usernameVisible: !!document.querySelector('#le') && getComputedStyle(document.querySelector('#le')).visibility !== 'hidden',
       usernameTextSecurity: getComputedStyle(document.querySelector('#le')).webkitTextSecurity || 'not-exposed',
       loginHeight: Math.round(document.querySelector('#liveLogin button[type="submit"]')?.getBoundingClientRect().height || 0),
@@ -85,6 +93,20 @@ const server = http.createServer((req, res) => {
     assert.equal(loginFields.usernameType, 'text', 'Login identifier must be a readable text input.');
     assert.equal(loginFields.passwordType, 'password', 'Password input must remain masked.');
     assert.equal(loginFields.usernameVisible, true, 'Login identifier must be visible.');
+    assert.equal(loginFields.usernameValue, '', 'Login identifier must not be prefilled on first load.');
+    assert.equal(loginFields.passwordValue, '', 'Password must not be prefilled on first load.');
+    assert.equal(loginFields.usernameAutocomplete, 'off', 'Login identifier should disable browser autofill.');
+    assert.equal(loginFields.passwordAutocomplete, 'off', 'Login password should disable browser autofill.');
+    assert.equal(loginFields.usernameReadonly, true, 'Login identifier should resist autofill until user focus.');
+    assert.equal(loginFields.passwordReadonly, true, 'Login password should resist autofill until user focus.');
+    assert.equal(loginFields.usernamePlaceholder, 'Enter username or Client ID', 'Login identifier should not display a demo username.');
+    assert.equal(loginFields.passwordPlaceholder, 'Enter your password', 'Password placeholder should not resemble a prefilled password.');
+    await page.locator('#le').focus();
+    assert.equal(await page.locator('#le').evaluate(el => el.readOnly), false, 'Username should become editable on focus.');
+    await page.locator('#lp').focus();
+    assert.equal(await page.locator('#lp').evaluate(el => el.readOnly), false, 'Password should become editable on focus.');
+    assert.equal(await page.locator('#le').inputValue(), '', 'Focusing must not populate username automatically.');
+    assert.equal(await page.locator('#lp').inputValue(), '', 'Focusing must not populate password automatically.');
     assert.ok(loginFields.loginHeight >= 44, 'Primary login button should provide a 44px minimum touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Language control should provide a 40px minimum touch target.');
     const clientContrast = whiteTextMinContrast(loginFields.loginBackground);
