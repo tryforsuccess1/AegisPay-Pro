@@ -1576,7 +1576,8 @@ async function aiAsk(raw){
           detail=body&&body.error?String(body.error):'';
         }
       }catch(_){}
-      throw Error(detail||rr.error.message||'AI support is temporarily unavailable.');
+      const httpStatus=Number(rr.error.status||(rr.error.context&&rr.error.context.status)||0);
+      throw Error((httpStatus?String(httpStatus)+' ':'')+(detail||rr.error.message||'AI support is temporarily unavailable.'));
     }
     const answer=String(rr.data?.answer||'').trim();
     if(!answer)throw Error('AegisPay AI did not return an answer.');
@@ -1626,18 +1627,33 @@ async function liveBot(){
 }
 async function openAegisSupport(){
   if(!profile)return oldGo('login');
+  const root=document.getElementById('app');
   try{
-    await liveBot();
-    if(!document.getElementById('aiMessages'))throw Error('Assistant panel was not rendered.');
+    if(!root)throw Error('Client application root is missing.');
+    if(typeof SC==='undefined'||!SC||typeof SC.bot!=='function')throw Error('AI Assistant screen template is unavailable.');
+    root.innerHTML=SC.bot();
+    const panel=root.querySelector('#aiMessages');
+    if(!panel)throw Error('AI Assistant screen rendered without its message panel.');
+    aiLoadHistory();
+    aiRender();
+    bindAiBot();
+    const input=root.querySelector('#aiInput');
+    if(input)input.focus();
+    const status=root.querySelector('#aiOnline');
+    if(status)status.textContent='● Ready to help';
     return true;
   }catch(error){
+    const detail=String(error&&error.message||error||'Unknown rendering error').slice(0,180);
     console.error('[AegisPay] Unable to open Support / AI Assistant:',error);
-    app.innerHTML='<div class="scr on"><div class="hd"><h1>Support</h1></div><div class="card"><h3>Support is temporarily unavailable</h3><p class="mu" style="margin-top:8px">The AI Assistant could not be opened. Please retry or return to Home.</p><button class="btn" type="button" data-support-retry>Retry Aegis AI</button><button class="btn o" style="margin-top:8px" type="button" data-support-home>Back to Home</button></div></div>';
-    const retry=app.querySelector('[data-support-retry]');
+    if(!root)return false;
+    root.innerHTML='<div class="scr on"><div class="hd"><h1>Support</h1></div><div class="card"><h3>Support is temporarily unavailable</h3><p class="mu" style="margin-top:8px">The assistant failed to render. Details: <span data-support-error></span></p><button class="btn" type="button" data-support-retry>Retry Aegis AI</button><button class="btn o" style="margin-top:8px" type="button" data-support-home>Back to Home</button></div></div>';
+    const detailNode=root.querySelector('[data-support-error]');
+    if(detailNode)detailNode.textContent=detail;
+    const retry=root.querySelector('[data-support-retry]');
     if(retry)retry.onclick=()=>openAegisSupport();
-    const home=app.querySelector('[data-support-home]');
+    const home=root.querySelector('[data-support-home]');
     if(home)home.onclick=()=>window.go('home');
-    uiNotice('AegisPay Support could not open. Please try again.','error');
+    try{uiNotice('AegisPay Support could not open. Please try again.','error');}catch(noticeError){console.warn('[AegisPay] Support notice failed:',noticeError);}
     return false;
   }
 }
