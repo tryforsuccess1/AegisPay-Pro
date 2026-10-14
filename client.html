@@ -245,6 +245,29 @@ html[data-mode="dark"] .msgs .ai-msg.m2{background:linear-gradient(135deg,var(--
 .qr-live .empty{width:100%;padding:18px 0}
 /* End adapters */
 
+
+/* Interaction and accessibility polish: consistent tap targets and keyboard focus. */
+.btn{min-height:46px;display:inline-flex;align-items:center;justify-content:center;gap:8px;line-height:1.25}
+.btn.sm{min-height:40px}
+.chip{min-height:40px}
+.ib{width:44px;height:44px;min-width:44px;min-height:44px}
+.eye{width:40px;height:40px;min-width:40px;min-height:40px}
+.ap-auth .lang{min-height:40px;justify-content:center}
+.notif-head button{min-height:40px;font-size:11px}
+.notification-actions button,.notification-page-button{min-height:40px}
+.task-view-product{min-height:40px;padding:9px 10px;font-size:10px}
+.task-complete{min-height:40px;padding:9px 12px;font-size:11px}
+#sh h3 button,.ap-sheet h3 button,.task-modal-close{width:40px;height:40px;min-width:40px;min-height:40px;display:inline-grid;place-items:center}
+button:focus-visible,a:focus-visible,[role="button"]:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--p2);outline-offset:3px}
+button,[role="button"],.chip,.task-view-product,.task-complete{touch-action:manipulation}
+@media(max-width:360px){
+ #app{padding-left:12px;padding-right:12px}
+ .task-gallery-thumbs{gap:4px}
+ .task-gallery-thumb{height:44px}
+ .task-modal-actions{grid-template-columns:1fr}
+ .task-side{min-width:80px}
+}
+
 </style>
 <script>window.AEGIS_ANDROID_APP=!!window.AegisNative;window.AEGIS_ADMIN_PORTAL=false;</script>
 </head>
