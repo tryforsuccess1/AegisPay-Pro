@@ -34,7 +34,7 @@ async function visit(page, url, expectedSelector) {
       }
     });
 
-    await visit(page, baseUrl + '/', 'a[href="/app/"]');
+    await visit(page, baseUrl + '/', 'a.top-cta[href="/app/"]');
     assert.match(await page.title(), /AegisPay/i, 'Public landing page title should identify AegisPay.');
     assert.ok(await page.getByRole('link', { name: /Open App|Open secure web app/i }).count(),
       'Landing page should expose a working Open App route.');
