@@ -185,6 +185,9 @@ const server = http.createServer((req, res) => {
     const composerLayout = await page.evaluate(() => {
       const root = document.querySelector('#app');
       root.innerHTML = SC.bot();
+      /* Let fixed controls use the viewport, not the short intro animation's temporary transform. */
+      const screen = root.querySelector('.ai-assistant-screen');
+      if(screen){screen.style.animation='none';screen.style.transform='none';}
       const shell = root.querySelector('.ai-input-shell');
       const input = root.querySelector('#aiInput');
       const nav = root.querySelector('nav.aegis-bottom-nav');
