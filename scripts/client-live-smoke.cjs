@@ -132,8 +132,8 @@ async function visit(page, url, expectedSelector) {
     const configResponse = await fetch(baseUrl + '/supabase-client.js');
     assert.equal(configResponse.status, 200, 'Live Supabase client configuration must load.');
     const configText = await configResponse.text();
-    const supabaseUrl = configText.match(/url:\\s*['"]([^'"]+)['"]/)?.[1];
-    const publishableKey = configText.match(/publishableKey:\\s*['"]([^'"]+)['"]/)?.[1];
+    const supabaseUrl = configText.match(/url:'([^']+)'/)?.[1];
+    const publishableKey = configText.match(/publishableKey:'([^']+)'/)?.[1];
     assert.ok(supabaseUrl && publishableKey, 'Live Supabase client URL and publishable key must be configured.');
 
     const protectedFunctions = [
@@ -146,7 +146,7 @@ async function visit(page, url, expectedSelector) {
     ];
     const guardResults = [];
     for (const slug of protectedFunctions) {
-      const response = await fetch(supabaseUrl.replace(/\\/+$/, '') + '/functions/v1/' + slug, {
+      const response = await fetch(supabaseUrl + '/functions/v1/' + slug, {
         method: 'POST',
         headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
         body: '{}'
