@@ -169,12 +169,49 @@ const server = http.createServer((req, res) => {
         hasMessages: !!scratch.querySelector('#aiMessages'),
         hasInput: !!scratch.querySelector('#aiInput'),
         hasSend: !!scratch.querySelector('#aiSend'),
-        navLinks: scratch.querySelectorAll('nav a').length
+        hasRepresentative: !!scratch.querySelector('#aiRepresentative'),
+        hasInputShell: !!scratch.querySelector('.ai-input-shell'),
+        representativeLabel: scratch.querySelector('#aiRepresentative')?.innerText || '',
+        navLinks: scratch.querySelectorAll('nav.aegis-bottom-nav a').length
       };
     });
     assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
-    assert.ok(aiTemplate.navLinks >= 3, 'AI Assistant template must render its navigation without scope errors.');
+    assert.ok(aiTemplate.navLinks === 4, 'AI Assistant template must render all four primary navigation items.');
+    assert.ok(aiTemplate.hasRepresentative, 'AI Assistant must offer Talk to a Customer Representative.');
+    assert.ok(aiTemplate.hasInputShell, 'AI message input must be wrapped in an evenly framed focus shell.');
+    assert.match(aiTemplate.representativeLabel, /Talk to a Customer Representative/i);
+
+    const composerLayout = await page.evaluate(() => {
+      const root = document.querySelector('#app');
+      root.innerHTML = SC.bot();
+      const shell = root.querySelector('.ai-input-shell');
+      const input = root.querySelector('#aiInput');
+      const nav = root.querySelector('nav.aegis-bottom-nav');
+      const send = root.querySelector('#aiSend');
+      input?.focus();
+      const st = getComputedStyle(shell);
+      const navRect = nav.getBoundingClientRect();
+      const shellRect = shell.getBoundingClientRect();
+      const inputRect = input.getBoundingClientRect();
+      const sendRect = send.getBoundingClientRect();
+      return {
+        borderWidths: [st.borderTopWidth,st.borderRightWidth,st.borderBottomWidth,st.borderLeftWidth],
+        focusRing: st.boxShadow,
+        shell: {left:shellRect.left,right:shellRect.right,top:shellRect.top,bottom:shellRect.bottom},
+        input: {left:inputRect.left,right:inputRect.right,top:inputRect.top,bottom:inputRect.bottom},
+        send: {left:sendRect.left,right:sendRect.right,top:sendRect.top,bottom:sendRect.bottom},
+        navTop: navRect.top,
+        composerBottom: Math.max(shellRect.bottom,sendRect.bottom),
+        scrollWidth: document.documentElement.scrollWidth,
+        clientWidth: window.innerWidth
+      };
+    });
+    assert.deepEqual(composerLayout.borderWidths, ['2px','2px','2px','2px'], 'Pink focus frame must have equal border thickness on all four sides.');
+    assert.notEqual(composerLayout.focusRing, 'none', 'Focused message input must show a balanced visible pink focus frame.');
+    assert.ok(composerLayout.input.left > composerLayout.shell.left && composerLayout.input.right < composerLayout.shell.right, 'The input border must sit evenly inside the pink shell.');
+    assert.ok(composerLayout.composerBottom < composerLayout.navTop, 'The message composer must remain above the fixed bottom navigation.');
+    assert.ok(composerLayout.scrollWidth <= composerLayout.clientWidth, 'AI composer must not create horizontal overflow.');
 
     const viewportResults = [];
     for (const width of [320, 360, 390, 430, 768, 1280]) {
