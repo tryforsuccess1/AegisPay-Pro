@@ -314,7 +314,7 @@ nav.aegis-bottom-nav a.on {
 /* The chat panel grows to fill the screen and keeps its composer above navigation. */
 .scr.on.ai-assistant-screen {
   display: flex; flex-direction: column;
-  min-height: calc(100dvh - 108px - env(safe-area-inset-bottom, 0px));
+  min-height: calc(100dvh - 132px - env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 }
 .ai-assistant-screen > .hd,
@@ -368,7 +368,7 @@ nav.aegis-bottom-nav a.on {
 .ai-composer button#aiSend svg { width: 22px; height: 22px; }
 @media (max-height: 620px) {
   .scr.on.ai-assistant-screen {
-    min-height: calc(100dvh - 108px - env(safe-area-inset-bottom, 0px));
+    min-height: calc(100dvh - 132px - env(safe-area-inset-bottom, 0px));
   }
   .ai-assistant-screen > .msgs { min-height: 56px; }
   .ai-support-button { padding: 8px 10px; gap: 8px; }
