@@ -96,6 +96,16 @@ assert(client.includes("const botEntry=target.closest(")&&client.includes('[data
 assert(client.includes(".notif-card[data-notification-id],.nt-i[data-notification-id]"),'Both notification-card renderers must open their selected notification details');
 assert(client.includes("window.go('bot');return;"),'AI Assistant and Support must navigate to the bot page from delegated taps');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
+
+const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
+for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
+assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
+assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
+assert(client.includes('.btn.sm{min-height:40px}')&&client.includes('.chip{min-height:40px}'),'Compact button and chip touch targets must be enlarged');
+assert(client.includes('.eye{width:40px;height:40px;min-width:40px;min-height:40px}'),'Balance visibility controls must have adequate touch targets');
+assert(client.includes('.task-view-product{min-height:40px;')&&client.includes('.task-complete{min-height:40px;'),'Shop task controls must have adequate touch targets');
+assert(client.includes('button:focus-visible,a:focus-visible'),'Keyboard focus indicators must be visible for interactive controls');
+assert(client.includes('@media(max-width:360px)'),'Very narrow mobile layouts must have specific responsive adjustments');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
 assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
