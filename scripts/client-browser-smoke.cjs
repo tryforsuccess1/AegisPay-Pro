@@ -210,7 +210,7 @@ const server = http.createServer((req, res) => {
     assert.deepEqual(composerLayout.borderWidths, ['2px','2px','2px','2px'], 'Pink focus frame must have equal border thickness on all four sides.');
     assert.notEqual(composerLayout.focusRing, 'none', 'Focused message input must show a balanced visible pink focus frame.');
     assert.ok(composerLayout.input.left > composerLayout.shell.left && composerLayout.input.right < composerLayout.shell.right, 'The input border must sit evenly inside the pink shell.');
-    assert.ok(composerLayout.composerBottom < composerLayout.navTop, 'The message composer must remain above the fixed bottom navigation.');
+    assert.ok(composerLayout.composerBottom < composerLayout.navTop, 'The message composer must remain above the fixed bottom navigation: ' + JSON.stringify(composerLayout));
     assert.ok(composerLayout.scrollWidth <= composerLayout.clientWidth, 'AI composer must not create horizontal overflow.');
 
     const viewportResults = [];
