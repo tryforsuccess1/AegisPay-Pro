@@ -68,13 +68,26 @@ const server = http.createServer((req, res) => {
       const style = getComputedStyle(strip);
       const before = strip.scrollLeft;
       strip.scrollLeft = 100;
-      const result = {clientWidth:strip.clientWidth,scrollWidth:strip.scrollWidth,scrollbarWidth:style.scrollbarWidth,webkitScrollbar:getComputedStyle(strip,'::-webkit-scrollbar').display,scrollLeft:strip.scrollLeft,before};
+      const result = {
+        clientWidth:strip.clientWidth,
+        scrollWidth:strip.scrollWidth,
+        scrollbarWidth:style.scrollbarWidth,
+        webkitScrollbar:getComputedStyle(strip,'::-webkit-scrollbar').display,
+        webkitScrollbarButton:getComputedStyle(strip,'::-webkit-scrollbar-button').display,
+        webkitScrollbarTrack:getComputedStyle(strip,'::-webkit-scrollbar-track').display,
+        webkitScrollbarThumb:getComputedStyle(strip,'::-webkit-scrollbar-thumb').display,
+        scrollLeft:strip.scrollLeft,
+        before
+      };
       strip.remove();
       return result;
     });
     assert.ok(chipScroll.scrollWidth > chipScroll.clientWidth, 'Activity filter chips must overflow horizontally on narrow screens.');
     assert.equal(chipScroll.scrollbarWidth, 'none', 'Activity filter row must hide the visible horizontal scrollbar.');
-    assert.equal(chipScroll.webkitScrollbar, 'none', 'WebKit scrollbar arrows/track must be hidden for Activity filters.');
+    assert.equal(chipScroll.webkitScrollbar, 'none', 'WebKit scrollbar track must be hidden for Activity filters.');
+    assert.equal(chipScroll.webkitScrollbarButton, 'none', 'Left/right scrollbar arrow buttons must be hidden for Activity filters.');
+    assert.equal(chipScroll.webkitScrollbarTrack, 'none', 'Horizontal scrollbar track must be hidden for Activity filters.');
+    assert.equal(chipScroll.webkitScrollbarThumb, 'none', 'Horizontal scrollbar thumb must be hidden for Activity filters.');
     assert.ok(chipScroll.scrollLeft > chipScroll.before, 'Activity filter row must retain native horizontal scrolling.');
     await page.locator('#liveLogin').waitFor({ state: 'visible', timeout: 15000 });
     const googleButton = page.locator('#liveLogin [data-google-auth]');
