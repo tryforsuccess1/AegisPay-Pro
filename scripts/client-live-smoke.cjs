@@ -129,8 +129,36 @@ async function visit(page, url, expectedSelector) {
     assert.deepEqual(sameOriginErrors, [], 'Live site returned failed same-origin resources: ' + sameOriginErrors.join(' | '));
     assert.deepEqual(pageErrors, [], 'Live site uncaught browser errors: ' + pageErrors.join(' | '));
 
+    const configResponse = await fetch(baseUrl + '/supabase-client.js');
+    assert.equal(configResponse.status, 200, 'Live Supabase client configuration must load.');
+    const configText = await configResponse.text();
+    const supabaseUrl = configText.match(/url:\\s*['"]([^'"]+)['"]/)?.[1];
+    const publishableKey = configText.match(/publishableKey:\\s*['"]([^'"]+)['"]/)?.[1];
+    assert.ok(supabaseUrl && publishableKey, 'Live Supabase client URL and publishable key must be configured.');
+
+    const protectedFunctions = [
+      'ai-support',
+      'execute-payout',
+      'production-readiness',
+      'record-user-access',
+      'submit-deposit',
+      'verify-deposit'
+    ];
+    const guardResults = [];
+    for (const slug of protectedFunctions) {
+      const response = await fetch(supabaseUrl.replace(/\\/+$/, '') + '/functions/v1/' + slug, {
+        method: 'POST',
+        headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      assert.equal(response.status, 401,
+        'Protected Edge Function ' + slug + ' must reject anonymous invocation with 401, received ' + response.status);
+      guardResults.push(slug + '=401');
+    }
+
     console.log('LIVE SMOKE PASS: landing page + Client + Master Admin; language/theme interactions passed; no same-origin HTTP errors or uncaught page errors.');
     console.log('Client viewports: ' + clientWidths.join(', ') + 'px. Master Admin viewports: ' + adminWidths.join(', ') + 'px.');
+    console.log('Unauthenticated Edge Function guards: ' + guardResults.join(', ') + '.');
     console.log('No credentials were used; no database writes, deposits, withdrawals, or payouts were attempted.');
     await context.close();
   } catch (error) {
