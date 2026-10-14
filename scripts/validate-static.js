@@ -143,7 +143,7 @@ assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includ
 assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
 assert(aiSupportSource.includes('action === "create_support_case"')&&aiSupportSource.includes('CUSTOMER_REPRESENTATIVE'),'AI support backend must accept authenticated representative requests and classify their Telegram alerts');
 assert(aiSupportSource.includes('Action required: Please contact this client and review the issue.'),'Telegram support alerts must tell Master Admin to contact the client');
-assert(adminAuth.includes('AI Support Cases')&&adminAuth.includes('admin_update_case')&&adminAuth.includes('Mark Resolved'),'Master Admin must retain the workflow to review and resolve customer representative cases');
+assert(aiSupportSource.includes('action === "admin_update_case"')&&aiSupportSource.includes('status: resolution'),'Support cases must continue to support Master Admin resolution and resolution notes');
 for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
 assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
 assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
