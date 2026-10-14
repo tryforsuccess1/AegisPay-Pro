@@ -96,11 +96,17 @@ Deno.serve(async (req: Request) => {
         TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN &&
         TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0
       );
-      const mainnetDepositsOpen = mainnetTokenContract === MAINNET_USDT && mode.mode === "MAINNET" && mode.live_deposits === true
-        mode.real_payouts === true && mode.production_go_live_approved === true &&
+      const mainnetDepositsOpen =
+        mainnetTokenContract === MAINNET_USDT &&
+        mode.mode === "MAINNET" &&
+        mode.live_deposits === true &&
+        mode.real_payouts === true &&
+        mode.production_go_live_approved === true &&
         String(production.environment || "").toUpperCase() === "PRODUCTION" &&
-        production.live_deposits_enabled === true && production.real_payouts_enabled === true &&
-        production.go_live_approved === true && production.payouts_locked === false &&
+        production.live_deposits_enabled === true &&
+        production.real_payouts_enabled === true &&
+        production.go_live_approved === true &&
+        production.payouts_locked === false &&
         payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
       if (!mainnetDepositsOpen) {
         return json({

@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
 
-let admin: ReturnType<typeof createClient> | null = null;
+let admin: ReturnType<typeof createClient<any>> | null = null;
 let withdrawalId: string | null = null;
 let claimedWithdrawal: any = null;
 let payoutMayHaveBeenBroadcast = false;

@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
       }
     }
     const { error: writeError } = await admin.from("user_access_events").insert({
-      user_id: profile.id, auth_user_id: auth.user.id, event_type,
+      user_id: profile.id, auth_user_id: auth.user.id, event_type: eventType,
       ip_address: ip, country_code: countryCode || null, country_name: countryName || null,
       region: region || null, city: city || null, user_agent: safeHeader(req, "user-agent", 400),
     });

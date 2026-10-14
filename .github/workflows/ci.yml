@@ -38,7 +38,7 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - name: Type-check deposit Edge Functions
-        run: deno check --node-modules-dir=auto supabase/functions/submit-deposit/index.ts supabase/functions/verify-deposit/index.ts supabase/functions/monitor-deposits/index.ts
+      - name: Type-check every Supabase Edge Function
+        run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
       - name: Bundle Shop Worker without deploying
         run: npx --yes wrangler@4 deploy --config workers/aegispay-shopping/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-shopping-bundle

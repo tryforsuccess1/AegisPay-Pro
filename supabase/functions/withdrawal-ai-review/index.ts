@@ -17,7 +17,7 @@ const cors = {
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
 const validUuid = (v: unknown): v is string => typeof v === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 
-async function getActor(req: Request, admin: ReturnType<typeof createClient>) {
+async function getActor(req: Request, admin: ReturnType<typeof createClient<any>>) {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   if (!token) throw new Response("Authorization required.", { status: 401 });
   const { data, error } = await admin.auth.getUser(token);
@@ -31,12 +31,12 @@ async function getActor(req: Request, admin: ReturnType<typeof createClient>) {
   }
   return { user: data.user, profile };
 }
-async function setting(admin: ReturnType<typeof createClient>, key: string) {
+async function setting(admin: ReturnType<typeof createClient<any>>, key: string) {
   const { data, error } = await admin.from("platform_settings").select("value_json").eq("key", key).maybeSingle();
   if (error) throw new Error("Unable to read the " + key + " setting.");
   return data?.value_json || {};
 }
-async function recordDecision(admin: ReturnType<typeof createClient>, requestId: string, decision: string, confidence: number | null, reason: string) {
+async function recordDecision(admin: ReturnType<typeof createClient<any>>, requestId: string, decision: string, confidence: number | null, reason: string) {
   const { error } = await admin.from("withdrawal_requests").update({
     ai_decision: decision,
     ai_confidence: confidence,
@@ -45,7 +45,7 @@ async function recordDecision(admin: ReturnType<typeof createClient>, requestId:
   }).eq("id", requestId).eq("status", "PENDING_APPROVAL").eq("panel_decision", "PENDING");
   if (error) throw new Error("The AI review decision could not be saved.");
 }
-async function payoutGateReady(admin: ReturnType<typeof createClient>) {
+async function payoutGateReady(admin: ReturnType<typeof createClient<any>>) {
   const [mode, deposit, production, runtime] = await Promise.all([
     setting(admin, "system_mode"), setting(admin, "deposit_rules"), setting(admin, "production_config"),
     admin.rpc("app_runtime_enabled"),
