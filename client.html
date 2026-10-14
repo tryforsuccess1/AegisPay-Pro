@@ -669,7 +669,7 @@ const formatUsername=v=>String(v??'').trim().toLowerCase();
 function googleOAuthRedirectTo(){
   return window.AegisNative
     ? 'com.aegispay.app.client://auth/callback'
-    : new URL('/app/auth/callback',window.location.origin).href;
+    : new URL('/app/',window.location.origin).href;
 }
 async function startGoogleAuth(button){
   if(!button||button.disabled)return;
@@ -759,7 +759,10 @@ window.AegisAuthRedirect={
   shouldHandleCurrentPage:function(){
     if(window.location.protocol!=='https:'&&window.location.protocol!=='http:')return false;
     const url=new URL(window.location.href);
-    return url.pathname==='/auth/callback'||url.pathname==='/app/auth/callback';
+    if(url.searchParams.has('reset'))return false;
+    return url.pathname==='/auth/callback'||url.pathname==='/app/auth/callback'
+      ||url.searchParams.has('code')||url.searchParams.has('error')
+      ||url.hash.indexOf('access_token=')>=0;
   }
 };
 async function initData(){
