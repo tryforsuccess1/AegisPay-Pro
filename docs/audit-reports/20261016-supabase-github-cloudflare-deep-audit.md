@@ -102,7 +102,7 @@ The canonical client and shared auth helper sent password-reset links to `aegisp
 - `https://aegispay-pro.pages.dev/app/?verified=1`
 - `https://aegispay-pro.pages.dev/app/?reset=1`
 
-The client already handles these marker parameters. This source fix has not been deployed. Before merging, confirm Supabase Auth's allowed redirect URL list accepts the canonical Pages callback paths. That exact live allowlist could not be verified with the available Supabase tooling.
+The client already handles these marker parameters. This source fix has not been deployed. Before merging, confirm Supabase Auth's allowed redirect URL list accepts the canonical Pages callback paths. That exact live allowlist could not be verified with the available Supabase tooling. The current GitHub workflow directory contains no Supabase Edge Function deployment workflow; therefore, changing the `public-signup` source file will not update the already deployed Edge Function just by publishing Cloudflare Pages. Deploy the reviewed Edge Function separately through the approved Supabase process and verify its deployed version.
 
 **Legacy Worker retirement is not yet recommended.**  
 Do not disable `aegispay-web`, `aegispay-aurora` or `aegispay-aurora-v2` based only on age. First review traffic/route usage and ensure there are no old APKs, saved links or callbacks depending on them. Once zero usage is confirmed, retire or redirect them through a separately approved change.
