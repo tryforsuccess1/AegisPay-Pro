@@ -147,9 +147,9 @@ assert(publicSignupSource.includes('assertPasswordNotPwned(password)')&&publicSi
 assert(passwordResetSource.includes('assertPasswordNotPwned(password)')&&passwordResetSource.includes('COMPROMISED_PASSWORD')&&passwordResetSource.includes('PASSWORD_SECURITY_UNAVAILABLE'),'Password reset must reject compromised passwords before changing the Auth password');
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
-const signupSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
-assert(signupSource.includes('const PRODUCTION_REDIRECT = "https://aegispay-pro.pages.dev/app/?verified=1";'),'Signup verification must use the canonical Pages UI');
-assert(!signupSource.includes('https://aegispay-web.aegispay.workers.dev/?verified=1'),'Signup backend must not route verification emails to the legacy Worker UI');
+const signupRedirectSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
+assert(signupRedirectSource.includes('const PRODUCTION_REDIRECT = "https://aegispay-pro.pages.dev/app/?verified=1";'),'Signup verification must use the canonical Pages UI');
+assert(!signupRedirectSource.includes('https://aegispay-web.aegispay.workers.dev/?verified=1'),'Signup backend must not route verification emails to the legacy Worker UI');
 const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
 assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
