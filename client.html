@@ -358,6 +358,13 @@ nav.aegis-bottom-nav a.on {
 .ai-support-copy small { font: 500 10px/1.35 var(--ff); color: var(--mut); }
 .ai-support-chevron { color: var(--p2); flex: 0 0 18px; text-align: center; font: 700 20px/1 var(--ff); }
 .ai-support-status { margin: 6px 2px 0; color: var(--mut); font: 600 10.5px/1.4 var(--ff); overflow-wrap: anywhere; }
+.ai-live-system {
+  margin: 8px auto; max-width: 96%; padding: 8px 12px; border-radius: 13px;
+  border: 1px solid rgba(217,96,156,.30); background: rgba(217,96,156,.10);
+  color: var(--hd); text-align: center; font: 600 11px/1.45 var(--ff);
+}
+.ai-live-representative { border-color: rgba(217,96,156,.22); }
+.ai-live-message-label { display: block; margin-bottom: 4px; font: 700 10px/1.25 var(--ff); color: var(--p2); }
 
 .ai-composer {
   position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
@@ -1649,6 +1656,14 @@ const AI_HISTORY_KEY='aegispay_ai_history_v2';
 let aiHistory=[];
 let awaitingRepresentativeIssue=false;
 let representativeRequestInFlight=false;
+let liveSupportCaseId=null;
+let liveSupportCase=null;
+let liveSupportMessages=[];
+let liveSupportStateLoaded=false;
+let liveSupportSeedCount=0;
+let liveSupportPollTimer=null;
+let liveSupportPolling=false;
+let liveSupportSendInFlight=false;
 
 function aiLoadHistory(){
   try{
@@ -1669,11 +1684,146 @@ function safeAiDisplayText(value){
   const text=String(value||'').trim();
   return /\bmaster\s+admin\b|\btelegram\b/i.test(text) ? 'A representative may contact you soon.' : text;
 }
+function aiHistoryRows(items){
+  return items.map(x=>'<div class="'+(x.role==='user'?'m2':'m1')+' ai-msg">'+esc(x.role==='assistant'?safeAiDisplayText(x.content):x.content)+'</div>').join('');
+}
+function aiLiveMessageRows(){
+  return liveSupportMessages.map(function(m){
+    const role=String(m.sender_role||'SYSTEM').toUpperCase();
+    const text=role==='AI'?safeAiDisplayText(m.message_text):String(m.message_text||'');
+    if(role==='SYSTEM')return '<div class="ai-live-system" role="status">'+esc(safeAiDisplayText(text))+'</div>';
+    const mine=role==='CLIENT';
+    const label=mine?'You':role==='REPRESENTATIVE'?'Customer Representative':'Aegis AI';
+    return '<div class="'+(mine?'m2':'m1')+' ai-msg '+(role==='REPRESENTATIVE'?'ai-live-representative':'')+'"><small class="ai-live-message-label">'+esc(label)+'</small><div>'+esc(text)+'</div></div>';
+  }).join('');
+}
+function aiLiveStorageKey(suffix){
+  return 'aegispay_ai_live_support_'+suffix+':'+String(profile?.id||'guest');
+}
+function rememberAiLiveCase(caseId,seedCount){
+  const previous=liveSupportCaseId;
+  liveSupportCaseId=caseId||null;
+  if(previous!==liveSupportCaseId){liveSupportMessages=[];liveSupportStateLoaded=false;liveSupportCase=null;}
+  if(liveSupportCaseId){
+    try{
+      sessionStorage.setItem(aiLiveStorageKey('case'),liveSupportCaseId);
+      if(Number.isFinite(Number(seedCount)))sessionStorage.setItem(aiLiveStorageKey('seed_count'),String(Math.max(0,Number(seedCount))));
+    }catch(_){}
+  }
+  liveSupportSeedCount=Number(seedCount)||0;
+}
+function restoreAiLivePrefs(){
+  try{
+    liveSupportCaseId=sessionStorage.getItem(aiLiveStorageKey('case'))||null;
+    liveSupportSeedCount=Math.max(0,Number(sessionStorage.getItem(aiLiveStorageKey('seed_count'))||0));
+  }catch(_){liveSupportCaseId=null;liveSupportSeedCount=0;}
+}
+function updateAiLiveSupportUI(){
+  const status=document.getElementById('aiOnline');
+  const notice=document.getElementById('aiRepresentativeStatus');
+  const button=document.getElementById('aiRepresentative');
+  const title=button?.querySelector('strong');
+  const subtitle=button?.querySelector('small');
+  const input=document.getElementById('aiInput');
+  const joined=Boolean(liveSupportCase?.representative_joined_at && String(liveSupportCase.status).toUpperCase()==='IN_PROGRESS');
+  const waiting=Boolean(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase?.status||'').toUpperCase()) && !joined);
+  if(status){
+    if(joined)status.textContent='● A representative is now live in this chat';
+    else if(waiting)status.textContent='● Waiting for a representative';
+    else if(liveSupportCaseId && ['RESOLVED','CLOSED'].includes(String(liveSupportCase?.status||'').toUpperCase()))status.textContent='● Support conversation '+String(liveSupportCase.status).toLowerCase();
+    else if(!liveSupportCaseId)status.textContent='● Ready to help';
+  }
+  if(notice){
+    if(joined){notice.hidden=false;notice.textContent='A representative is now live in this chat.';}
+    else if(waiting){notice.hidden=false;notice.textContent='Your request has been received. A representative may contact you soon.';}
+    else if(liveSupportCaseId && ['RESOLVED','CLOSED'].includes(String(liveSupportCase?.status||'').toUpperCase())){notice.hidden=false;notice.textContent=String(liveSupportCase.status).toUpperCase()==='RESOLVED'?'This support conversation has been marked resolved.':'This support conversation has been closed.';}
+    else notice.hidden=true;
+  }
+  if(title)title.textContent=joined?'Representative is live in this chat':waiting?'Representative requested':'Talk to a Customer Representative';
+  if(subtitle)subtitle.textContent=joined?'Send your messages here and the representative will reply in this chat.':waiting?'Your request is received. You can add more details while you wait.':'Need more help? Our support team can review your issue.';
+  if(button)button.disabled=representativeRequestInFlight||liveSupportSendInFlight||joined||waiting;
+  if(input){
+    input.placeholder=joined?'Message your representative...':waiting?'Add a message for the representative...':'Type your question...';
+    input.setAttribute('aria-label',joined?'Message your customer representative':waiting?'Add a message for your representative':'Ask AegisPay AI');
+  }
+}
 function aiRender(){
   const box=document.getElementById('aiMessages');
   if(!box)return;
-  box.innerHTML=aiHistory.map(x=>'<div class="'+(x.role==='user'?'m2':'m1')+' ai-msg">'+esc(x.role==='assistant'?safeAiDisplayText(x.content):x.content)+'</div>').join('');
+  const hasServerTranscript=Boolean(liveSupportCaseId && liveSupportStateLoaded && liveSupportMessages.length);
+  if(hasServerTranscript){
+    const status=String(liveSupportCase?.status||'').toUpperCase();
+    const postCaseHistory=['RESOLVED','CLOSED'].includes(status)?aiHistory.slice(liveSupportSeedCount):[];
+    box.innerHTML=aiLiveMessageRows()+aiHistoryRows(postCaseHistory);
+  }else{
+    box.innerHTML=aiHistoryRows(aiHistory);
+  }
   box.scrollTop=box.scrollHeight;
+  updateAiLiveSupportUI();
+}
+async function refreshAiLiveSupportState(){
+  if(!profile||!document.getElementById('aiMessages')||liveSupportPolling)return;
+  liveSupportPolling=true;
+  try{
+    const body={action:'client_live_support_state'};
+    if(liveSupportCaseId)body.caseId=liveSupportCaseId;
+    const result=await db.functions.invoke('ai-support',{body});
+    if(result.error)return;
+    const data=result.data||{};
+    if(data.case){
+      const incoming=data.case;
+      if(!liveSupportCaseId || liveSupportCaseId!==incoming.id){
+        const restoredCount=liveSupportSeedCount || aiHistory.length;
+        rememberAiLiveCase(incoming.id,restoredCount);
+      }
+      if(!liveSupportSeedCount){
+        liveSupportSeedCount=aiHistory.length;
+        try{sessionStorage.setItem(aiLiveStorageKey('seed_count'),String(liveSupportSeedCount));}catch(_){}
+      }
+      liveSupportCase=incoming;
+      liveSupportMessages=Array.isArray(data.messages)?data.messages:[];
+      liveSupportStateLoaded=true;
+      aiRender();
+    }else if(!liveSupportCaseId){
+      liveSupportCase=null;liveSupportMessages=[];liveSupportStateLoaded=true;updateAiLiveSupportUI();
+    }
+  }catch(_){
+    /* A brief polling failure must not interrupt the existing conversation. */
+  }finally{liveSupportPolling=false;}
+}
+function startAiLiveSupportPolling(){
+  if(liveSupportPollTimer)clearInterval(liveSupportPollTimer);
+  restoreAiLivePrefs();
+  refreshAiLiveSupportState();
+  liveSupportPollTimer=setInterval(function(){
+    if(!document.getElementById('aiMessages')){clearInterval(liveSupportPollTimer);liveSupportPollTimer=null;return;}
+    refreshAiLiveSupportState();
+  },2500);
+}
+async function sendLiveSupportMessage(raw){
+  const message=String(raw||'').trim().slice(0,2000);
+  if(!message||!liveSupportCaseId||liveSupportSendInFlight)return;
+  if(!liveSupportCase || !['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase()))return;
+  liveSupportSendInFlight=true;
+  const input=document.getElementById('aiInput'),send=document.getElementById('aiSend'),notice=document.getElementById('aiRepresentativeStatus');
+  if(input){input.value='';input.disabled=true;}
+  if(send)send.disabled=true;
+  try{
+    const result=await db.functions.invoke('ai-support',{body:{action:'client_send_chat_message',caseId:liveSupportCaseId,message}});
+    if(result.error||!result.data?.ok||!result.data?.message)throw new Error('send_failed');
+    liveSupportMessages.push(result.data.message);
+    liveSupportMessages=liveSupportMessages.slice(-250);
+    aiRender();
+  }catch(_){
+    if(notice){notice.hidden=false;notice.textContent='Your message could not be sent. Please try again.';}
+    if(input)input.value=message;
+  }finally{
+    liveSupportSendInFlight=false;
+    if(input)input.disabled=false;
+    updateAiLiveSupportUI();
+    if(send)send.disabled=Boolean(representativeRequestInFlight||liveSupportCase?.status==='RESOLVED'||liveSupportCase?.status==='CLOSED');
+    if(input)input.focus();
+  }
 }
 function aiSetBusy(busy){
   const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative');
@@ -1713,6 +1863,7 @@ async function submitRepresentativeRequest(issueText){
   if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Sending your support request…</div>');box.scrollTop=box.scrollHeight;}
   try{
     const history=aiHistory.filter(x=>x&&['user','assistant'].includes(x.role)).slice(-10);
+    const transcriptSeedCount=aiHistory.length;
     const result=await db.functions.invoke('ai-support',{body:{action:'create_support_case',message,history}});
     if(result.error){
       let detail='';
@@ -1721,14 +1872,13 @@ async function submitRepresentativeRequest(issueText){
     }
     const data=result.data||{};
     if(data.ok!==true||!data.supportCase)throw Error(data.error||'The support request could not be confirmed.');
-    const answer='A representative may contact you soon.';
-    aiHistory.push({role:'assistant',content:answer});
-    aiSaveHistory();
-    if(status)status.textContent='● Support request received';
-    if(supportStatus){
-      supportStatus.hidden=true;
-      supportStatus.textContent='A representative may contact you soon.';
-    }
+    rememberAiLiveCase(data.supportCase.id,transcriptSeedCount);
+    liveSupportCase={...data.supportCase,representative_requested:true};
+    liveSupportStateLoaded=false;
+    liveSupportMessages=[];
+    if(status)status.textContent='● Waiting for a representative';
+    if(supportStatus){supportStatus.hidden=false;supportStatus.textContent='Your request has been received. A representative may contact you soon.';}
+    await refreshAiLiveSupportState();
   }catch(error){
     const answer='We could not submit your request. Please try again.';
     aiHistory.push({role:'assistant',content:answer});aiSaveHistory();
@@ -1763,6 +1913,10 @@ async function aiAsk(raw){
     awaitingRepresentativeIssue=false;
     aiHistory.push({role:'user',content:message});aiSaveHistory();aiRender();
     await submitRepresentativeRequest(message);
+    return;
+  }
+  if(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase())){
+    await sendLiveSupportMessage(message);
     return;
   }
   const input=document.getElementById('aiInput');
@@ -1829,11 +1983,13 @@ document.addEventListener('click',function(e){const q=e.target.closest('[data-q]
 async function liveBot(){
   if(!profile)return oldGo('login');
   aiLoadHistory();
+  restoreAiLivePrefs();
   app.innerHTML=SC.bot();
   aiRender();
   bindAiBot();
   const input=document.getElementById('aiInput');
   if(input)input.focus();
+  startAiLiveSupportPolling();
 }
 async function openAegisSupport(){
   if(!profile)return oldGo('login');
