@@ -66,6 +66,6 @@ jobs:
       - name: Create disposable cron, Vault, and pg_net stubs
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_fixture.sql
       - name: Apply guarded deposit monitor cron migration
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016120000_deposit_monitor_skip_when_gates_closed.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222625_deposit_monitor_skip_when_gates_closed.sql
       - name: Verify cron skips requests while gates are closed and dispatches only when gates are open
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_assertions.sql
