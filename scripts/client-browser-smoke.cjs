@@ -165,7 +165,10 @@ const server = http.createServer((req, res) => {
       const html = SC.bot();
       const scratch = document.createElement('div');
       scratch.innerHTML = html;
-      return {
+      /* Computed CSS is reliable after the temporary test DOM joins the styled document. */
+      scratch.style.cssText = 'position:fixed;left:0;top:0;width:390px;height:844px;visibility:hidden;pointer-events:none;overflow:hidden';
+      document.body.appendChild(scratch);
+      const result = {
         hasMessages: !!scratch.querySelector('#aiMessages'),
         hasInput: !!scratch.querySelector('#aiInput'),
         hasSend: !!scratch.querySelector('#aiSend'),
@@ -185,6 +188,8 @@ const server = http.createServer((req, res) => {
         representativeLabel: scratch.querySelector('#aiRepresentative')?.innerText || '',
         navLinks: scratch.querySelectorAll('nav.aegis-bottom-nav a').length
       };
+      scratch.remove();
+      return result;
     });
     assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
