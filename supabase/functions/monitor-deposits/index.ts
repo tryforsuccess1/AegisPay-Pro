@@ -16,6 +16,7 @@ function json(body: unknown, status = 200) {
 }
 
 async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: string, contract: string) {
+  if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) return { id: deposit.id, status: "MISSING_RECEIVING_ADDRESS" };
   const url = new URL(baseUrl + "/v1/accounts/" + encodeURIComponent(receiving) + "/transactions/trc20");
   url.searchParams.set("only_confirmed", "true");
   url.searchParams.set("only_to", "true");
@@ -133,7 +134,8 @@ Deno.serve(async (req: Request) => {
     const results = [];
     for (const deposit of pending || []) {
       try {
-        results.push(await verifyOne(admin, deposit, receiving, baseUrl, contract));
+        const perDepositReceiver = String(deposit.receiving_address || (deposit.deposit_wallet_id ? "" : receiving)).trim();
+        results.push(await verifyOne(admin, deposit, perDepositReceiver, baseUrl, contract));
       } catch {
         results.push({ id: deposit.id, status: "ERROR" });
       }
