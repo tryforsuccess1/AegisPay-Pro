@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - 'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql'
+      - 'database/migrations/20261016120000_hd_deposit_wallets.sql'
+      - 'scripts/sql-tests/hd_deposit_wallets_assertions.sql'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'scripts/sql-tests/**'
       - 'scripts/validate-static.js'
@@ -12,6 +14,8 @@ on:
     branches: [main]
     paths:
       - 'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql'
+      - 'database/migrations/20261016120000_hd_deposit_wallets.sql'
+      - 'scripts/sql-tests/hd_deposit_wallets_assertions.sql'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'scripts/sql-tests/**'
       - 'scripts/validate-static.js'
@@ -55,5 +59,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_fixture.sql
       - name: Apply deposit migration to disposable PostgreSQL
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql
+      - name: Apply HD deposit-wallet migration to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016120000_hd_deposit_wallets.sql
+      - name: Verify HD deposit-wallet RLS, uniqueness, and privileges
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
