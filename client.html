@@ -323,7 +323,21 @@ nav.aegis-bottom-nav a.on {
 .ai-assistant-screen > .chips { margin-bottom: 0; }
 .ai-assistant-screen > .msgs {
   flex: 1 1 0; min-height: 80px; max-height: calc(100dvh - 470px);
-  overflow: auto; margin: 10px 0 170px; overscroll-behavior: contain;
+  overflow-x: hidden; overflow-y: auto;
+  margin: 10px 0 170px; overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch; touch-action: pan-y;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+/* Hide native scrollbars and their arrow buttons; preserve natural wheel and touch scrolling. */
+.ai-assistant-screen > .msgs::-webkit-scrollbar,
+.ai-assistant-screen > .msgs::-webkit-scrollbar-button,
+.ai-assistant-screen > .msgs::-webkit-scrollbar-thumb,
+.ai-assistant-screen > .msgs::-webkit-scrollbar-track,
+.ai-assistant-screen > .msgs::-webkit-scrollbar-track-piece,
+.ai-assistant-screen > .msgs::-webkit-scrollbar-corner {
+  display: none !important; width: 0 !important; height: 0 !important;
+  min-width: 0 !important; min-height: 0 !important;
+  background: transparent !important; border: 0 !important; -webkit-appearance: none !important;
 }
 .ai-support-cta {
   position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
