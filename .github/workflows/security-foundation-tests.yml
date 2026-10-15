@@ -50,6 +50,6 @@ jobs:
       - name: Create disposable AI support table fixture
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/ai_support_messages_fixture.sql
       - name: Apply least-privilege migration
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016140000_lock_ai_support_message_client_access.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222721_lock_ai_support_message_client_access.sql
       - name: Verify deny policy and service-role access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/ai_support_messages_assertions.sql
