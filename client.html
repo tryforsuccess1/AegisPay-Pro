@@ -1021,7 +1021,7 @@ async function getMyDepositAddress(){
 }
 async function liveTopup(){
  const d=settings.deposit_rules||{};
- let wallet='';try{wallet=await getMyDepositAddress()}catch(_){app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\\'home\\')">'+apIcon('back')+'</button><h1>Deposit USDT</h1></div><div class="info b"><div><b>Deposit address unavailable</b><p>No address was issued. Do not send funds until your authenticated deposit page displays a unique TRON address.</p></div></div>'+nav('hidden')+'</div>';return;}
+ let wallet='';try{wallet=await getMyDepositAddress()}catch(_){app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="location.reload()">'+apIcon('back')+'</button><h1>Deposit USDT</h1></div><div class="info b"><div><b>Deposit address unavailable</b><p>No address was issued. Do not send funds until your authenticated deposit page displays a unique TRON address.</p></div></div>'+nav('hidden')+'</div>';return;}
  const minDeposit=Math.max(10,Number(d.minimum_amount||d.minimum_deposit||d.min_deposit||10)||10);
  const led=await db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(100);
  const deposits=(led.data||[]).filter(x=>Number(x.amount)>0&&/deposit|top.?up|funding|txid/i.test(String((x.description||'')+' '+(x.entry_type||''))));
