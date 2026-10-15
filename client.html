@@ -1665,10 +1665,14 @@ function aiSaveHistory(){
     sessionStorage.setItem(key,JSON.stringify(aiHistory.slice(-20)));
   }catch(_){}
 }
+function safeAiDisplayText(value){
+  const text=String(value||'').trim();
+  return /\bmaster\s+admin\b|\btelegram\b/i.test(text) ? 'A representative may contact you soon.' : text;
+}
 function aiRender(){
   const box=document.getElementById('aiMessages');
   if(!box)return;
-  box.innerHTML=aiHistory.map(x=>'<div class="'+(x.role==='user'?'m2':'m1')+' ai-msg">'+esc(x.content)+'</div>').join('');
+  box.innerHTML=aiHistory.map(x=>'<div class="'+(x.role==='user'?'m2':'m1')+' ai-msg">'+esc(x.role==='assistant'?safeAiDisplayText(x.content):x.content)+'</div>').join('');
   box.scrollTop=box.scrollHeight;
 }
 function aiSetBusy(busy){
@@ -1717,16 +1721,16 @@ async function submitRepresentativeRequest(issueText){
     }
     const data=result.data||{};
     if(data.ok!==true||!data.supportCase)throw Error(data.error||'The support request could not be confirmed.');
-    const answer=String(data.answer||'Your request has been saved to the support queue.').trim();
+    const answer='A representative may contact you soon.';
     aiHistory.push({role:'assistant',content:answer});
     aiSaveHistory();
-    if(status)status.textContent=data.supportCase.telegramNotified?'● Representative notified':'● Support request recorded';
+    if(status)status.textContent='● Support request received';
     if(supportStatus){
-      supportStatus.hidden=false;
-      supportStatus.textContent='Case '+String(data.supportCase.id||'')+' · '+(data.supportCase.telegramNotified?'Telegram notification sent to Master Admin.':'Saved in the Master Admin queue; Telegram delivery was not confirmed.');
+      supportStatus.hidden=true;
+      supportStatus.textContent='A representative may contact you soon.';
     }
   }catch(error){
-    const answer='I could not confirm that your support request was sent. '+String(error&&error.message||'Please try again.');
+    const answer='We could not submit your request. Please try again.';
     aiHistory.push({role:'assistant',content:answer});aiSaveHistory();
     if(status)status.textContent='● Support request not confirmed';
     if(supportStatus){supportStatus.hidden=false;supportStatus.textContent='Request not confirmed. Please try again.';}
@@ -1781,7 +1785,7 @@ async function aiAsk(raw){
       const httpStatus=Number(rr.error.status||(rr.error.context&&rr.error.context.status)||0);
       throw Error((httpStatus?String(httpStatus)+' ':'')+(detail||rr.error.message||'AI support is temporarily unavailable.'));
     }
-    const answer=String(rr.data?.answer||'').trim();
+    const answer=safeAiDisplayText(String(rr.data?.answer||'').trim());
     if(!answer)throw Error('AegisPay AI did not return an answer.');
     aiHistory.push({role:'assistant',content:answer});
     aiSaveHistory();
@@ -2068,7 +2072,7 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
     app.innerHTML=top('Withdraw')+'<div class="p2-balance"><small>Available to withdraw</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+total.toFixed(2)+' · Held '+held.toFixed(2)+' USDT</div></div><div class="p2-card"><div class="p2-head"><h2>Withdrawal Details</h2><span>TRC20</span></div><div class="ap-field"><label>Amount</label><input id="wAmount" type="number" min="'+(rules.minimum||50)+'" max="'+available.toFixed(2)+'" step=".01" inputmode="decimal" placeholder="Minimum '+Number(rules.minimum||50).toFixed(2)+' USDT"></div><div class="p2-wallet"><span class="bub" style="background:rgba(201,75,138,.12);color:var(--c)">'+ic('link')+'</span><code>'+esc(p.destination_address)+'</code><span class="chip">Locked</span></div><div class="p2-mini-grid" style="margin-top:10px"><div class="p2-mini"><small>Network</small><b>TRC20</b></div><div class="p2-mini"><small>Fee</small><b>'+Number(rules.fee||0).toFixed(2)+' USDT</b></div></div><button class="btn" style="margin-top:12px" id="wBtn">Request Withdrawal '+ic('arrow')+'</button><div id="withdrawInlineStatus"></div></div><div class="p2-card"><div class="p2-head"><h2>Approval Flow</h2><span>Protected</span></div><div class="p2-step"><span class="n">1</span><div><b>Submit request</b><small>Available balance is checked first.</small></div></div><div class="p2-step"><span class="n">2</span><div><b>Secure review</b><small>The request enters the secure approval queue.</small></div></div><div class="p2-step"><span class="n">3</span><div><b>Processing</b><small>Final payout processing follows the approved workflow.</small></div></div></div>'+nav('wallet');
     wBtn.onclick=async function(){
       const box=document.getElementById('withdrawInlineStatus');
-      try{const amount=Number(wAmount.value);if(!Number.isFinite(amount)||amount<Number(rules.minimum||50))throw Error('Enter an amount above the minimum withdrawal.');if(amount>available)throw Error('Withdrawal amount exceeds your available balance.');const x=await db.rpc('request_withdrawal',{p_amount:amount});if(x.error)throw x.error;const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Withdrawal submitted</b><small>'+esc(tg.error?'Request created; Telegram alert needs attention.':'Your request is waiting for authorized review.')+'</small></div></div>';}catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Withdrawal not submitted</b><small>'+esc(e.message||'Withdrawal failed.')+'</small></div></div>'}
+      try{const amount=Number(wAmount.value);if(!Number.isFinite(amount)||amount<Number(rules.minimum||50))throw Error('Enter an amount above the minimum withdrawal.');if(amount>available)throw Error('Withdrawal amount exceeds your available balance.');const x=await db.rpc('request_withdrawal',{p_amount:amount});if(x.error)throw x.error;const tg=await db.functions.invoke('telegram-withdrawal',{body:{action:'notify',withdrawalId:x.data}});if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Withdrawal submitted</b><small>'+esc(tg.error?'Your request is waiting for review.':'Your request is waiting for authorized review.')+'</small></div></div>';}catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Withdrawal not submitted</b><small>'+esc(e.message||'Withdrawal failed.')+'</small></div></div>'}
     };
   };
 

@@ -119,6 +119,8 @@ assert(client.includes('id="aiOnline"')&&client.includes('Sign-in required')&&cl
 assert(client.includes('id="aiRepresentative"')&&client.includes('Talk to a Customer Representative'),'Client must offer an explicit customer representative escalation path');
 assert(client.includes("action:'create_support_case'")&&client.includes('awaitingRepresentativeIssue')&&client.includes('submitRepresentativeRequest'),'Client must submit prior chat context or ask for issue details before creating a support case');
 assert(client.includes('class="ai-input-shell"'),'AI input must use a dedicated, evenly framed pink shell (layout geometry is checked in Playwright)');
+assert(client.includes('A representative may contact you soon.')&&client.includes('function safeAiDisplayText'),'Client must use the approved representative message and sanitize prior AI history');
+assert(!client.includes('Telegram notification sent to Master Admin.')&&!client.includes('Saved in the Master Admin queue; Telegram delivery was not confirmed.'),'Client support status must not expose internal routing details');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
 
 const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
@@ -142,7 +144,9 @@ const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
 assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
 assert(aiSupportSource.includes('action === "create_support_case"')&&aiSupportSource.includes('CUSTOMER_REPRESENTATIVE'),'AI support backend must accept authenticated representative requests and classify their Telegram alerts');
-assert(aiSupportSource.includes('Action required: Please contact this client and review the issue.'),'Telegram support alerts must tell Master Admin to contact the client');
+assert(aiSupportSource.includes('Action required: Please contact this client and review the issue.'),'Internal support alerts must still notify the representative channel');
+assert(aiSupportSource.includes('function sanitizeClientAnswer')&&aiSupportSource.includes('answer: "A representative may contact you soon."'),'Server must sanitize AI replies and use the approved representative confirmation');
+assert(aiSupportSource.includes('Never mention internal roles, routing queues, notification platforms or internal support tools to the client.'),'AI prompt must keep internal routing details private');
 assert(aiSupportSource.includes('action === "admin_update_case"')&&aiSupportSource.includes('status, resolution: resolution || null'),'Support cases must continue to support Master Admin resolution and resolution notes');
 for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
 assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
