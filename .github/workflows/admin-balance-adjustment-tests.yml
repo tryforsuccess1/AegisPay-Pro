@@ -50,6 +50,6 @@ jobs:
       - name: Create disposable adjustment fixture
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/admin_balance_adjustment_fixture.sql
       - name: Apply balance reversal safety migration to disposable PostgreSQL
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016130000_guard_manual_balance_reversals.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222642_guard_manual_balance_reversals.sql
       - name: Verify balance, reversal, holds, authorization and ledger invariants
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/admin_balance_adjustment_assertions.sql
