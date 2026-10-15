@@ -12,7 +12,12 @@ BEGIN
   IF to_regclass('vault.decrypted_secrets') IS NULL THEN
     RAISE EXCEPTION 'Supabase Vault must be available for the AegisPay monitor cron secret';
   END IF;
-  IF to_regclass('net.http_post') IS NULL THEN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'net' AND p.proname = 'http_post'
+  ) THEN
     RAISE EXCEPTION 'pg_net must be installed before scheduling the AegisPay deposit monitor';
   END IF;
 
