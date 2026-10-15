@@ -185,7 +185,7 @@ const server = http.createServer((req, res) => {
             webkitScrollbarButton: getComputedStyle(msgs, '::-webkit-scrollbar-button').display
           };
         })(),
-        representativeLabel: scratch.querySelector('#aiRepresentative')?.innerText || '',
+        representativeLabel: scratch.querySelector('#aiRepresentative')?.textContent || '',
         navLinks: scratch.querySelectorAll('nav.aegis-bottom-nav a').length
       };
       scratch.remove();
