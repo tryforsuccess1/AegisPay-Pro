@@ -76,6 +76,14 @@ Deno.serve(async (req: Request) => {
     if (profile.role !== "USER" || ["BLOCKED", "SUSPENDED", "DELETED"].includes(String(profile.status).toUpperCase())) return json({ error: "This account cannot submit deposits." }, 403);
     if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
+    const { data: depositWallet, error: depositWalletError } = await admin.from("deposit_wallets")
+      .select("id,address,network,token_contract,status").eq("user_id", profile.id).eq("network", depositNetwork).eq("status", "ACTIVE").maybeSingle();
+    if (depositWalletError || !depositWallet || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(depositWallet.address || ""))) {
+      return json({ error: "Your unique TRON deposit address is not ready. Open the deposit page again before submitting proof.", code: "USER_DEPOSIT_ADDRESS_REQUIRED" }, 409);
+    }
+    const receivingAddress = String(depositWallet.address).trim();
+    if (String(depositWallet.token_contract || "") !== String(rules.token_contract || "")) return json({ error: "The assigned deposit address token configuration is stale. Contact support before submitting a transfer.", code: "DEPOSIT_WALLET_CONFIG_MISMATCH" }, 409);
+
     const body = await req.json().catch(() => null);
     const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
     const amount = Number(amountInput);
@@ -96,6 +104,7 @@ Deno.serve(async (req: Request) => {
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
       credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path: screenshotPath,
+      deposit_wallet_id: depositWallet.id, receiving_address: receivingAddress, token_contract: depositWallet.token_contract,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
     }).select("id,status,ai_review_status,gross_amount,created_at").single();
@@ -112,7 +121,7 @@ Deno.serve(async (req: Request) => {
           "Perform an AI evidence precheck for a claimed USDT deposit screenshot.",
           "Claimed TRON transaction ID: " + txid + ".",
           "Claimed gross amount: " + amount.toFixed(2) + " USDT.",
-          "Expected receiving address: " + String(rules.receiving_address || "not configured") + ".",
+          "Expected receiving address: " + receivingAddress + ".",
           "Check only visible screenshot evidence: receipt visibility, transaction ID consistency, amount consistency, recipient consistency, legibility, blur, and obvious editing/tampering indicators.",
           "Do NOT approve a deposit based on screenshot appearance alone. The transaction must still be confirmed on-chain by the server.",
           "Return ONLY JSON: receipt_visible boolean; txid_matches boolean; amount_matches boolean; recipient_matches boolean; legible boolean; blurry boolean; tamper_indicators array of short codes; confidence number 0..1.",
