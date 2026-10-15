@@ -19,6 +19,9 @@ const state={
   audit:[],
   accessEvents:[],
   supportCases:[],
+  activeSupportChatId:null,
+  supportChatMessages:[],
+  supportChatCase:null,
   settings:{},
   production:null,
   productionDiag:null,
@@ -328,23 +331,44 @@ function supportCasesView(){
   const rows=cases.map(x=>{
     const user=x.user||{};
     const status=String(x.status||'OPEN').toUpperCase();
+    const liveRequested=Boolean(x.representative_requested);
+    const joined=Boolean(x.representative_joined_at);
     return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge '+(status==='RESOLVED'||status==='CLOSED'?'aa-badge-green':status==='IN_PROGRESS'?'aa-badge-cyan':'aa-badge-amber')+'">'+esc(status)+'</span><h3 style="font-size:15px;margin-top:9px">'+esc(x.subject||'Client support request')+'</h3><p>'+esc(user.name||'Unknown client')+' · '+esc(user.email||user.username||'')+'</p></div><span class="aa-status">'+esc(x.category||'GENERAL')+'</span></div>'+
       '<div class="aa-detail-grid"><span>Case ID<b class="aa-mono">'+esc(x.id)+'</b></span><span>Received<b>'+esc(date(x.created_at))+'</b></span><span>Last Updated<b>'+esc(date(x.updated_at||x.created_at))+'</b></span></div>'+
       '<div class="aa-wallet-box"><span>Client message</span><div style="font-size:11px;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--text)">'+esc(x.user_message||'')+'</div></div>'+
       (x.ai_answer?'<div class="aa-wallet-box"><span>AI response provided</span><div style="font-size:10px;white-space:pre-wrap;overflow-wrap:anywhere;color:#b9c4e4">'+esc(x.ai_answer)+'</div></div>':'')+
       (x.resolution?'<div class="aa-callout aa-callout-success"><div class="aa-callout-dot"></div><div><strong>Resolution note</strong><small>'+esc(x.resolution)+'</small></div></div>':'')+
       '<div class="aa-review-actions">'+
+      (liveRequested&&['OPEN','IN_PROGRESS'].includes(status)?'<button class="aa-primary" data-action="support-chat-open" data-id="'+esc(x.id)+'">'+(joined?'Open Live Chat':'Start Live Chat')+'</button>':'')+
       (status==='OPEN'?'<button class="aa-secondary" data-action="support-case-status" data-id="'+esc(x.id)+'" data-status="IN_PROGRESS">Mark In Progress</button>':'')+
       ((status==='OPEN'||status==='IN_PROGRESS')?'<button class="aa-primary" data-action="support-case-status" data-id="'+esc(x.id)+'" data-status="RESOLVED">Mark Resolved</button>':'')+
       (status==='RESOLVED'?'<button class="aa-secondary" data-action="support-case-status" data-id="'+esc(x.id)+'" data-status="CLOSED">Close Case</button>':'')+
       '</div></article>';
   }).join('');
   const openCount=cases.filter(x=>['OPEN','IN_PROGRESS'].includes(String(x.status||'').toUpperCase())).length;
-  return '<main class="aa-main">'+pageHeader('CLIENT ASSISTANCE','AI Support Cases','Issues AegisPay AI could not fully resolve. Review the issue, track progress and record a resolution.')+
+  const activeCase=cases.find(x=>x.id===state.activeSupportChatId&&x.representative_requested);
+  const activeStatus=String(state.supportChatCase?.status||activeCase?.status||'OPEN').toUpperCase();
+  const joined=Boolean(state.supportChatCase?.representative_joined_at||activeCase?.representative_joined_at);
+  const chatMessages=(state.supportChatMessages||[]).map(function(m){
+    const role=String(m.sender_role||'SYSTEM').toUpperCase();
+    if(role==='SYSTEM')return '<div class="aa-live-chat-system" style="align-self:center;max-width:92%;padding:8px 12px;border-radius:12px;text-align:center;background:rgba(217,96,156,.10);border:1px solid rgba(217,96,156,.25);font-size:12px">'+esc(m.message_text||'')+'</div>';
+    const mine=role==='REPRESENTATIVE'&&m.sender_user_id===state.profile?.id;
+    const label=role==='CLIENT'?(activeCase?.user?.name||'Client'):role==='AI'?'Aegis AI':mine?'You · Representative':'Representative';
+    const bubbleClass=role==='CLIENT'?'client':role==='REPRESENTATIVE'?'rep':'ai';
+    const align=role==='CLIENT'?'flex-start':role==='REPRESENTATIVE'?'flex-end':'flex-start';
+    const bg=role==='REPRESENTATIVE'?'rgba(139,92,246,.10)':role==='CLIENT'?'rgba(59,130,246,.08)':'rgba(148,163,184,.08)';
+    return '<div class="aa-live-chat-message '+bubbleClass+'" style="align-self:'+align+';max-width:88%;padding:10px 12px;border-radius:13px;border:1px solid rgba(140,150,175,.23);background:'+bg+';overflow-wrap:anywhere"><small style="display:block;margin-bottom:5px;font-size:10px;font-weight:700;color:var(--text)">'+esc(label)+'</small><div style="font-size:12px;line-height:1.5;white-space:pre-wrap">'+esc(m.message_text||'')+'</div><time style="display:block;margin-top:5px;font-size:9px;color:var(--muted)">'+esc(date(m.created_at))+'</time></div>';
+  }).join('');
+  const chatPanel=activeCase?'<section class="aa-panel aa-live-chat-panel" style="margin-bottom:18px"><div class="aa-panel-head"><div><h2>Live chat · '+esc(activeCase.user?.name||activeCase.user?.email||'Client')+'</h2><p>Messages appear here and in the client’s Aegis AI conversation.</p></div><span class="aa-badge '+(joined&&activeStatus==='IN_PROGRESS'?'aa-badge-green':'aa-badge-amber')+'">'+(joined&&activeStatus==='IN_PROGRESS'?'REPRESENTATIVE LIVE':esc(activeStatus))+'</span></div>'+
+    (!joined&&['OPEN','IN_PROGRESS'].includes(activeStatus)?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Waiting for representative</strong><small>Select Start Live Chat to notify the client that you are now available in their existing conversation.</small></div></div>':'')+
+    '<div class="aa-live-chat-log" id="aaSupportChatLog" style="display:flex;flex-direction:column;gap:10px;max-height:420px;min-height:130px;overflow:auto;padding:14px;margin-top:12px;border:1px solid rgba(140,150,175,.24);border-radius:14px;background:rgba(140,150,175,.06)">'+(chatMessages||'<div class="aa-muted">No messages yet.</div>')+'</div>'+
+    (joined&&activeStatus==='IN_PROGRESS'?'<div class="aa-live-chat-compose" style="display:flex;gap:8px;margin-top:12px"><input id="aaSupportChatInput" type="text" maxlength="2000" autocomplete="off" placeholder="Write a reply to the client..." style="flex:1;min-width:0"><button class="aa-primary" data-action="support-chat-send" data-id="'+esc(activeCase.id)+'">Send Reply</button></div>':'')+
+    (['RESOLVED','CLOSED'].includes(activeStatus)?'<p class="aa-muted" style="margin-top:10px">This conversation is closed for replies. You can review its full transcript above.</p>':'')+
+    '</section>':'';
+  return '<main class="aa-main">'+pageHeader('CLIENT ASSISTANCE','AI Support Cases','Review the issue, join the same client conversation, and record a resolution.')+
     '<div class="aa-info-strip"><strong>'+openCount+'</strong><span>open / in-progress cases · '+cases.length+' recent cases loaded</span></div>'+
-    '<section class="aa-list">'+(rows||empty('No support cases.','Unresolved client issues escalated by AegisPay AI will appear here.'))+'</section></main>';
+    chatPanel+'<section class="aa-list">'+(rows||empty('No support cases.','Unresolved client issues escalated by AegisPay AI will appear here.'))+'</section></main>';
 }
-
 function productionReadiness(){
   const p=state.production||{},d=state.productionDiag||{};
   const depositOn=Boolean(p.production_config_live_deposits);
@@ -759,6 +783,76 @@ async function toggleWithdrawalAI(){
     await refreshData();
   });
 }
+async function openSupportChat(el){
+  const id=String(el.dataset.id||'');
+  if(!id)return;
+  await setBusy(async function(){
+    const item=(state.supportCases||[]).find(x=>x.id===id);
+    const action=item&&item.representative_joined_at?'admin_live_chat_state':'admin_join_live_chat';
+    const r=await service.invokeFunction('ai-support',{body:{action:action,caseId:id}});
+    if(r.error)throw r.error;
+    if(!r.data||!r.data.case)throw new Error(r.data?.error||'The live support conversation could not be opened.');
+    state.activeSupportChatId=id;
+    state.supportChatCase=r.data.case;
+    state.supportChatMessages=r.data.messages||[];
+    await refreshData();
+  });
+  const log=document.getElementById('aaSupportChatLog');
+  if(log)log.scrollTop=log.scrollHeight;
+}
+async function sendSupportChatMessage(el){
+  const id=String(el.dataset.id||'');
+  const input=document.getElementById('aaSupportChatInput');
+  const message=String(input?.value||'').trim();
+  if(!id||!message||state.busy)return;
+  el.disabled=true;
+  try{
+    const r=await service.invokeFunction('ai-support',{body:{action:'admin_send_chat_message',caseId:id,message:message}});
+    if(r.error||!r.data?.ok||!r.data?.message)throw new Error(r.data?.error||r.error?.message||'Message could not be sent.');
+    if(input)input.value='';
+    state.supportChatMessages.push(r.data.message);
+    state.supportChatMessages=state.supportChatMessages.slice(-250);
+    const live=await service.invokeFunction('ai-support',{body:{action:'admin_live_chat_state',caseId:id}});
+    if(!live.error&&live.data?.case){state.supportChatCase=live.data.case;state.supportChatMessages=live.data.messages||state.supportChatMessages;}
+    state.error='';
+  }catch(e){state.error=e.message||'Message could not be sent.';}
+  render();
+  const nextInput=document.getElementById('aaSupportChatInput');
+  if(nextInput){nextInput.focus();const log=document.getElementById('aaSupportChatLog');if(log)log.scrollTop=log.scrollHeight;}
+}
+let supportChatPollTimer=null;
+let supportChatPollBusy=false;
+async function pollActiveSupportChat(){
+  if(supportChatPollBusy||state.busy||!state.profile||state.tab!=='support'||!state.activeSupportChatId||document.hidden)return;
+  supportChatPollBusy=true;
+  try{
+    const r=await service.invokeFunction('ai-support',{body:{action:'admin_live_chat_state',caseId:state.activeSupportChatId}});
+    if(r.error||!r.data?.case)return;
+    const nextMessages=r.data.messages||[];
+    const oldLast=(state.supportChatMessages||[]).slice(-1)[0]?.id||'';
+    const newLast=nextMessages.slice(-1)[0]?.id||'';
+    const changed=oldLast!==newLast||(state.supportChatMessages||[]).length!==nextMessages.length||state.supportChatCase?.status!==r.data.case.status||state.supportChatCase?.representative_joined_at!==r.data.case.representative_joined_at||state.supportChatCase?.updated_at!==r.data.case.updated_at;
+    if(!changed){state.supportChatCase=r.data.case;return;}
+    const input=document.getElementById('aaSupportChatInput');
+    const draft=input?.value||'';
+    const focused=document.activeElement===input;
+    state.supportChatCase=r.data.case;
+    state.supportChatMessages=nextMessages;
+    const idx=(state.supportCases||[]).findIndex(x=>x.id===state.activeSupportChatId);
+    if(idx>=0)state.supportCases[idx]={...state.supportCases[idx],...r.data.case};
+    render();
+    const nextInput=document.getElementById('aaSupportChatInput');
+    if(nextInput){nextInput.value=draft;if(focused)nextInput.focus();}
+    const log=document.getElementById('aaSupportChatLog');
+    if(log)log.scrollTop=log.scrollHeight;
+  }catch(_){
+    /* A transient polling issue must not interrupt the current chat draft. */
+  }finally{supportChatPollBusy=false;}
+}
+function startSupportChatPolling(){
+  if(supportChatPollTimer)clearInterval(supportChatPollTimer);
+  supportChatPollTimer=setInterval(pollActiveSupportChat,2500);
+}
 async function updateSupportCase(el){
   const id=String(el.dataset.id||''),status=String(el.dataset.status||'').toUpperCase();
   if(!id||!['IN_PROGRESS','RESOLVED','CLOSED'].includes(status))return;
@@ -839,6 +933,9 @@ root.addEventListener('submit',function(e){
   else if(e.target.id==='aaSettingsForm')saveSettings(e);
   else if(e.target.id==='aaProductionForm')saveProductionConfig(e);
 });
+root.addEventListener('keydown',function(e){
+  if(e.target&&e.target.id==='aaSupportChatInput'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();const button=root.querySelector('[data-action="support-chat-send"]');if(button)sendSupportChatMessage(button);}
+});
 root.addEventListener('click',function(e){
   const el=e.target.closest('[data-action]');if(!el)return;
   const action=el.dataset.action;
@@ -851,6 +948,8 @@ root.addEventListener('click',function(e){
   if(action==='withdrawal-ai-toggle'){toggleWithdrawalAI();return;}
   if(action==='withdrawal-ai-limit'){saveWithdrawalAILimit();return;}
   if(action==='support-case-status'){updateSupportCase(el);return;}
+  if(action==='support-chat-open'){openSupportChat(el);return;}
+  if(action==='support-chat-send'){sendSupportChatMessage(el);return;}
   if(action==='review'){review(el);return;}
   if(action==='payout'){payout(el);return;}
   if(action==='invalid-withdrawal-refund'){reconcileInvalidWithdrawal(el);return;}
@@ -876,6 +975,7 @@ async function boot(){
     }
   }catch(e){state.profile=null;}
   render();
+  startSupportChatPolling();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
