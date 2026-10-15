@@ -123,7 +123,7 @@ PR: https://github.com/tryforsuccess1/AegisPay-Pro/pull/41
 | Withdrawal migration tests | PASS |
 | Android debug APK build | PASS |
 
-These checks passed on audit-branch SHA `8c0150ab94bfbbefa763672ad211c1915ba9ce95`. They validate source/static and disposable-database behavior; they do not validate a real TRON transfer, the live Auth redirect allowlist, or the production deployment of this PR.
+These checks passed on audit-branch SHA `443efc17411e28751a88fd68f2b6865ebd37ce91`, including repository CI/browser smoke tests, SQL/deposit cron tests, withdrawal migration tests, manual balance adjustment tests, AI support permission tests and Android client/admin build. They validate source/static and disposable-database behavior; they do not validate a real TRON transfer, the live Auth redirect allowlist, or a full real-money journey.
 
 ## 4. Remaining blockers before production
 
