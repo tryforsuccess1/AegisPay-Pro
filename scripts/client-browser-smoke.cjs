@@ -171,6 +171,17 @@ const server = http.createServer((req, res) => {
         hasSend: !!scratch.querySelector('#aiSend'),
         hasRepresentative: !!scratch.querySelector('#aiRepresentative'),
         hasInputShell: !!scratch.querySelector('.ai-input-shell'),
+        messageScrollStyle: (() => {
+          const msgs = scratch.querySelector('#aiMessages');
+          const st = getComputedStyle(msgs);
+          return {
+            overflowY: st.overflowY,
+            touchAction: st.touchAction,
+            scrollbarWidth: st.scrollbarWidth,
+            webkitScrollbar: getComputedStyle(msgs, '::-webkit-scrollbar').display,
+            webkitScrollbarButton: getComputedStyle(msgs, '::-webkit-scrollbar-button').display
+          };
+        })(),
         representativeLabel: scratch.querySelector('#aiRepresentative')?.innerText || '',
         navLinks: scratch.querySelectorAll('nav.aegis-bottom-nav a').length
       };
@@ -181,6 +192,11 @@ const server = http.createServer((req, res) => {
     assert.ok(aiTemplate.hasRepresentative, 'AI Assistant must offer Talk to a Customer Representative.');
     assert.ok(aiTemplate.hasInputShell, 'AI message input must be wrapped in an evenly framed focus shell.');
     assert.match(aiTemplate.representativeLabel, /Talk to a Customer Representative/i);
+    assert.equal(aiTemplate.messageScrollStyle.overflowY, 'auto', 'AI messages must remain vertically scrollable.');
+    assert.equal(aiTemplate.messageScrollStyle.touchAction, 'pan-y', 'AI messages must support natural vertical touch swipes.');
+    assert.equal(aiTemplate.messageScrollStyle.scrollbarWidth, 'none', 'AI messages must hide the visible vertical scrollbar.');
+    assert.equal(aiTemplate.messageScrollStyle.webkitScrollbar, 'none', 'AI messages must hide WebKit scrollbar controls.');
+    assert.equal(aiTemplate.messageScrollStyle.webkitScrollbarButton, 'none', 'AI messages must hide native up/down scrollbar arrows.');
 
     const composerLayout = await page.evaluate(() => {
       const root = document.querySelector('#app');
