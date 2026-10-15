@@ -14,6 +14,7 @@ BEGIN
   ) THEN
     CREATE POLICY ai_support_messages_deny_client_access
       ON public.ai_support_messages
+      AS RESTRICTIVE
       FOR ALL
       TO anon, authenticated
       USING (false)
