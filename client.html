@@ -1585,7 +1585,7 @@ function bindAuthForms(){
       try{
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Please enter a valid registered email address.');
         const r=await db.auth.resetPasswordForEmail(email,{
-          redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1'
+          redirectTo:'https://aegispay-web.aegispay.workers.dev/?reset=1'
         });
         if(r.error)throw r.error;
         uiNotice('If an account exists for this email, a password reset link has been sent. Please check your Gmail and Spam folder.','success');
@@ -1611,7 +1611,7 @@ function bindAuthForms(){
           email,password:document.getElementById('sp').value,
           name:formatName(document.getElementById('sn').value),
           username,referralCode:document.getElementById('sr').value.trim().toUpperCase(),
-          preferredLanguage:'en',redirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'
+          preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'
         }});
         if(rr.error){
           let serverMessage=rr.data && typeof rr.data==='object' && rr.data.error ? rr.data.error : '';
@@ -1638,7 +1638,7 @@ function bindAuthForms(){
         if(rb)rb.onclick=async()=>{
           try{
             rb.disabled=true;rb.textContent='Sending...';
-            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'}});
+            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'}});
             if(r.error)throw r.error;
             uiNotice('A new verification email has been sent.','success');
             rb.textContent='Resend Verification Email';rb.disabled=false;
