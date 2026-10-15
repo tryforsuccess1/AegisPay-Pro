@@ -3,7 +3,7 @@
 
 var MOBILE_CLIENT_AUTH_CALLBACK='com.aegispay.app.client://auth/callback';
 var MOBILE_ADMIN_AUTH_CALLBACK='com.aegispay.app.admin://auth/callback';
-var WEB_PASSWORD_RESET_REDIRECT='https://aegispay-pro.pages.dev/app/?reset=1';
+var WEB_PASSWORD_RESET_REDIRECT='https://aegispay-web.aegispay.workers.dev/?reset=1';
 function authRedirectUri(){
   if(!window.AEGIS_ANDROID_APP)return new URL('/app/auth/callback',window.location.origin).href;
   return window.AEGIS_ADMIN_PORTAL ? MOBILE_ADMIN_AUTH_CALLBACK : MOBILE_CLIENT_AUTH_CALLBACK;
