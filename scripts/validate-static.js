@@ -72,6 +72,11 @@ assert(googleUsernameFixMigration.includes("NEW.email_confirmed_at IS NOT NULL")
 assert(googleUsernameFixMigration.includes("NEW.raw_app_meta_data -> 'providers', '[]'::jsonb) @> '[\"google\"]'::jsonb")&&googleUsernameFixMigration.includes("IF lower(COALESCE(NEW.raw_app_meta_data ->> 'provider', '')) = 'google'"),'Google username generation must rely on trusted Supabase Google provider metadata, not the email-confirmation timestamp');
 assert(!googleUsernameFixMigration.includes("AND NEW.email_confirmed_at IS NOT NULL THEN\n      v_username_base"),'Google username generation must tolerate email_confirmed_at being unset during the initial Auth insert');
 
+const cloudflareDeployWorkflow=fs.readFileSync('.github/workflows/web-portal-deploy.yml','utf8');
+const apkReleaseWorkflow=fs.readFileSync('.github/workflows/website-apk-release.yml','utf8');
+assert(cloudflareDeployWorkflow.includes("if: github.ref == 'refs/heads/main'"),'Production Cloudflare deployment must be restricted to the main branch even for manual dispatch');
+assert(apkReleaseWorkflow.includes("if: github.ref == 'refs/heads/main'"),'APK release publication must be restricted to the main branch even for manual dispatch');
+
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
   'x-content-type-options: nosniff',
