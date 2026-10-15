@@ -70,7 +70,7 @@ BEGIN
           timeout_milliseconds := 10000
         );
       END IF;
-    END
+    END;
     $monitor$;
     $job$
   );
@@ -78,5 +78,5 @@ BEGIN
   IF v_job_id IS NULL THEN
     RAISE EXCEPTION 'Unable to schedule the guarded AegisPay deposit monitor';
   END IF;
-END
+END;
 $migration$;
