@@ -2001,12 +2001,12 @@ async function openAegisSupport(){
     const panel=root.querySelector('#aiMessages');
     if(!panel)throw Error('AI Assistant screen rendered without its message panel.');
     aiLoadHistory();
+    restoreAiLivePrefs();
     aiRender();
     bindAiBot();
     const input=root.querySelector('#aiInput');
     if(input)input.focus();
-    const status=root.querySelector('#aiOnline');
-    if(status)status.textContent='● Ready to help';
+    startAiLiveSupportPolling();
     return true;
   }catch(error){
     const detail=String(error&&error.message||error||'Unknown rendering error').slice(0,180);
