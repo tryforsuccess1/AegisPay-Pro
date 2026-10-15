@@ -1,0 +1,55 @@
+name: AegisPay Manual Balance Adjustment Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/**'
+      - 'scripts/sql-tests/admin_balance_adjustment_*.sql'
+      - '.github/workflows/admin-balance-adjustment-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/**'
+      - 'scripts/sql-tests/admin_balance_adjustment_*.sql'
+      - '.github/workflows/admin-balance-adjustment-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  balance-adjustment:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL is ready
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create disposable adjustment fixture
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/admin_balance_adjustment_fixture.sql
+      - name: Apply balance reversal safety migration to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016130000_guard_manual_balance_reversals.sql
+      - name: Verify balance, reversal, holds, authorization and ledger invariants
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/admin_balance_adjustment_assertions.sql

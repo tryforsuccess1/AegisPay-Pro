@@ -3,15 +3,21 @@ name: AegisPay Withdrawal Migration Tests
 on:
   pull_request:
     paths:
-      - 'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql'
-      - 'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql'
+      - 'database/migrations/**'
+      - 'supabase/functions/execute-payout/index.ts'
+      - 'supabase/functions/telegram-withdrawal/index.ts'
+      - 'supabase/functions/withdrawal-ai-review/index.ts'
+      - 'scripts/validate-static.js'
       - 'scripts/sql-tests/withdrawal_migration_*.sql'
       - '.github/workflows/withdrawal-migration-tests.yml'
   push:
     branches: [main]
     paths:
-      - 'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql'
-      - 'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql'
+      - 'database/migrations/**'
+      - 'supabase/functions/execute-payout/index.ts'
+      - 'supabase/functions/telegram-withdrawal/index.ts'
+      - 'supabase/functions/withdrawal-ai-review/index.ts'
+      - 'scripts/validate-static.js'
       - 'scripts/sql-tests/withdrawal_migration_*.sql'
       - '.github/workflows/withdrawal-migration-tests.yml'
   workflow_dispatch:
