@@ -61,10 +61,6 @@ Deno.serve(async (req: Request) => {
       .select("value_json").eq("key", "deposit_rules").maybeSingle();
     const rules = settingsRow?.value_json || {};
     const network = String(rules.network || "").toUpperCase();
-    const receiving = String(rules.receiving_address || "").trim();
-    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) {
-      return json({ error: "A valid TRON receiving address is not configured." }, 503);
-    }
 
     let baseUrl = "";
     let contract = "";
@@ -119,9 +115,19 @@ Deno.serve(async (req: Request) => {
     } else {
       return json({ error: "Select a supported TRON network in deposit settings." }, 503);
     }
-    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(contract)) {
-      return json({ error: "A valid TRC-20 token contract is not configured." }, 503);
-    }
+    let receiving = String(deposit.receiving_address || "").trim();
+    if (deposit.deposit_wallet_id) {
+      const { data: assignedWallet, error: assignedWalletError } = await admin.from("deposit_wallets")
+        .select("id,address,network,token_contract").eq("id", deposit.deposit_wallet_id).eq("user_id", deposit.user_id).maybeSingle();
+      if (assignedWalletError || !assignedWallet || assignedWallet.address !== receiving
+        || String(assignedWallet.network || "").toUpperCase() !== network
+        || String(assignedWallet.token_contract || "") !== contract) {
+        return json({ error: "The deposit recipient does not match the user's recorded HD address. No balance was credited.", code: "DEPOSIT_RECIPIENT_MISMATCH" }, 409);
+      }
+      receiving = assignedWallet.address;
+    } else if (!receiving) receiving = String(rules.receiving_address || "").trim();
+    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) return json({ error: "A valid TRON receiving address is not configured." }, 503);
+    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(contract)) return json({ error: "A valid TRC-20 token contract is not configured." }, 503);
 
     const url = new URL(baseUrl + "/v1/accounts/" + encodeURIComponent(receiving) + "/transactions/trc20");
     url.searchParams.set("only_confirmed", "true");
