@@ -392,12 +392,21 @@ Deno.serve(async (req: Request) => {
       return Boolean(res.ok && body?.ok);
     } catch (_) { return false; }
   }
+  async function listSupportMessages(admin: ReturnType<typeof createClient<any>>, caseId: string) {
+    const { data, error } = await admin.from("ai_support_messages")
+      .select("id,case_id,sender_user_id,sender_role,message_text,created_at")
+      .eq("case_id", caseId).order("created_at", { ascending: true }).order("id", { ascending: true }).limit(250);
+    if (error) throw new Error("Unable to load support conversation.");
+    return data || [];
+  }
+
   async function openSupportCase(admin: ReturnType<typeof createClient<any>>, user: any, profile: any, message: string, answer: string, requestType = "AI_ESCALATION") {
     const subject = message.replace(/\s+/g, " ").trim().slice(0, 120) || "Client requested assistance";
     const { data, error } = await admin.from("ai_support_cases").insert({
       user_id: profile.id, auth_user_id: user.id, category: caseCategory(message),
-      subject, user_message: message.slice(0, 1000), ai_answer: answer.slice(0, 2000), status: "OPEN"
-    }).select("id,category,status,created_at").single();
+      subject, user_message: message.slice(0, 1000), ai_answer: answer.slice(0, 2000), status: "OPEN",
+      representative_requested: requestType === "CUSTOMER_REPRESENTATIVE"
+    }).select("id,category,status,created_at,updated_at,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at").single();
     if (error || !data) throw new Error("Unable to create a Master Admin support case.");
     const notified = await notifySupport(admin, profile, { ...data, user_message: message, requestType });
     await admin.from("audit_events").insert({
@@ -414,13 +423,13 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "message").toLowerCase();
 
-    if (action === "admin_list_cases" || action === "admin_update_case") {
+    if (action === "admin_list_cases" || action === "admin_update_case" || action === "admin_join_live_chat" || action === "admin_live_chat_state" || action === "admin_send_chat_message") {
       if (profile.role !== "MASTER ADMIN" || !["ACTIVE", "NORMAL"].includes(String(profile.status || "").toUpperCase())) {
         return json({ error: "Active Master Admin access required." }, 403);
       }
       if (action === "admin_list_cases") {
         const { data: cases, error } = await admin.from("ai_support_cases")
-          .select("id,user_id,category,subject,user_message,ai_answer,status,resolution,created_at,updated_at,resolved_at")
+          .select("id,user_id,category,subject,user_message,ai_answer,status,resolution,created_at,updated_at,resolved_at,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at")
           .order("created_at", { ascending: false }).limit(150);
         if (error) return json({ error: "Unable to load AI support cases." }, 500);
         const ids = Array.from(new Set((cases || []).map((x: any) => x.user_id).filter(Boolean)));
@@ -430,6 +439,82 @@ Deno.serve(async (req: Request) => {
         return json({ cases: (cases || []).map((x: any) => ({ ...x, user: userMap.get(x.user_id) || null })) });
       }
       const caseId = String(body?.caseId || "");
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(caseId)) return json({ error: "Valid support case ID is required." }, 400);
+
+      if (["admin_join_live_chat", "admin_live_chat_state", "admin_send_chat_message"].includes(action)) {
+        const { data: liveCase, error: liveCaseError } = await admin.from("ai_support_cases")
+          .select("id,user_id,category,subject,status,resolution,representative_requested,representative_joined_at,representative_user_id,updated_at")
+          .eq("id", caseId).maybeSingle();
+        if (liveCaseError) return json({ error: "Unable to load this support conversation." }, 500);
+        if (!liveCase) return json({ error: "Support case not found." }, 404);
+        if (!liveCase.representative_requested) return json({ error: "This case is not a live representative request." }, 409);
+
+        if (action === "admin_live_chat_state") {
+          try { return json({ case: liveCase, messages: await listSupportMessages(admin, caseId) }); }
+          catch (_) { return json({ error: "Unable to load support messages." }, 500); }
+        }
+
+        if (action === "admin_join_live_chat") {
+          if (!["OPEN", "IN_PROGRESS"].includes(String(liveCase.status).toUpperCase())) {
+            return json({ error: "This support conversation is already resolved or closed." }, 409);
+          }
+          if (liveCase.representative_user_id && liveCase.representative_user_id !== profile.id) {
+            return json({ error: "This conversation is already assigned to another representative." }, 409);
+          }
+          let joinedCase = liveCase;
+          if (!liveCase.representative_joined_at) {
+            const now = new Date().toISOString();
+            const { data: changed, error: joinError } = await admin.from("ai_support_cases").update({
+              status: "IN_PROGRESS", representative_joined_at: now,
+              representative_user_id: profile.id, updated_at: now
+            }).eq("id", caseId).is("representative_joined_at", null)
+              .in("status", ["OPEN", "IN_PROGRESS"])
+              .select("id,user_id,category,subject,status,resolution,representative_requested,representative_joined_at,representative_user_id,updated_at").maybeSingle();
+            if (joinError) return json({ error: "Could not join the live conversation." }, 500);
+            if (changed) {
+              joinedCase = changed;
+              const { error: systemMessageError } = await admin.from("ai_support_messages").insert({
+                case_id: caseId, sender_user_id: null, sender_role: "SYSTEM",
+                message_text: "A representative is now live in this chat."
+              });
+              if (systemMessageError) return json({ error: "The conversation joined, but its live notice could not be posted. Please retry." }, 500);
+              await admin.from("audit_events").insert({
+                actor_user_id: profile.id, target_user_id: liveCase.user_id,
+                event_type: "AI_SUPPORT_REPRESENTATIVE_JOINED",
+                description: "A representative joined support conversation " + caseId + ".",
+                reference_id: caseId
+              });
+            } else {
+              const { data: current } = await admin.from("ai_support_cases")
+                .select("id,user_id,category,subject,status,resolution,representative_requested,representative_joined_at,representative_user_id,updated_at")
+                .eq("id", caseId).maybeSingle();
+              if (!current) return json({ error: "Support case not found." }, 404);
+              if (current.representative_user_id && current.representative_user_id !== profile.id) {
+                return json({ error: "This conversation is already assigned to another representative." }, 409);
+              }
+              joinedCase = current;
+            }
+          }
+          try { return json({ ok: true, case: joinedCase, messages: await listSupportMessages(admin, caseId) }); }
+          catch (_) { return json({ error: "The live conversation joined but messages could not be loaded." }, 500); }
+        }
+
+        const chatMessage = String(body?.message || "").trim().slice(0, 2000);
+        if (!chatMessage) return json({ error: "Enter a message before sending." }, 400);
+        if (String(liveCase.status).toUpperCase() !== "IN_PROGRESS" || !liveCase.representative_joined_at) {
+          return json({ error: "Join this live conversation before sending messages." }, 409);
+        }
+        if (liveCase.representative_user_id && liveCase.representative_user_id !== profile.id) {
+          return json({ error: "This conversation is assigned to another representative." }, 403);
+        }
+        const { data: sent, error: sendError } = await admin.from("ai_support_messages").insert({
+          case_id: caseId, sender_user_id: profile.id, sender_role: "REPRESENTATIVE", message_text: chatMessage
+        }).select("id,case_id,sender_user_id,sender_role,message_text,created_at").single();
+        if (sendError || !sent) return json({ error: "Your message could not be sent. Please try again." }, 500);
+        await admin.from("ai_support_cases").update({ updated_at: sent.created_at }).eq("id", caseId);
+        return json({ ok: true, message: sent });
+      }
+
       const status = String(body?.status || "").toUpperCase();
       if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(caseId)) return json({ error: "Valid support case ID is required." }, 400);
       if (!["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"].includes(status)) return json({ error: "Invalid support case status." }, 400);
@@ -439,14 +524,76 @@ Deno.serve(async (req: Request) => {
         status, resolution: resolution || null, updated_at: now,
         resolved_at: ["RESOLVED", "CLOSED"].includes(status) ? now : null,
         resolved_by: ["RESOLVED", "CLOSED"].includes(status) ? profile.id : null
-      }).eq("id", caseId).select("id,status,resolution,updated_at,resolved_at").maybeSingle();
+      }).eq("id", caseId).select("id,status,resolution,updated_at,resolved_at,representative_requested").maybeSingle();
       if (error || !updated) return json({ error: "Support case could not be updated." }, 500);
+      if (updated.representative_requested && ["RESOLVED", "CLOSED"].includes(status)) {
+        await admin.from("ai_support_messages").insert({
+          case_id: caseId, sender_user_id: null, sender_role: "SYSTEM",
+          message_text: status === "RESOLVED" ? "This support conversation has been marked resolved." : "This support conversation has been closed."
+        });
+      }
       await admin.from("audit_events").insert({
         actor_user_id: profile.id, event_type: "AI_SUPPORT_CASE_UPDATED",
         description: "Master Admin updated AI support case " + caseId + " to " + status + ".",
         reference_id: caseId
       });
       return json({ ok: true, case: updated });
+    }
+
+    if (action === "client_live_support_state" || action === "client_send_chat_message") {
+      if (profile.role !== "USER" || !["ACTIVE", "NORMAL"].includes(String(profile.status || "").toUpperCase())) {
+        return json({ error: "An active client account is required to use live support." }, 403);
+      }
+      const caseId = String(body?.caseId || "");
+      let liveCase: any = null;
+      if (caseId) {
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(caseId)) {
+          return json({ error: "Valid support case ID is required." }, 400);
+        }
+        const { data, error } = await admin.from("ai_support_cases")
+          .select("id,user_id,category,subject,status,resolution,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at,created_at,updated_at")
+          .eq("id", caseId).eq("user_id", profile.id).maybeSingle();
+        if (error) return json({ error: "Unable to load your support conversation." }, 500);
+        liveCase = data;
+      } else {
+        const { data, error } = await admin.from("ai_support_cases")
+          .select("id,user_id,category,subject,status,resolution,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at,created_at,updated_at")
+          .eq("user_id", profile.id).eq("representative_requested", true)
+          .in("status", ["OPEN", "IN_PROGRESS"])
+          .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+        if (error) return json({ error: "Unable to check for an active support conversation." }, 500);
+        liveCase = data;
+      }
+      if (!liveCase || !liveCase.representative_requested) return json({ case: null, messages: [] });
+
+      if (!liveCase.conversation_seeded_at) {
+        const firstClientMessage = String(liveCase.user_message || "").trim().slice(0, 2000);
+        const seedRows: any[] = [];
+        if (firstClientMessage) seedRows.push({ case_id: liveCase.id, sender_user_id: profile.id, sender_role: "CLIENT", message_text: firstClientMessage });
+        seedRows.push({ case_id: liveCase.id, sender_user_id: null, sender_role: "SYSTEM", message_text: "Your request has been received. A representative may contact you soon." });
+        const { error: seedError } = await admin.from("ai_support_messages").insert(seedRows);
+        if (seedError) return json({ error: "Your support chat could not be opened. Please retry in a moment." }, 500);
+        const seededAt = new Date().toISOString();
+        await admin.from("ai_support_cases").update({ conversation_seeded_at: seededAt }).eq("id", liveCase.id).is("conversation_seeded_at", null);
+        liveCase.conversation_seeded_at = seededAt;
+      }
+
+      if (action === "client_send_chat_message") {
+        const chatMessage = String(body?.message || "").trim().slice(0, 2000);
+        if (!chatMessage) return json({ error: "Enter a message before sending." }, 400);
+        if (!["OPEN", "IN_PROGRESS"].includes(String(liveCase.status).toUpperCase())) {
+          return json({ error: "This support conversation is already resolved or closed." }, 409);
+        }
+        const { data: sent, error: sendError } = await admin.from("ai_support_messages").insert({
+          case_id: liveCase.id, sender_user_id: profile.id, sender_role: "CLIENT", message_text: chatMessage
+        }).select("id,case_id,sender_user_id,sender_role,message_text,created_at").single();
+        if (sendError || !sent) return json({ error: "Your message could not be sent. Please try again." }, 500);
+        await admin.from("ai_support_cases").update({ updated_at: sent.created_at }).eq("id", liveCase.id);
+        return json({ ok: true, message: sent });
+      }
+
+      try { return json({ case: liveCase, messages: await listSupportMessages(admin, liveCase.id) }); }
+      catch (_) { return json({ error: "Unable to load your support messages." }, 500); }
     }
 
     if (action === "create_support_case") {
@@ -463,7 +610,7 @@ Deno.serve(async (req: Request) => {
       const transcript = history.map((x: any) => (x.role === "user" ? "Client: " : "Aegis AI: ") + x.content).join("\n").slice(-1600);
       const category = caseCategory(message);
       const { data: activeCase, error: activeCaseError } = await admin.from("ai_support_cases")
-        .select("id,user_id,auth_user_id,category,subject,user_message,ai_answer,status,created_at")
+        .select("id,user_id,auth_user_id,category,subject,user_message,ai_answer,status,created_at,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at")
         .eq("user_id", profile.id).in("status", ["OPEN", "IN_PROGRESS"])
         .order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (activeCaseError) return json({ error: "Unable to check your existing support requests." }, 500);
@@ -482,7 +629,8 @@ Deno.serve(async (req: Request) => {
         const { data: updated, error } = await admin.from("ai_support_cases").update({
           subject: message.replace(/\s+/g, " ").trim().slice(0, 120) || activeCase.subject,
           category, user_message: updatedMessage, ai_answer: updatedTranscript, updated_at: now,
-        }).eq("id", activeCase.id).select("id,category,status,created_at,updated_at").single();
+          representative_requested: true
+        }).eq("id", activeCase.id).select("id,category,status,created_at,updated_at,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at").single();
         if (error || !updated) return json({ error: "Your existing support request could not be updated." }, 500);
         const notified = await notifySupport(admin, profile, { ...updated, user_message: updatedMessage, requestType: "CUSTOMER_REPRESENTATIVE" });
         await admin.from("audit_events").insert({
@@ -494,6 +642,26 @@ Deno.serve(async (req: Request) => {
       } else {
         supportCase = await openSupportCase(admin, { id: profile.auth_user_id }, profile, message,
           "Client requested a customer representative. Recent conversation:\n" + transcript, "CUSTOMER_REPRESENTATIVE");
+      }
+      const { data: seedCase, error: seedCaseError } = await admin.from("ai_support_cases")
+        .select("id,conversation_seeded_at,user_message").eq("id", supportCase.id).single();
+      if (seedCaseError || !seedCase) return json({ error: "Your support request was created, but its chat could not be opened. Please retry." }, 500);
+      if (!seedCase.conversation_seeded_at) {
+        const seedRows = history.map((item: any) => ({
+          case_id: supportCase.id,
+          sender_user_id: item.role === "user" ? profile.id : null,
+          sender_role: item.role === "user" ? "CLIENT" : "AI",
+          message_text: String(item.content || "").trim().slice(0, 2000)
+        })).filter((item: any) => item.message_text);
+        const latestUserMessage = String(seedCase.user_message || message).trim().slice(0, 2000);
+        if (!seedRows.some((item: any) => item.sender_role === "CLIENT" && item.message_text === latestUserMessage)) {
+          seedRows.push({ case_id: supportCase.id, sender_user_id: profile.id, sender_role: "CLIENT", message_text: latestUserMessage });
+        }
+        seedRows.push({ case_id: supportCase.id, sender_user_id: null, sender_role: "SYSTEM", message_text: "Your request has been received. A representative may contact you soon." });
+        const { error: seedMessagesError } = await admin.from("ai_support_messages").insert(seedRows);
+        if (seedMessagesError) return json({ error: "Your request was received, but the live chat could not be prepared. Please retry in a moment." }, 500);
+        const seededAt = new Date().toISOString();
+        await admin.from("ai_support_cases").update({ conversation_seeded_at: seededAt }).eq("id", supportCase.id).is("conversation_seeded_at", null);
       }
       return json({ ok: true, answer: "A representative may contact you soon.", supportCase });
     }
