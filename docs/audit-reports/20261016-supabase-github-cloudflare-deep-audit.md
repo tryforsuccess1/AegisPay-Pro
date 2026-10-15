@@ -10,7 +10,7 @@
 
 AegisPay has a substantial deployed application/backend foundation, but a successful build is not the same as a production-ready financial system. This audit inspected the live Supabase configuration and logs, current database permissions/advisors, deployed Edge Functions, GitHub branch/workflow state, and Cloudflare Pages/Worker deployment metadata.
 
-**Overall outcome:** Several important controls are already present and tested. Four actionable improvements were prepared in the isolated audit branch/PR #41. No audit change was merged or deployed; live payment switches and balances were not altered.
+**Overall outcome:** Several important controls are already present and tested. Five core fixes and their regression tests are prepared in isolated PR #41. The auth redirect migration is intentionally deferred until the Supabase Auth allowlist can be verified. No audit change has been merged or deployed; live payment switches and balances have not been altered.
 
 ### Main conclusions
 
@@ -19,8 +19,8 @@ AegisPay has a substantial deployed application/backend foundation, but a succes
 - Supabase Auth leaked-password protection is **disabled** and should be enabled before production launch.
 - Supabase Security Advisor still reports 14 authenticated-callable `SECURITY DEFINER` routines. These are review findings, not 14 proven exploitable bugs; access must be reviewed routine by routine.
 - The live Mainnet payment posture is safely locked in `PRE_PRODUCTION`: live deposits false, real payouts false, go-live approval false, payout lock true.
-- The deposit monitor cron job is scheduled every minute even while all payment gates are closed. Logs showed 1,099 monitor calls returning HTTP 403 on 15 October UTC. That is consistent with the intended gate, but creates avoidable repeated requests. A guarded cron migration and disposable tests are in PR #41.
-- Auth emails were pointing to a legacy Worker UI while the canonical Pages UI had a newer deployment. Source redirects are corrected in PR #41; the Supabase Auth redirect allowlist must still be confirmed before merge/deploy.
+- The deposit monitor cron job is scheduled every minute even while all payment gates are closed. Logs showed 1,260 monitor calls returning HTTP 403 on 15 October UTC. That is consistent with the intended gate, but creates avoidable repeated requests. A guarded cron migration and disposable tests are in PR #41.
+- Signup and reset emails currently use the legacy Worker redirect. The canonical Pages redirect migration is deferred because the connected account tools cannot read the live Supabase Auth allowlist.
 - GitHub web deployment and APK-release workflows accepted manual dispatch without a branch guard. PR #41 restricts those jobs to `main` and adds static regression checks.
 - There are no deposit submission records in the live DB, so a real deposit-to-credit-to-treasury-to-withdrawal journey is not proven by live evidence.
 - Per-user HD deposit wallets and automatic treasury sweeping are not yet live. PR #40 remains a separate draft.
@@ -51,10 +51,10 @@ Supabase Security Advisor reports that compromised-password checks are disabled.
 Security Advisor reports 14 routines executable by `authenticated`. Some are intentional client RPCs and already enforce role/status checks (for example, the production configuration RPC checks for an active Master Admin). Do not blindly revoke execution, as that could break legitimate app flows. Review each routine's body, ownership checks, grants and caller intent; tighten only functions that should be service-role-only or Master-Admin-only. Re-run Security Advisor after changes.
 
 **Informational — `ai_support_messages` has RLS but no policies.**  
-The migration explicitly revokes all table grants from `PUBLIC`, `anon` and `authenticated`, while granting access to `service_role`. Live table grants confirm that client roles do not have access. This appears intentional for service-role-only chat storage; do not add a permissive policy merely to silence the warning.
+PR #41 adds an explicit deny-all policy for `anon` and `authenticated` and revokes their direct table privileges. Its disposable regression tests confirm client roles have no direct access while preserving service-role access used by the `ai-support` Edge Function.
 
 **S1 — Deposit cron creates repeated paused requests.**  
-The active `aegispay-mainnet-deposit-monitor` job calls `monitor-deposits` every minute through `pg_net` and reads its secret from Supabase Vault. On 15 October UTC, 1,099 logged requests returned 403 from the monitor endpoint. Current function code returns 403 while Mainnet payout/deposit readiness is not approved. That is fail-closed behavior, not evidence of money movement, but cron requests should be suppressed while the known gates are closed.
+The active `aegispay-mainnet-deposit-monitor` job calls `monitor-deposits` every minute through `pg_net` and reads its secret from Supabase Vault. On 15 October UTC, 1,260 logged requests returned 403 from the monitor endpoint. Current function code returns 403 while Mainnet payout/deposit readiness is not approved. That is fail-closed behavior, not evidence of money movement, but cron requests should be suppressed while the known gates are closed.
 
 **Financial evidence is incomplete.**  
 Current DB snapshot: 0 deposit submissions, 1 withdrawal request, 0 completed/paid withdrawals, 1 KYC record, 1 AI support case and 0 AI support messages. Therefore no live evidence establishes deposit verification, exactly-once ledger credit, treasury sweep, or completed payout end-to-end.
@@ -97,12 +97,8 @@ Source `app-version.json` states Build 42 / v2.6.3 with `releaseChannel: test`. 
 
 ### Findings / fixes prepared in PR #41
 
-**S1 — Auth redirects pointed at the legacy Worker UI.**  
-The canonical client and shared auth helper sent password-reset links to `aegispay-web.aegispay.workers.dev/?reset=1`, while the deployed signup Edge Function used that Worker for verification links. The Pages production UI had a newer deployment. PR #41 changes the source redirects to:
-- `https://aegispay-pro.pages.dev/app/?verified=1`
-- `https://aegispay-pro.pages.dev/app/?reset=1`
-
-The client already handles these marker parameters. This source fix has not been deployed. Before merging, confirm Supabase Auth's allowed redirect URL list accepts the canonical Pages callback paths. That exact live allowlist could not be verified with the available Supabase tooling. The current GitHub workflow directory contains no Supabase Edge Function deployment workflow; therefore, changing the `public-signup` source file will not update the already deployed Edge Function just by publishing Cloudflare Pages. Deploy the reviewed Edge Function separately through the approved Supabase process and verify its deployed version.
+**S1 — Auth redirect migration is deferred.**  
+The current client, shared auth helper and deployed `public-signup` Edge Function retain `aegispay-web.aegispay.workers.dev` destinations. PR #41 deliberately preserves that behavior so verification/recovery links are not changed before `https://aegispay-pro.pages.dev/app/**` is confirmed in the live Supabase Auth allowlist. The connected tools cannot read that exact setting. After it is confirmed, update client and shared auth helper redirects, deploy the matching `public-signup` Edge Function separately (Cloudflare Pages does not deploy Supabase functions), then verify the deployed function version and a real email-link journey.
 
 **Legacy Worker retirement is not yet recommended.**  
 Do not disable `aegispay-web`, `aegispay-aurora` or `aegispay-aurora-v2` based only on age. First review traffic/route usage and ensure there are no old APKs, saved links or callbacks depending on them. Once zero usage is confirmed, retire or redirect them through a separately approved change.
@@ -113,10 +109,10 @@ PR: https://github.com/tryforsuccess1/AegisPay-Pro/pull/41
 
 1. Add a forward-only migration that suppresses deposit-monitor cron HTTP requests when broad Mainnet/deposit/payout gates are closed. Existing Edge Function checks remain authoritative when the gates are open.
 2. Add disposable SQL fixtures for cron, Vault and pg_net plus assertions for closed-gate suppression, dispatch when test gates are open, Vault secret lookup, and skip behavior after a gate closes. These tests do not call the real network.
-3. Route signup verification and password recovery to the canonical Pages UI.
-4. Broaden deposit and withdrawal migration-test workflow path filters.
-5. Restrict manual production web deployment and APK publication to `main`.
-6. Add static regression assertions for canonical auth redirects and workflow branch guards.
+3. Harden Master Admin manual balance adjustments so reversals cannot exceed remaining manual credit or unreserved available balance, and invalid/non-finite inputs fail closed.
+4. Make the service-role-only `ai_support_messages` access posture explicit, with disposable regression tests.
+5. Broaden deposit and withdrawal migration-test workflow path filters and restrict production web deployment/APK publication jobs to `main`.
+6. Keep auth redirect code unchanged and add static regression assertions that guard this deferral until the Supabase Auth allowlist is confirmed.
 
 ### Automated test result at latest reviewed commit
 
@@ -153,7 +149,7 @@ At audit time, production remains in `PRE_PRODUCTION`, live deposits are disable
 - No live Auth configuration changed.
 - No deposit/payout flags unlocked.
 - No funds moved.
-- PR #41 remains draft/open and is not merged.
+- PR #41 is open and marked ready for review; it has not been merged.
 
 ## 6. Audit limitations
 
