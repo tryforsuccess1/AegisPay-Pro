@@ -17,7 +17,7 @@ AegisPay has a substantial deployed application/backend foundation, but a succes
 - Supabase is reporting **ACTIVE_HEALTHY**. All 18 inspected public tables have RLS enabled; the audit found no public table with RLS disabled and no public `SECURITY DEFINER` function with an unpinned `search_path`.
 - The private KYC/verification Storage bucket exists and the inspected policies scope user uploads/deletes to that user's folder. Master Admin read access is explicit.
 - Supabase Auth leaked-password protection is **disabled** and should be enabled before production launch.
-- Supabase Security Advisor still reports 14 authenticated-callable `SECURITY DEFINER` routines. These are review findings, not 14 proven exploitable bugs; access must be reviewed routine by routine.
+- Supabase Security Advisor still reports 14 authenticated-callable `SECURITY DEFINER` routines. A live ACL/source triage of all 14 is now documented below: `anon` has no `EXECUTE` on these routines, while `authenticated` does. No direct privilege-escalation flaw was confirmed in this source review; the advisor warning remains because these intentionally exposed RPCs execute with definer privileges. Controlled runtime negative tests for a real authenticated USER versus MASTER ADMIN session remain pre-launch work.
 - The live Mainnet payment posture is safely locked in `PRE_PRODUCTION`: live deposits false, real payouts false, go-live approval false, payout lock true.
 - Before the audit fix, the deposit monitor cron job called the function every minute even while all payment gates were closed; logs showed about 1,260 HTTP 403 responses on 15 October UTC. The guarded cron migration is now applied. Its stored command was verified to contain the gate-conditional block; post-change logs should be checked again to quantify the reduction.
 - Signup and reset emails currently use the legacy Worker redirect. The canonical Pages redirect migration is deferred because the connected account tools cannot read the live Supabase Auth allowlist.
@@ -47,8 +47,27 @@ AegisPay has a substantial deployed application/backend foundation, but a succes
 **S1 — Leaked-password protection disabled (production prerequisite).**  
 Supabase Security Advisor reports that compromised-password checks are disabled. Enable the feature in Supabase Auth, then test signup and password reset with both known-compromised and clean test passwords. Do not treat a UI setting change alone as complete; run a regression test afterward.
 
-**S1 — Authenticated-callable SECURITY DEFINER functions require review.**  
-Security Advisor reports 14 routines executable by `authenticated`. Some are intentional client RPCs and already enforce role/status checks (for example, the production configuration RPC checks for an active Master Admin). Do not blindly revoke execution, as that could break legitimate app flows. Review each routine's body, ownership checks, grants and caller intent; tighten only functions that should be service-role-only or Master-Admin-only. Re-run Security Advisor after changes.
+**S1 — Authenticated-callable SECURITY DEFINER routines: source/ACL triage completed; advisor warning remains.**  
+A live privilege query confirmed the 14 advisor-listed routines are executable by `authenticated` but not by `anon`. Source-level checks were reviewed for each routine. The elevated execution context is intentionally needed by several client RPCs; no broad grant revocation was made because that could break valid flows. The advisor finding itself remains until the functions are redesigned to avoid definer privileges or the remaining role-negative runtime tests and caller review are completed.
+
+| RPC | Source-level guard reviewed |
+|---|---|
+| `ai_activate_tier(p_tier_id)` | Uses `auth.uid()`; resolves only the caller's profile; requires USER role, active status, unfrozen account, valid enabled tier and sufficient available balance; locks the profile row. User update also encounters the runtime-guard trigger. |
+| `ai_update_display_name(p_name)` | Uses `auth.uid()`; updates only the caller's USER profile, rejects blocked/suspended/deleted profiles and validates display-name length. |
+| `claim_aegispay_profile()` | Requires authenticated, email-confirmed account; checks runtime and invite/approval metadata; claims only an unlinked profile matching the Auth email. |
+| `complete_shop_task(p_task_id)` | Derives caller profile, restricts task/cycle to that user, checks USER role/status/frozen/runtime/purchase-confirmation, locks relevant rows, and writes debit/ledger changes transactionally. |
+| `current_app_role()` | Returns a role only for the profile whose `auth_user_id` equals `auth.uid()` and whose status is active/normal. |
+| `current_app_user_id()` | Returns only the profile ID linked to `auth.uid()`; it accepts no caller-supplied identity. |
+| `finalize_withdrawal(p_request_id,p_approve)` | Resolves actor through the identity helpers; requires an active MASTER ADMIN, locks the pending withdrawal row, guards prior debit/payout attempts, and enforces the two-approval/ledger workflow. |
+| `get_production_readiness()` | Requires an authenticated active MASTER ADMIN before returning production configuration/readiness information. |
+| `link_withdrawal_wallet(p_address,p_owner_name)` | Uses `auth.uid()`; locks and updates only that caller's USER profile; checks frozen status, one-time wallet binding, TRON address validity and owner-name match. |
+| `master_admin_adjust_balance(...)` | Requires active MASTER ADMIN; validates finite positive amount and adjustment type; locks target row; REVERSAL cannot exceed remaining manual credit or unreserved balance; writes adjustment and ledger entries atomically. |
+| `record_shop_task_purchase(p_task_id,p_product_id)` | Restricts changes to caller-owned task/cycle; checks USER status, frozen/runtime gates, expected product and task state under row locks. |
+| `request_withdrawal(p_amount)` | Requires authenticated active USER and runtime enabled; checks freeze, valid bound wallet, verified KYC, minimum amount, pending reservations and available balance under a row lock. |
+| `set_my_language(p_language)` | Requires authentication, limits language to `en`/`ur` and updates only the profile linked to the caller. |
+| `set_production_config(...)` | Requires an active MASTER ADMIN; validates environment, Mainnet/token/address configuration, runtime/payout gates, lock state and unreconciled payout count before changing settings. |
+
+This is code/permission review, not a penetration test. The remaining proof is to exercise negative and positive calls using separate authenticated USER and MASTER ADMIN test sessions and verify expected outcomes without unlocking live payments.
 
 **Informational — `ai_support_messages` has RLS but no policies.**  
 PR #41 added an explicit restrictive deny-all policy for `anon` and `authenticated`, revoked direct client privileges and preserved `service_role` access. This migration has been applied. Post-apply verification confirmed the policy is `RESTRICTIVE`, its `USING`/`WITH CHECK` are both `false`, client roles have no direct SELECT/INSERT/UPDATE/DELETE rights, and `service_role` retains access.
@@ -128,7 +147,7 @@ These checks passed on audit-branch SHA `443efc17411e28751a88fd68f2b6865ebd37ce9
 ## 4. Remaining blockers before production
 
 **Must complete before financial launch**
-1. Complete a documented function-by-function review of authenticated `SECURITY DEFINER` routines; do not blindly revoke intentionally used client RPCs.
+1. Run controlled runtime negative/positive authorization tests for the 14 RPCs with separate authenticated USER and MASTER ADMIN test sessions. Source/ACL triage is complete; runtime tests must prove unauthorized calls fail before financial/account settings change.
 2. Confirm the canonical Pages verification/reset URLs are allowed in Supabase Auth before changing the current Worker redirects.
 3. Finish row-by-row migration history/source reconciliation and run a clean fresh-database bootstrap. This follow-up PR aligns the three newly applied audit migration versions but does not resolve all older historical differences.
 4. Enable and test Supabase Auth leaked-password protection after confirming the account-level setting in the dashboard.
