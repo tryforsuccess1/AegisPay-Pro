@@ -34,6 +34,7 @@ const must=[
   'database/migrations/20261014120000_revoke_trigger_only_function_execute.sql',
   'database/migrations/20261014150000_google_oauth_profile_linking.sql',
   'database/migrations/20261014174000_fix_google_oauth_username_generation.sql',
+  'database/migrations/20261015_ai_support_live_chat.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   '.github/workflows/sql-migration-tests.yml',
@@ -119,6 +120,8 @@ assert(client.includes('id="aiOnline"')&&client.includes('Sign-in required')&&cl
 assert(client.includes('id="aiRepresentative"')&&client.includes('Talk to a Customer Representative'),'Client must offer an explicit customer representative escalation path');
 assert(client.includes("action:'create_support_case'")&&client.includes('awaitingRepresentativeIssue')&&client.includes('submitRepresentativeRequest'),'Client must submit prior chat context or ask for issue details before creating a support case');
 assert(client.includes('class="ai-input-shell"'),'AI input must use a dedicated, evenly framed pink shell (layout geometry is checked in Playwright)');
+assert(client.includes('function refreshAiLiveSupportState')&&client.includes('function sendLiveSupportMessage')&&client.includes('client_live_support_state')&&client.includes('client_send_chat_message'),'Client must poll and send messages in the shared representative conversation');
+assert(client.includes('A representative is now live in this chat.')&&client.includes('Message your representative...'),'Client must visibly show representative presence and switch the composer to live chat');
 assert(client.includes('A representative may contact you soon.')&&client.includes('function safeAiDisplayText'),'Client must use the approved representative message and sanitize prior AI history');
 assert(!client.includes('Telegram notification sent to Master Admin.')&&!client.includes('Saved in the Master Admin queue; Telegram delivery was not confirmed.'),'Client support status must not expose internal routing details');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
@@ -148,6 +151,9 @@ assert(aiSupportSource.includes('Action required: Please contact this client and
 assert(aiSupportSource.includes('function sanitizeClientAnswer')&&aiSupportSource.includes('answer: "A representative may contact you soon."'),'Server must sanitize AI replies and use the approved representative confirmation');
 assert(aiSupportSource.includes('Never mention internal roles, routing queues, notification platforms or internal support tools to the client.'),'AI prompt must keep internal routing details private');
 assert(aiSupportSource.includes('action === "admin_update_case"')&&aiSupportSource.includes('status, resolution: resolution || null'),'Support cases must continue to support Master Admin resolution and resolution notes');
+assert(aiSupportSource.includes('action === "admin_join_live_chat"')&&aiSupportSource.includes('action === "admin_live_chat_state"')&&aiSupportSource.includes('action === "admin_send_chat_message"'),'AI support Edge Function must authenticate Admin join, message load and reply actions');
+assert(aiSupportSource.includes('action === "client_live_support_state"')&&aiSupportSource.includes('action === "client_send_chat_message"'),'AI support Edge Function must scope live-chat reads and sends to the requesting client');
+assert(aiSupportSource.includes('A representative is now live in this chat.')&&aiSupportSource.includes('sender_role: "REPRESENTATIVE"'),'Joining a chat must post a visible system notification and save representative replies');
 for(const name of requiredClientInvokes) assert(client.includes("db.functions.invoke('"+name+"'"),'Client Edge Function wiring is missing for '+name);
 assert(client.includes('Interaction and accessibility polish: consistent tap targets and keyboard focus'),'Client accessibility sizing styles are missing');
 assert(client.includes('.btn{min-height:46px;'),'Primary buttons must have a consistent minimum height');
@@ -219,6 +225,7 @@ const admin=fs.readFileSync('master-admin.html','utf8');
 assert(admin.includes('./admin-auth.js')&&!admin.includes('aegis-core.js')&&!admin.includes('app.js'),'Admin entry wiring incomplete');
 
 const adminAuth=fs.readFileSync('admin-auth.js','utf8');
+assert(adminAuth.includes('support-chat-open')&&adminAuth.includes('support-chat-send')&&adminAuth.includes('Start Live Chat')&&adminAuth.includes('pollActiveSupportChat'),'Master Admin portal must start, render and poll the shared live support conversation');
 const productionReadinessFunction=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
 assert(adminAuth.includes('Production Readiness')&&adminAuth.includes('aaProductionForm')&&adminAuth.includes("invokeFunction('production-readiness'")&&adminAuth.includes('get_production_readiness'),'Phase 3 Master Admin readiness controls are missing');
 assert(productionReadinessFunction.includes('rpc("set_production_config"'),'Phase 3 production settings must be saved through the protected readiness function');
