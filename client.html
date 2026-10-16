@@ -1264,9 +1264,11 @@ async function liveActivity(){
  const credited=ledger.filter(x=>Number(x.amount)>0).reduce((n,x)=>n+Number(x.amount),0);
  const debited=ledger.filter(x=>Number(x.amount)<0).reduce((n,x)=>n+Math.abs(Number(x.amount)),0);
  const events=ledger.map(x=>{
+  const entryType=String(x.entry_type||'').toUpperCase();
+  const adminCredit=Number(x.amount)>0&&(entryType==='MASTER_ADMIN_CREDIT'||/master\s+admin\s+credit/i.test(String(x.description||'')));
   const kind=String((x.description||'')+' '+(x.entry_type||'')).toLowerCase();
-  const filter=/withdraw|payout/.test(kind)?'wd':/deposit|top.?up|funding|txid/.test(kind)?'dep':/settle|cycle credit/.test(kind)?'settle':/task|purchase/.test(kind)?'task':/referral/.test(kind)?'ref':'all';
-  return {label:x.description||x.entry_type||'Account activity',date:x.created_at,amount:Number(x.amount||0),status:x.entry_type||'',filter};
+  const filter=adminCredit?'dep':/withdraw|payout/.test(kind)?'wd':/deposit|top.?up|funding|txid/.test(kind)?'dep':/settle|cycle credit/.test(kind)?'settle':/task|purchase/.test(kind)?'task':/referral/.test(kind)?'ref':'all';
+  return {label:adminCredit?'Deposit':x.description||x.entry_type||'Account activity',date:x.created_at,amount:Number(x.amount||0),status:adminCredit?'':x.entry_type||'',filter};
  });
  withdrawals.forEach(w=>{
   const already=events.some(x=>x.filter==='wd'&&Math.abs(x.amount)===Math.abs(Number(w.amount||0))&&Math.abs(new Date(x.date).getTime()-new Date(w.created_at).getTime())<120000);

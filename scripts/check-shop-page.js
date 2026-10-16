@@ -14,6 +14,10 @@ const categories = Array.from(html.matchAll(/\{k:'([^']+)',e:'[^']+',items:\[([\
 assert.equal(categories.length, 7, 'Shop should define seven categories.');
 for (const match of categories) assert.equal((match[2].match(/'[^']*'/g) || []).length, 30, match[1] + ' should have 30 products.');
 assert.match(html, /dataset\.shopReady\s*=\s*'true'/);
+assert.match(html, /fallbackPhoto/, 'Every generated Shop item must keep a local fallback image');
+assert.match(html, /data-product-id=/, 'Rendered product images must be traceable to their local fallback');
+assert.match(html, /dataset\.localFallback/, 'Failed direct and proxied product images must fall back to local artwork');
+assert.match(html, /image unavailable/, 'Shop must have a final visible fallback instead of a broken image tile');
 assert.match(html, /location\.replace\(safeReturn\.toString\(\)\)/);
 assert.match(worker, /source:\s*"tryforsuccess1\/AegisPay-Pro"/);
 console.log('Shop page checks passed: inline JavaScript parses; 7 categories × 30 products; safe return wiring is present.');
