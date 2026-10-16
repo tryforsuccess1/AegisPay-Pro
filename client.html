@@ -1585,7 +1585,7 @@ function bindAuthForms(){
       try{
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Please enter a valid registered email address.');
         const r=await db.auth.resetPasswordForEmail(email,{
-          redirectTo:'https://aegispay-web.aegispay.workers.dev/?reset=1'
+          redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1'
         });
         if(r.error)throw r.error;
         uiNotice('If an account exists for this email, a password reset link has been sent. Please check your Gmail and Spam folder.','success');
@@ -2027,7 +2027,7 @@ window.openAegisSupport=openAegisSupport;
 
 window.__aegisDataGoBound=true;document.addEventListener('click',function(e){const el=e.target.closest('[data-go]');if(!el||el.hasAttribute('onclick'))return;const route=el.getAttribute('data-go');if(route){e.preventDefault();window.go(route)}});
 window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return await openAegisSupport();if(id==='home')return liveHome();if(id==='topup'||id==='deposit')return liveTopup();if(id==='vip')return liveVip();if(id==='kyc')return liveKyc();if(id==='withdraw')return liveWithdraw();if(id==='referral'||id==='refs')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account'||id==='profile')return liveAccount();if(id==='notifications'||id==='notes')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
-async function bootLive(){try{const qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,''));
+async function bootLive(){let qs;try{qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,'').replace(/^\?/,''));
 if(qs.get('shop_purchase')==='confirmed'){
   const shopTaskId=String(qs.get('task')||'').trim();
   const shopProductId=String(qs.get('product')||'').trim();
@@ -2051,6 +2051,17 @@ if(qs.get('shop_purchase')==='confirmed'){
 
 // Email verification does not need a persistent recovery session; it only confirms the address and returns the client to sign-in.
 if(qs.get('verified')==='1'){window.__emailVerified=true;history.replaceState({},document.title,location.pathname);await db.auth.signOut();window.go('login');return}
+// Show actionable feedback when Supabase rejects a recovery link before issuing a session.
+const recoveryErrorCode=hashParams.get('error_code')||qs.get('error_code')||'';
+if(qs.get('reset')==='1'&&(recoveryErrorCode||hashParams.has('error')||qs.has('error'))){
+  history.replaceState({},document.title,location.pathname);
+  window.go('login');
+  const recoveryErrorMessage=recoveryErrorCode==='otp_expired'
+    ? 'This password reset link has expired or has already been used. Please request a new reset link and open the newest email once.'
+    : 'This password reset link could not be verified. Please request a new reset link and open the latest email once.';
+  setTimeout(()=>uiNotice(recoveryErrorMessage,'error'),0);
+  return;
+}
 // Password recovery supports both Supabase PKCE (?code=...) and implicit (#access_token...&type=recovery) return formats.
 if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || hashParams.get('type')==='recovery'){
   const code=qs.get('code');
@@ -2066,7 +2077,7 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
     }
   }
   const sessionCheck=await db.auth.getSession();
-  if(!sessionCheck.data.session)throw Error('This password reset link is invalid or expired. Please request a new reset link.');
+  if(!sessionCheck.data.session){history.replaceState({},document.title,location.pathname);window.go('login');setTimeout(()=>uiNotice('This password reset link is invalid or expired. Please request a new reset link and open the newest email once.','error'),0);return;}
   window.go('reset');
   setTimeout(()=>{
     const f=document.getElementById('resetForm');
@@ -2091,7 +2102,7 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
   return;
 }
 if(qs.get('auth-preview')==='1'){window.go((qs.get('signup')==='1'||referralLinkCode)?'signup':'login');return}
-const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}recordClientAccess('APP_OPEN');return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login')}}
+const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}recordClientAccess('APP_OPEN');return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login');if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0)}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
 (function(){
