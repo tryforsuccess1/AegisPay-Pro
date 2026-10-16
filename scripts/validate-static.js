@@ -216,9 +216,9 @@ assert(client.includes('resetPasswordForEmail'),'Client password reset request i
 assert(client.includes("reset=1"),'Client password reset redirect marker is missing');
 assert(client.includes('exchangeCodeForSession'),'PKCE password reset handling is missing');
 assert(client.includes("setSession({access_token:accessToken,refresh_token:refreshToken})"),'Implicit password recovery token handling is missing');
-assert(client.includes("https://aegispay-web.aegispay.workers.dev/?reset=1"),'Password reset must retain the current Worker destination until the Pages URL is approved in Supabase Auth');
-assert(client.includes("https://aegispay-web.aegispay.workers.dev/?verified=1"),'Signup verification and resend links must retain the current Worker destination until the Pages URL is approved in Supabase Auth');
-assert(client.includes('https://aegispay-web.aegispay.workers.dev/?reset=1')&&client.includes('https://aegispay-web.aegispay.workers.dev/?verified=1'),'Auth redirect migration must remain deferred until Supabase Auth allowlist is verified');
+assert(client.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Password reset must use the canonical Pages destination approved in Supabase Auth');
+assert(signupRedirectSource.includes("https://aegispay-pro.pages.dev/app/?verified=1"),'Signup verification must use the canonical Pages destination approved in Supabase Auth');
+assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-pro.pages.dev/app/?verified=1'),'Password reset and signup verification must target the canonical Pages app');
 assert(client.includes("db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name})"),'Client wallet-link flow must use the owner-name protected RPC');
 assert(client.includes("complete-cycle-checkout"),'Client Shop checkout endpoint is not wired');
 assert(client.includes("db.rpc('complete_shop_task',{p_task_id:taskId})"),'Client per-task Shop completion RPC is missing');
