@@ -173,7 +173,8 @@ C.slice(1).forEach((c,ci)=>{
     const dis=R()<.55?[10,15,20,25,30][Math.floor(R()*5)]:0;
     const rating=+(4.0+R()*1.0).toFixed(1);
     const rc=Math.floor(35+Math.pow(R(),2)*4200);
-    ITEMS.push({id:ITEMS.length,cat:c.k,name,brand:BRANDS[(bi+ci)%BRANDS.length],price,old:dis?+(price/(1-dis/100)).toFixed(2):0,dis,rating,rc,prime:R()<.78,free:R()<.62,best:rc>2200,photo:productPhoto(name,c.k,ITEMS.length),ord:R()});
+    const fallbackPhoto=productPhoto(name,c.k,ITEMS.length);
+    ITEMS.push({id:ITEMS.length,cat:c.k,name,brand:BRANDS[(bi+ci)%BRANDS.length],price,old:dis?+(price/(1-dis/100)).toFixed(2):0,dis,rating,rc,prime:R()<.78,free:R()<.62,best:rc>2200,photo:fallbackPhoto,fallbackPhoto,ord:R()});
   });
 });
 
@@ -261,7 +262,7 @@ function reviews(p){const base=p.id*8;return UNIQUE_REVIEW_TEMPLATES.map((tpl,j)
 // ---------- UI ----------
 const $=id=>document.getElementById(id);
 const params=new URLSearchParams(location.search);let cat='All',range='All',sort='f',q=(params.get('q')||'').toLowerCase(),shown=12,cart=0,fav=new Set();const taskId=params.get('task')||'',taskProductId=params.get('product')||'',returnRaw=params.get('return')||'';const safeReturn=(()=>{try{const u=new URL(returnRaw);if(u.protocol!=='https:'||u.username||u.password||u.port)return null;const h=u.hostname.toLowerCase();if(['aegispay-web.aegispay.workers.dev','aegispay-pro.pages.dev'].includes(h))return u;if(h==='appassets.androidplatform.net'&&u.pathname==='/assets/aegispay/client.html')return u}catch(_){ }return null})();
-if(taskId&&taskProductId&&q){const rawTitle=params.get('q')||'Assigned Shop Item';const title=rawTitle.replaceAll('<','').replaceAll('>','').slice(0,120);const rawPrice=Number(params.get('price'));const price=Number.isFinite(rawPrice)&&rawPrice>0?rawPrice:7.8;ITEMS.unshift({id:taskProductId,cat:'Laptop Accessories',name:title,brand:'Logitech',price,old:0,dis:0,rating:4.7,rc:1280,prime:false,free:true,best:false,photo:productPhoto(title,'Laptop Accessories',taskProductId),ord:-1,taskAssigned:true});}
+if(taskId&&taskProductId&&q){const rawTitle=params.get('q')||'Assigned Shop Item';const title=rawTitle.replaceAll('<','').replaceAll('>','').slice(0,120);const rawPrice=Number(params.get('price'));const price=Number.isFinite(rawPrice)&&rawPrice>0?rawPrice:7.8;const fallbackPhoto=productPhoto(title,'Laptop Accessories',taskProductId);ITEMS.unshift({id:taskProductId,cat:'Laptop Accessories',name:title,brand:'AegisPay Shop',price,old:0,dis:0,rating:4.7,rc:1280,prime:false,free:true,best:false,photo:fallbackPhoto,fallbackPhoto,ord:-1,taskAssigned:true});}
 const RANGES={All:[0,1e9],'Under $10':[0,10],'$10–$50':[10,50],'$50–$200':[50,200],'$200+':[200,1e9]};
 $('cats').innerHTML=C.map(c=>`<div class="cat ${c.k==cat?'on':''}" data-k="${c.k}"><i>${c.e}</i>${c.k.replace(' & ',' &<br>').replace(', ','<br>')}</div>`).join('');
 $('pills').innerHTML=Object.keys(RANGES).map(r=>`<button class="pill ${r=='All'?'on':''}" data-r="${r}">${r}</button>`).join('');
@@ -271,12 +272,12 @@ function render(){
  const S={f:(a,b)=>a.ord-b.ord,pl:(a,b)=>a.price-b.price,ph:(a,b)=>b.price-a.price,r:(a,b)=>b.rating-a.rating,d:(a,b)=>b.dis-a.dis};L.sort(S[sort]);
  $('cnt').textContent=L.length;$('cn').textContent=cat;
  $('grid').innerHTML=L.slice(0,shown).map(p=>{const [d,c]=p.price.toFixed(2).split('.');
- return `<div class="p"><div class="img"><img loading="lazy" decoding="async" src="${p.photo}" alt="${p.name}">${p.dis?`<span class="tag">-${p.dis}%</span>`:p.best?'<span class="tag bs">Best Seller</span>':''}<button class="hrt ${fav.has(p.id)?'on':''}" data-h="${p.id}">${fav.has(p.id)?'♥':'♡'}</button></div>
+ return `<div class="p"><div class="img"><img data-product-id="${String(p.id).replace(/[^a-zA-Z0-9_-]/g,'')}" loading="lazy" decoding="async" src="${p.photo}" alt="${p.name}">${p.dis?`<span class="tag">-${p.dis}%</span>`:p.best?'<span class="tag bs">Best Seller</span>':''}<button class="hrt ${fav.has(p.id)?'on':''}" data-h="${p.id}">${fav.has(p.id)?'♥':'♡'}</button></div>
  <div class="info"><div class="nm">${p.name}</div><div class="br">${p.brand}</div>
  <div class="rt" data-r="${p.id}"><span class="st">${stars(p.rating)}</span>${p.rating} (${p.rc.toLocaleString()})</div>
  <div class="pr"><b>$${d}<sup>${c}</sup></b>${p.old?`<s>$${p.old}</s>`:''}${p.prime?'<span class="prime">prime</span>':''}</div>
  <div class="dl">${p.free?'FREE Delivery':'Delivery $2.99'}</div><button class="add" data-a="${p.id}">Add to Cart</button></div></div>`}).join('')||'<div class="empty">No items found</div>';
- $('grid').querySelectorAll('.img img').forEach(function(img){img.onerror=function(){if(img.dataset.proxyFallback==='1')return;img.dataset.proxyFallback='1';const original=img.getAttribute('src')||'';if(/^https?:\/\//i.test(original))img.src=location.origin+'/image-proxy?url='+encodeURIComponent(original);};});
+ $('grid').querySelectorAll('.img img').forEach(function(img){img.onerror=function(){const original=img.getAttribute('src')||'';if(/^https?:\/\//i.test(original)&&img.dataset.proxyFallback!=='1'){img.dataset.proxyFallback='1';img.src=location.origin+'/image-proxy?url='+encodeURIComponent(original);return;}if(img.dataset.localFallback!=='1'){img.dataset.localFallback='1';const pid=img.dataset.productId||'';const product=ITEMS.find(function(p){return String(p.id).replace(/[^a-zA-Z0-9_-]/g,'')===pid;});const fallback=product&&(product.fallbackPhoto||productPhoto(product.name,product.cat,product.id));if(fallback&&original!==fallback){img.src=fallback;return;}}img.onerror=null;const placeholder=document.createElement('div');placeholder.className='img-image-fallback';placeholder.setAttribute('role','img');placeholder.setAttribute('aria-label',(img.alt||'Product')+' image unavailable');placeholder.style.cssText='width:100%;height:100%;min-height:180px;display:grid;place-items:center;font-size:48px;background:linear-gradient(135deg,#fff7ed,#f3ebdd);color:#8a7a68';placeholder.textContent='🛍️';if(img.parentNode)img.parentNode.replaceChild(placeholder,img);};});
     $('more').style.display=L.length>shown?'block':'none';
 }
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('show'),1400)}
