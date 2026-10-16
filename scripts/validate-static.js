@@ -108,6 +108,7 @@ assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+assert(client.includes("entryType==='MASTER_ADMIN_CREDIT'")&&client.includes("label:adminCredit?'Deposit':")&&client.includes("status:adminCredit?'':x.entry_type||''")&&client.includes("filter=adminCredit?'dep':"),'Positive admin-issued credits must show only Deposit and belong to the Deposits filter');
 assert(masterAdmin.includes('Interaction and accessibility polish: admin controls use consistent touch targets'),'Master Admin touch target styles are missing');
 assert(masterAdmin.includes('button{min-height:40px}'),'Master Admin controls must have a consistent minimum height');
 assert(masterAdmin.includes('button:focus-visible,a:focus-visible'),'Master Admin keyboard focus indicators are missing');
