@@ -2109,7 +2109,7 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
       e.preventDefault();
       try{
         const password=document.getElementById('rp').value;
-        if(password.length<8)throw Error('Password must contain at least 8 characters.');
+        if(password.length<12||password.length>128)throw Error('Password must contain 12 to 128 characters.');
         const rr=await db.functions.invoke('complete-password-reset',{body:{password}});
         if(rr.error){
           let detail=null;try{if(rr.error.context&&typeof rr.error.context.clone==='function')detail=await rr.error.context.clone().json();}catch(_){}
