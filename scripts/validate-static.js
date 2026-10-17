@@ -172,7 +172,7 @@ const passwordPolicy=fs.readFileSync('supabase/functions/_shared/password-policy
 const passwordPolicyTests=fs.readFileSync('supabase/functions/_shared/password-policy_test.ts','utf8');
 const authLoginErrorSource=fs.readFileSync('supabase/functions/_shared/auth-login-error.ts','utf8');
 const authLoginErrorTests=fs.readFileSync('supabase/functions/_shared/auth-login-error_test.ts','utf8');
-const usernameLoginSource=fs.readFileSync('supabase/functions/username-login/index.ts','utf8');
+const authUsernameLoginSource=fs.readFileSync('supabase/functions/username-login/index.ts','utf8');
 const supabaseServiceSource=fs.readFileSync('supabase-service.js','utf8');
 const turnstileHelper=fs.readFileSync('aegis-turnstile.js','utf8');
 assert(pwnedPasswordHelper.includes('crypto.subtle.digest("SHA-1"')&&pwnedPasswordHelper.includes('https://api.pwnedpasswords.com/range/')&&pwnedPasswordHelper.includes('fullHash.slice(0, 5)'),'Password screening must query the HIBP range API using only a five-character SHA-1 prefix');
@@ -190,7 +190,7 @@ assert(client.includes('AegisTurnstile.requireToken(login)')&&client.includes('A
 assert(client.includes('password.length<12||password.length>128')&&client.includes('minlength="12" maxlength="128"'),'Client password creation and recovery forms must enforce the shared 12–128 character policy.');
 assert(client.includes('socialProviders')&&client.includes("['google','facebook']")&&client.includes('data-social-auth'),'Optional social login must support both providers and remain config-gated');
 assert(fs.readFileSync('supabase/functions/username-login/index.ts','utf8').includes('options: { captchaToken: captchaToken || undefined }'),'Username authentication must forward CAPTCHA token to Supabase Auth');
-assert(usernameLoginSource.includes('classifyAuthLoginError(authError)'),'Username login must distinguish CAPTCHA/rate-limit failures from invalid credentials');
+assert(authUsernameLoginSource.includes('classifyAuthLoginError(authError)'),'Username login must distinguish CAPTCHA/rate-limit failures from invalid credentials');
 assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorSource.includes('AUTH_RATE_LIMITED')&&authLoginErrorSource.includes('INVALID_CREDENTIALS'),'Login error classifier must map CAPTCHA, rate-limit, and credential errors explicitly');
 assert(authLoginErrorTests.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorTests.includes('AUTH_RATE_LIMITED')&&authLoginErrorTests.includes('INVALID_CREDENTIALS'),'Login error classifier tests must cover each safe failure category');
 assert(client.includes('Security verification could not be validated.')&&fs.readFileSync('admin-auth.js','utf8').includes('Security verification could not be validated.'),'Client and admin login must surface CAPTCHA rejection clearly instead of reporting bad credentials');
