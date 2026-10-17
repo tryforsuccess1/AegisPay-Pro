@@ -1583,7 +1583,8 @@ function bindAuthForms(){
         await liveHome();
       }catch(x){
         const msg=x.message||'Login failed';
-        uiNotice(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your email inbox/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
+        const notice=/captcha|turnstile|security verification/i.test(msg)?'Security verification could not be validated. Complete the Cloudflare check again and retry.':(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your email inbox/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
+        uiNotice(notice);
       }finally{
         if(window.AegisTurnstile)window.AegisTurnstile.reset(login);
       }
@@ -1633,7 +1634,7 @@ function bindAuthForms(){
           email,password:document.getElementById('sp').value,
           name:formatName(document.getElementById('sn').value),
           username,referralCode:document.getElementById('sr').value.trim().toUpperCase(),
-          preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1',captchaToken
+          preferredLanguage:'en',redirectTo:'https://aegispay-pro.pages.dev/app/?verified=1',captchaToken
         }});
         if(rr.error){
           let serverMessage=rr.data && typeof rr.data==='object' && rr.data.error ? rr.data.error : '';
@@ -1660,7 +1661,7 @@ function bindAuthForms(){
         if(rb)rb.onclick=async()=>{
           try{
             rb.disabled=true;rb.textContent='Sending...';
-            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'}});
+            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'}});
             if(r.error)throw r.error;
             uiNotice('A new verification email has been sent.','success');
             rb.textContent='Resend Verification Email';rb.disabled=false;
