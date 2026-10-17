@@ -2,9 +2,9 @@
 
 ## Current verified snapshot — 2026-10-18
 
-- Canonical repository: `tryforsuccess1/AegisPay-Pro`, main commit `5f2106aaada22b0c3dccef537240f97db6d208f0`.
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`; application code baseline verified on main `5f2106aaada22b0c3dccef537240f97db6d208f0`.
 - Latest CI, SQL migration tests, withdrawal migration tests, Android build and Web Portal Deploy all passed on this commit. The browser smoke-test step passed for landing, Client and Master Admin; type checks and password/HD wallet/sweep/shop regression checks passed.
-- Latest Pages deployment: `b3df2d5d-06d6-4370-9860-7c0bde9ebab4`, stage `success`; Client portal https://aegispay-pro.pages.dev/app/ and Master Admin https://aegispay-pro.pages.dev/admin/.
+- Verified Pages deployment: `b3df2d5d-06d6-4370-9860-7c0bde9ebab4`, stage `success`; Client portal https://aegispay-pro.pages.dev/app/ and Master Admin https://aegispay-pro.pages.dev/admin/.
 - The deployed production artifact, not the root source fallback, publishes a generated stable Build 43 / 2.6.4 manifest with exact Client SHA-256 `78170d3ece8dc62221113361b7426538132deee4cde543b94c63b835f0156663` and Master Admin SHA-256 `ff4fb0683a8b9f88d884f2191a76454ed9638e420122bc09a7900673528193ee`. Both hashes match the delivered APKs and their alias copies. The signing certificate fingerprint matches the prior Build 42 release; physical-device install/update remains untested.
 - Supabase `username-login` is ACTIVE v9 with separate safe handling for CAPTCHA/rate-limit errors and generic wrong-credential responses.
 - Supabase project remains ACTIVE_HEALTHY. Security Advisor still reports 14 authenticated-callable SECURITY DEFINER routines (source-reviewed and retained intentionally, not automatically revoked), 3 RLS-enabled service-only deposit/sweep tables without client policies, and native leaked-password protection disabled. The last finding is a production security prerequisite; the table-policy INFO findings are intentional service-role-only isolation.
