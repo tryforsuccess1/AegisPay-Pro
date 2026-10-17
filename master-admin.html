@@ -126,6 +126,13 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
 <script>
 window.AEGIS_ANDROID_APP=!!window.AegisNative;
 window.AEGIS_ADMIN_PORTAL=true;
+// /admin/ is a Pages rewrite to this document. Pin web asset URLs to site root,
+// but leave packaged Android assets relative to their WebViewAssetLoader path.
+if(!window.AEGIS_ANDROID_APP){
+  var aegisWebBase=document.createElement('base');
+  aegisWebBase.href='/';
+  document.head.appendChild(aegisWebBase);
+}
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./supabase-client.js"></script>
