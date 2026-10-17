@@ -40,6 +40,7 @@ const must=[
   'database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql',
   'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
   'supabase/functions/get-deposit-address/index.ts',
+  'supabase/functions/_shared/auth-login-error.ts','supabase/functions/_shared/auth-login-error_test.ts',
   'supabase/functions/_shared/tron-hd-wallet.ts',
   'supabase/functions/_shared/tron-hd-wallet_test.ts',
   'supabase/functions/_shared/tron-sweep.ts',
@@ -169,6 +170,10 @@ const passwordResetSource=fs.readFileSync('supabase/functions/complete-password-
 const pwnedPasswordTests=fs.readFileSync('supabase/functions/_shared/pwned-passwords_test.ts','utf8');
 const passwordPolicy=fs.readFileSync('supabase/functions/_shared/password-policy.ts','utf8');
 const passwordPolicyTests=fs.readFileSync('supabase/functions/_shared/password-policy_test.ts','utf8');
+const authLoginErrorSource=fs.readFileSync('supabase/functions/_shared/auth-login-error.ts','utf8');
+const authLoginErrorTests=fs.readFileSync('supabase/functions/_shared/auth-login-error_test.ts','utf8');
+const usernameLoginSource=fs.readFileSync('supabase/functions/username-login/index.ts','utf8');
+const supabaseServiceSource=fs.readFileSync('supabase-service.js','utf8');
 const turnstileHelper=fs.readFileSync('aegis-turnstile.js','utf8');
 assert(pwnedPasswordHelper.includes('crypto.subtle.digest("SHA-1"')&&pwnedPasswordHelper.includes('https://api.pwnedpasswords.com/range/')&&pwnedPasswordHelper.includes('fullHash.slice(0, 5)'),'Password screening must query the HIBP range API using only a five-character SHA-1 prefix');
 assert(pwnedPasswordHelper.includes('"Add-Padding": "true"')&&pwnedPasswordHelper.includes('PasswordSecurityUnavailableError'),'Password screening must request privacy padding and fail closed if the provider is unavailable');
@@ -185,6 +190,12 @@ assert(client.includes('AegisTurnstile.requireToken(login)')&&client.includes('A
 assert(client.includes('password.length<12||password.length>128')&&client.includes('minlength="12" maxlength="128"'),'Client password creation and recovery forms must enforce the shared 12–128 character policy.');
 assert(client.includes('socialProviders')&&client.includes("['google','facebook']")&&client.includes('data-social-auth'),'Optional social login must support both providers and remain config-gated');
 assert(fs.readFileSync('supabase/functions/username-login/index.ts','utf8').includes('options: { captchaToken: captchaToken || undefined }'),'Username authentication must forward CAPTCHA token to Supabase Auth');
+assert(usernameLoginSource.includes('classifyAuthLoginError(authError)'),'Username login must distinguish CAPTCHA/rate-limit failures from invalid credentials');
+assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorSource.includes('AUTH_RATE_LIMITED')&&authLoginErrorSource.includes('INVALID_CREDENTIALS'),'Login error classifier must map CAPTCHA, rate-limit, and credential errors explicitly');
+assert(authLoginErrorTests.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorTests.includes('AUTH_RATE_LIMITED')&&authLoginErrorTests.includes('INVALID_CREDENTIALS'),'Login error classifier tests must cover each safe failure category');
+assert(client.includes('Security verification could not be validated.')&&fs.readFileSync('admin-auth.js','utf8').includes('Security verification could not be validated.'),'Client and admin login must surface CAPTCHA rejection clearly instead of reporting bad credentials');
+assert(!client.includes('aegispay-web.aegispay.workers.dev')&&!supabaseServiceSource.includes('aegispay-web.aegispay.workers.dev'),'Current client signup and password-recovery URLs must not point to the stale legacy Worker hostname');
+assert(client.includes("redirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'")&&supabaseServiceSource.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Signup and password-recovery redirects must use the canonical Pages portal');
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
 const signupRedirectSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
