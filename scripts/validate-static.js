@@ -182,6 +182,7 @@ assert(passwordResetSource.includes('passwordPolicyError(password)')&&passwordRe
 assert(turnstileHelper.includes('https://challenges.cloudflare.com/turnstile/v0/api.js')&&turnstileHelper.includes('requireToken')&&turnstileHelper.includes('window.turnstile.reset'),'Turnstile helper must render, require, and reset a one-use token');
 assert(turnstileHelper.includes("host === 'localhost' || host === '127.0.0.1'")&&turnstileHelper.includes('1x00000000000000000000AA'),'Local browser tests must use Cloudflare test keys and production must retain its real sitekey.');
 assert(client.includes('AegisTurnstile.requireToken(login)')&&client.includes('AegisTurnstile.requireToken(signup)')&&client.includes('AegisTurnstile.requireToken(forgot)'),'Client sign-in, sign-up, and password recovery must require Turnstile');
+assert(client.includes('password.length<12||password.length>128')&&client.includes('minlength="12" maxlength="128"'),'Client password creation and recovery forms must enforce the shared 12–128 character policy.');
 assert(client.includes('socialProviders')&&client.includes("['google','facebook']")&&client.includes('data-social-auth'),'Optional social login must support both providers and remain config-gated');
 assert(fs.readFileSync('supabase/functions/username-login/index.ts','utf8').includes('options: { captchaToken: captchaToken || undefined }'),'Username authentication must forward CAPTCHA token to Supabase Auth');
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
