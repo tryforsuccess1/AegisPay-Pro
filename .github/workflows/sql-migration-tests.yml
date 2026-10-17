@@ -6,6 +6,11 @@ on:
       - 'database/migrations/**'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
+      - 'supabase/functions/get-deposit-address/index.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
+      - 'supabase/functions/verify-deposit/index.ts'
+      - 'supabase/functions/execute-payout/index.ts'
       - 'scripts/sql-tests/deposit_monitor_cron_fixture.sql'
       - 'scripts/sql-tests/deposit_monitor_cron_assertions.sql'
       - 'scripts/sql-tests/**'
@@ -17,6 +22,11 @@ on:
       - 'database/migrations/**'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
+      - 'supabase/functions/get-deposit-address/index.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
+      - 'supabase/functions/verify-deposit/index.ts'
+      - 'supabase/functions/execute-payout/index.ts'
       - 'scripts/sql-tests/deposit_monitor_cron_fixture.sql'
       - 'scripts/sql-tests/deposit_monitor_cron_assertions.sql'
       - 'scripts/sql-tests/**'
@@ -61,6 +71,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_fixture.sql
       - name: Apply deposit migration to disposable PostgreSQL
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql
+      - name: Apply HD deposit-wallet migration to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016120000_hd_deposit_wallets.sql
+      - name: Verify HD deposit-wallet RLS, uniqueness, and privileges
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
       - name: Create disposable cron, Vault, and pg_net stubs

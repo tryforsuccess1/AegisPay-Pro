@@ -36,6 +36,11 @@ const must=[
   'database/migrations/20261014174000_fix_google_oauth_username_generation.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
+  'database/migrations/20261016120000_hd_deposit_wallets.sql',
+  'supabase/functions/get-deposit-address/index.ts',
+  'supabase/functions/_shared/tron-hd-wallet.ts',
+  'supabase/functions/_shared/tron-hd-wallet_test.ts',
+  'docs/hd-tron-deposit-wallets.md',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   'scripts/sql-tests/deposit_monitor_cron_fixture.sql',
@@ -388,7 +393,7 @@ assert(adminAccountOpsSource.includes('String(candidate.email||"").trim().toLowe
 
 
 const functions=[
-  'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset',
+  'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset','get-deposit-address',
   'public-signup','submit-deposit','submit-kyc','telegram-withdrawal','verify-deposit','username-login','withdrawal-ai-review','record-user-access'
 ];
 for(const f of functions)assert(exists('supabase/functions/'+f+'/index.ts'),'Missing Edge Function source: '+f);
@@ -438,6 +443,17 @@ assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf
 assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Raw chain amount mismatch was accepted'),'Disposable SQL tests must cover raw chain amount mismatch');
 assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Malformed chain transaction ID was accepted'),'Disposable SQL tests must cover malformed transaction IDs');
 assert(depositSubmitSource.includes('network: depositNetwork'),'Deposit submission must persist the selected network before verification');
+const hdWalletSource=fs.readFileSync('supabase/functions/_shared/tron-hd-wallet.ts','utf8');
+const hdWalletEndpoint=fs.readFileSync('supabase/functions/get-deposit-address/index.ts','utf8');
+const hdWalletMigration=fs.readFileSync('database/migrations/20261016120000_hd_deposit_wallets.sql','utf8');
+assert(hdWalletSource.includes("m/44'/195'/0'/0")&&hdWalletSource.includes('TronWeb.fromMnemonic'),'HD wallet derivation must use the TRON BIP44 path');
+assert(hdWalletEndpoint.includes('TRON_HD_WALLET_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must require a server-side seed and fail closed on root mismatch');
+assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint.includes('privateKey: identity.privateKey'),'HD address API must never return derived private keys');
+assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
+assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
+assert(depositMonitorSource.includes('deposit.receiving_address')&&depositVerifySource.includes('DEPOSIT_RECIPIENT_MISMATCH'),'Deposit verification must use assigned recipient');
+assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('signerAddress !== configuredTreasury'),'Payout must fail closed on signer/treasury mismatch');
+assert(client.includes("db.functions.invoke('get-deposit-address'"),'Client must request a per-user address through the authenticated Edge Function');
 assert(depositSubmitSource.includes('amountInput')&&depositSubmitSource.includes('Number.isSafeInteger(Math.round(amount * 100))'),'Deposit submission must reject excess decimal precision and unsafe numeric inputs');
 assert(fs.readFileSync('.github/workflows/sql-migration-tests.yml','utf8').includes('postgres:17'),'Deposit SQL migrations must be tested on a disposable PostgreSQL service');
 

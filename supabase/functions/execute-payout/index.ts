@@ -133,6 +133,13 @@ let payoutMayHaveBeenBroadcast = false;
     const chain = testnet ? "https://api.shasta.trongrid.io" : "https://api.trongrid.io";
     const usdtContract = testnet ? SHASTA_USDT : MAINNET_USDT;
 
+    // Fail closed before claiming a withdrawal if the configured treasury and signer do not match.
+    const configuredTreasury = String(networkRow?.value_json?.receiving_address || "").trim();
+    const signerAddress = String(TronWeb.address.fromPrivateKey(payoutKey) || "");
+    if (!configuredTreasury || signerAddress !== configuredTreasury) {
+      return json({ error: "Payout signer does not match the configured treasury address. No transaction was sent.", code: "PAYOUT_TREASURY_MISMATCH" }, 409);
+    }
+
     // Validate the exact case-sensitive recipient before claiming the payout. TRON addresses
     // use Base58Check and changing letter case can redirect or invalidate a transfer.
     const { data: payoutTarget, error: payoutTargetError } = await admin
