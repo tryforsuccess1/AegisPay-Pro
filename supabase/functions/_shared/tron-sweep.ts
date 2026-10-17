@@ -11,7 +11,10 @@ export type SweepNextAction =
   | "ALREADY_CONFIRMED"
   | "MANUAL_REVIEW";
 
-export function classifySweepAction(row: SweepRowState, nowMs = Date.now()): SweepNextAction {
+export type SweepReceiptState = "CONFIRMED" | "FAILED" | "PENDING" | "MISMATCH";
+export const TRC20_TRANSFER_TOPIC = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+
+export function classifySweepAction(row: SweepRowState, _nowMs = Date.now()): SweepNextAction {
   const status = String(row.status || "").toUpperCase();
   if (status === "CONFIRMED") return "ALREADY_CONFIRMED";
   if (status === "FAILED_REVIEW") return "MANUAL_REVIEW";
@@ -34,6 +37,51 @@ export function classifySweepAction(row: SweepRowState, nowMs = Date.now()): Swe
     return "RECONCILE_SAVED_TRANSACTION";
   }
   return "MANUAL_REVIEW";
+}
+
+export function hasEnoughSweepResources(
+  trxBalanceSun: number,
+  availableEnergy: number,
+  minimumTrxSun: number,
+  minimumEnergy: number,
+  minimumTrxWithEnergySun: number,
+): boolean {
+  if (!Number.isFinite(trxBalanceSun) || !Number.isFinite(availableEnergy) || trxBalanceSun < 0 || availableEnergy < 0) return false;
+  return trxBalanceSun >= minimumTrxSun ||
+    (trxBalanceSun >= minimumTrxWithEnergySun && availableEnergy >= minimumEnergy);
+}
+
+function hexTail(value: unknown): string {
+  return String(value || "").replace(/^0x/i, "").toLowerCase().slice(-40);
+}
+
+export function classifySweepReceipt(
+  info: unknown,
+  txid: string,
+  expectedContractHex: string,
+  expectedTreasuryHex: string,
+  amountRaw: string,
+): SweepReceiptState {
+  const receipt = info as {
+    id?: unknown;
+    receipt?: { result?: unknown } | null;
+    log?: Array<{ address?: unknown; topics?: unknown[]; data?: unknown }> | null;
+  } | null;
+  if (!receipt || !receipt.id || String(receipt.id).toLowerCase() !== txid.toLowerCase()) return "PENDING";
+  if (!receipt.receipt || !receipt.receipt.result) return "PENDING";
+  if (String(receipt.receipt.result).toUpperCase() !== "SUCCESS") return "FAILED";
+  const logs = Array.isArray(receipt.log) ? receipt.log : [];
+  const contractTail = hexTail(expectedContractHex);
+  const treasuryTail = hexTail(expectedTreasuryHex);
+  const expectedAmount = BigInt(amountRaw);
+  const match = logs.some((log) => {
+    const topics = Array.isArray(log.topics) ? log.topics.map((value) => String(value).replace(/^0x/i, "").toLowerCase()) : [];
+    if (hexTail(log.address) !== contractTail || topics[0] !== TRC20_TRANSFER_TOPIC || topics.length < 3) return false;
+    if (topics[2].slice(-40) !== treasuryTail) return false;
+    try { return BigInt("0x" + String(log.data || "0").replace(/^0x/i, "")) === expectedAmount; }
+    catch { return false; }
+  });
+  return match ? "CONFIRMED" : "MISMATCH";
 }
 
 export async function buildSweepIdempotencyKey(
