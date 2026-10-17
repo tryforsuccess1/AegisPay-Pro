@@ -74,11 +74,11 @@ jobs:
       - name: Apply deposit migration to disposable PostgreSQL
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql
       - name: Apply HD deposit-wallet migration to disposable PostgreSQL
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016120000_hd_deposit_wallets.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql
       - name: Verify HD deposit-wallet RLS, uniqueness, and privileges
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
       - name: Apply HD sweep journal migration
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017100000_hd_deposit_sweep_journal.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
