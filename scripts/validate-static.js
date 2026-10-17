@@ -2,11 +2,14 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
+const packageManifest=JSON.parse(fs.readFileSync('package.json','utf8'));
+const appVersionManifest=JSON.parse(fs.readFileSync('app-version.json','utf8'));
+assert(packageManifest.version===appVersionManifest.versionName,'package.json and app-version.json must use the same candidate version');
 
 const must=[
   'client.html','master-admin.html','admin-auth.js','aegis-turnstile.js','scripts/client-browser-smoke.cjs',
   'supabase-client.js','supabase-service.js','aegis-auth-redirect.js','app-update.js',
-   'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','package.json',
+   'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','app-version.json','package.json',
   'database/migrations/20261003_private_verification_storage_policies.sql','database/migrations/20261004_restore_baseline_demo_configuration.sql',
   'database/migrations/20261005_align_withdrawal_wallet_rpc_grants.sql',
   'database/migrations/20261005_retire_client_complete_task_rpc.sql',
