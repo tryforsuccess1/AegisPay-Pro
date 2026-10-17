@@ -6,8 +6,14 @@ on:
       - 'database/migrations/**'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
-      - 'scripts/sql-tests/deposit_monitor_cron_fixture.sql'
-      - 'scripts/sql-tests/deposit_monitor_cron_assertions.sql'
+      - 'supabase/functions/get-deposit-address/index.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
+      - 'supabase/functions/_shared/tron-sweep.ts'
+      - 'supabase/functions/_shared/tron-sweep_test.ts'
+      - 'supabase/functions/sweep-deposit-wallets/index.ts'
+      - 'supabase/functions/verify-deposit/index.ts'
+      - 'supabase/functions/execute-payout/index.ts'
       - 'scripts/sql-tests/**'
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
@@ -17,8 +23,14 @@ on:
       - 'database/migrations/**'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
-      - 'scripts/sql-tests/deposit_monitor_cron_fixture.sql'
-      - 'scripts/sql-tests/deposit_monitor_cron_assertions.sql'
+      - 'supabase/functions/get-deposit-address/index.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
+      - 'supabase/functions/_shared/tron-sweep.ts'
+      - 'supabase/functions/_shared/tron-sweep_test.ts'
+      - 'supabase/functions/sweep-deposit-wallets/index.ts'
+      - 'supabase/functions/verify-deposit/index.ts'
+      - 'supabase/functions/execute-payout/index.ts'
       - 'scripts/sql-tests/**'
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
@@ -61,6 +73,14 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_fixture.sql
       - name: Apply deposit migration to disposable PostgreSQL
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql
+      - name: Apply HD deposit-wallet migration to disposable PostgreSQL
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql
+      - name: Verify HD deposit-wallet RLS, uniqueness, and privileges
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
+      - name: Apply HD sweep journal migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql
+      - name: Verify HD sweep idempotency and restricted access
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
       - name: Create disposable cron, Vault, and pg_net stubs

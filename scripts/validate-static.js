@@ -36,6 +36,16 @@ const must=[
   'database/migrations/20261014174000_fix_google_oauth_username_generation.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
+  'database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql',
+  'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
+  'supabase/functions/get-deposit-address/index.ts',
+  'supabase/functions/_shared/tron-hd-wallet.ts',
+  'supabase/functions/_shared/tron-hd-wallet_test.ts',
+  'supabase/functions/_shared/tron-sweep.ts',
+  'supabase/functions/_shared/tron-sweep_test.ts',
+  'supabase/functions/sweep-deposit-wallets/index.ts',
+  'docs/hd-tron-deposit-wallets.md',
+  'scripts/sql-tests/hd_deposit_sweep_assertions.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   'scripts/sql-tests/deposit_monitor_cron_fixture.sql',
@@ -388,7 +398,7 @@ assert(adminAccountOpsSource.includes('String(candidate.email||"").trim().toLowe
 
 
 const functions=[
-  'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset',
+  'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset','get-deposit-address',
   'public-signup','submit-deposit','submit-kyc','telegram-withdrawal','verify-deposit','username-login','withdrawal-ai-review','record-user-access'
 ];
 for(const f of functions)assert(exists('supabase/functions/'+f+'/index.ts'),'Missing Edge Function source: '+f);
@@ -438,6 +448,38 @@ assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf
 assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Raw chain amount mismatch was accepted'),'Disposable SQL tests must cover raw chain amount mismatch');
 assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf8').includes('Malformed chain transaction ID was accepted'),'Disposable SQL tests must cover malformed transaction IDs');
 assert(depositSubmitSource.includes('network: depositNetwork'),'Deposit submission must persist the selected network before verification');
+const hdWalletSource=fs.readFileSync('supabase/functions/_shared/tron-hd-wallet.ts','utf8');
+const hdWalletEndpoint=fs.readFileSync('supabase/functions/get-deposit-address/index.ts','utf8');
+const hdWalletMigration=fs.readFileSync('database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql','utf8');
+assert(hdWalletSource.includes("m/44'/195'/0'/0")&&hdWalletSource.includes('TronWeb.fromMnemonic'),'HD wallet derivation must use the TRON BIP44 path');
+assert(hdWalletEndpoint.includes('TRON_HD_WALLET_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must require a server-side seed and fail closed on root mismatch');
+assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint.includes('privateKey: identity.privateKey'),'HD address API must never return derived private keys');
+assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
+assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
+assert(depositMonitorSource.includes('deposit.receiving_address')&&depositVerifySource.includes('DEPOSIT_RECIPIENT_MISMATCH'),'Deposit verification must use assigned recipient');
+assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('signerAddress !== configuredTreasury'),'Payout must fail closed on signer/treasury mismatch');
+
+const sweepWorker=fs.readFileSync('supabase/functions/sweep-deposit-wallets/index.ts','utf8');
+const sweepHelper=fs.readFileSync('supabase/functions/_shared/tron-sweep.ts','utf8');
+const sweepTests=fs.readFileSync('supabase/functions/_shared/tron-sweep_test.ts','utf8');
+const sweepMigration=fs.readFileSync('database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql','utf8');
+const sweepSqlTests=fs.readFileSync('scripts/sql-tests/hd_deposit_sweep_assertions.sql','utf8');
+assert(sweepWorker.includes('const NETWORK = "TRON TESTNET"')&&sweepWorker.includes('const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"'),'Sweep worker must be pinned to the Shasta testnet and testnet USDT contract');
+assert(sweepWorker.includes('Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true"')&&sweepWorker.includes('TESTNET_SWEEP_DISABLED'),'Testnet sweep must remain disabled unless explicitly enabled in an isolated test environment');
+assert(!sweepWorker.includes('TRON_PAYOUT_PRIVATE_KEY')&&!sweepWorker.includes('TRON MAINNET'),'Sweep worker must not read Mainnet payout keys or accept a Mainnet network');
+assert(sweepWorker.includes('mode.live_deposits !== false')&&sweepWorker.includes('production.payouts_locked !== true')&&sweepWorker.includes('PRODUCTION_MODE_BLOCKED'),'Sweep worker must fail closed unless all production money gates remain closed');
+assert(sweepWorker.includes('UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT')&&sweepWorker.includes('status", "VERIFIED"'),'Sweep must not move tokens when any inbound transfer lacks a verified deposit record');
+assert(sweepWorker.includes('signed_transaction: transaction.signed')&&sweepWorker.includes('sendRawTransaction(signedTx)')&&sweepWorker.includes('transaction_expiration_ms'),'Sweep must persist exact signed bytes and txid before broadcasting or retrying');
+assert(sweepWorker.includes('NEEDS_TESTNET_TRX_OR_ENERGY')&&sweepWorker.includes('MIN_TRX_FOR_SWEEP_SUN'),'Sweep must skip wallets without a conservative TRX/Energy reserve rather than auto-funding from treasury');
+assert(sweepHelper.includes('RECONCILE_SAVED_TRANSACTION')&&sweepHelper.includes('MANUAL_REVIEW'),'Sweep recovery must reconcile saved transaction IDs and force ambiguous cases to manual review');
+assert(sweepTests.includes('sweep key is stable')&&sweepTests.includes('signed and broadcast rows reuse their saved transaction'),'Sweep tests must cover deterministic idempotency and persisted transaction recovery');
+assert(sweepHelper.includes('classifySweepReceipt')&&sweepHelper.includes('hasEnoughSweepResources'),'Sweep helper must centralize on-chain receipt verification and TRX/Energy resource gates');
+assert(sweepTests.includes('successful receipt requires an exact contract, recipient and raw amount')&&sweepTests.includes('resource guard requires conservative TRX or both energy and bandwidth reserve'),'Sweep unit tests must cover exact transfer confirmation and resource thresholds');
+assert(sweepWorker.includes('TOKEN_BALANCE_DOES_NOT_MATCH_UNSWEPT_VERIFIED_DEPOSITS')&&sweepWorker.includes('deposit_wallet_sweep_items')&&sweepWorker.includes('UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT'),'Sweep must reconcile unswept verified deposit principal and fail closed on unknown transfers');
+assert(sweepMigration.includes('deposit_wallet_sweep_items')&&sweepMigration.includes('SIGNED')&&sweepMigration.includes('ENABLE ROW LEVEL SECURITY')&&sweepMigration.includes('FROM PUBLIC, anon, authenticated'),'Sweep journal must store source-deposit links and signed state under service-role-only access');
+assert(sweepSqlTests.includes('duplicate wallet sweep idempotency key accepted')&&sweepSqlTests.includes('duplicate sweep txid accepted')&&sweepSqlTests.includes('duplicate source deposit item accepted'),'Sweep SQL assertions must cover duplicate sweeps and source-link uniqueness');
+
+assert(client.includes("db.functions.invoke('get-deposit-address'"),'Client must request a per-user address through the authenticated Edge Function');
 assert(depositSubmitSource.includes('amountInput')&&depositSubmitSource.includes('Number.isSafeInteger(Math.round(amount * 100))'),'Deposit submission must reject excess decimal precision and unsafe numeric inputs');
 assert(fs.readFileSync('.github/workflows/sql-migration-tests.yml','utf8').includes('postgres:17'),'Deposit SQL migrations must be tested on a disposable PostgreSQL service');
 
