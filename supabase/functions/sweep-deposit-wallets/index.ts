@@ -160,8 +160,12 @@ async function getSafeSnapshot(admin: Admin, client: any, wallet: WalletRow) {
   const transfers = await getIncomingTransfers(wallet.address);
   if (!transfers.length) throw new Error("TOKEN_BALANCE_WITHOUT_CONFIRMED_INBOUND_HISTORY");
   const sources = await getVerifiedSources(admin, wallet.id);
-  const unmatched = transfers.filter((item) => !sources.has(item.txid));
-  if (unmatched.length) throw new Error("UNVERIFIED_INBOUND_TRANSFER_PRESENT");
+  const unmatched = transfers.filter((item) => {
+    const source = sources.get(item.txid);
+    if (!source || !source.raw_amount) return true;
+    return asRawBigInt(source.raw_amount) !== asRawBigInt(item.rawAmount);
+  });
+  if (unmatched.length) throw new Error("UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT");
   const afterBalance = await getTokenBalance(client, wallet.address);
   if (beforeBalance !== afterBalance) throw new Error("BALANCE_CHANGED_DURING_SNAPSHOT");
   return { ok: true as const, empty: false as const, balanceRaw: afterBalance, transfers, sources };
@@ -249,9 +253,19 @@ async function signAndPersist(admin: Admin, client: any, wallet: WalletRow, row:
       if (a !== b) return markReview(admin, row, "SOURCE_JOURNAL_CONFLICT");
     }
   } else {
-    const a = savedItems.map((x: any) => String(x.deposit_txid).toLowerCase()).sort().join(",");
-    const b = sourceIds.slice().sort().join(",");
-    if (a !== b) return markReview(admin, row, "SOURCE_JOURNAL_CONFLICT");
+    const actual = savedItems.map((x: any) => ({
+      txid: String(x.deposit_txid || "").toLowerCase(),
+      submissionId: String(x.deposit_submission_id || ""),
+      amountRaw: asRawBigInt(x.amount_raw).toString(),
+    })).sort((a: any, b: any) => a.txid.localeCompare(b.txid));
+    const expected = snapshot.transfers.map((item) => {
+      const source = snapshot.sources.get(item.txid);
+      if (!source || !source.raw_amount || asRawBigInt(source.raw_amount) !== asRawBigInt(item.rawAmount)) {
+        throw new Error("VERIFIED_SOURCE_MISSING_OR_AMOUNT_MISMATCH");
+      }
+      return { txid: item.txid, submissionId: source.id, amountRaw: asRawBigInt(item.rawAmount).toString() };
+    }).sort((a: any, b: any) => a.txid.localeCompare(b.txid));
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) return markReview(admin, row, "SOURCE_JOURNAL_CONFLICT");
   }
   const resources = await hasSufficientResources(client, wallet.address);
   if (!resources.ok) return { walletId: wallet.id, sweepId: row.id, status: resources.code };
@@ -323,13 +337,8 @@ async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) 
     if (existingError || !existing) return { walletId: wallet.id, status: "JOURNAL_CREATE_FAILED" };
     return await processJournalRecord(admin, client, wallet, existing as SweepRow, treasury);
   }
-  const items = snapshot.transfers.map((item) => {
-    const source = snapshot.sources.get(item.txid);
-    if (!source) throw new Error("VERIFIED_SOURCE_MISSING");
-    return { sweep_id: inserted.id, deposit_submission_id: source.id, deposit_txid: item.txid, amount_raw: item.rawAmount };
-  });
-  const { error: sourceError } = await admin.from("deposit_wallet_sweep_items").insert(items);
-  if (sourceError) return markReview(admin, inserted as SweepRow, "SOURCE_JOURNAL_WRITE_FAILED");
+  // signAndPersist creates/verifies source-item links idempotently. This also recovers if a
+  // process stopped after journal creation but before persisting the source links.
   return await signAndPersist(admin, client, wallet, inserted as SweepRow, treasury);
 }
 
