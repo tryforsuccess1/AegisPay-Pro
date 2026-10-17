@@ -215,7 +215,9 @@ assert(client.includes('linear-gradient(135deg,#c94932,#b83b7d)'),'Client primar
 assert(client.includes('.bk{width:44px;height:44px;min-width:44px;min-height:44px}'),'Client back controls must have consistent touch targets');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
-assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
+const androidMainActivity=fs.readFileSync('android/app/src/main/java/com/aegispay/app/MainActivity.java','utf8');
+assert(androidMainActivity.includes('CookieManager.getInstance()')&&androidMainActivity.includes('setAcceptThirdPartyCookies(view, true)'),'Android WebView must permit Turnstile iframe cookie/storage behavior');
+assert(androidBuild.includes("include 'aegis-turnstile.js'")&&androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the Turnstile helper and pinned Supabase SDK');
 assert(androidBuild.includes("'Activate Selected Tier'"),'Android build guard must match the current tier UI');
 const socialAuthConfig=fs.readFileSync('supabase-client.js','utf8');
 assert(client.includes("provider:provider")&&client.includes('data-google-auth')&&socialAuthConfig.includes("facebook:false"),'Client UI must offer Google OAuth and keep Facebook gated until provider credentials are configured');
