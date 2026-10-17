@@ -4,12 +4,12 @@
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
-    "The repository root manifest is a test-channel fallback; Web Portal Deploy generates the served production manifest from the exact APK build, selected release channel, URLs and SHA-256 values.",
-    "As of 2026-10-18, the production Pages artifact publishes Build 43 / 2.6.4 with releaseChannel stable and versioned Client/Admin APKs whose SHA-256 values match the generated manifest.",
-    "Build 43 includes Cloudflare Turnstile wiring and a 12–128 character password policy for signup/recovery; the native Supabase CAPTCHA setting still requires dashboard activation.",
-    "Server-side breached-password screening remains on controlled signup/recovery flows; Supabase native leaked-password protection is still reported disabled.",
-    "Google sign-in remains optional; Facebook OAuth stays hidden until valid Meta provider credentials and redirects are configured.",
-    "A signed release uses the existing release signing identity; the certificate fingerprint matches the previous Build 42 release. Complete physical Android install/update and auth-flow testing before calling device verification complete.",
-    "Production payment configuration remains PRE_PRODUCTION with live deposits, real payouts and go-live approval disabled and the payout lock enabled."
+    "Build 43 / 2.6.4 is an authentication-security test candidate, not a stable release.",
+    "Adds Cloudflare Turnstile to web and Android auth flows; complete Supabase CAPTCHA configuration and validate updated APKs before enabling enforcement.",
+    "Password signup and recovery use a 12–128 character policy and server-side breached-password screening.",
+    "Google sign-in remains optional; Facebook OAuth remains hidden until Meta provider credentials and redirect URLs are configured.",
+    "No Build 43 APK URL or SHA-256 is published yet; do not offer this candidate as an update until CI publishes and verifies APK artifacts.",
+    "The web deployment workflow generates versioned APK URLs and SHA-256 values from the exact packaged APKs.",
+    "Promote to stable only after a signed release APK is published and its SHA-256 is verified."
   ]
 }
