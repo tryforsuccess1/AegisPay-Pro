@@ -30,8 +30,8 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => null);
     const password = typeof body?.password === "string" ? body.password : "";
-    const passwordError = passwordPolicyError(password);
-    if (passwordError) return json({ error: passwordError, code: "INVALID_PASSWORD" }, 400);
+    const passwordPolicyIssue = passwordPolicyError(password);
+    if (passwordPolicyIssue) return json({ error: passwordPolicyIssue, code: "INVALID_PASSWORD" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
