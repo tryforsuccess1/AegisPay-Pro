@@ -27,7 +27,7 @@ Deno.test("PREPARED rows may be signed only before broadcast bytes exist", () =>
 Deno.test("signed and broadcast rows reuse their saved transaction only", () => {
   assertEquals(classifySweepAction({ status: "SIGNED", txid, signed_transaction: signed }, 1_900_000_000_000), "RECONCILE_SAVED_TRANSACTION");
   assertEquals(classifySweepAction({ status: "BROADCAST", txid, signed_transaction: signed }, 1_900_000_000_000), "RECONCILE_SAVED_TRANSACTION");
-  assertEquals(classifySweepAction({ status: "SIGNED", txid, signed_transaction: signed }, 2_100_000_000_000), "MANUAL_REVIEW");
+  assertEquals(classifySweepAction({ status: "SIGNED", txid, signed_transaction: signed }, 2_100_000_000_000), "RECONCILE_SAVED_TRANSACTION"); // Chain receipt must be checked even after tx expiry.
   assertEquals(classifySweepAction({ status: "SIGNED", txid: "b".repeat(64), signed_transaction: signed }, 1_900_000_000_000), "MANUAL_REVIEW");
 });
 
