@@ -835,6 +835,7 @@ function installSocialAuthButtons(){
     button.type='button';
     button.className='google-auth-btn '+(provider==='facebook'?'facebook-auth-btn':'');
     button.setAttribute('data-social-auth',provider);
+    if(provider==='google')button.setAttribute('data-google-auth','');
     button.innerHTML='<span class="social-provider-icon '+(provider==='facebook'?'facebook-provider-icon':'google-g')+'" aria-hidden="true">'+(provider==='google'?'G':'f')+'</span><span>Continue with '+label+'</span>';
     const note=document.createElement('p');
     note.className='google-auth-note';
