@@ -198,6 +198,7 @@ assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginEr
 assert(authLoginErrorTests.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorTests.includes('AUTH_RATE_LIMITED')&&authLoginErrorTests.includes('INVALID_CREDENTIALS'),'Login error classifier tests must cover each safe failure category');
 assert(client.includes('Security verification could not be validated.')&&fs.readFileSync('admin-auth.js','utf8').includes('Security verification could not be validated.'),'Client and admin login must surface CAPTCHA rejection clearly instead of reporting bad credentials');
 assert(client.includes('aegispay-web.aegispay.workers.dev/?verified=1')&&supabaseServiceSource.includes('aegispay-web.aegispay.workers.dev/?reset=1'),'Keep the currently approved auth redirect origin until the Supabase Auth allowlist is verified for the Pages origin');
+assert(!client.includes("preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'"),'Client must not send an unused signup redirect; the server-owned signup destination is canonical');
 
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
