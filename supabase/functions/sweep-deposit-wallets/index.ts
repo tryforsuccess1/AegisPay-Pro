@@ -205,13 +205,21 @@ async function processSavedTransaction(admin: Admin, client: any, row: SweepRow,
   if (!Number.isFinite(expiration) || expiration <= Date.now()) {
     return markReview(admin, row, "SIGNED_TRANSACTION_EXPIRED_UNCONFIRMED");
   }
+  // Persist the "may have been broadcast" state before contacting the node. If the
+  // response is lost, retries can only rebroadcast these exact signed bytes and txid.
+  const broadcastState = await updateSweep(admin, row, {
+    status: "BROADCAST",
+    broadcast_at: row.status === "BROADCAST" ? undefined : new Date().toISOString(),
+    last_checked_at: new Date().toISOString(),
+    failure_code: null,
+  }, ["SIGNED", "BROADCAST"]);
+  if (broadcastState.status !== "BROADCAST") {
+    return { walletId: row.deposit_wallet_id, sweepId: row.id, status: "MANUAL_REVIEW_REQUIRED", code: "SWEEP_STATE_CHANGED_BEFORE_BROADCAST" };
+  }
   try {
-    const broadcast = await client.trx.sendRawTransaction(signedTx);
-    if (broadcast?.result === true) {
-      await updateSweep(admin, row, { status: "BROADCAST", broadcast_at: row.status === "BROADCAST" ? undefined : new Date().toISOString(), last_checked_at: new Date().toISOString(), failure_code: null }, ["SIGNED", "BROADCAST"]);
-    }
+    await client.trx.sendRawTransaction(signedTx);
   } catch {
-    // Response could be lost after acceptance. The saved txid/signed bytes remain authoritative.
+    // Response may be lost after acceptance. Saved signed bytes and txid remain authoritative.
   }
   return { walletId: row.deposit_wallet_id, sweepId: row.id, status: "BROADCAST_PENDING_CONFIRMATION", txid };
 }
