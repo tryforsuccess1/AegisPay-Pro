@@ -62,6 +62,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null) as Record<string, unknown> | null;
     const username = typeof body?.username === "string" ? body.username.trim().toLowerCase() : "";
     const password = typeof body?.password === "string" ? body.password : "";
+    const captchaToken = typeof body?.captchaToken === "string" ? body.captchaToken.trim() : "";
 
     if (!/^[a-z0-9_]{3,32}$/.test(username) || password.length < 1 || password.length > 128) {
       return json({ error: "Invalid username or password.", code: "INVALID_CREDENTIALS", requestId }, 401);
@@ -98,7 +99,8 @@ Deno.serve(async (req: Request) => {
     });
     const { data: authResult, error: authError } = await auth.auth.signInWithPassword({
       email: String(candidateEmail).trim().toLowerCase(),
-      password
+      password,
+      options: { captchaToken: captchaToken || undefined }
     });
 
     if (authError || !authResult?.session || !authResult.user || !profile) {

@@ -15,8 +15,8 @@ android {
         applicationId 'com.aegispay.app'
         minSdk 23
         targetSdk 35
-        versionCode 42
-        versionName '2.6.3'
+        versionCode 43
+        versionName '2.6.4'
     }
 
     productFlavors {
@@ -138,6 +138,7 @@ def syncClientAegisPayWebAssets = tasks.register('syncClientAegisPayWebAssets', 
         include 'app-version.json'
         include 'app-update.js'
         include 'supabase-sdk.js'
+        include 'aegis-turnstile.js'
     }
     into(layout.projectDirectory.dir('src/client/assets/aegispay'))
 }
@@ -150,6 +151,7 @@ def syncAdminAegisPayWebAssets = tasks.register('syncAdminAegisPayWebAssets', Co
         include 'supabase-client.js'
         include 'supabase-service.js'
         include 'aegis-auth-redirect.js'
+        include 'aegis-turnstile.js'
         include 'app-update.js'
         include 'service-worker.js'
         include 'manifest.webmanifest'

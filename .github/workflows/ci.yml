@@ -48,6 +48,8 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
       - name: Test breached password security helper
         run: deno test supabase/functions/_shared/pwned-passwords_test.ts
+      - name: Test centralized password policy
+        run: deno test supabase/functions/_shared/password-policy_test.ts
       - name: Test TRON HD address derivation
         run: deno test --node-modules-dir=auto --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE supabase/functions/_shared/tron-hd-wallet_test.ts
       - name: Test HD sweep idempotency and transaction recovery state machine

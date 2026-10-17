@@ -4,7 +4,7 @@ const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
 
 const must=[
-  'client.html','master-admin.html','admin-auth.js','scripts/client-browser-smoke.cjs',
+  'client.html','master-admin.html','admin-auth.js','aegis-turnstile.js','scripts/client-browser-smoke.cjs',
   'supabase-client.js','supabase-service.js','aegis-auth-redirect.js','app-update.js',
    'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','package.json',
   'database/migrations/20261003_private_verification_storage_policies.sql','database/migrations/20261004_restore_baseline_demo_configuration.sql',
@@ -34,6 +34,7 @@ const must=[
   'database/migrations/20261014120000_revoke_trigger_only_function_execute.sql',
   'database/migrations/20261014150000_google_oauth_profile_linking.sql',
   'database/migrations/20261014174000_fix_google_oauth_username_generation.sql',
+  'database/migrations/20261017163000_support_facebook_oauth_profiles.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
   'database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql',
@@ -59,6 +60,7 @@ const must=[
   'scripts/sql-tests/withdrawal_migration_assertions.sql',
   'supabase/functions/production-readiness/index.ts',
   'supabase/functions/_shared/pwned-passwords.ts','supabase/functions/_shared/pwned-passwords_test.ts',
+  'supabase/functions/_shared/password-policy.ts','supabase/functions/_shared/password-policy_test.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
   'site/index.html','site/site.css','android/app/build.gradle',
   'android/app/src/main/java/com/aegispay/app/MainActivity.java',
@@ -82,6 +84,9 @@ assert(googleOAuthMigration.includes('v_username_base')&&googleOAuthMigration.in
 const googleUsernameFixMigration=fs.readFileSync('database/migrations/20261014174000_fix_google_oauth_username_generation.sql','utf8');
 assert(googleUsernameFixMigration.includes("NEW.email_confirmed_at IS NOT NULL")&&googleUsernameFixMigration.includes("AND role = 'USER'"),'Google OAuth existing-profile linking must remain limited to confirmed emails and USER role');
 assert(googleUsernameFixMigration.includes("NEW.raw_app_meta_data -> 'providers', '[]'::jsonb) @> '[\"google\"]'::jsonb")&&googleUsernameFixMigration.includes("IF lower(COALESCE(NEW.raw_app_meta_data ->> 'provider', '')) = 'google'"),'Google username generation must rely on trusted Supabase Google provider metadata, not the email-confirmation timestamp');
+const facebookOAuthMigration=fs.readFileSync('database/migrations/20261017163000_support_facebook_oauth_profiles.sql','utf8');
+assert(facebookOAuthMigration.includes("IN ('google', 'facebook')")&&facebookOAuthMigration.includes("NEW.email_confirmed_at IS NOT NULL"),'Facebook profile linking must only claim matching unlinked client profiles when Auth confirms the email');
+assert(facebookOAuthMigration.includes("'[\"facebook\"]'::jsonb")&&facebookOAuthMigration.includes('v_username_suffix'),'Facebook OAuth users must be recognized from trusted provider metadata and receive unique generated usernames');
 assert(!googleUsernameFixMigration.includes("AND NEW.email_confirmed_at IS NOT NULL THEN\n      v_username_base"),'Google username generation must tolerate email_confirmed_at being unset during the initial Auth insert');
 
 const cloudflareDeployWorkflow=fs.readFileSync('.github/workflows/web-portal-deploy.yml','utf8');
@@ -162,10 +167,23 @@ const pwnedPasswordHelper=fs.readFileSync('supabase/functions/_shared/pwned-pass
 const publicSignupSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
 const passwordResetSource=fs.readFileSync('supabase/functions/complete-password-reset/index.ts','utf8');
 const pwnedPasswordTests=fs.readFileSync('supabase/functions/_shared/pwned-passwords_test.ts','utf8');
+const passwordPolicy=fs.readFileSync('supabase/functions/_shared/password-policy.ts','utf8');
+const passwordPolicyTests=fs.readFileSync('supabase/functions/_shared/password-policy_test.ts','utf8');
+const turnstileHelper=fs.readFileSync('aegis-turnstile.js','utf8');
 assert(pwnedPasswordHelper.includes('crypto.subtle.digest("SHA-1"')&&pwnedPasswordHelper.includes('https://api.pwnedpasswords.com/range/')&&pwnedPasswordHelper.includes('fullHash.slice(0, 5)'),'Password screening must query the HIBP range API using only a five-character SHA-1 prefix');
 assert(pwnedPasswordHelper.includes('"Add-Padding": "true"')&&pwnedPasswordHelper.includes('PasswordSecurityUnavailableError'),'Password screening must request privacy padding and fail closed if the provider is unavailable');
 assert(publicSignupSource.includes('assertPasswordNotPwned(password)')&&publicSignupSource.includes('COMPROMISED_PASSWORD')&&publicSignupSource.includes('PASSWORD_SECURITY_UNAVAILABLE'),'Signup must reject compromised passwords before creating an Auth user');
 assert(passwordResetSource.includes('assertPasswordNotPwned(password)')&&passwordResetSource.includes('COMPROMISED_PASSWORD')&&passwordResetSource.includes('PASSWORD_SECURITY_UNAVAILABLE'),'Password reset must reject compromised passwords before changing the Auth password');
+assert(passwordPolicy.includes('MIN_PASSWORD_LENGTH = 12')&&passwordPolicy.includes('MAX_PASSWORD_LENGTH = 128'),'Password creation and reset must share the 12-to-128-character policy');
+assert(publicSignupSource.includes('passwordPolicyError(password)')&&passwordResetSource.includes('passwordPolicyError(password)'),'Signup and password reset must enforce the same server-side policy');
+assert(passwordPolicyTests.includes('exactly 12 characters')&&passwordPolicyTests.includes('exactly 128 characters')&&passwordPolicyTests.includes('shorter than 12')&&passwordPolicyTests.includes('longer than 128'),'Password policy regression tests must cover minimum and maximum boundaries');
+assert(publicSignupSource.includes('captchaToken: captchaToken || undefined')&&publicSignupSource.includes('passwordPolicyError(password)'),'Signup must forward the Supabase CAPTCHA token and apply server-side password rules');
+assert(passwordResetSource.includes('passwordPolicyError(password)')&&passwordResetSource.includes('assertPasswordNotPwned(password)'),'Password reset must apply both the central policy and leaked-password check');
+assert(turnstileHelper.includes('https://challenges.cloudflare.com/turnstile/v0/api.js')&&turnstileHelper.includes('requireToken')&&turnstileHelper.includes('window.turnstile.reset'),'Turnstile helper must render, require, and reset a one-use token');
+assert(turnstileHelper.includes("host === 'localhost' || host === '127.0.0.1'")&&turnstileHelper.includes('1x00000000000000000000AA'),'Local browser tests must use Cloudflare test keys and production must retain its real sitekey.');
+assert(client.includes('AegisTurnstile.requireToken(login)')&&client.includes('AegisTurnstile.requireToken(signup)')&&client.includes('AegisTurnstile.requireToken(forgot)'),'Client sign-in, sign-up, and password recovery must require Turnstile');
+assert(client.includes('socialProviders')&&client.includes("['google','facebook']")&&client.includes('data-social-auth'),'Optional social login must support both providers and remain config-gated');
+assert(fs.readFileSync('supabase/functions/username-login/index.ts','utf8').includes('options: { captchaToken: captchaToken || undefined }'),'Username authentication must forward CAPTCHA token to Supabase Auth');
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
 const signupRedirectSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
@@ -198,9 +216,12 @@ assert(client.includes('linear-gradient(135deg,#c94932,#b83b7d)'),'Client primar
 assert(client.includes('.bk{width:44px;height:44px;min-width:44px;min-height:44px}'),'Client back controls must have consistent touch targets');
 assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local Supabase SDK');
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
-assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
+const androidMainActivity=fs.readFileSync('android/app/src/main/java/com/aegispay/app/MainActivity.java','utf8');
+assert(androidMainActivity.includes('CookieManager.getInstance()')&&androidMainActivity.includes('setAcceptThirdPartyCookies(view, true)'),'Android WebView must permit Turnstile iframe cookie/storage behavior');
+assert(androidBuild.includes("include 'aegis-turnstile.js'")&&androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the Turnstile helper and pinned Supabase SDK');
 assert(androidBuild.includes("'Activate Selected Tier'"),'Android build guard must match the current tier UI');
-assert(client.includes("provider:'google'")&&client.includes('data-google-auth'),'Client UI must offer a wired Google authentication button');
+const socialAuthConfig=fs.readFileSync('supabase-client.js','utf8');
+assert(client.includes("provider:provider")&&client.includes('data-google-auth')&&socialAuthConfig.includes("facebook:false"),'Client UI must offer Google OAuth and keep Facebook gated until provider credentials are configured');
 assert(client.includes('window.AegisSupabaseClient=db;')&&client.includes('window.AegisAuthRedirect={'),'Client must expose a same-session OAuth callback handler for the Android deep-link bridge');
 assert(client.includes("com.aegispay.app.client://auth/callback")&&client.includes("new URL('/app/'"),'Google OAuth must have both native APK and canonical web callback URLs');
 assert(client.includes("aegispay:auth-confirmed")&&client.includes("exchangeCodeForSession(code)"),'Google OAuth callbacks must exchange PKCE codes and resume the client session');

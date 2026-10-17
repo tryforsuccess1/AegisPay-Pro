@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { assertPasswordNotPwned, PasswordSecurityUnavailableError, PwnedPasswordError } from "../_shared/pwned-passwords.ts";
+import { passwordPolicyError } from "../_shared/password-policy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -29,9 +30,8 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => null);
     const password = typeof body?.password === "string" ? body.password : "";
-    if (password.length < 8) {
-      return json({ error: "Password must contain at least 8 characters." }, 400);
-    }
+    const passwordPolicyIssue = passwordPolicyError(password);
+    if (passwordPolicyIssue) return json({ error: passwordPolicyIssue, code: "INVALID_PASSWORD" }, 400);
 
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },

@@ -42,7 +42,11 @@ The check validates the canonical client/admin source files, Supabase function w
 
 ## Security
 
-Never put service-role keys, payout private keys, Telegram bot secrets, AI provider keys, or release keystore material in browser assets or Cloudflare Pages client variables.
+- Auth hardening candidate: Build 43 / version 2.6.4 adds Cloudflare Turnstile to web and Android sign-in, signup, recovery and Master Admin login; it also aligns signup/recovery passwords to 12–128 characters and retains the server-side breached-password check on AegisPay's controlled signup/recovery routes.
+- Cloudflare Turnstile's public sitekey is embedded in the client. The matching secret is never stored in the repository; Supabase Auth CAPTCHA remains pending manual dashboard activation after updated web and Android flows are tested.
+- Google login remains optional. Facebook login is intentionally hidden until Meta credentials/redirects are configured and the profile-linking migration is applied.
+- The custom breached-password check improves AegisPay-controlled signup/recovery flows, but is not a full substitute for Supabase's native leaked-password check on every possible direct Auth password update. Keep that limitation in mind when assessing production security.
+- Never put service-role keys, payout private keys, Telegram bot secrets, AI provider keys, release keystore material or Cloudflare Turnstile secret in browser assets or Cloudflare Pages client variables.
 
 ## Branch policy
 
@@ -55,4 +59,4 @@ Never put service-role keys, payout private keys, Telegram bot secrets, AI provi
 - Master Admin: `/admin/` from root `master-admin.html`
 - Cloudflare Pages: `aegispay-pro`
 - Supabase: `wtcspnrmsoisroavojop`
-- Android repository candidate: versionCode 42 / versionName 2.6.3 (`releaseChannel: test`; not a stable release until CI publishes the APKs and verified SHA-256 values)
+- Android auth-security candidate: versionCode 43 / versionName 2.6.4 (`releaseChannel: test`; not a stable release until CI passes, updated APKs are published, and verified SHA-256 values are available)
