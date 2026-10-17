@@ -1,5 +1,23 @@
 # AegisPay Production Readiness
 
+## Current verified snapshot — 2026-10-18
+
+This snapshot supersedes conflicting older state notes below; the prior dated notes remain as historical records.
+
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`, production branch `main`; pre-follow-up baseline: `c954eca59e368544ca6343eb1af4bef58fe1f7cb`.
+- Canonical website: https://aegispay-pro.pages.dev/; client: https://aegispay-pro.pages.dev/app/; Master Admin: https://aegispay-pro.pages.dev/admin/.
+- Latest verified baseline Pages deployment before this follow-up: `c000d353-6f76-4878-8535-72a3dec698e7`, stage success, commit `c954eca59e368544ca6343eb1af4bef58fe1f7cb`.
+- Live Supabase project `wtcspnrmsoisroavojop` is ACTIVE_HEALTHY. The current state has eight application profiles and an active username-login endpoint.
+- Payment controls remain CLOSED: `environment=PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, `payouts_locked=true`. Although the selected system network says `MAINNET`, live deposits, real payouts and go-live approval are all false.
+- `deposit_wallets` and `deposit_submissions` each contain zero records. No per-user Mainnet address has been issued and no on-chain transfer was executed. Do not enable deposits as part of this code-only work.
+- The address-generation API has strict fail-closed checks and is deployed, but HD wallet secrets / matching payout signer / production readiness have not been proved. The sweep worker is Shasta-testnet-only; isolated funded testnet end-to-end tests remain pending.
+- Build 43 / version 2.6.4 is a TEST candidate, not a stable signed release. The main-branch baseline CI, migration tests, Web deployment and Android build passed before the current auth follow-up.
+- Owner-side prerequisites still pending: Supabase Auth dashboard CAPTCHA configuration and redirect allowlist confirmation; native leaked-password protection when available; Facebook Meta credentials/provider redirect; existing Android release signing material; physical-device validation. Connected tools do not offer a Supabase Auth settings write action, so these are not claimed as changed here.
+- Remaining non-operator code follow-up is tracked in `docs/PENDING_WORK_STATUS.md` and `PRODUCTION_HANDOFF.md`; check the latest CI and production deployment before treating a new PR as released.
+
+## Historical deployment state — 2026-10-08
+
+
 ## Verified deployment state — 2026-10-08
 
 - GitHub repository: `msmgroups5/AegisPay-pro`
