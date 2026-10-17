@@ -217,7 +217,8 @@ assert(client.includes('./supabase-sdk.js'),'Client must load the pinned local S
 const androidBuild=fs.readFileSync('android/app/build.gradle','utf8');
 assert(androidBuild.includes("include 'supabase-sdk.js'"),'Client Android assets must include the pinned Supabase SDK');
 assert(androidBuild.includes("'Activate Selected Tier'"),'Android build guard must match the current tier UI');
-assert(client.includes("provider:provider")&&client.includes('data-google-auth')&&client.includes("facebook:false"),'Client UI must offer Google OAuth and keep Facebook gated until provider credentials are configured');
+const socialAuthConfig=fs.readFileSync('supabase-client.js','utf8');
+assert(client.includes("provider:provider")&&client.includes('data-google-auth')&&socialAuthConfig.includes("facebook:false"),'Client UI must offer Google OAuth and keep Facebook gated until provider credentials are configured');
 assert(client.includes('window.AegisSupabaseClient=db;')&&client.includes('window.AegisAuthRedirect={'),'Client must expose a same-session OAuth callback handler for the Android deep-link bridge');
 assert(client.includes("com.aegispay.app.client://auth/callback")&&client.includes("new URL('/app/'"),'Google OAuth must have both native APK and canonical web callback URLs');
 assert(client.includes("aegispay:auth-confirmed")&&client.includes("exchangeCodeForSession(code)"),'Google OAuth callbacks must exchange PKCE codes and resume the client session');
