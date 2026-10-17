@@ -28,7 +28,7 @@ The `site/` portal copies are deployment artifacts. They are never independent a
 
 Supabase project: `wtcspnrmsoisroavojop`.
 
-The current project is running in a controlled PRE_PRODUCTION / LIVE_DEPOSIT_TEST state. Real payouts remain disabled behind the Phase 3 server-side production gate. Financial state changes stay behind Supabase RPCs/Edge Functions and authenticated role checks. Deposit evidence is stored in the private `private-verification` bucket.
+The current `production_config` is `PRE_PRODUCTION`: live deposits are disabled, real payouts are disabled, and the payout lock is closed. `deposit_rules` still references the TRON Mainnet USDT contract, but the production gate remains closed. New HD wallet endpoints are fail-closed until their server-side secrets and readiness checks are satisfied. Financial state changes stay behind Supabase RPCs/Edge Functions and authenticated role checks. Deposit evidence is stored in the private `private-verification` bucket.
 
 ## Verification
 
@@ -55,4 +55,4 @@ Never put service-role keys, payout private keys, Telegram bot secrets, AI provi
 - Master Admin: `/admin/` from root `master-admin.html`
 - Cloudflare Pages: `aegispay-pro`
 - Supabase: `wtcspnrmsoisroavojop`
-- Android current baseline: versionCode 38 / versionName 2.5.9
+- Android repository candidate: versionCode 42 / versionName 2.6.3 (`releaseChannel: test`; not a stable release until CI publishes the APKs and verified SHA-256 values)
