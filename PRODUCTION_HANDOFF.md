@@ -1,5 +1,13 @@
 # AegisPay Production Handoff
 
+## Latest code-side follow-up — 2026-10-18
+
+- The production payment posture remains intentionally locked; this follow-up must not change live deposit, payout or go-live flags.
+- Auth source updates classify Supabase CAPTCHA/rate-limit errors separately while retaining a generic response for invalid credentials to avoid account enumeration.
+- Current client signup and password-recovery redirects are standardized on the canonical Pages portal rather than the stale `aegispay-web.aegispay.workers.dev` hostname.
+- Release-level prerequisites remain separate from code fixes: Supabase Auth dashboard CAPTCHA/password settings, verified Auth redirect allowlist, owner-provided Meta credentials, existing Android signing material, and physical-device verification.
+
+
 ## Canonical technical baseline
 
 - Repository: `tryforsuccess1/AegisPay-Pro`
