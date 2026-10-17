@@ -1,12 +1,25 @@
 # AegisPay Production Handoff
 
-## Latest code-side follow-up — 2026-10-18
+## Verified code, deployment and release snapshot — 2026-10-18
 
-- The production payment posture remains intentionally locked; this follow-up must not change live deposit, payout or go-live flags.
-- Auth source updates classify Supabase CAPTCHA/rate-limit errors separately while retaining a generic response for invalid credentials to avoid account enumeration.
-- The controlled signup Edge Function and Client password-recovery flow use the canonical Pages destination. Resend-verification and the shared Master Admin reset helper retain the existing Worker redirect until the Supabase Auth redirect allowlist is verified for the Pages origin; test the allowlist before switching those remaining links.
-- Release-level prerequisites remain separate from code fixes: Supabase Auth dashboard CAPTCHA/password settings, verified Auth redirect allowlist, owner-provided Meta credentials, existing Android signing material, and physical-device verification.
+- Canonical repo `tryforsuccess1/AegisPay-Pro`, main commit: `5f2106aaada22b0c3dccef537240f97db6d208f0`.
+- PR #49 is merged. It adds clear CAPTCHA/rate-limit failure classification to username login while retaining generic invalid-credential messages, removes an unused client-controlled signup redirect, aligns the package version and refreshes readiness documentation. Its final main-branch CI passed.
+- GitHub workflow checks for this main commit all passed: [CI](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39077513754), [SQL migrations](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39077513833), [withdrawal migrations](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39077513738), [Android build](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39077513744), and [Web Portal Deploy](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39077513808). The deployed browser smoke test reported landing, Client and Master Admin success; login/responsive UI, Edge Function type checks, password tests, HD derivation, sweep retry/idempotency tests and Shop Worker bundle checks passed.
+- Latest Cloudflare Pages deployment: `b3df2d5d-06d6-4370-9860-7c0bde9ebab4`, stage `success`, commit `5f2106aaada22b0c3dccef537240f97db6d208f0`. Canonical URLs: https://aegispay-pro.pages.dev/ , https://aegispay-pro.pages.dev/app/ , https://aegispay-pro.pages.dev/admin/.
+- The production deployment artifact contains a generated `stable` Build 43 / 2.6.4 manifest and versioned Client/Master Admin APKs. Verified package SHA-256 values: Client `78170d3ece8dc62221113361b7426538132deee4cde543b94c63b835f0156663`; Master Admin `ff4fb0683a8b9f88d884f2191a76454ed9638e420122bc09a7900673528193ee`. Both values match their legacy alias files and the generated manifest.
+- Release certificate SHA-256 fingerprint `7B:81:0E:E5:CA:BB:4E:2A:5E:A4:17:8C:FC:17:CD:B1:FA:48:7F:DE:98:31:EE:6D:C0:B2:4F:85:15:C6:94:74` matches the Build 42 / 2.6.3 release artifact, so signing continuity is verified against the previous published build. The APKs pass ZIP/signature-entry and JAR signature verification; physical-device install/update and live-auth regression tests have not been performed in this environment. I did not create a replacement keystore or expose signing secret values.
+- Supabase `username-login` is ACTIVE v9 and was redeployed from main with the new shared auth-error classifier. A live source read verified the deployed entry point imports the deployed shared helper.
+- Payment safety remains unchanged and CLOSED: environment `PRE_PRODUCTION`; live deposits `false`; real payouts `false`; go-live approval `false`; payout lock `true`. The network setting still says `MAINNET`, but all payment enablement flags are off. Current counts: `deposit_wallets=0`, `deposit_submissions=0`, `deposit_wallet_sweeps=0`, unresolved approved withdrawals `0`.
+- The source-tree `app-version.json` intentionally remains a test fallback. The web deploy workflow generates the served production manifest using the exact build APKs, channel, URLs and SHA-256 values; do not mistake the root source file for the served manifest.
 
+## Remaining external/manual prerequisites
+
+These are not uncompleted code fixes and cannot be truthfully marked PASS from the available account tools:
+
+1. Supabase Auth dashboard: enable native Cloudflare Turnstile CAPTCHA using the existing widget secret, confirm the Pages and Android redirect allowlist, and set native minimum password length to 12. The connected Supabase actions do not provide an Auth configuration write operation. Supabase Security Advisor still flags native leaked-password protection as disabled.
+2. Complete real sign-in/reset and update-flow tests on a physical Android device. CI's browser tests pass, but cannot replace an installed-device test.
+3. Facebook OAuth remains intentionally disabled until the owner configures valid Meta App ID/Secret and redirects.
+4. HD wallet production readiness is not complete: live `deposit_wallets` has zero rows; seed/signer match, per-user address issuance, funded isolated Shasta testnet sweeps, monitoring and end-to-end credit/reconciliation must be proven before anyone enables real deposits. No payment flags were changed and no chain transfer was made.
 
 ## Canonical technical baseline
 
