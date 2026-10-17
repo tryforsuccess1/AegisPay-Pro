@@ -465,6 +465,7 @@ const sweepTests=fs.readFileSync('supabase/functions/_shared/tron-sweep_test.ts'
 const sweepMigration=fs.readFileSync('database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql','utf8');
 const sweepSqlTests=fs.readFileSync('scripts/sql-tests/hd_deposit_sweep_assertions.sql','utf8');
 assert(sweepWorker.includes('const NETWORK = "TRON TESTNET"')&&sweepWorker.includes('const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"'),'Sweep worker must be pinned to the Shasta testnet and testnet USDT contract');
+assert(sweepWorker.includes('Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true"')&&sweepWorker.includes('TESTNET_SWEEP_DISABLED'),'Testnet sweep must remain disabled unless explicitly enabled in an isolated test environment');
 assert(!sweepWorker.includes('TRON_PAYOUT_PRIVATE_KEY')&&!sweepWorker.includes('TRON MAINNET'),'Sweep worker must not read Mainnet payout keys or accept a Mainnet network');
 assert(sweepWorker.includes('mode.live_deposits !== false')&&sweepWorker.includes('production.payouts_locked !== true')&&sweepWorker.includes('PRODUCTION_MODE_BLOCKED'),'Sweep worker must fail closed unless all production money gates remain closed');
 assert(sweepWorker.includes('UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT')&&sweepWorker.includes('status", "VERIFIED"'),'Sweep must not move tokens when any inbound transfer lacks a verified deposit record');
