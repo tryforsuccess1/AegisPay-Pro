@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { assertPasswordNotPwned, PasswordSecurityUnavailableError, PwnedPasswordError } from "../_shared/pwned-passwords.ts";
+import { passwordPolicyError } from "../_shared/password-policy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -56,6 +57,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null) as Record<string, unknown> | null;
     const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
     const password = typeof body?.password === "string" ? body.password : "";
+    const captchaToken = typeof body?.captchaToken === "string" ? body.captchaToken.trim() : "";
     const name = typeof body?.name === "string" ? body.name.trim() : "";
     const username = typeof body?.username === "string" ? body.username.trim().toLowerCase() : "";
     const referralCode = typeof body?.referralCode === "string" ? body.referralCode.trim().toUpperCase() : "";
@@ -64,7 +66,8 @@ Deno.serve(async (req: Request) => {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return json({ error: "Enter a valid email address.", code: "INVALID_EMAIL", requestId }, 400);
     if (name.length < 2 || name.length > 100) return json({ error: "Enter a valid full name.", code: "INVALID_NAME", requestId }, 400);
     if (!/^[a-z0-9_]{3,32}$/.test(username)) return json({ error: "Username must be 3 to 32 characters using letters, numbers or underscore.", code: "INVALID_USERNAME", requestId }, 400);
-    if (password.length < 8 || password.length > 128) return json({ error: "Password must contain 8 to 128 characters.", code: "INVALID_PASSWORD", requestId }, 400);
+    const passwordError = passwordPolicyError(password);
+    if (passwordError) return json({ error: passwordError, code: "INVALID_PASSWORD", requestId }, 400);
     if (referralCode.length > 32) return json({ error: "Referral code is too long.", code: "INVALID_REFERRAL", requestId }, 400);
 
     const ip = trustedClientIp(req);
@@ -126,6 +129,7 @@ Deno.serve(async (req: Request) => {
       password,
       options: {
         data: { full_name: name.slice(0, 100), username, referral_code: referralCode, preferred_language: preferredLanguage },
+        captchaToken: captchaToken || undefined,
         emailRedirectTo: PRODUCTION_REDIRECT
       }
     });
