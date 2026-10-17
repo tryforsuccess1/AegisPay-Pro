@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
-import { buildSweepIdempotencyKey, classifySweepAction } from "../_shared/tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -20,7 +20,6 @@ const FEE_LIMIT_SUN = 100_000_000;
 const MIN_TRX_FOR_SWEEP_SUN = 120_000_000;
 const MIN_ENERGY_FOR_SWEEP = 100_000;
 const MIN_TRX_WITH_ENERGY_SUN = 1_000_000;
-const TRANSFER_TOPIC = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-aegis-cron-secret",
@@ -60,9 +59,6 @@ function newTron(privateKey: string) {
 function asRawBigInt(value: unknown): bigint {
   try { return BigInt(String(value ?? "0")); } catch { return 0n; }
 }
-function hexTail(value: unknown): string {
-  return String(value || "").replace(/^0x/i, "").toLowerCase().slice(-40);
-}
 function errorCode(error: unknown): string {
   const text = String((error as Error)?.message || error || "").toLowerCase();
   if (text.includes("energy") || text.includes("bandwidth") || text.includes("fee")) return "RESOURCE_OR_FEE_ERROR";
@@ -85,25 +81,6 @@ async function markReview(admin: Admin, row: SweepRow, failureCode: string) {
     .eq("id", row.id).in("status", ["PREPARED", "SIGNED", "BROADCAST"]);
   if (error) return { walletId: row.deposit_wallet_id, sweepId: row.id, status: "JOURNAL_UPDATE_FAILED" };
   return { walletId: row.deposit_wallet_id, sweepId: row.id, status: "MANUAL_REVIEW_REQUIRED", code: failureCode };
-}
-
-function createTransferDecoder(expectedTreasury: string) {
-  const expectedContract = hexTail(TronWeb.address.toHex(TOKEN));
-  const expectedTo = hexTail(TronWeb.address.toHex(expectedTreasury));
-  return (info: any, txid: string, amountRaw: string): "CONFIRMED" | "FAILED" | "PENDING" | "MISMATCH" => {
-    if (!info || !info.id || String(info.id).toLowerCase() !== txid.toLowerCase()) return "PENDING";
-    if (!info.receipt || !info.receipt.result) return "PENDING";
-    if (String(info.receipt.result).toUpperCase() !== "SUCCESS") return "FAILED";
-    const logs = Array.isArray(info.log) ? info.log : [];
-    const match = logs.find((log: any) => {
-      const topics = Array.isArray(log.topics) ? log.topics.map((x: unknown) => String(x).replace(/^0x/i, "").toLowerCase()) : [];
-      if (hexTail(log.address) !== expectedContract || topics[0] !== TRANSFER_TOPIC || topics.length < 3) return false;
-      if (topics[2].slice(-40) !== expectedTo) return false;
-      try { return BigInt("0x" + String(log.data || "0").replace(/^0x/i, "")) === BigInt(amountRaw); }
-      catch { return false; }
-    });
-    return match ? "CONFIRMED" : "MISMATCH";
-  };
 }
 
 async function getTokenBalance(client: any, address: string): Promise<string> {
@@ -178,8 +155,9 @@ async function hasSufficientResources(client: any, address: string) {
   const balance = Number(trxBalance);
   if (!Number.isFinite(balance) || balance < 0) return { ok: false, code: "TRX_BALANCE_UNAVAILABLE" };
   const energy = Math.max(0, Number(resources?.EnergyLimit || 0) - Number(resources?.EnergyUsed || 0));
-  if (balance >= MIN_TRX_WITH_ENERGY_SUN && energy >= MIN_ENERGY_FOR_SWEEP) return { ok: true, code: "ENERGY_AND_BANDWIDTH_READY" };
-  if (balance >= MIN_TRX_FOR_SWEEP_SUN) return { ok: true, code: "TRX_FEE_RESERVE_READY" };
+  if (hasEnoughSweepResources(balance, energy, MIN_TRX_FOR_SWEEP_SUN, MIN_ENERGY_FOR_SWEEP, MIN_TRX_WITH_ENERGY_SUN)) {
+    return { ok: true, code: balance >= MIN_TRX_FOR_SWEEP_SUN ? "TRX_FEE_RESERVE_READY" : "ENERGY_AND_BANDWIDTH_READY" };
+  }
   return { ok: false, code: "NEEDS_TESTNET_TRX_OR_ENERGY" };
 }
 
@@ -197,10 +175,15 @@ async function processSavedTransaction(admin: Admin, client: any, row: SweepRow,
   if (decision === "MANUAL_REVIEW") return markReview(admin, row, "SAVED_TRANSACTION_INVALID_OR_EXPIRED");
   const txid = String(row.txid);
   const signedTx = row.signed_transaction;
-  const decode = createTransferDecoder(treasury);
   let info: any = null;
   try { info = await client.trx.getTransactionInfo(txid); } catch { /* Not yet indexed; rebroadcast only the exact saved signed bytes. */ }
-  const receiptState = decode(info, txid, String(row.amount_raw));
+  const receiptState = classifySweepReceipt(
+    info,
+    txid,
+    TronWeb.address.toHex(TOKEN),
+    TronWeb.address.toHex(treasury),
+    String(row.amount_raw),
+  );
   if (receiptState === "CONFIRMED") return await markConfirmed(admin, row, txid);
   if (receiptState === "FAILED" || receiptState === "MISMATCH") {
     return markReview(admin, row, receiptState === "FAILED" ? "ONCHAIN_TRANSACTION_FAILED" : "ONCHAIN_TRANSFER_MISMATCH");
