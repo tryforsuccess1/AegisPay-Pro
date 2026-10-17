@@ -35,7 +35,7 @@ type SweepRow = {
   id: string; deposit_wallet_id: string; network: string; token_contract: string;
   treasury_address: string; amount_raw: string; txid: string | null;
   signed_transaction: any; transaction_expiration_ms: number | null;
-  status: string; idempotency_key: string;
+  status: string; idempotency_key: string; failure_code?: string | null;
 };
 type IncomingTransfer = { txid: string; rawAmount: string; blockTimestamp: number };
 type VerifiedSource = { id: string; txid: string; raw_amount?: string | null };
