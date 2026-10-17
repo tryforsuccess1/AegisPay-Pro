@@ -4,6 +4,7 @@
   // Public Cloudflare Turnstile sitekey. Supabase Auth must be configured with
   // the matching secret before CAPTCHA enforcement is enabled in production.
   var SITEKEY = '0x4AAAAAAFZaOeTke8FQpVNS';
+  var TEST_SITEKEY = '1x00000000000000000000AA';
   var AUTH_FORMS = new Set(['liveLogin', 'liveSignup', 'forgotForm', 'aaLoginForm']);
   var states = new WeakMap();
   var apiPromise = null;
@@ -44,6 +45,15 @@
     return apiPromise;
   }
 
+  function resolvedSitekey() {
+    var host = String(window.location && window.location.hostname || '').toLowerCase();
+    // Cloudflare's official always-pass test key is only used by localhost browser smoke tests.
+    // Production uses the real sitekey and only its configured production/appasset hostnames.
+    if (host === 'localhost' || host === '127.0.0.1') return TEST_SITEKEY;
+    var config = window.AegisSupabaseConfig || {};
+    return String(config.turnstileSiteKey || SITEKEY);
+  }
+
   function attach(form) {
     if (!form || !AUTH_FORMS.has(form.id) || states.has(form)) return states.get(form) || null;
     var wrap = document.createElement('div');
@@ -69,8 +79,7 @@
 
     loadApi().then(function () {
       if (!form.isConnected || state.widgetId !== null) return;
-      var config = window.AegisSupabaseConfig || {};
-      var sitekey = String(config.turnstileSiteKey || SITEKEY);
+      var sitekey = resolvedSitekey();
       state.widgetId = window.turnstile.render(widget, {
         sitekey: sitekey,
         theme: 'auto',
