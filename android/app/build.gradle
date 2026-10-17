@@ -138,6 +138,7 @@ def syncClientAegisPayWebAssets = tasks.register('syncClientAegisPayWebAssets', 
         include 'app-version.json'
         include 'app-update.js'
         include 'supabase-sdk.js'
+        include 'aegis-turnstile.js'
     }
     into(layout.projectDirectory.dir('src/client/assets/aegispay'))
 }
@@ -150,6 +151,7 @@ def syncAdminAegisPayWebAssets = tasks.register('syncAdminAegisPayWebAssets', Co
         include 'supabase-client.js'
         include 'supabase-service.js'
         include 'aegis-auth-redirect.js'
+        include 'aegis-turnstile.js'
         include 'app-update.js'
         include 'service-worker.js'
         include 'manifest.webmanifest'
