@@ -4,7 +4,7 @@ import { assertPasswordNotPwned, PasswordSecurityUnavailableError, PwnedPassword
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const PRODUCTION_REDIRECT = "https://aegispay-web.aegispay.workers.dev/?verified=1";
+const PRODUCTION_REDIRECT = "https://aegispay-pro.pages.dev/app/?verified=1";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -80,11 +80,15 @@ Deno.serve(async (req: Request) => {
       await assertPasswordNotPwned(password);
     } catch (error) {
       if (error instanceof PwnedPasswordError) {
+        // Record only the outcome and request ID; never log passwords or hashes.
+        console.info("public-signup password security rejected", { requestId, code: "COMPROMISED_PASSWORD" });
         return json({ error: error.message, code: "COMPROMISED_PASSWORD", requestId }, 400);
       }
       if (error instanceof PasswordSecurityUnavailableError) {
+        console.warn("public-signup password security unavailable", { requestId, code: "PASSWORD_SECURITY_UNAVAILABLE" });
         return json({ error: "Password security check is temporarily unavailable. No account was created; please try again shortly.", code: "PASSWORD_SECURITY_UNAVAILABLE", requestId }, 503);
       }
+      console.warn("public-signup password security unexpected failure", { requestId, code: "PASSWORD_SECURITY_UNAVAILABLE" });
       return json({ error: "Password security check failed. No account was created; please try again.", code: "PASSWORD_SECURITY_UNAVAILABLE", requestId }, 503);
     }
 

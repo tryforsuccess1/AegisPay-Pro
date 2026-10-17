@@ -1,0 +1,55 @@
+name: AegisPay Security Foundation Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/**'
+      - 'scripts/sql-tests/ai_support_messages_*.sql'
+      - '.github/workflows/security-foundation-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/**'
+      - 'scripts/sql-tests/ai_support_messages_*.sql'
+      - '.github/workflows/security-foundation-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ai-support-access:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL is ready
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create disposable AI support table fixture
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/ai_support_messages_fixture.sql
+      - name: Apply least-privilege migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222721_lock_ai_support_message_client_access.sql
+      - name: Verify deny policy and service-role access
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/ai_support_messages_assertions.sql

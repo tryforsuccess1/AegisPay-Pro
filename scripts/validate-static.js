@@ -43,6 +43,11 @@ const must=[
   'docs/hd-tron-deposit-wallets.md',
   'scripts/sql-tests/deposit_migration_fixture.sql',
   'scripts/sql-tests/deposit_migration_assertions.sql',
+  'scripts/sql-tests/deposit_monitor_cron_fixture.sql',
+  'scripts/sql-tests/deposit_monitor_cron_assertions.sql',
+  'database/migrations/20261015222625_deposit_monitor_skip_when_gates_closed.sql',
+  'database/migrations/20261015222642_guard_manual_balance_reversals.sql',
+  'database/migrations/20261015222721_lock_ai_support_message_client_access.sql',
   '.github/workflows/sql-migration-tests.yml',
   'docs/recovered-sql/ensure_auto_task_cycle_live_reference_20261013.sql',
   'scripts/sql-tests/withdrawal_migration_fixture.sql',
@@ -74,6 +79,11 @@ assert(googleUsernameFixMigration.includes("NEW.email_confirmed_at IS NOT NULL")
 assert(googleUsernameFixMigration.includes("NEW.raw_app_meta_data -> 'providers', '[]'::jsonb) @> '[\"google\"]'::jsonb")&&googleUsernameFixMigration.includes("IF lower(COALESCE(NEW.raw_app_meta_data ->> 'provider', '')) = 'google'"),'Google username generation must rely on trusted Supabase Google provider metadata, not the email-confirmation timestamp');
 assert(!googleUsernameFixMigration.includes("AND NEW.email_confirmed_at IS NOT NULL THEN\n      v_username_base"),'Google username generation must tolerate email_confirmed_at being unset during the initial Auth insert');
 
+const cloudflareDeployWorkflow=fs.readFileSync('.github/workflows/web-portal-deploy.yml','utf8');
+const apkReleaseWorkflow=fs.readFileSync('.github/workflows/website-apk-release.yml','utf8');
+assert(cloudflareDeployWorkflow.includes("if: github.ref == 'refs/heads/main'"),'Production Cloudflare deployment must be restricted to the main branch even for manual dispatch');
+assert(apkReleaseWorkflow.includes("if: github.ref == 'refs/heads/main'"),'APK release publication must be restricted to the main branch even for manual dispatch');
+
 const securityHeaders=fs.readFileSync('_headers','utf8').toLowerCase();
 for(const header of [
   'x-content-type-options: nosniff',
@@ -103,6 +113,7 @@ assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+assert(client.includes("entryType==='MASTER_ADMIN_CREDIT'")&&client.includes("label:adminCredit?'Deposit':")&&client.includes("status:adminCredit?'':x.entry_type||''")&&client.includes("filter=adminCredit?'dep':"),'Positive admin-issued credits must show only Deposit and belong to the Deposits filter');
 assert(masterAdmin.includes('Interaction and accessibility polish: admin controls use consistent touch targets'),'Master Admin touch target styles are missing');
 assert(masterAdmin.includes('button{min-height:40px}'),'Master Admin controls must have a consistent minimum height');
 assert(masterAdmin.includes('button:focus-visible,a:focus-visible'),'Master Admin keyboard focus indicators are missing');
@@ -152,6 +163,10 @@ assert(publicSignupSource.includes('assertPasswordNotPwned(password)')&&publicSi
 assert(passwordResetSource.includes('assertPasswordNotPwned(password)')&&passwordResetSource.includes('COMPROMISED_PASSWORD')&&passwordResetSource.includes('PASSWORD_SECURITY_UNAVAILABLE'),'Password reset must reject compromised passwords before changing the Auth password');
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
+const signupRedirectSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
+assert(signupRedirectSource.includes('const PRODUCTION_REDIRECT = "https://aegispay-pro.pages.dev/app/?verified=1";'),'Signup verification must use the approved canonical Pages redirect');
+assert(client.includes("redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1'"),'Password reset emails must return to the canonical Pages app route');
+assert(client.includes("replace(/^#/,'').replace(/^\\?/,'')")&&client.includes('This password reset link has expired or has already been used.')&&client.includes("hashParams.has('error')"),'Password recovery must handle provider error fragments and explain expired links');
 const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
 assert(aiSupportSource.includes('if (!answer) answer = fallback(message, context, history)')&&aiSupportSource.includes('AI support is temporarily unavailable.'),'AI support must provide a safe fallback and a clear service-unavailable error');
@@ -207,7 +222,9 @@ assert(client.includes('resetPasswordForEmail'),'Client password reset request i
 assert(client.includes("reset=1"),'Client password reset redirect marker is missing');
 assert(client.includes('exchangeCodeForSession'),'PKCE password reset handling is missing');
 assert(client.includes("setSession({access_token:accessToken,refresh_token:refreshToken})"),'Implicit password recovery token handling is missing');
-assert(client.includes("https://aegispay-web.aegispay.workers.dev/?reset=1"),'Password reset must target the canonical Worker');
+assert(client.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Password reset must use the canonical Pages destination approved in Supabase Auth');
+assert(signupRedirectSource.includes("https://aegispay-pro.pages.dev/app/?verified=1"),'Signup verification must use the canonical Pages destination approved in Supabase Auth');
+assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-pro.pages.dev/app/?verified=1'),'Password reset and signup verification must target the canonical Pages app');
 assert(client.includes("db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name})"),'Client wallet-link flow must use the owner-name protected RPC');
 assert(client.includes("complete-cycle-checkout"),'Client Shop checkout endpoint is not wired');
 assert(client.includes("db.rpc('complete_shop_task',{p_task_id:taskId})"),'Client per-task Shop completion RPC is missing');
@@ -307,7 +324,8 @@ for(const m of [
   'claim_aegispay_profile','public-signup','signInWithPassword','resetPasswordForEmail',
   'request_withdrawal','app_runtime_enabled','set_app_runtime_enabled'
 ])assert(service.includes(m),'Supabase marker missing: '+m);
-assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared password reset redirect must target the canonical Worker');
+assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared password reset redirect must retain the current Worker destination until the Pages URL is approved');
+assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared auth helper must preserve the current redirect until Supabase Auth allowlist verification');
 
 const gradle=fs.readFileSync('android/app/build.gradle','utf8');
 assert(gradle.includes("include 'client.html'")&&!gradle.includes("include 'client-fresh.html'")&&gradle.includes("include 'master-admin.html'"),'Android canonical entries missing');

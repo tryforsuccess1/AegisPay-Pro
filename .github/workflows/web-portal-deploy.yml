@@ -11,6 +11,7 @@ permissions:
   contents: read
 jobs:
   deploy-web:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: "6a31dfe877fe64e588b9415265302af4"
