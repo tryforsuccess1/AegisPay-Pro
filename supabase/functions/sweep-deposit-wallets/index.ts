@@ -285,6 +285,14 @@ async function signAndPersist(admin: Admin, client: any, wallet: WalletRow, row:
   return await processSavedTransaction(admin, client, persisted as SweepRow, treasury);
 }
 
+async function processJournalRecord(admin: Admin, client: any, wallet: WalletRow, row: SweepRow, treasury: string) {
+  const action = classifySweepAction(row);
+  if (action === "ALREADY_CONFIRMED") return { walletId: wallet.id, sweepId: row.id, status: "ALREADY_CONFIRMED", txid: row.txid };
+  if (action === "MANUAL_REVIEW") return { walletId: wallet.id, sweepId: row.id, status: "MANUAL_REVIEW_REQUIRED", code: row.failure_code || "SAVED_TRANSACTION_INVALID" };
+  if (action === "RECONCILE_SAVED_TRANSACTION") return await processSavedTransaction(admin, client, row, treasury);
+  return await signAndPersist(admin, client, wallet, row, treasury);
+}
+
 async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) {
   const identity = await deriveTronHdIdentity(HD_MNEMONIC, HD_PASSPHRASE, Number(wallet.derivation_index));
   if (identity.address !== wallet.address || identity.rootFingerprint !== wallet.wallet_root_fingerprint) {
@@ -297,13 +305,7 @@ async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) 
     .order("created_at", { ascending: false }).limit(1);
   if (pendingError) return { walletId: wallet.id, status: "JOURNAL_LOOKUP_FAILED" };
   const pending = pendingRows?.[0] as SweepRow | undefined;
-  if (pending) {
-    const action = classifySweepAction(pending);
-    if (action === "ALREADY_CONFIRMED") return { walletId: wallet.id, status: "ALREADY_CONFIRMED", sweepId: pending.id, txid: pending.txid };
-    if (action === "MANUAL_REVIEW") return { walletId: wallet.id, sweepId: pending.id, status: "MANUAL_REVIEW_REQUIRED", code: pending.status === "FAILED_REVIEW" ? pending.failure_code || "MANUAL_REVIEW" : "SAVED_TRANSACTION_INVALID_OR_EXPIRED" };
-    if (action === "RECONCILE_SAVED_TRANSACTION") return await processSavedTransaction(admin, client, pending, treasury);
-    return await signAndPersist(admin, client, wallet, pending, treasury);
-  }
+  if (pending) return await processJournalRecord(admin, client, wallet, pending, treasury);
 
   let snapshot;
   try { snapshot = await getSafeSnapshot(admin, client, wallet); }
@@ -319,7 +321,7 @@ async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) 
     const { data: existing, error: existingError } = await admin.from("deposit_wallet_sweeps")
       .select("*").eq("deposit_wallet_id", wallet.id).eq("idempotency_key", idempotencyKey).maybeSingle();
     if (existingError || !existing) return { walletId: wallet.id, status: "JOURNAL_CREATE_FAILED" };
-    return await signAndPersist(admin, client, wallet, existing as SweepRow, treasury);
+    return await processJournalRecord(admin, client, wallet, existing as SweepRow, treasury);
   }
   const items = snapshot.transfers.map((item) => {
     const source = snapshot.sources.get(item.txid);
