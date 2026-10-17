@@ -273,7 +273,7 @@ button,[role="button"],.chip,.task-view-product,.task-complete{touch-action:mani
 .btn:not(.o):not(.rd):not(:disabled),.chip.on{background:linear-gradient(135deg,#c94932,#b83b7d);color:#fff}
 .bk{width:44px;height:44px;min-width:44px;min-height:44px}
 
-.google-auth-btn{width:100%;min-height:46px;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:12px;padding:12px 14px;border:1px solid #d7d4ce;border-radius:14px;background:#fff;color:#242424;font:600 13px var(--ff);cursor:pointer;box-shadow:var(--cs);transition:transform .15s ease,opacity .15s ease}.google-auth-btn:active{transform:scale(.985)}.google-auth-btn:disabled{opacity:.65;cursor:wait}.google-g{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font:bold 19px Arial,sans-serif;background:conic-gradient(from -45deg,#4285f4 0 25%,#34a853 25% 50%,#fbbc05 50% 75%,#ea4335 75% 100%);color:transparent;background-clip:text;-webkit-background-clip:text}.google-auth-note{font-size:10.5px;color:var(--mut);line-height:1.5;text-align:center;margin:7px 0 0}</style>
+.google-auth-btn{width:100%;min-height:46px;display:flex;align-items:center;justify-content:center;gap:10px;margin-top:12px;padding:12px 14px;border:1px solid #d7d4ce;border-radius:14px;background:#fff;color:#242424;font:600 13px var(--ff);cursor:pointer;box-shadow:var(--cs);transition:transform .15s ease,opacity .15s ease}.google-auth-btn:active{transform:scale(.985)}.google-auth-btn:disabled{opacity:.65;cursor:wait}.google-g{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;font:bold 19px Arial,sans-serif;background:conic-gradient(from -45deg,#4285f4 0 25%,#34a853 25% 50%,#fbbc05 50% 75%,#ea4335 75% 100%);color:transparent;background-clip:text;-webkit-background-clip:text}.google-auth-note{font-size:10.5px;color:var(--mut);line-height:1.5;text-align:center;margin:7px 0 0}.social-provider-icon{display:grid;place-items:center;width:20px;height:20px;font:bold 19px Arial,sans-serif}.facebook-provider-icon{color:#1877f2;font:bold 23px Arial,sans-serif}.facebook-auth-btn{border-color:#b8ccef}</style>
 <script>window.AEGIS_ANDROID_APP=!!window.AegisNative;window.AEGIS_ADMIN_PORTAL=false;</script>
 <style id="aegis-hide-horizontal-scrollbar-controls">
 /* Keep horizontal touch/trackpad scrolling, but suppress visible scrollbar tracks, thumbs and arrow buttons. */
@@ -791,68 +791,70 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const formatName=v=>String(v??'').trim().replace(/\s+/g,' ').split(' ').filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const formatUsername=v=>String(v??'').trim().toLowerCase();
 
-function googleOAuthRedirectTo(){
+function socialOAuthRedirectTo(){
   return window.AegisNative
     ? 'com.aegispay.app.client://auth/callback'
     : new URL('/app/',window.location.origin).href;
 }
-async function startGoogleAuth(button){
-  if(!button||button.disabled)return;
+async function startSocialAuth(provider,button){
+  if(!button||button.disabled||!['google','facebook'].includes(provider))return;
   if(referralLinkCode || (document.getElementById('sr')&&document.getElementById('sr').value.trim())){
-    uiNotice('To apply a referral code, please finish signup with the email form. Google signup does not currently apply referral codes.');
+    uiNotice('To apply a referral code, please finish signup with the email form. Social signup does not currently apply referral codes.');
     return;
   }
   const original=button.innerHTML;
+  const label=provider==='google'?'Google':'Facebook';
   button.disabled=true;
-  button.innerHTML='<span class="google-g" aria-hidden="true">G</span><span>Opening Google…</span>';
+  button.innerHTML='<span class="social-provider-icon" aria-hidden="true">'+(provider==='google'?'G':'f')+'</span><span>Opening '+label+'…</span>';
   try{
     const result=await db.auth.signInWithOAuth({
-      provider:'google',
-      options:{
-        redirectTo:googleOAuthRedirectTo(),
-        queryParams:{prompt:'select_account'},
-        skipBrowserRedirect:true
-      }
+      provider:provider,
+      options:{redirectTo:socialOAuthRedirectTo(),queryParams:provider==='google'?{prompt:'select_account'}:{},skipBrowserRedirect:true}
     });
     if(result.error)throw result.error;
-    if(!result.data||!result.data.url)throw new Error('Google sign-in did not return an authorization URL.');
+    if(!result.data||!result.data.url)throw new Error(label+' sign-in did not return an authorization URL.');
     window.location.assign(result.data.url);
   }catch(error){
     button.disabled=false;
     button.innerHTML=original;
-    uiNotice('Google sign-in could not start. Please check the Google provider configuration and allowed redirect URLs. '+(error&&error.message?error.message:''));
+    uiNotice(label+' sign-in could not start. Check that the provider is enabled and its credentials/redirect URLs are configured in Supabase. '+(error&&error.message?error.message:''));
   }
 }
-function installGoogleAuthButtons(){
+function installSocialAuthButtons(){
   const root=document.getElementById('app');
   if(!root)return;
   const target=root.querySelector('#liveLogin,#liveSignup');
-  if(!target||target.querySelector('[data-google-auth]'))return;
-  if(referralLinkCode)return;
-  const button=document.createElement('button');
-  button.type='button';
-  button.className='google-auth-btn';
-  button.setAttribute('data-google-auth','');
-  button.innerHTML='<span class="google-g" aria-hidden="true">G</span><span>Continue with Google</span>';
-  const note=document.createElement('p');
-  note.className='google-auth-note';
-  note.textContent=target.id==='liveSignup'
-    ? 'Google verifies your email. AegisPay will generate your Client ID automatically.'
-    : 'Sign in or create an account securely with Google.';
+  if(!target||referralLinkCode)return;
+  const config=window.AegisSupabaseConfig||{};
+  const enabled=config.socialProviders||{google:true,facebook:false};
   const link=target.querySelector('.lnk');
-  target.insertBefore(button,link||null);
-  target.insertBefore(note,link||null);
+  ['google','facebook'].forEach(function(provider){
+    if(!enabled[provider]||target.querySelector('[data-social-auth="'+provider+'"]'))return;
+    const label=provider==='google'?'Google':'Facebook';
+    const button=document.createElement('button');
+    button.type='button';
+    button.className='google-auth-btn '+(provider==='facebook'?'facebook-auth-btn':'');
+    button.setAttribute('data-social-auth',provider);
+    button.innerHTML='<span class="social-provider-icon '+(provider==='facebook'?'facebook-provider-icon':'google-g')+'" aria-hidden="true">'+(provider==='google'?'G':'f')+'</span><span>Continue with '+label+'</span>';
+    const note=document.createElement('p');
+    note.className='google-auth-note';
+    note.textContent=target.id==='liveSignup'
+      ? label+' verifies your identity. AegisPay will generate your Client ID automatically.'
+      : 'Sign in or create an account securely with '+label+'.';
+    target.insertBefore(button,link||null);
+    target.insertBefore(note,link||null);
+  });
 }
 document.addEventListener('click',function(event){
-  const button=event.target.closest('[data-google-auth]');
+  const button=event.target.closest('[data-social-auth]');
   if(!button)return;
   event.preventDefault();
   event.stopPropagation();
-  startGoogleAuth(button);
+  startSocialAuth(button.getAttribute('data-social-auth'),button);
 },true);
-const googleAuthRoot=document.getElementById('app');
-if(googleAuthRoot&&window.MutationObserver){
-  new MutationObserver(installGoogleAuthButtons).observe(googleAuthRoot,{childList:true,subtree:true});
+const socialAuthRoot=document.getElementById('app');
+if(socialAuthRoot&&window.MutationObserver){
+  new MutationObserver(installSocialAuthButtons).observe(socialAuthRoot,{childList:true,subtree:true});
 }
 window.AegisAuthRedirect={
   handle:async function(rawUrl){
@@ -1530,9 +1532,9 @@ SC.login=()=>'<div class="ap-auth auth"><div class="atools"><button type="button
 
 SC.forgot=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_reset">Reset password</h1><p>We will email you a reset link</p></div><div class="info b"><svg class="i"><use href="#info"/></svg><div>Only registered email addresses can receive a reset link.</div></div><form id="forgotForm"><div class="fl" data-i18n="a_email">Email</div><input id="fe" type="email" autocomplete="email" placeholder="you@email.com" required><div style="height:16px"></div><button class="btn" type="submit" data-i18n="a_send">Send reset link</button><div class="lnk"><a data-go="login" data-i18n="a_back">Back to login</a></div></form></div>';
 
-SC.reset=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_reset">Reset password</h1><p>Create a new password</p></div><div class="info"><svg class="i"><use href="#info"/></svg><div>A temporary security freeze may apply after a password reset.</div></div><form id="resetForm"><div class="fl">New password</div><input id="rp" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><div style="height:16px"></div><button class="btn" type="submit">Update password</button><div class="lnk"><a data-go="login">Back to login</a></div></form></div>';
+SC.reset=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_reset">Reset password</h1><p>Create a new password</p></div><div class="info"><svg class="i"><use href="#info"/></svg><div>A temporary security freeze may apply after a password reset.</div></div><form id="resetForm"><div class="fl">New password</div><input id="rp" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="At least 12 characters"><div style="height:16px"></div><button class="btn" type="submit">Update password</button><div class="lnk"><a data-go="login">Back to login</a></div></form></div>';
 
-SC.signup=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_create">Create account</h1><p>Your Client ID is based on your username</p></div><form id="liveSignup"><div class="fl" data-i18n="a_full">Full name</div><input id="sn" autocomplete="name" required placeholder="Full name"><div class="fl">Username</div><input id="su" autocomplete="username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9_]{3,32}" placeholder="Choose a username"><div class="fl" data-i18n="a_email">Email</div><input id="se" type="email" autocomplete="email" required placeholder="you@email.com"><div class="fl" data-i18n="a_pass">Password</div><input id="sp" type="password" autocomplete="new-password" minlength="8" required placeholder="At least 8 characters"><div class="fl" data-i18n="a_ref">Referral code (optional)</div><input id="sr" value="'+esc(referralLinkCode||'')+'" placeholder="Referral code"><div style="height:16px"></div><button class="btn" type="submit" data-i18n="a_create">Create account</button><div class="lnk"><span data-i18n="a_have">Already have an account?</span> <a data-go="login" data-i18n="a_login">Login</a></div></form></div>';
+SC.signup=()=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1 data-i18n="a_create">Create account</h1><p>Your Client ID is based on your username</p></div><form id="liveSignup"><div class="fl" data-i18n="a_full">Full name</div><input id="sn" autocomplete="name" required placeholder="Full name"><div class="fl">Username</div><input id="su" autocomplete="username" required minlength="3" maxlength="32" pattern="[a-zA-Z0-9_]{3,32}" placeholder="Choose a username"><div class="fl" data-i18n="a_email">Email</div><input id="se" type="email" autocomplete="email" required placeholder="you@email.com"><div class="fl" data-i18n="a_pass">Password</div><input id="sp" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="At least 12 characters"><div class="fl" data-i18n="a_ref">Referral code (optional)</div><input id="sr" value="'+esc(referralLinkCode||'')+'" placeholder="Referral code"><div style="height:16px"></div><button class="btn" type="submit" data-i18n="a_create">Create account</button><div class="lnk"><span data-i18n="a_have">Already have an account?</span> <a data-go="login" data-i18n="a_login">Login</a></div></form></div>';
 
 SC.verifyPending=(email)=>'<div class="ap-auth auth"><div class="atools"><button type="button" class="lang" data-a="mode" aria-label="Night mode"><svg class="i ic-moon"><use href="#moon"/></svg><svg class="i ic-sun"><use href="#sun"/></svg></button><button type="button" class="lang" data-a="lang" aria-label="Change language"><svg class="i"><use href="#globe"/></svg><span class="lgl">EN</span></button></div><div class="lg"><svg viewBox="0 0 48 56"><use href="#logo"/></svg><h1>Verify your <span class="gt">Email</span></h1><p>One final step before you can sign in</p></div><div class="card"><div style="text-align:center;font-size:42px;margin:4px 0 12px">✉️</div><h2 style="font-size:21px;text-align:center;display:block;margin:0 0 12px">Check your Gmail</h2><p class="mu" style="font-size:13px;line-height:1.6;text-align:center;margin:10px 0 18px">We sent a verification link to <b style="color:var(--hd)">'+esc(email)+'</b>. Open your email and tap <b style="color:var(--p2)">Verify Email</b>. You must verify your email before signing in.</p><button class="btn" id="resendVerify">Resend Verification Email</button><button class="btn o" style="margin-top:10px" onclick="go(\'login\')">I\'ve Verified — Sign In</button></div><div class="note" style="text-align:center">Check your Spam/Promotions folder if you do not see the email.</div></div>';
 const originalGo=window.go;
@@ -1543,13 +1545,15 @@ function bindAuthForms(){
     login.addEventListener('submit',async e=>{
       e.preventDefault();e.stopPropagation();
       try{
+        if(!window.AegisTurnstile)throw Error('Security verification did not load. Please refresh and try again.');
+        const captchaToken=await window.AegisTurnstile.requireToken(login);
         const identifier=document.getElementById('le').value.trim();
         const password=document.getElementById('lp').value;
         if(identifier.includes('@')){
-          const r=await db.auth.signInWithPassword({email:identifier.toLowerCase(),password});
+          const r=await db.auth.signInWithPassword({email:identifier.toLowerCase(),password,options:{captchaToken}});
           if(r.error)throw r.error;
         }else{
-          const response=await db.functions.invoke('username-login',{body:{username:identifier.toLowerCase(),password}});
+          const response=await db.functions.invoke('username-login',{body:{username:identifier.toLowerCase(),password,captchaToken}});
           if(response.error){
             let detail=null;
             try{if(response.error.context&&typeof response.error.context.clone==='function')detail=await response.error.context.clone().json();}catch(_){}
@@ -1577,7 +1581,9 @@ function bindAuthForms(){
         await liveHome();
       }catch(x){
         const msg=x.message||'Login failed';
-        uiNotice(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your Gmail/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
+        uiNotice(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your email inbox/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
+      }finally{
+        if(window.AegisTurnstile)window.AegisTurnstile.reset(login);
       }
     },true);
   }
@@ -1591,8 +1597,11 @@ function bindAuthForms(){
       if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent='Sending...'}
       try{
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Please enter a valid registered email address.');
+        if(!window.AegisTurnstile)throw Error('Security verification did not load. Please refresh and try again.');
+        const captchaToken=await window.AegisTurnstile.requireToken(forgot);
         const r=await db.auth.resetPasswordForEmail(email,{
-          redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1'
+          redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1',
+          captchaToken
         });
         if(r.error)throw r.error;
         uiNotice('If an account exists for this email, a password reset link has been sent. Please check your Gmail and Spam folder.','success');
@@ -1600,6 +1609,8 @@ function bindAuthForms(){
       }catch(x){
         if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Send Reset Link '+ic('arrow')}
         uiNotice(x.message||'Unable to send password reset email. Please try again.');
+      }finally{
+        if(window.AegisTurnstile)window.AegisTurnstile.reset(forgot);
       }
     },true);
   }
@@ -1611,6 +1622,8 @@ function bindAuthForms(){
       const button=signup.querySelector('button[type="submit"],button');
       if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent='Creating Account...'}
       try{
+        if(!window.AegisTurnstile)throw Error('Security verification did not load. Please refresh and try again.');
+        const captchaToken=await window.AegisTurnstile.requireToken(signup);
         const email=document.getElementById('se').value.trim().toLowerCase();
         const username=document.getElementById('su').value.trim().toLowerCase();
         if(!/^[a-z0-9_]{3,32}$/.test(username))throw Error('Username must be 3–32 characters using letters, numbers, or underscore.');
@@ -1618,7 +1631,7 @@ function bindAuthForms(){
           email,password:document.getElementById('sp').value,
           name:formatName(document.getElementById('sn').value),
           username,referralCode:document.getElementById('sr').value.trim().toUpperCase(),
-          preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'
+          preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1',captchaToken
         }});
         if(rr.error){
           let serverMessage=rr.data && typeof rr.data==='object' && rr.data.error ? rr.data.error : '';
@@ -1654,6 +1667,8 @@ function bindAuthForms(){
       }catch(x){
         uiNotice(x.message||'Signup failed');
         if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Sign Up'}
+      }finally{
+        if(window.AegisTurnstile)window.AegisTurnstile.reset(signup);
       }
     },true);
   }
@@ -2397,5 +2412,5 @@ document.addEventListener('click',function(e){var a=e.target.closest('[data-a="w
  if(window.matchMedia){var mm=window.matchMedia('(prefers-color-scheme: dark)');if(mm.addEventListener)mm.addEventListener('change',function(){if(apPref==='auto')apApplyMode()})}
  window.setInterval(function(){if(apPref==='auto')apApplyMode();document.querySelectorAll('[data-ready-at]').forEach(function(el){var s=Math.max(0,Math.floor((Number(el.dataset.readyAt)-Date.now())/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;el.textContent=(h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec})},1000);
 })();
-</script></body>
+</script><script src="./aegis-turnstile.js"></script></body>
 </html>
