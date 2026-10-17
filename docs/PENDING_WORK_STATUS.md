@@ -4,9 +4,9 @@ Last aligned: 2026-10-18
 
 ## Current verified snapshot — 2026-10-18
 
-- Canonical repository: `tryforsuccess1/AegisPay-Pro`; current main commit `5f2106aaada22b0c3dccef537240f97db6d208f0`.
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`; application code baseline verified on main `5f2106aaada22b0c3dccef537240f97db6d208f0`.
 - All code-side auth routing/error-diagnostics work is merged in PR #49; the PR's final main commit passed CI, SQL migration tests, withdrawal migration tests, Android package build and Web Portal Deploy. No open PRs or open GitHub issues remained during the final check; stale draft PR #40 was closed after confirming its work was superseded by the merged HD wallet/sweep safety PR #47.
-- Current Pages production deployment `b3df2d5d-06d6-4370-9860-7c0bde9ebab4` succeeded on the current main commit. Canonical URLs: https://aegispay-pro.pages.dev/ , https://aegispay-pro.pages.dev/app/ , https://aegispay-pro.pages.dev/admin/.
+- Verified Pages deployment `b3df2d5d-06d6-4370-9860-7c0bde9ebab4` succeeded for the app-code baseline. Canonical URLs: https://aegispay-pro.pages.dev/ , https://aegispay-pro.pages.dev/app/ , https://aegispay-pro.pages.dev/admin/.
 - The current production artifact has a generated `stable` Build 43 / 2.6.4 manifest. Its Client APK SHA-256 `78170d3ece8dc62221113361b7426538132deee4cde543b94c63b835f0156663` and Master Admin APK SHA-256 `ff4fb0683a8b9f88d884f2191a76454ed9638e420122bc09a7900673528193ee` were independently compared with the artifact files and aliases and match the generated manifest. The signing certificate fingerprint matches the previous Build 42 release. Physical-device install/update verification is still outstanding.
 - `username-login` is deployed ACTIVE v9 with distinct CAPTCHA and rate-limit failures; wrong credentials remain generic to avoid account enumeration. A static test, Deno unit tests and the live smoke-tested deployment passed.
 - Password signup/reset policy is 12–128 chars in client and controlled server functions. Sign-in does not reject a password merely for being shorter than 12; a correct older 8-character password is still technically accepted by the sign-in code. Native Supabase minimum-password setting and leaked-password protection remain operator-side configuration items.
