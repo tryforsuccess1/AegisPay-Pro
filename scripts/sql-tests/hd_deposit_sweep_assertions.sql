@@ -18,9 +18,9 @@ BEGIN
   IF NOT has_table_privilege('service_role','public.deposit_wallet_sweeps','INSERT') OR NOT has_table_privilege('service_role','public.deposit_wallet_sweeps','UPDATE') THEN RAISE EXCEPTION 'service_role cannot manage sweep journal'; END IF;
   IF NOT has_table_privilege('service_role','public.deposit_wallet_sweep_items','INSERT') THEN RAISE EXCEPTION 'service_role cannot manage sweep item journal'; END IF;
 
-  SELECT id INTO v_wallet_id FROM public.deposit_wallets
-  WHERE user_id='11111111-1111-4111-8111-111111111111' AND network='TRON TESTNET';
-  IF v_wallet_id IS NULL THEN RAISE EXCEPTION 'HD wallet fixture did not create a testnet address'; END IF;
+  INSERT INTO public.deposit_wallets(user_id,network,address,derivation_index,wallet_root_fingerprint,token_contract)
+  VALUES ('11111111-1111-4111-8111-111111111111','TRON TESTNET','T'||repeat('4',33),1,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
+  RETURNING id INTO v_wallet_id;
 
   UPDATE public.deposit_submissions
   SET deposit_wallet_id=v_wallet_id, receiving_address='T'||repeat('4',33)
