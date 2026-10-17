@@ -36,8 +36,8 @@ BEGIN
     IF v_profile_id IS NOT NULL THEN RETURN NEW; END IF;
   END IF;
 
-  -- Google verifies the email address. Link only an unclaimed profile with the exact
-  -- verified email; preserve its existing role, status, username, referral data and balance.
+  -- A social provider may link only an unclaimed profile when Supabase Auth marks the exact email as confirmed.
+  -- Preserve the existing role, status, username, referral data and balance.
   IF lower(COALESCE(NEW.raw_app_meta_data ->> 'provider', '')) IN ('google', 'facebook')
      AND NEW.email_confirmed_at IS NOT NULL THEN
     UPDATE public.users
@@ -64,7 +64,7 @@ BEGIN
 
   v_username := lower(trim(COALESCE(NEW.raw_user_meta_data ->> 'username', '')));
   IF v_username = '' OR NOT v_username ~ '^[a-z0-9_]{3,32}$' THEN
-    -- Google provider claims are managed by Supabase. On the initial auth.users
+    -- Provider claims are managed by Supabase. On the initial auth.users
     -- insert, email_confirmed_at may not yet be populated even for a Google/Facebook OAuth
     -- flow, so username generation must not depend on that timestamp. Existing-profile
     -- linking above still requires email_confirmed_at to be non-NULL.
