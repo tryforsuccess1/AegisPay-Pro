@@ -2,18 +2,15 @@
 
 ## Current verified snapshot — 2026-10-18
 
-This snapshot supersedes conflicting older state notes below; the prior dated notes remain as historical records.
-
-- Canonical repository: `tryforsuccess1/AegisPay-Pro`, production branch `main`; pre-follow-up baseline: `c954eca59e368544ca6343eb1af4bef58fe1f7cb`.
-- Canonical website: https://aegispay-pro.pages.dev/; client: https://aegispay-pro.pages.dev/app/; Master Admin: https://aegispay-pro.pages.dev/admin/.
-- Latest verified baseline Pages deployment before this follow-up: `c000d353-6f76-4878-8535-72a3dec698e7`, stage success, commit `c954eca59e368544ca6343eb1af4bef58fe1f7cb`.
-- Live Supabase project `wtcspnrmsoisroavojop` is ACTIVE_HEALTHY. The current state has eight application profiles and an active username-login endpoint.
-- Payment controls remain CLOSED: `environment=PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, `payouts_locked=true`. Although the selected system network says `MAINNET`, live deposits, real payouts and go-live approval are all false.
-- `deposit_wallets` and `deposit_submissions` each contain zero records. No per-user Mainnet address has been issued and no on-chain transfer was executed. Do not enable deposits as part of this code-only work.
-- The address-generation API has strict fail-closed checks and is deployed, but HD wallet secrets / matching payout signer / production readiness have not been proved. The sweep worker is Shasta-testnet-only; isolated funded testnet end-to-end tests remain pending.
-- Build 43 / version 2.6.4 is a TEST candidate, not a stable signed release. The main-branch baseline CI, migration tests, Web deployment and Android build passed before the current auth follow-up.
-- Owner-side prerequisites still pending: Supabase Auth dashboard CAPTCHA configuration and redirect allowlist confirmation; native leaked-password protection when available; Facebook Meta credentials/provider redirect; existing Android release signing material; physical-device validation. Connected tools do not offer a Supabase Auth settings write action, so these are not claimed as changed here.
-- Remaining non-operator code follow-up is tracked in `docs/PENDING_WORK_STATUS.md` and `PRODUCTION_HANDOFF.md`; check the latest CI and production deployment before treating a new PR as released.
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`; application code baseline verified on main `5f2106aaada22b0c3dccef537240f97db6d208f0`.
+- Latest CI, SQL migration tests, withdrawal migration tests, Android build and Web Portal Deploy all passed on this commit. The browser smoke-test step passed for landing, Client and Master Admin; type checks and password/HD wallet/sweep/shop regression checks passed.
+- Verified Pages deployment: `b3df2d5d-06d6-4370-9860-7c0bde9ebab4`, stage `success`; Client portal https://aegispay-pro.pages.dev/app/ and Master Admin https://aegispay-pro.pages.dev/admin/.
+- The deployed production artifact, not the root source fallback, publishes a generated stable Build 43 / 2.6.4 manifest with exact Client SHA-256 `78170d3ece8dc62221113361b7426538132deee4cde543b94c63b835f0156663` and Master Admin SHA-256 `ff4fb0683a8b9f88d884f2191a76454ed9638e420122bc09a7900673528193ee`. Both hashes match the delivered APKs and their alias copies. The signing certificate fingerprint matches the prior Build 42 release; physical-device install/update remains untested.
+- Supabase `username-login` is ACTIVE v9 with separate safe handling for CAPTCHA/rate-limit errors and generic wrong-credential responses.
+- Supabase project remains ACTIVE_HEALTHY. Security Advisor still reports 14 authenticated-callable SECURITY DEFINER routines (source-reviewed and retained intentionally, not automatically revoked), 3 RLS-enabled service-only deposit/sweep tables without client policies, and native leaked-password protection disabled. The last finding is a production security prerequisite; the table-policy INFO findings are intentional service-role-only isolation.
+- Payment posture is deliberately closed: `environment=PRE_PRODUCTION`, live deposits disabled, real payouts disabled, go-live approval false and payout lock true. `system_mode=MAINNET` does not mean payments are enabled. Latest counts are zero `deposit_wallets`, zero `deposit_submissions`, zero sweep journal rows and zero unresolved approved withdrawals.
+- The HD address API is deployed and fails closed without the required secure configuration. The sweep worker is Shasta testnet-only; dedicated isolated test secrets, funded test resources and transaction-level E2E reconciliation still need owner-side setup and verification before any production go-live.
+- Still requires account-owner action: native Supabase Auth Turnstile/CAPTCHA and minimum password length 12, redirect allowlist, leaked-password protection where available, valid Meta credentials for optional Facebook OAuth, and physical Android verification. No live payment gate was enabled by this work.
 
 ## Historical deployment state — 2026-10-08
 
