@@ -485,7 +485,7 @@ function render(){
 
 async function login(e){
   e.preventDefault();
-  const loginForm=e.currentTarget||document.getElementById('aaLoginForm');
+  const loginForm=document.getElementById('aaLoginForm');
   const identifier=String(document.getElementById('aaUsername')?.value||'').trim().toLowerCase();
   const password=String(document.getElementById('aaPassword')?.value||'');
   let captchaToken='';
