@@ -9,7 +9,7 @@ Verified on 2026-10-12: ACTIVE_HEALTHY, region `ap-northeast-1`.
 RLS-enabled public application tables:
 `users`, `tasks`, `referrals`, `withdrawal_requests`, `activity_logs`, `notifications`, `platform_settings`, `vip_tiers`, `deposit_submissions`, `cycle_runs`, `account_ledger`, `admin_adjustments`, `shop_offers`, `audit_events`, `kyc_verifications`, `user_access_events`, `ai_support_cases`.
 
-Active Edge Functions align with the repository function directories: `public-signup`, `username-login`, `submit-deposit`, `submit-kyc`, `admin-queues`, `admin-review`, `ai-support`, `verify-deposit`, `monitor-deposits`, `telegram-withdrawal`, `execute-payout`, `admin-account-ops`, `complete-cycle-checkout`, `complete-password-reset`, `production-readiness`, `withdrawal-ai-review`, `record-user-access`.
+Active Edge Functions align with the repository function directories: `public-signup`, `username-login`, `submit-deposit`, `submit-kyc`, `admin-queues`, `admin-review`, `ai-support`, `verify-deposit`, `monitor-deposits`, `telegram-withdrawal`, `execute-payout`, `admin-account-ops`, `complete-cycle-checkout`, `complete-password-reset`, `production-readiness`, `withdrawal-ai-review`, `record-user-access`, `get-deposit-address`, and `sweep-deposit-wallets`.
 
 ## Storage
 
@@ -25,7 +25,7 @@ The canonical repository tracks this policy in `database/migrations/20261003_pri
 
 ## Runtime boundary
 
-Current `platform_settings.system_mode` is `MAINNET / LIVE_DEPOSIT_TEST` with controlled live-deposit testing enabled and real payouts disabled behind the Phase 3 production gate.
+Current `platform_settings.system_mode` is `MAINNET`, but all three production enablement flags (`live_deposits`, `real_payouts`, and `production_go_live_approved`) are `false`. `production_config.environment` is `PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, and `payouts_locked=true`. Treat the system as closed to new funds. The HD deposit-address endpoint is fail-closed, and the live `deposit_wallets` and `deposit_submissions` tables currently contain zero rows.
 
 Two active pg_cron jobs run every minute: `aegispay-cycle-settlement` settles due cycles and `aegispay-mainnet-deposit-monitor` invokes `monitor-deposits`. The cron secret is stored in Supabase Vault and the monitor's current deployed code verifies it via the restricted `verify_deposit_monitor_cron_secret` RPC when the Edge Function environment secret is absent or does not match. The latest 10 recorded monitor runs succeeded on 2026-10-12; the `deposit_submissions` table currently has zero rows, so actual on-chain deposit reconciliation has not been exercised by this snapshot.
 

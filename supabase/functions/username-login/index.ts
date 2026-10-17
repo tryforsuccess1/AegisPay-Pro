@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { classifyAuthLoginError } from "../_shared/auth-login-error.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -103,6 +104,15 @@ Deno.serve(async (req: Request) => {
       options: { captchaToken: captchaToken || undefined }
     });
 
+    if (authError) {
+      const classified = classifyAuthLoginError(authError);
+      if (classified.code !== "INVALID_CREDENTIALS") {
+        // Keep credential failures generic to avoid username/account enumeration, but
+        // don't mislabel a Turnstile rejection or upstream throttle as bad credentials.
+        console.warn("username-login auth service rejected sign-in", { requestId, code: classified.code });
+        return json({ error: classified.error, code: classified.code, requestId }, classified.status);
+      }
+    }
     if (authError || !authResult?.session || !authResult.user || !profile) {
       return json({ error: "Invalid username or password.", code: "INVALID_CREDENTIALS", requestId }, 401);
     }

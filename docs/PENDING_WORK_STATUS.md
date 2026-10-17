@@ -1,6 +1,22 @@
 # AegisPay Pending Work Status
 
-Last aligned: 2026-10-12
+Last aligned: 2026-10-18
+
+## Current verified snapshot — 2026-10-18
+
+This snapshot supersedes any conflicting older status below. The historical entries are retained as audit history.
+
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`; baseline main before this follow-up: `c954eca59e368544ca6343eb1af4bef58fe1f7cb`.
+- CI, SQL migration tests, withdrawal migration tests, Android build and Web Portal Deploy all passed on that baseline. This follow-up adds explicit regression coverage for login error classification and stale auth redirect URLs; its own CI must pass before the code change is considered complete.
+- Canonical website: https://aegispay-pro.pages.dev/; client portal: https://aegispay-pro.pages.dev/app/; admin portal: https://aegispay-pro.pages.dev/admin/.
+- Password creation/recovery policy is 12–128 characters in the application and server Edge Functions. Password sign-in does not impose a 12-character minimum, so older shorter passwords remain eligible for login; they may still fail if the stored credential is incorrect.
+- Cloudflare Turnstile widget exists and the auth flows pass the token to Supabase Auth. The connected management actions do not expose a Supabase Auth configuration write operation, so native CAPTCHA enforcement and native minimum-password configuration are not claimed as completed from this tool session.
+- Mainnet payment posture remains deliberately closed: `environment=PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, `payouts_locked=true`. `system_mode` says `MAINNET`, but its live deposits, real payouts and go-live approval flags are all false.
+- The live database currently has zero rows in `deposit_wallets` and `deposit_submissions`; no address has been issued and no on-chain movement was performed in this work.
+- The HD wallet address API and Shasta-only sweep worker are deployed fail-closed. An isolated test project, dedicated test-only seed/signer, API/cron credentials, funded testnet resources and transaction-level E2E validation are still prerequisites before that worker can be proven end-to-end.
+- Remaining account-owner dependencies: Supabase Auth dashboard settings/redirect allowlist; Facebook Meta App ID/Secret and redirect setup; access to the existing Android release keystore/passwords; physical Android device verification. No random replacement keystore or new payment enablement is appropriate.
+
+## Prior status history
 
 
 ## Repository sync and notification review — 2026-10-12
