@@ -7,6 +7,7 @@ import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, ha
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
+const TESTNET_SWEEP_ENABLED = Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true";
 const HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
 const HD_PASSPHRASE = Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
 const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
@@ -355,6 +356,7 @@ async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  if (!TESTNET_SWEEP_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
   if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
     return json({ error: "Testnet sweep is not configured." }, 503);
   }
