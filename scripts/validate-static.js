@@ -194,8 +194,8 @@ assert(authUsernameLoginSource.includes('classifyAuthLoginError(authError)'),'Us
 assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorSource.includes('AUTH_RATE_LIMITED')&&authLoginErrorSource.includes('INVALID_CREDENTIALS'),'Login error classifier must map CAPTCHA, rate-limit, and credential errors explicitly');
 assert(authLoginErrorTests.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorTests.includes('AUTH_RATE_LIMITED')&&authLoginErrorTests.includes('INVALID_CREDENTIALS'),'Login error classifier tests must cover each safe failure category');
 assert(client.includes('Security verification could not be validated.')&&fs.readFileSync('admin-auth.js','utf8').includes('Security verification could not be validated.'),'Client and admin login must surface CAPTCHA rejection clearly instead of reporting bad credentials');
-assert(!client.includes('aegispay-web.aegispay.workers.dev')&&!supabaseServiceSource.includes('aegispay-web.aegispay.workers.dev'),'Current client signup and password-recovery URLs must not point to the stale legacy Worker hostname');
-assert(client.includes("redirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'")&&supabaseServiceSource.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Signup and password-recovery redirects must use the canonical Pages portal');
+assert(client.includes('aegispay-web.aegispay.workers.dev/?verified=1')&&supabaseServiceSource.includes('aegispay-web.aegispay.workers.dev/?reset=1'),'Keep the currently approved auth redirect origin until the Supabase Auth allowlist is verified for the Pages origin');
+
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
 const signupRedirectSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
@@ -362,8 +362,8 @@ for(const m of [
   'claim_aegispay_profile','public-signup','signInWithPassword','resetPasswordForEmail',
   'request_withdrawal','app_runtime_enabled','set_app_runtime_enabled'
 ])assert(service.includes(m),'Supabase marker missing: '+m);
-assert(service.includes('https://aegispay-pro.pages.dev/app/?reset=1'),'Shared password reset redirect must use the canonical Pages client portal');
-assert(service.includes('https://aegispay-pro.pages.dev/app/?reset=1'),'Shared auth helper must use the canonical Pages client redirect; the matching Supabase Auth allowlist remains an external configuration prerequisite');
+assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared password reset redirect must retain the current Worker destination until the Pages URL is approved');
+assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared auth helper must preserve the current redirect until Supabase Auth allowlist verification');
 
 const gradle=fs.readFileSync('android/app/build.gradle','utf8');
 assert(gradle.includes("include 'client.html'")&&!gradle.includes("include 'client-fresh.html'")&&gradle.includes("include 'master-admin.html'"),'Android canonical entries missing');
