@@ -791,6 +791,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&
 const formatName=v=>String(v??'').trim().replace(/\s+/g,' ').split(' ').filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const formatUsername=v=>String(v??'').trim().toLowerCase();
 
+window.AegisSupabaseConfig=window.AegisSupabaseConfig||{turnstileSiteKey:'0x4AAAAAAFZaOeTke8FQpVNS',socialProviders:{google:true,facebook:false}};
 function socialOAuthRedirectTo(){
   return window.AegisNative
     ? 'com.aegispay.app.client://auth/callback'
