@@ -248,9 +248,14 @@ async function signAndPersist(admin: Admin, client: any, wallet: WalletRow, row:
       const { data: existingItems, error: rereadError } = await admin.from("deposit_wallet_sweep_items")
         .select("deposit_submission_id,deposit_txid,amount_raw").eq("sweep_id", row.id);
       if (rereadError || !existingItems?.length) return markReview(admin, row, "SOURCE_JOURNAL_WRITE_FAILED");
-      const a = existingItems.map((x: any) => String(x.deposit_txid).toLowerCase()).sort().join(",");
-      const b = items.map((x: any) => String(x.deposit_txid).toLowerCase()).sort().join(",");
-      if (a !== b) return markReview(admin, row, "SOURCE_JOURNAL_CONFLICT");
+      const normalize = (value: any) => ({
+        txid: String(value.deposit_txid || "").toLowerCase(),
+        submissionId: String(value.deposit_submission_id || ""),
+        amountRaw: asRawBigInt(value.amount_raw).toString(),
+      });
+      const a = existingItems.map(normalize).sort((x: any, y: any) => x.txid.localeCompare(y.txid));
+      const b = items.map(normalize).sort((x: any, y: any) => x.txid.localeCompare(y.txid));
+      if (JSON.stringify(a) !== JSON.stringify(b)) return markReview(admin, row, "SOURCE_JOURNAL_CONFLICT");
     }
   } else {
     const actual = savedItems.map((x: any) => ({
