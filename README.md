@@ -42,8 +42,8 @@ The check validates the canonical client/admin source files, Supabase function w
 
 ## Security
 
-- Auth hardening candidate: Build 43 / version 2.6.4 adds Cloudflare Turnstile to web and Android sign-in, signup, recovery and Master Admin login; it also aligns signup/recovery passwords to 12–128 characters and retains the server-side breached-password check on AegisPay's controlled signup/recovery routes.
-- Cloudflare Turnstile's public sitekey is embedded in the client. The matching secret is never stored in the repository; Supabase Auth CAPTCHA remains pending manual dashboard activation after updated web and Android flows are tested.
+- Build 43 / version 2.6.4 contains the Auth hardening changes: Cloudflare Turnstile wiring on web/Android sign-in, signup, recovery and Master Admin login; a 12–128 character signup/recovery password policy; and the existing server-side breached-password check on controlled signup/recovery routes. The latest Pages deployment generates a stable manifest and signed release APKs; physical-device verification remains outstanding.
+- Cloudflare Turnstile's public sitekey is embedded in the client. The widget secret is not stored in the repository source. Supabase's native Auth CAPTCHA toggle remains pending manual dashboard activation; until then, do not describe the native CAPTCHA check as server-enforced.
 - Google login remains optional. Facebook login is intentionally hidden until Meta credentials/redirects are configured and the profile-linking migration is applied.
 - The custom breached-password check improves AegisPay-controlled signup/recovery flows, but is not a full substitute for Supabase's native leaked-password check on every possible direct Auth password update. Keep that limitation in mind when assessing production security.
 - Never put service-role keys, payout private keys, Telegram bot secrets, AI provider keys, release keystore material or Cloudflare Turnstile secret in browser assets or Cloudflare Pages client variables.
@@ -59,4 +59,4 @@ The check validates the canonical client/admin source files, Supabase function w
 - Master Admin: `/admin/` from root `master-admin.html`
 - Cloudflare Pages: `aegispay-pro`
 - Supabase: `wtcspnrmsoisroavojop`
-- Android auth-security candidate: versionCode 43 / versionName 2.6.4 (`releaseChannel: test`; not a stable release until CI passes, updated APKs are published, and verified SHA-256 values are available)
+- Production Android release: Build 43 / versionName 2.6.4. The root `app-version.json` is a test-channel fallback, while the Web Portal Deploy workflow generated a production `stable` manifest with versioned Client/Admin APK URLs and verified SHA-256 values on 2026-10-18. The signed APK certificate matches the previous Build 42 release. Physical-device install/update verification remains pending.
