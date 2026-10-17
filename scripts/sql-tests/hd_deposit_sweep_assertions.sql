@@ -7,6 +7,8 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='deposit_wallet_sweeps') THEN RAISE EXCEPTION 'sweep journal must not expose direct client policies'; END IF;
   IF has_table_privilege('anon','public.deposit_wallet_sweeps','SELECT') OR has_table_privilege('authenticated','public.deposit_wallet_sweeps','SELECT') THEN RAISE EXCEPTION 'client can read sweep journal'; END IF;
   IF NOT has_table_privilege('service_role','public.deposit_wallet_sweeps','INSERT') OR NOT has_table_privilege('service_role','public.deposit_wallet_sweeps','UPDATE') THEN RAISE EXCEPTION 'service_role cannot manage sweep journal'; END IF;
+  INSERT INTO public.deposit_wallets(user_id,network,address,derivation_index,wallet_root_fingerprint,token_contract)
+  VALUES ('11111111-1111-4111-8111-111111111111','TRON TESTNET','T'||repeat('4',33),1,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs');
   INSERT INTO public.deposit_wallet_sweeps(deposit_wallet_id,network,token_contract,treasury_address,amount_raw,idempotency_key)
   SELECT id, network, token_contract, 'T'||repeat('3',33), 1000000, repeat('a',64)
   FROM public.deposit_wallets WHERE network='TRON TESTNET' LIMIT 1;
