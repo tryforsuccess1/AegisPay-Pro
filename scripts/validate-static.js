@@ -36,8 +36,8 @@ const must=[
   'database/migrations/20261014174000_fix_google_oauth_username_generation.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
   'database/migrations/20261015_ai_support_live_chat.sql',
-  'database/migrations/20261016120000_hd_deposit_wallets.sql',
-  'database/migrations/20261017100000_hd_deposit_sweep_journal.sql',
+  'database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql',
+  'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
   'supabase/functions/get-deposit-address/index.ts',
   'supabase/functions/_shared/tron-hd-wallet.ts',
   'supabase/functions/_shared/tron-hd-wallet_test.ts',
@@ -450,7 +450,7 @@ assert(fs.readFileSync('scripts/sql-tests/deposit_migration_assertions.sql','utf
 assert(depositSubmitSource.includes('network: depositNetwork'),'Deposit submission must persist the selected network before verification');
 const hdWalletSource=fs.readFileSync('supabase/functions/_shared/tron-hd-wallet.ts','utf8');
 const hdWalletEndpoint=fs.readFileSync('supabase/functions/get-deposit-address/index.ts','utf8');
-const hdWalletMigration=fs.readFileSync('database/migrations/20261016120000_hd_deposit_wallets.sql','utf8');
+const hdWalletMigration=fs.readFileSync('database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql','utf8');
 assert(hdWalletSource.includes("m/44'/195'/0'/0")&&hdWalletSource.includes('TronWeb.fromMnemonic'),'HD wallet derivation must use the TRON BIP44 path');
 assert(hdWalletEndpoint.includes('TRON_HD_WALLET_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must require a server-side seed and fail closed on root mismatch');
 assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint.includes('privateKey: identity.privateKey'),'HD address API must never return derived private keys');
@@ -462,7 +462,7 @@ assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes(
 const sweepWorker=fs.readFileSync('supabase/functions/sweep-deposit-wallets/index.ts','utf8');
 const sweepHelper=fs.readFileSync('supabase/functions/_shared/tron-sweep.ts','utf8');
 const sweepTests=fs.readFileSync('supabase/functions/_shared/tron-sweep_test.ts','utf8');
-const sweepMigration=fs.readFileSync('database/migrations/20261017100000_hd_deposit_sweep_journal.sql','utf8');
+const sweepMigration=fs.readFileSync('database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql','utf8');
 const sweepSqlTests=fs.readFileSync('scripts/sql-tests/hd_deposit_sweep_assertions.sql','utf8');
 assert(sweepWorker.includes('const NETWORK = "TRON TESTNET"')&&sweepWorker.includes('const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"'),'Sweep worker must be pinned to the Shasta testnet and testnet USDT contract');
 assert(!sweepWorker.includes('TRON_PAYOUT_PRIVATE_KEY')&&!sweepWorker.includes('TRON MAINNET'),'Sweep worker must not read Mainnet payout keys or accept a Mainnet network');
