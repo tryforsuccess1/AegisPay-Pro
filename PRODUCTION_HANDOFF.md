@@ -4,7 +4,7 @@
 
 - The production payment posture remains intentionally locked; this follow-up must not change live deposit, payout or go-live flags.
 - Auth source updates classify Supabase CAPTCHA/rate-limit errors separately while retaining a generic response for invalid credentials to avoid account enumeration.
-- Current client signup and password-recovery redirects are standardized on the canonical Pages portal rather than the stale `aegispay-web.aegispay.workers.dev` hostname.
+- Signup, resend-verification and password-recovery flows intentionally retain the existing Worker redirect until the Supabase Auth redirect allowlist is verified for the Pages origin; switching the URLs without that allowlist check could break auth links.
 - Release-level prerequisites remain separate from code fixes: Supabase Auth dashboard CAPTCHA/password settings, verified Auth redirect allowlist, owner-provided Meta credentials, existing Android signing material, and physical-device verification.
 
 
