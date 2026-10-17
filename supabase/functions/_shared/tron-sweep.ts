@@ -29,8 +29,8 @@ export function classifySweepAction(row: SweepRowState, nowMs = Date.now()): Swe
       || !tx || typeof tx !== "object" || !Number.isFinite(expiration) || expiration <= 0) {
       return "MANUAL_REVIEW";
     }
+    // Reconcile the chain receipt before deciding whether expiry requires human review.
     // Never mint a replacement automatically when a signed transaction may already have been broadcast.
-    if (expiration <= nowMs) return "MANUAL_REVIEW";
     return "RECONCILE_SAVED_TRANSACTION";
   }
   return "MANUAL_REVIEW";
