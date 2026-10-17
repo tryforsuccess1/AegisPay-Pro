@@ -524,7 +524,8 @@ async function login(e){
   }catch(err){
     await service.signOut().catch(function(){});
     state.profile=null;
-    state.error=err.message||'Sign-in failed.';
+    const signInMessage=String(err&&err.message||'Sign-in failed.');
+    state.error=/captcha|turnstile|security verification/i.test(signInMessage)?'Security verification could not be validated. Please refresh and complete the Cloudflare check, then retry.':signInMessage;
     state.busy=false;
     render();
   }finally{
