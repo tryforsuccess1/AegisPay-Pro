@@ -485,8 +485,19 @@ function render(){
 
 async function login(e){
   e.preventDefault();
+  const loginForm=e.currentTarget||document.getElementById('aaLoginForm');
   const identifier=String(document.getElementById('aaUsername')?.value||'').trim().toLowerCase();
   const password=String(document.getElementById('aaPassword')?.value||'');
+  let captchaToken='';
+  try{
+    if(!window.AegisTurnstile)throw new Error('Security verification did not load. Please refresh and try again.');
+    captchaToken=await window.AegisTurnstile.requireToken(loginForm);
+  }catch(captchaError){
+    state.error=captchaError.message||'Complete the security check before signing in.';
+    state.busy=false;
+    render();
+    return;
+  }
   state.busy=true;state.error='';render();
   const withTimeout=function(p,label,ms){
     return Promise.race([
@@ -497,7 +508,7 @@ async function login(e){
   try{
     if(!identifier)throw new Error('Enter your admin username or email.');
     if(!password)throw new Error('Enter your password.');
-    await withTimeout(service.signIn(identifier,password),'Admin sign-in',12000);
+    await withTimeout(service.signIn(identifier,password,captchaToken),'Admin sign-in',12000);
     const result=await withTimeout(service.claimAegisPayProfile(),'Master Admin profile verification',12000);
     if(!result.profile||result.profile.role!=='MASTER ADMIN'){
       throw new Error('This account is not provisioned as Master Admin.');
@@ -516,6 +527,8 @@ async function login(e){
     state.error=err.message||'Sign-in failed.';
     state.busy=false;
     render();
+  }finally{
+    if(window.AegisTurnstile)window.AegisTurnstile.reset(loginForm);
   }
 }
 
