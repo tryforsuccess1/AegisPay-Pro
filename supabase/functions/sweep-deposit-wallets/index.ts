@@ -143,9 +143,31 @@ async function getSafeSnapshot(admin: Admin, client: any, wallet: WalletRow) {
     return asRawBigInt(source.raw_amount) !== asRawBigInt(item.rawAmount);
   });
   if (unmatched.length) throw new Error("UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT");
+  const sourceIds = [...new Set(transfers.map((item) => sources.get(item.txid)!.id))];
+  const { data: previousItems, error: previousItemsError } = await admin.from("deposit_wallet_sweep_items")
+    .select("sweep_id,deposit_submission_id").in("deposit_submission_id", sourceIds).limit(5000);
+  if (previousItemsError) throw new Error("PRIOR_SWEEP_ITEMS_LOOKUP_FAILED");
+  const previousSweepIds = [...new Set((previousItems || []).map((item: any) => String(item.sweep_id || "")))].filter(Boolean);
+  const confirmedSweepIds = new Set<string>();
+  if (previousSweepIds.length) {
+    const { data: previousSweeps, error: previousSweepsError } = await admin.from("deposit_wallet_sweeps")
+      .select("id,status").in("id", previousSweepIds).limit(5000);
+    if (previousSweepsError) throw new Error("PRIOR_SWEEP_STATUS_LOOKUP_FAILED");
+    for (const sweep of previousSweeps || []) {
+      if (String(sweep.status) === "CONFIRMED") confirmedSweepIds.add(String(sweep.id));
+    }
+  }
+  const alreadySweptSourceIds = new Set<string>();
+  for (const item of previousItems || []) {
+    if (confirmedSweepIds.has(String(item.sweep_id))) alreadySweptSourceIds.add(String(item.deposit_submission_id));
+  }
+  const unsweptTransfers = transfers.filter((item) => !alreadySweptSourceIds.has(sources.get(item.txid)!.id));
+  const expectedRaw = unsweptTransfers.reduce((total, item) => total + asRawBigInt(item.rawAmount), 0n);
+  if (expectedRaw !== BigInt(beforeBalance)) throw new Error("TOKEN_BALANCE_DOES_NOT_MATCH_UNSWEPT_VERIFIED_DEPOSITS");
+  if (!unsweptTransfers.length) throw new Error("TOKEN_BALANCE_HAS_NO_UNSWEPT_VERIFIED_DEPOSITS");
   const afterBalance = await getTokenBalance(client, wallet.address);
   if (beforeBalance !== afterBalance) throw new Error("BALANCE_CHANGED_DURING_SNAPSHOT");
-  return { ok: true as const, empty: false as const, balanceRaw: afterBalance, transfers, sources };
+  return { ok: true as const, empty: false as const, balanceRaw: afterBalance, transfers: unsweptTransfers, sources };
 }
 async function hasSufficientResources(client: any, address: string) {
   const [trxBalance, resources] = await Promise.all([
