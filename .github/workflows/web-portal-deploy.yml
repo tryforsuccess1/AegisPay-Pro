@@ -78,8 +78,8 @@ jobs:
           cp client.html site/app/home.html
           cp _redirects site/_redirects
           cp _headers site/_headers
-          cp shop-catalog.js supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/
-          cp supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/app/
+          cp shop-catalog.js supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js aegis-turnstile.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/
+          cp supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js aegis-turnstile.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/app/
           VERSION_CODE=$(sed -n "s/.*versionCode \([0-9][0-9]*\).*/\1/p" android/app/build.gradle | head -1)
           VERSION_NAME=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" android/app/build.gradle | head -1)
           VERSIONED_CLIENT="aegispay-client-v${VERSION_NAME}-b${VERSION_CODE}.apk"
