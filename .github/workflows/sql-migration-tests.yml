@@ -3,20 +3,32 @@ name: AegisPay SQL Migration Tests
 on:
   pull_request:
     paths:
-      - 'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql'
-      - 'database/migrations/20261016120000_hd_deposit_wallets.sql'
-      - 'scripts/sql-tests/hd_deposit_wallets_assertions.sql'
+      - 'database/migrations/**'
+      - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
+      - 'supabase/functions/get-deposit-address/index.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
+      - 'supabase/functions/verify-deposit/index.ts'
+      - 'supabase/functions/execute-payout/index.ts'
+      - 'scripts/sql-tests/deposit_monitor_cron_fixture.sql'
+      - 'scripts/sql-tests/deposit_monitor_cron_assertions.sql'
       - 'scripts/sql-tests/**'
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
   push:
     branches: [main]
     paths:
-      - 'database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql'
-      - 'database/migrations/20261016120000_hd_deposit_wallets.sql'
-      - 'scripts/sql-tests/hd_deposit_wallets_assertions.sql'
+      - 'database/migrations/**'
+      - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
+      - 'supabase/functions/get-deposit-address/index.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet.ts'
+      - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
+      - 'supabase/functions/verify-deposit/index.ts'
+      - 'supabase/functions/execute-payout/index.ts'
+      - 'scripts/sql-tests/deposit_monitor_cron_fixture.sql'
+      - 'scripts/sql-tests/deposit_monitor_cron_assertions.sql'
       - 'scripts/sql-tests/**'
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
@@ -65,3 +77,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
+      - name: Create disposable cron, Vault, and pg_net stubs
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_fixture.sql
+      - name: Apply guarded deposit monitor cron migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222625_deposit_monitor_skip_when_gates_closed.sql
+      - name: Verify cron skips requests while gates are closed and dispatches only when gates are open
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_assertions.sql
