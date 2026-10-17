@@ -381,8 +381,8 @@ Deno.serve(async (req: Request) => {
     }
     const treasury = String(rules.receiving_address || "").trim();
     if (!validAddress(treasury)) return json({ error: "Valid testnet treasury address is required." }, 503);
-    const treasuryClient = newTron(TESTNET_PAYOUT_KEY);
-    if (String(treasuryClient.address || "") !== treasury) return json({ error: "Testnet treasury key mismatch.", code: "TREASURY_KEY_MISMATCH" }, 403);
+    const derivedTreasury = String(TronWeb.address.fromPrivateKey(TESTNET_PAYOUT_KEY) || "");
+    if (derivedTreasury !== treasury) return json({ error: "Testnet treasury key mismatch.", code: "TREASURY_KEY_MISMATCH" }, 403);
 
     const { data: wallets, error: walletError } = await admin.from("deposit_wallets")
       .select("id,user_id,address,derivation_index,wallet_root_fingerprint,token_contract,network")
