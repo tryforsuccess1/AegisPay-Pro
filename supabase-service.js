@@ -76,7 +76,7 @@ window.AegisSupabaseService={
   return result.data;
  },
 
- async signIn(identifier,password){
+ async signIn(identifier,password,captchaToken){
   var c=this.client();
   if(!c)throw new Error('Supabase client unavailable');
   var raw=String(identifier||'').trim();
@@ -84,7 +84,8 @@ window.AegisSupabaseService={
   if(raw.includes('@')){
    var result=await c.auth.signInWithPassword({
     email:raw.toLowerCase(),
-    password:secret
+    password:secret,
+    options:{captchaToken:captchaToken||undefined}
    });
    if(result.error)throw result.error;
    var emailUser=result.data&&result.data.user;
@@ -93,7 +94,8 @@ window.AegisSupabaseService={
   }
   var response=await this.invokeFunction('username-login',{body:{
    username:raw.toLowerCase(),
-   password:secret
+   password:secret,
+   captchaToken:captchaToken||''
   }});
   var tokens=response&&response.data||{};
   if(!tokens.access_token||!tokens.refresh_token)throw new Error('Invalid username or password.');
@@ -132,7 +134,7 @@ window.AegisSupabaseService={
   return result;
  },
 
- async signUp(email,password,name,username,referralCode,preferredLanguage){
+ async signUp(email,password,name,username,referralCode,preferredLanguage,captchaToken){
   var c=this.client();
   if(!c)throw new Error('Supabase client unavailable');
   var result=await this.invokeFunction('public-signup',{body:{
@@ -141,7 +143,8 @@ window.AegisSupabaseService={
     name:String(name||'').trim(),
     username:String(username||'').trim().toLowerCase(),
     referralCode:String(referralCode||'').trim().toUpperCase(),
-    preferredLanguage:preferredLanguage==='ur'?'ur':'en'
+    preferredLanguage:preferredLanguage==='ur'?'ur':'en',
+    captchaToken:captchaToken||''
   }});
   if(!result.data||!result.data.user)throw new Error('AegisPay signup service did not create an account.');
   return result.data;
@@ -161,10 +164,10 @@ window.AegisSupabaseService={
   return {user:user,profile:profile};
  },
 
- async sendPasswordReset(email){
+ async sendPasswordReset(email,captchaToken){
   var c=this.client();
   if(!c)throw new Error('Supabase client unavailable');
-  var result=await c.auth.resetPasswordForEmail(String(email||'').trim().toLowerCase(),{redirectTo:WEB_PASSWORD_RESET_REDIRECT});
+  var result=await c.auth.resetPasswordForEmail(String(email||'').trim().toLowerCase(),{redirectTo:WEB_PASSWORD_RESET_REDIRECT,captchaToken:captchaToken||undefined});
   if(result.error)throw result.error;
   return true;
  },
