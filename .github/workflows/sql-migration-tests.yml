@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'database/migrations/**'
+      - 'scripts/sql-tests/hd_deposit_sweep_assertions.sql'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'supabase/functions/get-deposit-address/index.ts'
@@ -75,6 +76,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261016120000_hd_deposit_wallets.sql
       - name: Verify HD deposit-wallet RLS, uniqueness, and privileges
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
+      - name: Apply HD sweep journal migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017100000_hd_deposit_sweep_journal.sql
+      - name: Verify HD sweep idempotency and restricted access
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
       - name: Create disposable cron, Vault, and pg_net stubs
