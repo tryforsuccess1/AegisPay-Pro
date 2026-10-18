@@ -235,7 +235,10 @@
         sitekey: resolvedSitekey(),
         theme: 'auto',
         execution: manual ? 'execute' : 'render',
-        appearance: manual ? 'interaction-only' : 'always',
+        appearance: manual ? 'execute' : 'always',
+        retry: manual ? 'never' : 'auto',
+        'refresh-expired': manual ? 'manual' : 'auto',
+        'refresh-timeout': manual ? 'manual' : 'auto',
         callback: function (token) {
           state.token = String(token || '');
           state.issuedAt = Date.now();
