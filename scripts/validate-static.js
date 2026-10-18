@@ -159,6 +159,8 @@ assert(client.includes('A representative is now live in this chat.')&&client.inc
 assert(client.includes('A representative may contact you soon.')&&client.includes('function safeAiDisplayText'),'Client must use the approved representative message and sanitize prior AI history');
 assert(!client.includes('Telegram notification sent to Master Admin.')&&!client.includes('Saved in the Master Admin queue; Telegram delivery was not confirmed.'),'Client support status must not expose internal routing details');
 assert(client.includes("window.__aegisOpenNotificationById(notification.getAttribute('data-notification-id'))"),'Notification taps must open the selected notification by ID');
+const notificationHeaderRoute="onclick=\"go(\\'notifications\\')\" aria-label=\"Notifications\"";
+assert(client.split(notificationHeaderRoute).length-1>=2,'Home and detail headers must render clickable notification buttons.');
 
 const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
 assert(client.includes('id="aiMessages"')&&client.includes('id="aiInput"')&&client.includes('id="aiSend"'),'AI Assistant must render its message panel, input, and send control');
