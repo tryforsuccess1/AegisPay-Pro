@@ -162,7 +162,7 @@ assert(client.includes("window.__aegisOpenNotificationById(notification.getAttri
 const notificationHeaderRoute="onclick=\"go(\\'notifications\\')\" aria-label=\"Notifications\"";
 assert(client.split(notificationHeaderRoute).length-1>=2,'Home and detail headers must render clickable notification buttons.');
 
-const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
+const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','preproduction-activity-ticker','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
 assert(client.includes('id="aiMessages"')&&client.includes('id="aiInput"')&&client.includes('id="aiSend"'),'AI Assistant must render its message panel, input, and send control');
 assert(client.includes("+NV('bot')+'</div>'"),'AI Assistant template must use a navigation helper available in its own script scope');
 assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:previous}})"),'AI Assistant must submit its message and conversation history to ai-support');
@@ -437,7 +437,7 @@ assert(adminAccountOpsSource.includes('String(candidate.email||"").trim().toLowe
 
 
 const functions=[
-  'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','complete-cycle-checkout','complete-password-reset','get-deposit-address',
+  'admin-queues','admin-review','admin-account-ops','ai-support','execute-payout','monitor-deposits','production-readiness','preproduction-activity-ticker','complete-cycle-checkout','complete-password-reset','get-deposit-address',
   'public-signup','submit-deposit','submit-kyc','telegram-withdrawal','verify-deposit','username-login','withdrawal-ai-review','record-user-access'
 ];
 for(const f of functions)assert(exists('supabase/functions/'+f+'/index.ts'),'Missing Edge Function source: '+f);
@@ -454,8 +454,15 @@ for(const p of [
 assert(client.includes('const qr=(address)=>')&&client.includes('wallet?qr(wallet)'),'Deposit QR must be generated from the configured receiving address, not a hard-coded image');
 assert(client.includes('encodeURIComponent(wallet)'),'Active deposit flow must encode its configured wallet into the QR generator URL');
 assert(!client.includes('DEPOSIT_QR')&&!client.includes('TPr8f6Qx2J9mN4kR7vY8sZmU'),'Legacy deposit UI must not contain a hard-coded QR or receiving address');
-assert(client.includes('function isPreProductionActivityTickerAllowed()')&&client.includes("String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'"),'The sample activity ticker must be restricted to pre-production.');
-assert(client.includes('production.live_deposits_enabled!==true')&&client.includes('production.real_payouts_enabled!==true')&&client.includes('production.go_live_approved!==true')&&client.includes('production.payouts_locked===true'),'The sample activity ticker must fail closed when production deposit or payout gates are opened.');
+assert(client.includes('async function isPreProductionActivityTickerAllowed()')&&client.includes("db.functions.invoke('preproduction-activity-ticker',{body:{}})"),'The sample activity ticker must ask the server whether pre-production testing is permitted.');
+const tickerGateSource=fs.readFileSync('supabase/functions/preproduction-activity-ticker/index.ts','utf8');
+assert(tickerGateSource.includes('auth.getUser(token)')&&tickerGateSource.includes('String(profile.role || "").toUpperCase() !== "USER"'),'Ticker mode endpoint must authenticate and limit eligibility to active client profiles.');
+assert(tickerGateSource.includes('String(production.environment || "").toUpperCase() === "PRE_PRODUCTION"')&&tickerGateSource.includes('production.real_payouts_enabled !== true')&&tickerGateSource.includes('production.live_deposits_enabled !== true')&&tickerGateSource.includes('production.payouts_locked === true'),'Server must fail closed unless production mode is explicitly locked.');
+assert(client.includes("const action=activityTickerActionIndex++%2===0?'deposited':'withdrew'"),'The pre-production ticker must alternate deposit and withdrawal examples.');
+assert(client.includes('function nextUniqueActivityName()')&&client.includes("sessionStorage.getItem('aegispay_activity_ticker_seen_v1')")&&client.includes('activityTickerNamesSeen.has(name)'),'Activity popup names must not repeat during a browser session.');
+assert(client.includes('activityTickerInitialTimer=setTimeout')&&client.includes('activityTickerTimer=setInterval(showActivityTicker,30000)')&&client.includes("activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000)"),'The activity popup must show shortly after login, repeat every 30 seconds, and hide after 7 seconds.');
+assert(client.includes("startActivityTicker();")&&client.indexOf('startActivityTicker();')>client.indexOf("select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode'])"),'Activity ticker starts only after live pre-production settings are loaded.');
+assert(client.includes("setAttribute('aria-live','polite')"),'Activity popup must announce updates accessibly.');
 assert(client.includes("el.innerHTML='<span class=\"tag\">User</span>"),'The activity popup must use only the requested User label.');
 assert(client.includes("const action=activityTickerActionIndex++%2===0?'deposited':'withdrew'"),'The pre-production ticker must alternate deposit and withdrawal examples.');
 assert(client.includes('function nextUniqueActivityName()')&&client.includes("sessionStorage.getItem('aegispay_activity_ticker_seen_v1')")&&client.includes('activityTickerNamesSeen.has(name)'),'Activity popup names must not repeat during a browser session.');
