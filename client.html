@@ -877,9 +877,9 @@ function updateNotificationBadge(){
 }
 async function refreshNotificationCount(){
   try{
-    if(!profile?.id){unreadNotifications=0;return}
+    if(!profile?.id){unreadNotifications=0;updateNotificationBadge();return}
     const r=await db.from('notifications').select('id',{count:'exact',head:true}).eq('user_id',profile.id).eq('is_read',false);
-    if(!r.error)unreadNotifications=Number(r.count||0);
+    if(!r.error){unreadNotifications=Number(r.count||0);updateNotificationBadge();}
   }catch(_){}
 }
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -989,14 +989,25 @@ window.AegisAuthRedirect={
       ||url.hash.indexOf('access_token=')>=0;
   }
 };
+async function refreshClientProfile(){
+ const r=await db.rpc('claim_aegispay_profile'); if(r.error)throw r.error;
+ profile=Array.isArray(r.data)?r.data[0]:r.data;
+ if(!profile)throw Error('The authenticated client profile could not be loaded.');
+ return profile;
+}
 async function initData(){
- const r=await db.rpc('claim_aegispay_profile'); if(r.error)throw r.error; profile=Array.isArray(r.data)?r.data[0]:r.data;
- authUser=(await db.auth.getUser()).data.user;
- await refreshNotificationCount();
- const s=await db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode']);
+ await refreshClientProfile();
+ // Load independent startup data together; unread notifications refresh in the background.
+ const [userResult,s,t]=await Promise.all([
+  db.auth.getUser(),
+  db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode']),
+  db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order')
+ ]);
+ authUser=userResult.data&&userResult.data.user||null;
  (s.data||[]).forEach(x=>settings[x.key]=x.value_json||{});
- const t=await db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order'); tiers=t.data||[];
+ tiers=t.data||[];
  startActivityTicker();
+ void refreshNotificationCount();
 }
 function top(t,b='home'){
  const k=({'Top Up':'p_dep','Deposit USDT':'p_dep','Withdraw':'p_wd','Shop & Tasks':'p_shop','Notifications':'p_notes','Notification Details':'p_notes','Activity':'p_activity','Referral':'p_refs','Referrals':'p_refs','Profile':'p_assets','VIP Tier':'p_vip','KYC':'p_assets','AI Assistant':'p_ai','Assets':'p_assets'})[t]||'';
@@ -1081,7 +1092,7 @@ async function activateClientTier(tierId){
    if(available<Number(chosen.deposit_amount||0))throw Error('Your available balance is below this tier requirement.');
    const r=await db.rpc('ai_activate_tier',{p_tier_id:String(tierId)});
    if(r.error)throw r.error;
-   await initData();
+   await refreshClientProfile();
    await liveShop();
    uiNotice('Tier '+String(chosen.name)+' activated. Your Shop tasks are being assigned automatically.','success');
  }catch(e){
@@ -1104,7 +1115,7 @@ async function completeShopTask(taskId){
  try{
    const r=await db.rpc('complete_shop_task',{p_task_id:taskId});
    if(r.error)throw r.error;
-   await initData();
+   await refreshClientProfile();
    await liveShop();
    uiNotice('Task completed successfully.','success');
  }catch(e){
@@ -1576,7 +1587,7 @@ async function completeShopCycle(cycleId){try{
  const rr=await db.functions.invoke('complete-cycle-checkout',{body:{cycleId:cycleId,taskIds:tasks.map(x=>x.id)}});
  if(rr.error){let detail=null;try{if(rr.error.context&&typeof rr.error.context.clone==='function')detail=await rr.error.context.clone().json()}catch(_){}throw Error((detail&&detail.error)||rr.error.message||'Shop checkout failed.')}
  uiNotice(rr.data?.message||'Shop cycle completed. The 18-hour settlement timer has started.');
- await initData(); liveShop();
+ await refreshClientProfile(); await liveShop();
 }catch(e){uiNotice(e.message||'Shop checkout failed')}}
 
 async function liveShop(){
@@ -2519,5 +2530,15 @@ document.addEventListener('click',function(e){var a=e.target.closest('[data-a="w
  if(window.matchMedia){var mm=window.matchMedia('(prefers-color-scheme: dark)');if(mm.addEventListener)mm.addEventListener('change',function(){if(apPref==='auto')apApplyMode()})}
  window.setInterval(function(){if(apPref==='auto')apApplyMode();document.querySelectorAll('[data-ready-at]').forEach(function(el){var s=Math.max(0,Math.floor((Number(el.dataset.readyAt)-Date.now())/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;el.textContent=(h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec})},1000);
 })();
-</script><script src="./aegis-turnstile.js"></script></body>
+</script><script src="./aegis-turnstile.js"></script><script>
+(function(){
+  if(window.AEGIS_ANDROID_APP||!('serviceWorker' in navigator)||
+     (window.location.protocol!=='https:'&&window.location.protocol!=='http:'))return;
+  var register=function(){
+    navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'}).catch(function(){});
+  };
+  if(document.readyState==='complete')register();
+  else window.addEventListener('load',register,{once:true});
+})();
+</script></body>
 </html>

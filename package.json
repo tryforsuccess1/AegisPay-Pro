@@ -1,9 +1,9 @@
 {
   "name": "aegispay-pro",
   "private": true,
-  "version": "2.6.5",
+  "version": "2.6.6",
   "description": "AegisPay canonical client and Master Admin application",
   "scripts": {
-    "check": "node --check supabase-client.js && node --check supabase-service.js && node --check aegis-auth-redirect.js && node --check admin-auth.js && node --check aegis-turnstile.js && node --check app-update.js && node scripts/validate-static.js && node scripts/check-shop-page.js"
+    "check": "node --check supabase-client.js && node --check supabase-service.js && node --check aegis-auth-redirect.js && node --check admin-auth.js && node --check aegis-turnstile.js && node --check app-update.js && node --check service-worker.js && node scripts/validate-static.js && node scripts/check-shop-page.js"
   }
 }

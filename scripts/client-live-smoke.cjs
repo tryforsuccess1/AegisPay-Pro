@@ -25,8 +25,8 @@ async function visit(page, url, expectedSelector) {
       serviceWorkers: 'block',
       reducedMotion: 'reduce'
     });
-    // Mock the browser API surface, not Supabase Auth. These checks use dummy
-    // credentials and never submit a login request or create an account.
+    // Mock the CAPTCHA browser API and intercept auth routes before they leave Chromium.
+    // Dummy credentials are used only to verify that Login starts CAPTCHA and forwards its token; no backend login occurs.
     await context.addInitScript(() => {
       const stats = { renderCount: 0, executeCount: 0, resetCount: 0 };
       const widgets = new Map();
@@ -79,22 +79,36 @@ async function visit(page, url, expectedSelector) {
 
     const clientSubmit = page.locator('#liveLogin button[type="submit"]');
     const clientVerify = page.locator('#liveLogin .aegis-turnstile-verify-button');
-    await clientVerify.waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await clientSubmit.isDisabled(), true, 'Live Client Login must start disabled until manual verification.');
-    assert.equal(await clientVerify.isDisabled(), true, 'Live Client verification must wait for both credentials.');
-    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 0, resetCount: 0 },
-      'Live Client Turnstile must not auto-execute or auto-reset when the UI appears.');
+    assert.equal(await clientVerify.count(), 0, 'Live Client login must not show a separate human-verification button.');
+    assert.equal(await clientSubmit.isDisabled(), true, 'Live Client Login must wait for valid login credentials.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 0, executeCount: 0, resetCount: 0 },
+      'Live Client Turnstile must not load or execute before Login is clicked.');
+
+    // Intercept password auth in the browser so dummy smoke-test credentials never reach Supabase.
+    let clientAuthRequest = null;
+    await page.route('**/auth/v1/token**', async route => {
+      const url = new URL(route.request().url());
+      if (url.searchParams.get('grant_type') !== 'password') return route.continue();
+      try { clientAuthRequest = route.request().postDataJSON(); } catch (_) { clientAuthRequest = null; }
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'invalid_credentials', error: 'invalid_grant', msg: 'Invalid login credentials' })
+      });
+    });
     await page.locator('#le').focus();
     await page.locator('#le').fill('live-smoke@example.invalid');
     await page.locator('#lp').focus();
     await page.locator('#lp').fill('not-a-real-password-for-live-smoke');
-    assert.equal(await clientVerify.isDisabled(), false, 'Live Client verification should enable after credentials are entered.');
-    assert.equal(await clientSubmit.isDisabled(), true, 'Live Client Login must wait for verification.');
-    await clientVerify.click();
-    await page.waitForFunction(() => document.querySelector('#liveLogin button[type="submit"]')?.disabled === false, null, { timeout: 5000 });
-    assert.match(await clientVerify.textContent(), /Verified/i, 'Live Client verification should report success before Login.');
-    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 0 },
-      'Live Client Turnstile should execute only after the user starts it and should not reset itself.');
+    assert.equal(await clientVerify.count(), 0, 'The separate verification button must remain removed after credentials are entered.');
+    assert.equal(await clientSubmit.isDisabled(), false, 'Live Client Login should enable as soon as credentials are entered.');
+    await clientSubmit.click();
+    await page.waitForFunction(() => window.__turnstileMockStats.resetCount === 1, null, { timeout: 10000 });
+    assert.ok(clientAuthRequest, 'Clicking Live Client Login should continue to password auth after the CAPTCHA callback.');
+    assert.equal(clientAuthRequest.gotrue_meta_security?.captcha_token, 'live-smoke-token-1',
+      'Live Client must forward the user-verified CAPTCHA token in Supabase Auth security metadata.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 1 },
+      'Live Client Turnstile should initialize and execute on Login click, then reset after the mocked auth attempt.');
 
     await page.locator('.ap-auth [data-a="lang"]').first().click();
     await page.locator('#ov.show').waitFor({ state: 'visible', timeout: 5000 });
@@ -154,19 +168,51 @@ async function visit(page, url, expectedSelector) {
 
     const adminSubmit = adminPage.locator('#aaLoginForm button[type="submit"]');
     const adminVerify = adminPage.locator('#aaLoginForm .aegis-turnstile-verify-button');
-    await adminVerify.waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await adminSubmit.isDisabled(), true, 'Live Master Admin login must start disabled until manual verification.');
-    assert.equal(await adminVerify.isDisabled(), true, 'Live Master Admin verification must wait for credentials.');
-    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 0, resetCount: 0 },
-      'Live Master Admin Turnstile must not auto-execute or auto-reset when the UI appears.');
+    assert.equal(await adminVerify.count(), 0, 'Live Master Admin login must not show a separate human-verification button.');
+    assert.equal(await adminSubmit.isDisabled(), true, 'Live Master Admin Login must wait for both credentials.');
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 0, executeCount: 0, resetCount: 0 },
+      'Live Master Admin Turnstile must not load or execute before Login is clicked.');
+
+    // Intercept the username-login edge call so test credentials never reach the backend.
+    let adminAuthRequest = null;
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
+      'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
+      'access-control-max-age': '600'
+    };
+    await adminPage.route('**/functions/v1/username-login**', async route => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      try { adminAuthRequest = route.request().postDataJSON(); } catch (_) { adminAuthRequest = null; }
+      await route.fulfill({
+        status: 400,
+        headers: corsHeaders,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Invalid username or password.' })
+      });
+    });
+    // Admin login signs out after a mocked auth failure; keep that cleanup request local too.
+    await adminPage.route('**/auth/v1/logout**', async route => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({ status: 204, headers: corsHeaders });
+    });
     await adminPage.locator('#aaUsername').fill('live-smoke-admin');
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-live-smoke');
-    assert.equal(await adminVerify.isDisabled(), false, 'Live Master Admin verification should enable after credentials.');
-    await adminVerify.click();
-    await adminPage.waitForFunction(() => document.querySelector('#aaLoginForm button[type="submit"]')?.disabled === false, null, { timeout: 5000 });
-    assert.match(await adminVerify.textContent(), /Verified/i, 'Live Master Admin verification should report success before Login.');
+    assert.equal(await adminVerify.count(), 0, 'The separate verification button must remain removed on Master Admin login.');
+    assert.equal(await adminSubmit.isDisabled(), false, 'Live Master Admin Login should enable after both credentials.');
+    await adminSubmit.click();
+    await adminPage.waitForFunction(() => window.__turnstileMockStats.executeCount === 1, null, { timeout: 10000 });
+    assert.ok(adminAuthRequest, 'Clicking Master Admin Login should continue to username auth after CAPTCHA verification.');
+    assert.equal(adminAuthRequest.captchaToken, 'live-smoke-token-1',
+      'Master Admin must forward the user-verified CAPTCHA token to the username-login endpoint.');
     assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 0 },
-      'Live Master Admin Turnstile should execute only on user action and should not refresh itself.');
+      'Master Admin Turnstile should initialize and execute on Login click; the admin login render replaces the form before the detached widget reset.');
 
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
