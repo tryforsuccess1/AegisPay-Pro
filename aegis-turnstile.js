@@ -15,9 +15,7 @@
     '.aegis-turnstile-widget{display:flex;justify-content:center;align-items:center;width:100%;min-height:0;max-width:100%;overflow:visible}',
     '.aegis-turnstile-status{display:block;width:100%;font:500 11px/1.45 system-ui,sans-serif;color:var(--mut,#8a7a68);text-align:center;min-height:0}',
     '.aegis-turnstile-status:empty{display:none}',
-    '.aegis-turnstile-verify-button{width:100%;min-height:44px;padding:10px 14px;border:1px solid var(--line,#ddd2c5);border-radius:12px;background:var(--surface,#fff);color:var(--hd,#30251f);font:700 12px/1.3 system-ui,sans-serif;cursor:pointer;touch-action:manipulation;transition:opacity .15s ease,transform .15s ease}',
-    '.aegis-turnstile-verify-button:active:not(:disabled){transform:scale(.99)}',
-    '.aegis-turnstile-verify-button:disabled{opacity:.55;cursor:not-allowed}',
+    '.aegis-turnstile-wrap[data-manual-login="true"]:not([data-challenge-active="true"]){display:none}',
     '.aegis-turnstile-wrap[data-manual-login="true"] .aegis-turnstile-widget{min-height:0}',
     '.aa-login .aegis-turnstile-wrap{margin:14px 0}',
     '.aa-login .aegis-turnstile-status{color:var(--muted,#8a7a68)}'
@@ -95,13 +93,21 @@
       state.token = '';
       state.issuedAt = 0;
     }
-    if (state.verifyButton) {
-      state.verifyButton.disabled = !ready || state.inProgress || state.busy || hasFreshToken || state.widgetId === null;
-      state.verifyButton.textContent = hasFreshToken
-        ? 'Verified ✓'
-        : (state.inProgress ? 'Verifying…' : (state.error ? 'Try verification again' : 'Verify I’m not a robot'));
+    // The Login button starts verification; it is not gated by a separate verification button.
+    if (state.submit) state.submit.disabled = !ready || state.inProgress || state.busy || hasFreshToken;
+  }
+
+  function settleVerification(state, token, error) {
+    var resolve = state.pendingResolve;
+    var reject = state.pendingReject;
+    state.pendingResolve = null;
+    state.pendingReject = null;
+    state.pendingPromise = null;
+    if (error) {
+      if (reject) reject(error);
+    } else if (resolve) {
+      resolve(token);
     }
-    if (state.submit) state.submit.disabled = !hasFreshToken || state.inProgress || state.busy;
   }
 
   function attach(form) {
@@ -113,27 +119,14 @@
     wrap.setAttribute('aria-label', 'Cloudflare security verification');
     if (manual) wrap.dataset.manualLogin = 'true';
 
-    var verifyButton = null;
-    if (manual) {
-      verifyButton = document.createElement('button');
-      verifyButton.type = 'button';
-      verifyButton.className = 'aegis-turnstile-verify-button';
-      verifyButton.textContent = 'Verify I’m not a robot';
-      verifyButton.disabled = true;
-      verifyButton.setAttribute('aria-label', 'Start Cloudflare human verification');
-    }
-
     var widget = document.createElement('div');
     widget.className = 'aegis-turnstile-widget';
     var status = document.createElement('div');
     status.className = 'aegis-turnstile-status';
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
-    status.textContent = manual
-      ? 'Enter your username/email and password first.'
-      : 'Loading security verification…';
+    status.textContent = manual ? '' : 'Loading security verification…';
 
-    if (verifyButton) wrap.appendChild(verifyButton);
     wrap.appendChild(widget);
     wrap.appendChild(status);
 
@@ -146,7 +139,6 @@
       wrap: wrap,
       widget: widget,
       status: status,
-      verifyButton: verifyButton,
       submit: submit,
       manual: manual,
       widgetId: null,
@@ -158,7 +150,11 @@
       inProgress: false,
       busy: false,
       started: false,
-      verifiedValues: ''
+      verifiedValues: '',
+      challengeValues: '',
+      pendingPromise: null,
+      pendingResolve: null,
+      pendingReject: null
     };
     state.ready = new Promise(function (resolve, reject) {
       state.readyResolve = resolve;
@@ -171,20 +167,26 @@
     }
 
     function credentialChanged() {
-      if (state.manual && state.token && !state.busy && currentValues() !== state.verifiedValues) {
+      var values = currentValues();
+      var changedDuringChallenge = state.manual && state.inProgress && values !== state.challengeValues;
+      var changedAfterVerification = state.manual && state.token && !state.busy && values !== state.verifiedValues;
+      if ((changedDuringChallenge || changedAfterVerification) && !state.busy) {
+        var changedError = new Error('Login details changed. Click Login and complete verification again.');
         state.token = '';
         state.issuedAt = 0;
         state.error = null;
         state.inProgress = false;
         state.started = false;
+        settleVerification(state, null, changedError);
         if (window.turnstile && state.widgetId !== null && form.isConnected) {
           try { window.turnstile.reset(state.widgetId); } catch (_) {}
         }
-        status.textContent = 'Login details changed. Please verify again before logging in.';
-      } else if (state.manual && !state.token && !state.inProgress && !state.busy) {
+        state.wrap.removeAttribute('data-challenge-active');
         status.textContent = credentialsReady(form)
-          ? 'Click “Verify I’m not a robot”, complete the security check, then log in.'
+          ? 'Login details changed. Click Login to verify again.'
           : 'Enter your username/email and password first.';
+      } else if (state.manual && !state.token && !state.inProgress && !state.busy) {
+        status.textContent = '';
       }
       syncManualControls(state);
     }
@@ -196,37 +198,6 @@
         input.addEventListener('blur', credentialChanged);
       });
       if (submit) submit.disabled = true;
-      verifyButton.addEventListener('click', async function (event) {
-        event.preventDefault();
-        if (!credentialsReady(form)) {
-          var firstInvalid = credentialInputs(form).find(function (input) {
-            return !String(input.value || '').trim() || !input.checkValidity();
-          });
-          if (firstInvalid) firstInvalid.reportValidity();
-          status.textContent = 'Enter your username/email and password before verification.';
-          syncManualControls(state);
-          return;
-        }
-        try {
-          if (state.widgetId === null) await state.ready;
-          if (!window.turnstile || state.widgetId === null) throw state.error || new Error('Cloudflare security verification is unavailable. Please refresh.');
-          state.error = null;
-          state.inProgress = true;
-          verifyButton.disabled = true;
-          verifyButton.textContent = 'Verifying…';
-          status.textContent = 'Complete the Cloudflare security check in the widget below.';
-          if (state.started) {
-            window.turnstile.reset(state.widgetId);
-          }
-          state.started = true;
-          window.turnstile.execute(state.widgetId);
-        } catch (error) {
-          state.inProgress = false;
-          state.error = error instanceof Error ? error : new Error('Cloudflare security verification failed. Please try again.');
-          status.textContent = state.error.message;
-          syncManualControls(state);
-        }
-      });
     }
 
     loadApi().then(function () {
@@ -246,8 +217,17 @@
           state.inProgress = false;
           state.verifiedValues = currentValues();
           if (manual) {
-            status.textContent = 'Verification complete. You can now log in.';
+            if (state.challengeValues && state.verifiedValues !== state.challengeValues) {
+              state.token = '';
+              state.issuedAt = 0;
+              state.status.textContent = 'Login details changed. Click Login and verify again.';
+              settleVerification(state, null, new Error('Login details changed. Please verify again.'));
+              syncManualControls(state);
+              return;
+            }
+            status.textContent = 'Verification complete. Signing you in…';
             syncManualControls(state);
+            settleVerification(state, state.token, null);
           } else {
             status.textContent = '';
           }
@@ -257,9 +237,11 @@
           state.issuedAt = 0;
           state.inProgress = false;
           state.error = null;
-          status.textContent = manual
-            ? 'Security check expired. Click “Verify I’m not a robot” to try again.'
+          var message = manual
+            ? 'Security check expired. Click Login to try again.'
             : 'Security check expired. Please complete it again.';
+          status.textContent = message;
+          settleVerification(state, null, new Error(message));
           syncManualControls(state);
         },
         'error-callback': function () {
@@ -268,24 +250,25 @@
           state.inProgress = false;
           state.error = new Error('Cloudflare security verification failed. Please try again.');
           status.textContent = state.error.message;
+          settleVerification(state, null, state.error);
           syncManualControls(state);
         },
         'timeout-callback': function () {
           state.token = '';
           state.issuedAt = 0;
           state.inProgress = false;
-          status.textContent = manual
-            ? 'Security check timed out. Click “Verify I’m not a robot” to try again.'
+          var message = manual
+            ? 'Security check timed out. Click Login to try again.'
             : 'Security check timed out. Please complete it again.';
+          status.textContent = message;
+          settleVerification(state, null, new Error(message));
           syncManualControls(state);
         }
       };
       state.widgetId = window.turnstile.render(widget, options);
       state.readyResolve();
       if (manual) {
-        status.textContent = credentialsReady(form)
-          ? 'Click “Verify I’m not a robot”, complete the security check, then log in.'
-          : 'Enter your username/email and password first.';
+        status.textContent = '';
         syncManualControls(state);
       } else {
         status.textContent = 'Complete the security check to continue.';
@@ -312,21 +295,84 @@
     if (!form || !AUTH_FORMS.has(form.id)) throw new Error('Security verification is unavailable for this form.');
     var state = states.get(form) || attach(form);
     if (!state) throw new Error('Security verification could not be initialized. Please refresh.');
+    if (state.busy) throw new Error('Sign-in is already being submitted. Please wait.');
     if (state.error && state.widgetId === null) throw state.error;
     if (state.widgetId === null) {
       try { await state.ready; } catch (error) { throw state.error || error; }
     }
+
+    if (state.manual) {
+      var freshManualToken = !!state.token && Date.now() - state.issuedAt < 240000;
+      if (!freshManualToken) {
+        if (!credentialsReady(form)) {
+          throw new Error('Enter your username/email and password before continuing.');
+        }
+        if (state.pendingPromise) {
+          throw new Error('Please complete the security check already in progress.');
+        }
+        if (state.token) {
+          state.token = '';
+          state.issuedAt = 0;
+        }
+        if (!window.turnstile || state.widgetId === null) {
+          throw state.error || new Error('Cloudflare security verification is unavailable. Please refresh.');
+        }
+
+        state.wrap.dataset.challengeActive = 'true';
+        state.status.textContent = 'Complete the Cloudflare security check to continue.';
+        state.challengeValues = credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000');
+        state.inProgress = true;
+        state.pendingPromise = new Promise(function (resolve, reject) {
+          state.pendingResolve = resolve;
+          state.pendingReject = reject;
+        });
+        var verification = state.pendingPromise;
+        syncManualControls(state);
+
+        try {
+          if (state.started) window.turnstile.reset(state.widgetId);
+          state.started = true;
+          window.turnstile.execute(state.widgetId);
+        } catch (error) {
+          state.inProgress = false;
+          state.error = error instanceof Error ? error : new Error('Cloudflare security verification failed. Please try again.');
+          state.status.textContent = state.error.message;
+          settleVerification(state, null, state.error);
+          syncManualControls(state);
+        }
+
+        var issuedToken;
+        try {
+          issuedToken = await verification;
+        } catch (error) {
+          state.inProgress = false;
+          syncManualControls(state);
+          throw error;
+        }
+        var latestValues = credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000');
+        if (latestValues !== state.challengeValues || !issuedToken || state.token !== issuedToken || Date.now() - state.issuedAt >= 240000) {
+          state.token = '';
+          state.issuedAt = 0;
+          state.inProgress = false;
+          state.status.textContent = 'Security verification is no longer valid. Click Login to try again.';
+          syncManualControls(state);
+          throw new Error('Security verification expired or login details changed. Please click Login and verify again.');
+        }
+      }
+    }
+
     if (!state.token || Date.now() - state.issuedAt >= 240000) {
       state.token = '';
       state.issuedAt = 0;
       state.status.textContent = state.manual
-        ? 'Please click “Verify I’m not a robot” and complete verification before logging in.'
+        ? 'Click Login and complete the Cloudflare security check before continuing.'
         : 'Please complete the Cloudflare security check, then submit again.';
       syncManualControls(state);
       throw new Error(state.manual
         ? 'Please verify that you are human before logging in.'
         : 'Please complete the Cloudflare security check before continuing.');
     }
+
     var token = state.token;
     state.token = '';
     state.issuedAt = 0;
@@ -343,6 +389,7 @@
   function reset(form) {
     var state = form && states.get(form);
     if (!state) return;
+    if (state.pendingPromise) settleVerification(state, null, new Error('Security verification was reset. Click Login to try again.'));
     state.token = '';
     state.issuedAt = 0;
     state.error = null;
@@ -350,13 +397,11 @@
     state.busy = false;
     state.started = false;
     state.verifiedValues = '';
+    state.challengeValues = '';
     if (state.manual) {
       setCredentialInputsDisabled(state, false);
-      if (state.status) {
-        state.status.textContent = credentialsReady(form)
-          ? 'Please verify again before your next login attempt.'
-          : 'Enter your username/email and password first.';
-      }
+      state.wrap.removeAttribute('data-challenge-active');
+      if (state.status) state.status.textContent = '';
       if (form.isConnected && window.turnstile && state.widgetId !== null) {
         try { window.turnstile.reset(state.widgetId); } catch (_) {}
       }
