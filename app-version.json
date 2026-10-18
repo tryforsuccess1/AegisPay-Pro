@@ -1,12 +1,13 @@
 {
-  "versionCode": 45,
-  "versionName": "2.6.6",
+  "versionCode": 46,
+  "versionName": "2.6.7",
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
-    "Build 45 / 2.6.6 improves startup performance by loading independent authenticated bootstrap requests concurrently and serving cached app-shell assets with background refresh.",
-    "Login starts Cloudflare Turnstile only after credentials are entered and automatically resumes authentication after successful verification.",
-    "Signup and recovery retain the 12–128 character password policy and server-side breached-password checks.",
+    "Build 46 / 2.6.7 restores the exact Client screen after returning from the external Shop marketplace and briefly retries Auth session hydration to avoid a transient login flash.",
+    "The marketplace now renders real seed photos immediately, prioritizes the first four visible product images, and replaces seed photos with matching public-catalog photos when the catalog finishes loading.",
+    "Assigned product images load directly without a separate image-probe request; a local image fallback remains available.",
+    "Retains Build 45 / 2.6.6 startup optimizations, user-started Cloudflare Turnstile, the 12–128 character password policy, and server-side breached-password checks.",
     "This is a test-channel fallback manifest. The Web Portal Deploy workflow generates versioned APK URLs and SHA-256 values from the exact packaged Client and Master Admin APKs."
   ]
 }
