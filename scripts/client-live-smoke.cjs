@@ -175,6 +175,8 @@ async function visit(page, url, expectedSelector) {
     const protectedFunctions = [
       'ai-support',
       'execute-payout',
+      'get-deposit-address',
+      'monitor-deposits',
       'production-readiness',
       'record-user-access',
       'submit-deposit',
@@ -195,6 +197,17 @@ async function visit(page, url, expectedSelector) {
     console.log('LIVE SMOKE PASS: landing page + Client + Master Admin; language/theme interactions passed; no same-origin HTTP errors or uncaught page errors.');
     console.log('Client viewports: ' + clientWidths.join(', ') + 'px. Master Admin viewports: ' + adminWidths.join(', ') + 'px.');
     console.log('Unauthenticated Edge Function guards: ' + guardResults.join(', ') + '.');
+    const sweepGuardResponse = await fetch(supabaseUrl + '/functions/v1/sweep-deposit-wallets', {
+      method: 'POST',
+      headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    assert.equal(sweepGuardResponse.status, 423,
+      'Testnet sweep must remain disabled by default and reject invocation with 423.');
+    const sweepGuardBody = await sweepGuardResponse.json();
+    assert.equal(sweepGuardBody.code, 'TESTNET_SWEEP_DISABLED',
+      'Testnet sweep must remain disabled by default rather than process wallets.');
+    console.log('Testnet sweep guard: ' + sweepGuardResponse.status + ' (' + sweepGuardBody.code + ').');
     console.log('No credentials were used; no database writes, deposits, withdrawals, or payouts were attempted.');
     await context.close();
   } catch (error) {
