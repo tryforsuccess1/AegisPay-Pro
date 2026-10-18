@@ -334,6 +334,10 @@
 
         try {
           await state.initializeWidget();
+          if (state.pendingPromise !== verification || !state.inProgress ||
+              credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000') !== state.challengeValues) {
+            throw new Error('Login details changed. Click Login and complete verification again.');
+          }
           if (!window.turnstile || state.widgetId === null) {
             throw state.error || new Error('Cloudflare security verification is unavailable. Please refresh.');
           }
