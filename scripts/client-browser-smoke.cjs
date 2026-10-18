@@ -174,7 +174,7 @@ const server = http.createServer((req, res) => {
     assert.match(await clientVerify.textContent(), /Verified/i, 'Client verification button should show a verified state.');
     assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 1,resetCount: 0},
       'Turnstile should execute only after the user starts verification and should not refresh itself.');
-    const clientContrast = await clientSubmit.evaluate(el => whiteTextMinContrast(getComputedStyle(el).backgroundImage));
+    const clientContrast = whiteTextMinContrast(await clientSubmit.evaluate(el => getComputedStyle(el).backgroundImage));
     assert.ok(loginFields.loginHeight >= 44, 'Primary login button should provide a 44px minimum touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Language control should provide a 40px minimum touch target.');
     assert.ok(clientContrast >= 4.5, 'Client primary button white-text contrast is below WCAG AA: ' + clientContrast.toFixed(2));
@@ -325,7 +325,7 @@ const server = http.createServer((req, res) => {
     assert.match(await adminVerify.textContent(), /Verified/i, 'Master Admin verification button should show a verified state.');
     assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 1,resetCount: 0},
       'Master Admin Turnstile must not execute or reset before the user starts verification.');
-    const adminContrast = await adminSubmit.evaluate(el => whiteTextMinContrast(getComputedStyle(el).backgroundImage));
+    const adminContrast = whiteTextMinContrast(await adminSubmit.evaluate(el => getComputedStyle(el).backgroundImage));
     assert.ok(adminContrast >= 4.5, 'Master Admin primary button white-text contrast is below WCAG AA: ' + adminContrast.toFixed(2));
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
