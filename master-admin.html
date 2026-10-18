@@ -142,5 +142,12 @@ if(!window.AEGIS_ANDROID_APP){
 <script src="./shop-catalog.js"></script>
 <script src="./admin-auth.js?v=20261012-sunrise"></script>
 <script src="./aegis-turnstile.js"></script>
+<script>
+(function(){
+  if(!('serviceWorker' in navigator)||
+     (window.location.protocol!=='https:'&&window.location.protocol!=='http:'))return;
+  navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'}).catch(function(){});
+})();
+</script>
 </body>
 </html>
