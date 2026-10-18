@@ -31,7 +31,7 @@ const must=[
   'database/migrations/20261012_withdrawal_ledger_debit_reconciliation.sql',
   'database/migrations/20261013_harden_withdrawal_dual_approval_ledger.sql',
   'database/migrations/20261013_harden_security_definer_search_paths.sql',
-  'database/migrations/20261019030000_restrict_legacy_admin_definer_rpcs.sql',
+  'database/migrations/20261018195540_restrict_legacy_admin_definer_rpcs.sql',
   'scripts/sql-tests/legacy_definer_rpc_fixture.sql',
   'scripts/sql-tests/legacy_definer_rpc_assertions.sql',
   '.github/workflows/security-definer-rpc-tests.yml',
@@ -81,7 +81,7 @@ const weightedTaskReference=fs.readFileSync('docs/recovered-sql/ensure_auto_task
 assert(weightedTaskReference.includes('REFERENCE SNAPSHOT ONLY')&&weightedTaskReference.includes('NOT THE ORIGINAL MIGRATION SOURCE'),'Recovered weighted Shop function must remain explicitly marked as reference-only');
 assert(weightedTaskReference.includes('so.task_weight')&&weightedTaskReference.includes('weight_sum'),'Recovered weighted Shop function must preserve product-weighted allocation logic');
 
-const legacyDefinerRpcMigration=fs.readFileSync('database/migrations/20261019030000_restrict_legacy_admin_definer_rpcs.sql','utf8');
+const legacyDefinerRpcMigration=fs.readFileSync('database/migrations/20261018195540_restrict_legacy_admin_definer_rpcs.sql','utf8');
 for(const sig of [
   'public.ai_update_display_name(text)',
   'public.finalize_withdrawal(uuid, boolean)',
@@ -92,7 +92,7 @@ for(const sig of [
 assert(!legacyDefinerRpcMigration.includes('FROM service_role'),'Legacy RPC hardening must preserve existing trusted backend grants.');
 const legacyDefinerRpcTestWorkflow=fs.readFileSync('.github/workflows/security-definer-rpc-tests.yml','utf8');
 const legacyDefinerRpcSqlAssertions=fs.readFileSync('scripts/sql-tests/legacy_definer_rpc_assertions.sql','utf8');
-assert(legacyDefinerRpcTestWorkflow.includes('legacy_definer_rpc_fixture.sql')&&legacyDefinerRpcTestWorkflow.includes('20261019030000_restrict_legacy_admin_definer_rpcs.sql')&&legacyDefinerRpcTestWorkflow.includes('legacy_definer_rpc_assertions.sql'),'SECURITY DEFINER permission migration must run in a disposable PostgreSQL CI test.');
+assert(legacyDefinerRpcTestWorkflow.includes('legacy_definer_rpc_fixture.sql')&&legacyDefinerRpcTestWorkflow.includes('20261018195540_restrict_legacy_admin_definer_rpcs.sql')&&legacyDefinerRpcTestWorkflow.includes('legacy_definer_rpc_assertions.sql'),'SECURITY DEFINER permission migration must run in a disposable PostgreSQL CI test.');
 assert(legacyDefinerRpcSqlAssertions.includes('Trusted service-role grants changed unexpectedly')&&legacyDefinerRpcSqlAssertions.includes('Authenticated RLS identity helper grants must be preserved'),'SECURITY DEFINER permission tests must preserve backend access and RLS helper access.');
 
 const triggerOnlyGrantMigration=fs.readFileSync('database/migrations/20261014120000_revoke_trigger_only_function_execute.sql','utf8');

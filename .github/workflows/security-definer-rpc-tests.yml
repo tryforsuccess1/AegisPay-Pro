@@ -50,6 +50,6 @@ jobs:
       - name: Create SECURITY DEFINER permission fixture
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/legacy_definer_rpc_fixture.sql
       - name: Apply least-privilege migration
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261019030000_restrict_legacy_admin_definer_rpcs.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261018195540_restrict_legacy_admin_definer_rpcs.sql
       - name: Verify execute grants and preserved policy helpers
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/legacy_definer_rpc_assertions.sql

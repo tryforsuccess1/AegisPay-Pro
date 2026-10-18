@@ -2,7 +2,7 @@
 
 Project: `wtcspnrmsoisroavojop`
 
-Verified on 2026-10-12: ACTIVE_HEALTHY, region `ap-northeast-1`.
+Audited on 2026-10-19: ACTIVE_HEALTHY, region `ap-northeast-1`; current runtime and grant checks are summarized in `docs/PRODUCTION_READINESS.md`.
 
 ## Live application surface
 
@@ -27,15 +27,15 @@ The canonical repository tracks this policy in `database/migrations/20261003_pri
 
 Current `platform_settings.system_mode` is `MAINNET`, but all three production enablement flags (`live_deposits`, `real_payouts`, and `production_go_live_approved`) are `false`. `production_config.environment` is `PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, and `payouts_locked=true`. Treat the system as closed to new funds. The HD deposit-address endpoint is fail-closed, and the live `deposit_wallets` and `deposit_submissions` tables currently contain zero rows.
 
-Two active pg_cron jobs run every minute: `aegispay-cycle-settlement` settles due cycles and `aegispay-mainnet-deposit-monitor` invokes `monitor-deposits`. The cron secret is stored in Supabase Vault and the monitor's current deployed code verifies it via the restricted `verify_deposit_monitor_cron_secret` RPC when the Edge Function environment secret is absent or does not match. The latest 10 recorded monitor runs succeeded on 2026-10-12; the `deposit_submissions` table currently has zero rows, so actual on-chain deposit reconciliation has not been exercised by this snapshot.
+Two active pg_cron jobs run every minute: `aegispay-cycle-settlement` settles due cycles; `aegispay-mainnet-deposit-monitor` short-circuits while payment gates are closed and only POSTs to `monitor-deposits` when every Mainnet/go-live prerequisite is enabled. Its latest recorded cron wrapper run and the settlement run checked during the 2026-10-19 audit (2026-10-18 23:24 UTC) succeeded; because gates were closed, that status does not prove the Edge Function performed an on-chain check. The cron secret is stored in Supabase Vault, and the deployed monitor verifies its secret via the restricted `verify_deposit_monitor_cron_secret` RPC when the Edge Function environment secret is absent or does not match. `deposit_wallets`, `deposit_submissions`, and both sweep-journal tables have zero rows, so real on-chain deposit reconciliation has not been exercised.
 
 ## Current review items
 
-Security Advisor reports authenticated execution of several SECURITY DEFINER RPCs. These require function-by-function authorization review rather than blind revocation because some are intentionally used by the client workflow.
+Security Advisor currently reports nine authenticated-callable SECURITY DEFINER RPCs for client-oriented flows plus three intentional RLS-enabled service-only deposit/sweep tables without client policies. Five reviewed legacy administrative RPCs are restricted from direct `anon`/`authenticated` execution; details and current verification limits are in `docs/PRODUCTION_READINESS.md`. These require function-by-function authorization review rather than blind revocation because some are intentionally used by the client workflow.
 
 Leaked-password protection is currently reported as disabled and should be enabled before real production use.
 
-Performance Advisor reports 15 unused-index candidates and one unindexed foreign key (`ai_support_cases.resolved_by`). The unused indexes are review candidates, not automatic deletion targets. A forward-only index migration for the resolved-by foreign key is tracked in `database/migrations/20261012_ai_support_cases_resolved_by_index.sql`.
+Performance Advisor reports 20 unused-index notices and one unindexed foreign key (`ai_support_cases.resolved_by`). The unused indexes are review candidates, not automatic deletion targets. A forward-only index migration for the resolved-by foreign key is tracked in `database/migrations/20261012_ai_support_cases_resolved_by_index.sql`.
 
 ## Migration alignment
 
