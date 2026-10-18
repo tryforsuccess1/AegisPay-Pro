@@ -159,7 +159,9 @@ async function visit(page, url, expectedSelector) {
     assert.equal(await adminVerify.isDisabled(), true, 'Live Master Admin verification must wait for credentials.');
     assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 0, resetCount: 0 },
       'Live Master Admin Turnstile must not auto-execute or auto-reset when the UI appears.');
+    await adminPage.locator('#aaUsername').focus();
     await adminPage.locator('#aaUsername').fill('live-smoke-admin');
+    await adminPage.locator('#aaPassword').focus();
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-live-smoke');
     assert.equal(await adminVerify.isDisabled(), false, 'Live Master Admin verification should enable after credentials.');
     await adminVerify.click();
