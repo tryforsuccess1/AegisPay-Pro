@@ -145,8 +145,7 @@
       token: '',
       issuedAt: 0,
       error: null,
-      readyResolve: null,
-      readyReject: null,
+      initializing: null,
       inProgress: false,
       busy: false,
       started: false,
@@ -156,10 +155,6 @@
       pendingResolve: null,
       pendingReject: null
     };
-    state.ready = new Promise(function (resolve, reject) {
-      state.readyResolve = resolve;
-      state.readyReject = reject;
-    });
     states.set(form, state);
 
     function currentValues() {
@@ -200,88 +195,99 @@
       if (submit) submit.disabled = true;
     }
 
-    loadApi().then(function () {
-      if (!form.isConnected || state.widgetId !== null) return;
-      var options = {
-        sitekey: resolvedSitekey(),
-        theme: 'auto',
-        execution: manual ? 'execute' : 'render',
-        appearance: manual ? 'execute' : 'always',
-        retry: manual ? 'never' : 'auto',
-        'refresh-expired': manual ? 'manual' : 'auto',
-        'refresh-timeout': manual ? 'manual' : 'auto',
-        callback: function (token) {
-          state.token = String(token || '');
-          state.issuedAt = Date.now();
-          state.error = null;
-          state.inProgress = false;
-          state.verifiedValues = currentValues();
-          if (manual) {
-            if (state.challengeValues && state.verifiedValues !== state.challengeValues) {
-              state.token = '';
-              state.issuedAt = 0;
-              state.status.textContent = 'Login details changed. Click Login and verify again.';
-              settleVerification(state, null, new Error('Login details changed. Please verify again.'));
+    function initializeWidget() {
+      if (state.widgetId !== null) return Promise.resolve();
+      if (state.initializing) return state.initializing;
+      state.initializing = loadApi().then(function () {
+        if (!form.isConnected) throw new Error('Security verification form is no longer available. Please refresh.');
+        if (state.widgetId !== null) return;
+        var options = {
+          sitekey: resolvedSitekey(),
+          theme: 'auto',
+          execution: manual ? 'execute' : 'render',
+          appearance: manual ? 'execute' : 'always',
+          retry: manual ? 'never' : 'auto',
+          'refresh-expired': manual ? 'manual' : 'auto',
+          'refresh-timeout': manual ? 'manual' : 'auto',
+          callback: function (token) {
+            state.token = String(token || '');
+            state.issuedAt = Date.now();
+            state.error = null;
+            state.inProgress = false;
+            state.verifiedValues = currentValues();
+            if (manual) {
+              if (state.challengeValues && state.verifiedValues !== state.challengeValues) {
+                state.token = '';
+                state.issuedAt = 0;
+                state.status.textContent = 'Login details changed. Click Login and verify again.';
+                settleVerification(state, null, new Error('Login details changed. Please verify again.'));
+                syncManualControls(state);
+                return;
+              }
+              status.textContent = 'Verification complete. Signing you in…';
               syncManualControls(state);
-              return;
+              settleVerification(state, state.token, null);
+            } else {
+              status.textContent = '';
             }
-            status.textContent = 'Verification complete. Signing you in…';
+          },
+          'expired-callback': function () {
+            state.token = '';
+            state.issuedAt = 0;
+            state.inProgress = false;
+            state.error = null;
+            var message = manual
+              ? 'Security check expired. Click Login to try again.'
+              : 'Security check expired. Please complete it again.';
+            status.textContent = message;
+            settleVerification(state, null, new Error(message));
             syncManualControls(state);
-            settleVerification(state, state.token, null);
-          } else {
-            status.textContent = '';
+          },
+          'error-callback': function () {
+            state.token = '';
+            state.issuedAt = 0;
+            state.inProgress = false;
+            state.error = new Error('Cloudflare security verification failed. Please try again.');
+            status.textContent = state.error.message;
+            settleVerification(state, null, state.error);
+            syncManualControls(state);
+          },
+          'timeout-callback': function () {
+            state.token = '';
+            state.issuedAt = 0;
+            state.inProgress = false;
+            var message = manual
+              ? 'Security check timed out. Click Login to try again.'
+              : 'Security check timed out. Please complete it again.';
+            status.textContent = message;
+            settleVerification(state, null, new Error(message));
+            syncManualControls(state);
           }
-        },
-        'expired-callback': function () {
-          state.token = '';
-          state.issuedAt = 0;
-          state.inProgress = false;
-          state.error = null;
-          var message = manual
-            ? 'Security check expired. Click Login to try again.'
-            : 'Security check expired. Please complete it again.';
-          status.textContent = message;
-          settleVerification(state, null, new Error(message));
+        };
+        state.widgetId = window.turnstile.render(widget, options);
+        if (manual) {
+          status.textContent = state.wrap.dataset.challengeActive === 'true'
+            ? 'Complete the Cloudflare security check to continue.'
+            : '';
           syncManualControls(state);
-        },
-        'error-callback': function () {
-          state.token = '';
-          state.issuedAt = 0;
-          state.inProgress = false;
-          state.error = new Error('Cloudflare security verification failed. Please try again.');
-          status.textContent = state.error.message;
-          settleVerification(state, null, state.error);
-          syncManualControls(state);
-        },
-        'timeout-callback': function () {
-          state.token = '';
-          state.issuedAt = 0;
-          state.inProgress = false;
-          var message = manual
-            ? 'Security check timed out. Click Login to try again.'
-            : 'Security check timed out. Please complete it again.';
-          status.textContent = message;
-          settleVerification(state, null, new Error(message));
-          syncManualControls(state);
+        } else {
+          status.textContent = 'Complete the security check to continue.';
         }
-      };
-      state.widgetId = window.turnstile.render(widget, options);
-      state.readyResolve();
-      if (manual) {
-        status.textContent = '';
+      }).catch(function (error) {
+        state.error = error instanceof Error ? error : new Error('Security verification unavailable.');
+        status.textContent = state.error.message;
+        state.initializing = null;
         syncManualControls(state);
-      } else {
-        status.textContent = 'Complete the security check to continue.';
-      }
-    }).catch(function (error) {
-      state.error = error instanceof Error ? error : new Error('Security verification unavailable.');
-      status.textContent = state.error.message;
-      state.readyReject(state.error);
-      syncManualControls(state);
-    });
+        throw state.error;
+      });
+      return state.initializing;
+    }
 
-    // A rendered form may remain unused; handle readiness failures without unhandled rejections.
-    state.ready.catch(function () {});
+    state.initializeWidget = initializeWidget;
+    // Signup and recovery display their widgets immediately; login waits for a Login click.
+    if (!manual) initializeWidget().catch(function () {});
+
+
     return state;
   }
 
@@ -296,9 +302,9 @@
     var state = states.get(form) || attach(form);
     if (!state) throw new Error('Security verification could not be initialized. Please refresh.');
     if (state.busy) throw new Error('Sign-in is already being submitted. Please wait.');
-    if (state.error && state.widgetId === null) throw state.error;
-    if (state.widgetId === null) {
-      try { await state.ready; } catch (error) { throw state.error || error; }
+    if (!state.manual && state.error && state.widgetId === null) throw state.error;
+    if (!state.manual && state.widgetId === null) {
+      try { await state.initializeWidget(); } catch (error) { throw state.error || error; }
     }
 
     if (state.manual) {
@@ -314,14 +320,11 @@
           state.token = '';
           state.issuedAt = 0;
         }
-        if (!window.turnstile || state.widgetId === null) {
-          throw state.error || new Error('Cloudflare security verification is unavailable. Please refresh.');
-        }
-
         state.wrap.dataset.challengeActive = 'true';
-        state.status.textContent = 'Complete the Cloudflare security check to continue.';
+        state.status.textContent = 'Loading Cloudflare security verification…';
         state.challengeValues = credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000');
         state.inProgress = true;
+        state.error = null;
         state.pendingPromise = new Promise(function (resolve, reject) {
           state.pendingResolve = resolve;
           state.pendingReject = reject;
@@ -330,6 +333,11 @@
         syncManualControls(state);
 
         try {
+          await state.initializeWidget();
+          if (!window.turnstile || state.widgetId === null) {
+            throw state.error || new Error('Cloudflare security verification is unavailable. Please refresh.');
+          }
+          state.status.textContent = 'Complete the Cloudflare security check to continue.';
           if (state.started) window.turnstile.reset(state.widgetId);
           state.started = true;
           window.turnstile.execute(state.widgetId);
