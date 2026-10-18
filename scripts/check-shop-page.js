@@ -21,3 +21,9 @@ assert.match(html, /image unavailable/, 'Shop must have a final visible fallback
 assert.match(html, /location\.replace\(safeReturn\.toString\(\)\)/);
 assert.match(worker, /source:\s*"tryforsuccess1\/AegisPay-Pro"/);
 console.log('Shop page checks passed: inline JavaScript parses; 7 categories × 30 products; safe return wiring is present.');
+
+assert.match(html, /const FAST_REAL_IMAGES=/, 'Shop must have a compact set of real image URLs ready before the full catalog request finishes.');
+assert.match(html, /ITEMS\.forEach\(function\(product\)\{product\.photo=fastRealPhoto\(product\);\}\)/, 'Real product photos must seed the initial render before the catalog CSV is loaded.');
+assert.ok(html.indexOf('ITEMS.forEach(function(product){product.photo=fastRealPhoto(product);});') < html.indexOf('async function loadRealAmazonPhotos(){'), 'Fast photo seeding must run before background catalog loading.');
+assert.match(html, /index<4\?'eager':'lazy'/, 'The first four product images must load eagerly while below-the-fold images remain lazy.');
+assert.ok(html.includes('fetchpriority="${index<4?\'high\':\'auto\'}"'), 'Above-the-fold real product images must receive high fetch priority.');

@@ -178,6 +178,75 @@ C.slice(1).forEach((c,ci)=>{
   });
 });
 
+// Real, lightweight seed photos make the first visible product cards photographic immediately.
+// The full matching catalog continues loading in the background and replaces these seed URLs.
+const FAST_REAL_IMAGES={
+ "Laptop Accessories":[
+  "https://cdn.shopify.com/s/files/1/0059/0630/1017/files/K8-Pro-White.jpg?v=1688090606",
+  "https://images.tcdn.com.br/img/img_prod/571937/mouse_sem_fio_logitech_m220_silent_preto_1_20260525094106_b1bcd4eba880.png",
+  "https://cdn.sanity.io/images/hf5b3axp/production/250e10d12e65d14cecb1a834b735b7b531329cb4-1500x1500.png?auto=format&fit=max&w=800",
+  "https://images.unsplash.com/photo-1610006330187-5f0c6ec0f9aa?auto=format&fit=crop&w=700&q=76",
+  "https://www.laptopsdirect.co.uk/Images/C27G4ZXE_1_Supersize.jpg?v=3"
+ ],
+ "Mobile Accessories":[
+  "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=700&q=76",
+  "https://image01-eu.oneplus.net/shop/202104/27/1-M00-24-8B-rB8bwmCICVmAWJYwAAb0g1C5KSs370.png",
+  "https://arqoob.com/uploads/img/pi/175/175411768300/medium_1754117683.webp",
+  "https://images-na.ssl-images-amazon.com/images/I/610OXBcjEzL.jpg"
+ ],
+ "Audio & Wearables":[
+  "https://m.media-amazon.com/images/S/aplus-media-library-service-media/2b827d7-02c3-490e-94e0-e33e9f84400b.__CR0%2C0%2C1464%2C600_PT0_SX1464_V1___.jpg",
+  "https://images-na.ssl-images-amazon.com/images/I/61loiB6QjoL.jpg",
+  "https://www.segment.com.tr/images/productimages/SL_TWS04_B_02.jpg",
+  "https://images.unsplash.com/photo-1674658556545-f18d4080ab6c?auto=format&fit=crop&w=700&q=76"
+ ],
+ "Home & Kitchen":[
+  "https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1586023492125-27b2c045efd7?auto=format&fit=crop&w=700&q=76"
+ ],
+ "Fashion":[
+  "https://assets.adidas.com/images/w_500%2Cf_auto%2Cq_auto/8a03725e19834c7c914202a7c6ac8f5e_9366/RESPONSE_2_RUNNING_SHOES_Red_KJ1752_01_00_standard.jpg",
+  "https://eu.heys.com/cdn/shop/products/SmartLuggage_26_frontqrt_black_Hand.jpg?v=1557326945&width=750",
+  "https://assets.target.com.au/transform/f6c96a96-ea6e-461b-a267-a01baea60a2a/43114962-8?io=transform%3Afit%2Cwidth%3A1400%2Cheight%3A1600&output=webp&quality=90",
+  "https://images.unsplash.com/photo-1553062407-98eeb64c6a62?auto=format&fit=crop&w=700&q=76"
+ ],
+ "Beauty & Personal Care":[
+  "https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1596462502278-27bfdc403348?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1571781926291-c477ebfd024b?auto=format&fit=crop&w=700&q=76"
+ ],
+ "Toys, Games & Books":[
+  "https://images.unsplash.com/photo-1507842217343-583bb7270b66?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1610890716171-6b1bb98ffd09?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&w=700&q=76",
+  "https://images.unsplash.com/photo-1606509036992-386f1f8b6d54?auto=format&fit=crop&w=700&q=76"
+ ]};
+function fastRealPhoto(product){
+ const title=String(product.name||'').toLowerCase(),bank=FAST_REAL_IMAGES[product.cat]||[];
+ if(!bank.length)return product.fallbackPhoto;
+ let preferred=-1;
+ if(product.cat==='Laptop Accessories'){
+  preferred=/mouse/.test(title)?1:/keyboard/.test(title)?0:/monitor|display/.test(title)?2:/laptop/.test(title)?3:-1;
+ }else if(product.cat==='Mobile Accessories'){
+  preferred=/phone|tablet|case|screen protector|stand|holder|grip/.test(title)?0:/charger|cable|power bank|adapter/.test(title)?1:/camera/.test(title)?2:-1;
+ }else if(product.cat==='Audio & Wearables'){
+  preferred=/smartwatch|smart watch|fitness tracker|watch band|watch strap/.test(title)?3:/speaker|microphone|soundbar/.test(title)?2:-1;
+ }else if(product.cat==='Home & Kitchen'){
+  preferred=/coffee|mug|frother|espresso/.test(title)?1:/lamp|chair|night light/.test(title)?3:-1;
+ }else if(product.cat==='Fashion'){
+  preferred=/shoe|sneaker|sandal|slipper/.test(title)?0:/bag|backpack|luggage|duffel|travel/.test(title)?1:-1;
+ }else if(product.cat==='Beauty & Personal Care'){
+  preferred=/makeup|brush|mascara|lipstick|nail/.test(title)?1:/hair|shampoo|conditioner|scalp/.test(title)?2:-1;
+ }else if(product.cat==='Toys, Games & Books'){
+  preferred=/book|novel|notebook|sketch|story/.test(title)?0:/game|chess|puzzle|blocks|robot/.test(title)?1:-1;
+ }
+ return bank[preferred>=0?preferred:product.id%bank.length];
+}
+ITEMS.forEach(function(product){product.photo=fastRealPhoto(product);});
+
 const REAL_CATALOG_URL=location.origin+"/catalog-proxy?raw=1";
 const CAT_TERMS={
   "Laptop Accessories":["laptop","keyboard","mouse","computer","monitor","webcam","usb","dock","docking","ssd","hard drive","printer","pc","desk"],
@@ -271,8 +340,8 @@ function render(){
  let L=ITEMS.filter(p=>(cat=='All'||p.cat==cat)&&p.price>=RANGES[range][0]&&p.price<RANGES[range][1]&&(p.name+p.brand+p.cat).toLowerCase().includes(q));
  const S={f:(a,b)=>a.ord-b.ord,pl:(a,b)=>a.price-b.price,ph:(a,b)=>b.price-a.price,r:(a,b)=>b.rating-a.rating,d:(a,b)=>b.dis-a.dis};L.sort(S[sort]);
  $('cnt').textContent=L.length;$('cn').textContent=cat;
- $('grid').innerHTML=L.slice(0,shown).map(p=>{const [d,c]=p.price.toFixed(2).split('.');
- return `<div class="p"><div class="img"><img data-product-id="${String(p.id).replace(/[^a-zA-Z0-9_-]/g,'')}" loading="lazy" decoding="async" src="${p.photo}" alt="${p.name}">${p.dis?`<span class="tag">-${p.dis}%</span>`:p.best?'<span class="tag bs">Best Seller</span>':''}<button class="hrt ${fav.has(p.id)?'on':''}" data-h="${p.id}">${fav.has(p.id)?'♥':'♡'}</button></div>
+ $('grid').innerHTML=L.slice(0,shown).map((p,index)=>{const [d,c]=p.price.toFixed(2).split('.');
+ return `<div class="p"><div class="img"><img data-product-id="${String(p.id).replace(/[^a-zA-Z0-9_-]/g,'')}" loading="${index<4?'eager':'lazy'}" fetchpriority="${index<4?'high':'auto'}" decoding="async" src="${p.photo}" alt="${p.name}">${p.dis?`<span class="tag">-${p.dis}%</span>`:p.best?'<span class="tag bs">Best Seller</span>':''}<button class="hrt ${fav.has(p.id)?'on':''}" data-h="${p.id}">${fav.has(p.id)?'♥':'♡'}</button></div>
  <div class="info"><div class="nm">${p.name}</div><div class="br">${p.brand}</div>
  <div class="rt" data-r="${p.id}"><span class="st">${stars(p.rating)}</span>${p.rating} (${p.rc.toLocaleString()})</div>
  <div class="pr"><b>$${d}<sup>${c}</sup></b>${p.old?`<s>$${p.old}</s>`:''}${p.prime?'<span class="prime">prime</span>':''}</div>

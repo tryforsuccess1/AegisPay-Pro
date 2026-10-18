@@ -15,8 +15,8 @@ android {
         applicationId 'com.aegispay.app'
         minSdk 23
         targetSdk 35
-        versionCode 45
-        versionName '2.6.6'
+        versionCode 46
+        versionName '2.6.7'
     }
 
     productFlavors {
