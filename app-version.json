@@ -1,15 +1,12 @@
 {
-  "versionCode": 44,
-  "versionName": "2.6.5",
+  "versionCode": 45,
+  "versionName": "2.6.6",
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
-    "Build 44 / 2.6.5 adds explicit, user-started Turnstile verification before login submission.",
-    "Adds Cloudflare Turnstile to web and Android auth flows; complete Supabase CAPTCHA configuration and validate updated APKs before enabling enforcement.",
-    "Password signup and recovery use a 12–128 character policy and server-side breached-password screening.",
-    "Google sign-in remains optional; Facebook OAuth remains hidden until Meta provider credentials and redirect URLs are configured.",
-    "No Build 43 APK URL or SHA-256 is published yet; do not offer this candidate as an update until CI publishes and verifies APK artifacts.",
-    "The web deployment workflow generates versioned APK URLs and SHA-256 values from the exact packaged APKs.",
-    "Promote to stable only after a signed release APK is published and its SHA-256 is verified."
+    "Build 45 / 2.6.6 improves startup performance by loading independent authenticated bootstrap requests concurrently and serving cached app-shell assets with background refresh.",
+    "Login starts Cloudflare Turnstile only after credentials are entered and automatically resumes authentication after successful verification.",
+    "Signup and recovery retain the 12–128 character password policy and server-side breached-password checks.",
+    "This is a test-channel fallback manifest. The Web Portal Deploy workflow generates versioned APK URLs and SHA-256 values from the exact packaged Client and Master Admin APKs."
   ]
 }
