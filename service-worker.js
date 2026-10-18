@@ -3,7 +3,7 @@ const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registra
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
   ? ['./','./index.html','./home.html','./supabase-sdk.js','./supabase-client.js','./supabase-service.js','./aegis-auth-redirect.js','./aegis-turnstile.js','./app-update.js','./aegispay-logo.svg','./manifest.webmanifest']
-  : ['./','./index.html','./app/','./app/index.html','./app/home.html','./master-admin.html','./shop-catalog.js','./supabase-sdk.js','./supabase-client.js','./supabase-service.js','./aegis-auth-redirect.js','./aegis-turnstile.js','./app-update.js','./admin-auth.js','./aegispay-logo.svg','./manifest.webmanifest'];
+  : ['./','./index.html','./app/','./app/index.html','./app/home.html','./master-admin.html','./shop-catalog.js','./supabase-sdk.js','./supabase-client.js','./aegis-auth-redirect.js','./aegis-turnstile.js','./app-update.js','./admin-auth.js','./aegispay-logo.svg','./manifest.webmanifest'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(
@@ -34,7 +34,7 @@ self.addEventListener('fetch',event=>{
   if(url.pathname.endsWith('/service-worker.js'))return;
 
   const navigationFallback=APP_MODE?'./index.html':url.pathname.startsWith('/app/')?'./app/index.html':'./index.html';
-  const shellFile=event.request.mode==='navigate'||/\\.(?:js|html|css|svg|webmanifest)$/i.test(url.pathname);
+  const shellFile=event.request.mode==='navigate'||/\.(?:js|html|css|svg|webmanifest)$/i.test(url.pathname);
   if(shellFile){
     const cacheUrl=new URL(event.request.url);
     cacheUrl.search='';
@@ -47,7 +47,7 @@ self.addEventListener('fetch',event=>{
       redirect:'follow'
     });
     const authSensitive=['code','access_token','refresh_token','token_hash','error','error_description'].some(key=>url.searchParams.has(key));
-    const isAuthCallback=/\\/auth\\/callback\\/?$/i.test(url.pathname);
+    const isAuthCallback=/\/auth\/callback\/?$/i.test(url.pathname);
     const shouldStore=!authSensitive&&!isAuthCallback;
 
     // Revalidate in the background, but return the cached static shell immediately.
