@@ -149,6 +149,10 @@ jobs:
         shell: bash
         run: npx --yes wrangler@4 pages deploy site --project-name=aegispay-pro --branch=main --commit-hash="${GITHUB_SHA}" --commit-message="AegisPay canonical client UI" --commit-dirty=false
 
+      - name: Deploy legacy Worker compatibility redirect
+        shell: bash
+        run: npx --yes wrangler@4 deploy workers/aegispay-web-hotfix/index.js --config workers/aegispay-web-hotfix/wrangler.jsonc
+
       - name: Set up Node for live browser smoke tests
         uses: actions/setup-node@v4
         with:
