@@ -720,7 +720,7 @@ network:()=>`${T('Referral Network','referral')}<div class="card" style="font-si
  <div class="card" style="margin-top:18px"><div class="lvl"><div>Level 1<b class="up">8</b></div><div>Level 2<b>14</b></div><div>Earned<b>37</b></div></div></div>`,
 
 shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient(135deg,#0B1330,#16286B);padding:20px"><span class="amz">amazon</span><h2 style="font-size:22px;margin:14px 0 6px;max-width:75%;letter-spacing:0">AegisPay Amazon-Style Shop</h2><small>30 products per category, product photos, worldwide sample reviews and cart-ready browsing.</small></div>
- <div class="in">${ic('search')}Search products…</div><button class="btn" style="margin-bottom:18px" onclick="location.href='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&amp;return='+encodeURIComponent(location.href)">Open Full Shop ${ic('arrow')}</button>
+ <div class="in">${ic('search')}Search products…</div><button class="btn" style="margin-bottom:18px" onclick="location.href='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&amp;return='+encodeURIComponent(aegisClientReturnUrl())">Open Full Shop ${ic('arrow')}</button>
  <div class="card"><div class="row" style="padding-top:4px"><div><b>Full catalog</b><small>7 categories · 30 items each</small></div><em>210 items</em></div><div class="row" style="border:0;padding-bottom:4px"><div><b>Reviews</b><small>8 unique sample reviews per item · worldwide locations</small></div><em>1,960</em></div></div>
  <div class="sh">Shop by Category</div><div class="cats">${[['phone','Laptop &amp; Tech','#c94b8a'],['phone','Mobile Accessories','#c94b8a'],['bot','Audio &amp; Wearables','#8a7a68'],['cook','Home &amp; Kitchen','#1a9a6e'],['shirt','Fashion','#d63a4a'],['spark','Beauty &amp; Care','#E879F9'],['book','Toys, Games &amp; Books','#d98a1a']].map(c=>`<div class="cat"><b style="background:${c[2]}26;color:${c[2]}">${ic(c[0])}</b>${c[1]}</div>`).join('')}</div>`,account:()=>`${T('Profile')}<div class="card" style="display:flex;gap:14px;align-items:center"><div class="av" style="width:60px;height:60px;border-radius:22px;font-size:24px">A</div><div style="flex:1"><h2 style="font-size:19px">Client Name</h2><small class="mu">Client ID: AP-10023</small><div style="margin-top:6px"><span class="chip">${ic('check')} Verified</span> <span class="chip w">LV 2</span></div></div></div>
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
@@ -736,6 +736,7 @@ go('login');
 const U='https://wtcspnrmsoisroavojop.supabase.co',K='sb_publishable_pDg6Ef_P6fZnNvrKkuBm0Q_uEQMItB2';
 const db=supabase.createClient(U,K,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
 window.AegisSupabaseClient=db;
+window.__aegisCurrentRoute=window.__aegisCurrentRoute||'home';
 const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='',notificationPage=0,notificationRequestId=0,notificationCursors=[null],notificationNavigationInProgress=false,notificationReturnFromDetails=false,notificationRouteObserver=null;
 function uiNotice(message,type='error',duration=4200){
   const root=document.getElementById('app');if(!root)return;
@@ -1466,6 +1467,17 @@ function taskReviewList(product){
  const names=['Aiden','Amelia','Arjun','Aisha','Daniel'];
  return taskReviewSamples.slice(0,3).map((t,i)=>({name:names[(base+i)%names.length],text:t,d:(3+i*5)+' days ago'}));
 }
+function normalizeAegisReturnPage(value){
+ const route=String(value||'').trim().toLowerCase();
+ return ['home','shop','tasks','earn','activity','wallet','profile','account'].includes(route)?route:'';
+}
+function aegisClientReturnUrl(){
+ const route=normalizeAegisReturnPage(window.__aegisCurrentRoute)||'home';
+ const url=new URL(window.location.href);
+ ['access_token','refresh_token','code','token_hash','error','error_description','shop_purchase','task','product'].forEach(key=>url.searchParams.delete(key));
+ url.searchParams.set('aegisReturnPage',route);
+ return url.href;
+}
 function taskImageFallbackUrl(title,variant){
  const t=String(title||'Assigned Shop Product').trim();
  const s=t.toLowerCase();
@@ -1500,22 +1512,28 @@ function taskImageUrl(url){
 }
 function bindTaskImageFallback(root){
  if(!root)return;
- const probe=(img,url,mode)=>{
-  const target=String(url||'').trim();if(!target)return;
-  const p=new Image();
-  p.onload=()=>{img.src=target;img.dataset.imageState='remote';};
-  p.onerror=()=>{
-   if(mode==='remote'){
-    const direct=img.dataset.directSrc||'';
-    if(direct && img.dataset.directTried!=='1'){img.dataset.directTried='1';probe(img,direct,'direct');}
-   }
-  };
-  p.src=target;
- };
  root.querySelectorAll('img[data-remote-src]').forEach(img=>{
   if(img.dataset.imageFallbackBound)return;
   img.dataset.imageFallbackBound='1';
-  probe(img,img.dataset.remoteSrc,'remote');
+  const remote=String(img.dataset.remoteSrc||'').trim();
+  const direct=String(img.dataset.directSrc||'').trim();
+  const fallback=()=>taskImageFallbackUrl(img.alt||'Assigned Shop Product',0);
+  img.addEventListener('error',function(){
+   if(direct&&direct!==remote&&img.dataset.directTried!=='1'){
+    img.dataset.directTried='1';
+    img.src=direct;
+    img.dataset.imageState='direct';
+    return;
+   }
+   if(img.dataset.localFallback!=='1'){
+    img.dataset.localFallback='1';
+    img.src=fallback();
+    img.dataset.imageState='fallback';
+   }
+  });
+  img.dataset.imageState='loading';
+  // Assign the real image URL immediately instead of waiting for a separate Image() probe.
+  if(remote)img.src=remote;
  });
 }function bindTaskDelegation(){
   if(window.__aegisTaskDelegationBound)return;
@@ -1535,7 +1553,7 @@ function closeTaskProduct(){const m=document.getElementById('taskProductModal');
 function openTaskMarketplace(taskId){
  const x=taskProductData[String(taskId)]||{},product=x.product,offer=x.offer;
  if(!product){uiNotice('Product details are not available for this task yet.','error');return}
- const returnUrl=location.href;
+ const returnUrl=aegisClientReturnUrl();
  const shopQuery=String(offer?.title||product.title||'').trim();
  const u='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&task='+encodeURIComponent(taskId)+'&product='+encodeURIComponent(product.id)+'&q='+encodeURIComponent(shopQuery)+'&return='+encodeURIComponent(returnUrl);
  location.href=u;
@@ -1628,7 +1646,7 @@ async function liveShop(){
  }else{
    statusCard='<div class="card"><div class="sh-title" style="margin-top:0">Active Shop Cycle <span>'+Number(cycle.cycle_base||0).toFixed(2)+' USDT</span></div><div class="two"><div><small class="mu">Tasks</small><h3>'+completedCount+'/'+rows.length+'</h3></div><div><small class="mu">Remaining Balance</small><h3>'+remaining.toFixed(2)+' USDT</h3></div></div><div class="warn" style="margin-top:12px"><span>Complete each assigned task individually. When the final task is completed, the 18-hour settlement starts automatically.</span></div></div>';
  }
- app.innerHTML='<div class="scr on"><div class="pt" data-i18n="p_shop">Shop Tasks</div><div class="ps">Products assigned for your selected tier. A task value is debited when you complete it.</div>'+statusCard+'<div class="sh-title">Assigned Task Set <span>'+rows.length+' tasks</span></div><div class="card" style="padding:4px 16px">'+taskHtml+'</div><button class="btn o" style="margin-bottom:14px" onclick="location.href=\'https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&return=\'+encodeURIComponent(location.href)">Browse Shop Marketplace</button><div class="card"><div class="sh-title" style="margin-top:0">How the cycle works</div><div class="mu" style="font-size:11.5px;line-height:1.6">Open an assigned product to view its picture, rating and review previews. Purchase it through Shop, return here, then complete the task. After the final task, the 18-hour settlement timer starts automatically.</div></div><div id="taskProductModal" class="task-modal" aria-hidden="true"><div class="task-modal-box"><div id="taskProductContent"></div></div></div></div>'+nav('shop');
+ app.innerHTML='<div class="scr on"><div class="pt" data-i18n="p_shop">Shop Tasks</div><div class="ps">Products assigned for your selected tier. A task value is debited when you complete it.</div>'+statusCard+'<div class="sh-title">Assigned Task Set <span>'+rows.length+' tasks</span></div><div class="card" style="padding:4px 16px">'+taskHtml+'</div><button class="btn o" style="margin-bottom:14px" onclick="location.href=\'https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&return=\'+encodeURIComponent(aegisClientReturnUrl())">Browse Shop Marketplace</button><div class="card"><div class="sh-title" style="margin-top:0">How the cycle works</div><div class="mu" style="font-size:11.5px;line-height:1.6">Open an assigned product to view its picture, rating and review previews. Purchase it through Shop, return here, then complete the task. After the final task, the 18-hour settlement timer starts automatically.</div></div><div id="taskProductModal" class="task-modal" aria-hidden="true"><div class="task-modal-box"><div id="taskProductContent"></div></div></div></div>'+nav('shop');
  bindTaskImageFallback(app);
  bindTaskDelegation();
 }
@@ -2242,7 +2260,28 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
   return;
 }
 if(qs.get('auth-preview')==='1'){window.go((qs.get('signup')==='1'||referralLinkCode)?'signup':'login');return}
-const s=await db.auth.getSession();if(s.data.session){await initData();if(profile.role==='USER'){if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}recordClientAccess('APP_OPEN');return liveHome()}}window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login');if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0)}}
+const requestedReturnPage=normalizeAegisReturnPage(qs.get('aegisReturnPage'));
+let s=await db.auth.getSession();
+if(!s.data.session&&requestedReturnPage){
+  for(let attempt=0;attempt<5&&!s.data.session;attempt++){
+    await new Promise(resolve=>setTimeout(resolve,250));
+    s=await db.auth.getSession();
+  }
+}
+if(s.data.session){
+  await initData();
+  if(profile.role==='USER'){
+    if(!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){await db.auth.signOut();throw Error('This account is not active.');}
+    recordClientAccess('APP_OPEN');
+    if(requestedReturnPage){
+      try{const returnUrl=new URL(location.href);returnUrl.searchParams.delete('aegisReturnPage');history.replaceState({},document.title,returnUrl.pathname+returnUrl.search+returnUrl.hash);}catch(_){}
+      await window.go(requestedReturnPage);
+      return;
+    }
+    return liveHome();
+  }
+}
+window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login');if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0)}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
 (function(){
@@ -2475,7 +2514,11 @@ const s=await db.auth.getSession();if(s.data.session){await initData();if(profil
   document.addEventListener('click',window.__aegisGlobalTapHandler,true);
   top=sunriseReferenceUI.top;nav=sunriseReferenceUI.nav;uiNotice=sunriseReferenceUI.uiNotice;
   liveHome=sunriseReferenceUI.home;liveTopup=sunriseReferenceUI.topup;liveVip=sunriseReferenceUI.vip;liveKyc=sunriseReferenceUI.kyc;liveWithdraw=sunriseReferenceUI.withdraw;liveNotifications=sunriseReferenceUI.notifications;liveActivity=sunriseReferenceUI.activity;liveReferral=sunriseReferenceUI.referral;liveAssets=sunriseReferenceUI.assets;liveAccount=sunriseReferenceUI.account;liveShop=sunriseReferenceUI.shop;liveTasks=sunriseReferenceUI.tasks;liveBot=sunriseReferenceUI.bot;
-  window.go=sunriseReferenceUI.go;
+  window.go=function(id){
+    const route=normalizeAegisReturnPage(id);
+    if(route)window.__aegisCurrentRoute=route;
+    return sunriseReferenceUI.go.apply(this,arguments);
+  };
 })();
 bindTaskDelegation();window.liveLogout=liveLogout;updateNotificationBadge();
 window.addEventListener('aegispay:auth-confirmed',function(){bootLive().catch(function(error){window.go('login');uiNotice(error&&error.message?error.message:'Google sign-in completed, but the AegisPay profile could not be loaded.');});});
