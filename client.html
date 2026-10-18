@@ -2529,11 +2529,8 @@ document.addEventListener('click',function(e){var a=e.target.closest('[data-a="w
 (function(){
   if(window.AEGIS_ANDROID_APP||!('serviceWorker' in navigator)||
      (window.location.protocol!=='https:'&&window.location.protocol!=='http:'))return;
-  var appScope=window.location.pathname.indexOf('/app/')===0;
-  var scope=appScope?'/app/':'/';
-  var scriptUrl=scope+'service-worker.js';
   var register=function(){
-    navigator.serviceWorker.register(scriptUrl,{scope:scope,updateViaCache:'none'}).catch(function(){});
+    navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'}).catch(function(){});
   };
   if(document.readyState==='complete')register();
   else window.addEventListener('load',register,{once:true});
