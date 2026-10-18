@@ -182,7 +182,7 @@ const server = http.createServer((req, res) => {
     await clientSubmit.click();
     await page.waitForFunction(() => window.__turnstileMockStats.resetCount === 1, null, { timeout: 5000 });
     assert.ok(clientPasswordRequest, 'Clicking Login should continue into the password-authentication request after verification.');
-    assert.equal(clientPasswordRequest.captcha_token, 'browser-smoke-token-1',
+    assert.equal(clientPasswordRequest.gotrue_meta_security?.captcha_token, 'browser-smoke-token-1',
       'The token returned by the user-started Turnstile check must be forwarded with the login request.');
     assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 1,resetCount: 1},
       'Turnstile should execute only after Login is clicked, then reset after the verified login attempt.');
