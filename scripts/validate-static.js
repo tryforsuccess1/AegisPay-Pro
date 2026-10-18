@@ -290,6 +290,7 @@ assert(client.includes("reset=1"),'Client password reset redirect marker is miss
 assert(client.includes('exchangeCodeForSession'),'PKCE password reset handling is missing');
 assert(client.includes("setSession({access_token:accessToken,refresh_token:refreshToken})"),'Implicit password recovery token handling is missing');
 assert(client.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Password reset must use the canonical Pages destination approved in Supabase Auth');
+assert(client.includes("qs.get('passwordUpdated')==='1'")&&client.includes('Password updated successfully. Please sign in using your new password.'),'Legacy password-reset callbacks must show a clear success message on the canonical login page.');
 assert(signupRedirectSource.includes("https://aegispay-pro.pages.dev/app/?verified=1"),'Signup verification must use the canonical Pages destination approved in Supabase Auth');
 assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-pro.pages.dev/app/?verified=1'),'Password reset and signup verification must target the canonical Pages app');
 assert(client.includes("db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name})"),'Client wallet-link flow must use the owner-name protected RPC');
