@@ -136,6 +136,42 @@ async function visit(page, url, expectedSelector) {
     const publishableKey = configText.match(/publishableKey:'([^']+)'/)?.[1];
     assert.ok(supabaseUrl && publishableKey, 'Live Supabase client URL and publishable key must be configured.');
 
+    // Server-side CAPTCHA enforcement regression checks. These requests use a
+    // non-routable test email and the password-grant endpoint only; they do not
+    // create accounts or mutate app/database state.
+    const captchaCases = [
+      {
+        name: 'missing-token',
+        payload: {
+          email: 'turnstile-negative-check@example.invalid',
+          password: 'AegisPay-CI-Password-Not-A-Real-Account-8042'
+        }
+      },
+      {
+        name: 'invalid-token',
+        payload: {
+          email: 'turnstile-negative-check@example.invalid',
+          password: 'AegisPay-CI-Password-Not-A-Real-Account-8042',
+          gotrue_meta_security: { captcha_token: 'invalid-turnstile-token-for-aegispay-ci' }
+        }
+      }
+    ];
+    for (const testCase of captchaCases) {
+      const response = await fetch(supabaseUrl + '/auth/v1/token?grant_type=password', {
+        method: 'POST',
+        headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(testCase.payload)
+      });
+      const responseText = await response.text();
+      let responseBody;
+      try { responseBody = JSON.parse(responseText); } catch { responseBody = { raw: responseText }; }
+      const errorText = JSON.stringify(responseBody);
+      assert.ok(response.status >= 400 && response.status < 500,
+        'Supabase Auth must reject ' + testCase.name + ' CAPTCHA requests with 4xx; received ' + response.status + ' ' + errorText);
+      assert.match(errorText, /captcha|turnstile|security verification/i,
+        'Supabase Auth must reject ' + testCase.name + ' specifically as a CAPTCHA failure; response was ' + errorText);
+    }
+
     const protectedFunctions = [
       'ai-support',
       'execute-payout',
