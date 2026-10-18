@@ -40,6 +40,15 @@ async function visit(page, url, expectedSelector) {
       'Landing page should expose a working Open App route.');
 
     await visit(page, baseUrl + '/app/', '#liveLogin');
+    const captchaVerify = page.locator('#liveLogin .aegis-turnstile-verify-button');
+    await captchaVerify.waitFor({ state: 'visible', timeout: 10000 });
+    const initialCaptchaState = await page.evaluate(() => ({
+      verifyDisabled: document.querySelector('#liveLogin .aegis-turnstile-verify-button')?.disabled,
+      submitDisabled: document.querySelector('#liveLogin button[type="submit"]')?.disabled,
+      status: document.querySelector('#liveLogin .aegis-turnstile-status')?.textContent || ''
+    }));
+    assert.equal(initialCaptchaState.verifyDisabled, true, 'Live Client verification must wait for credentials.');
+    assert.equal(initialCaptchaState.submitDisabled, true, 'Live Client login must not submit before CAPTCHA verification.');
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
       passwordType: document.querySelector('#lp')?.type,
@@ -95,6 +104,14 @@ async function visit(page, url, expectedSelector) {
       }
     });
     await visit(adminPage, baseUrl + '/admin/', '#aaLoginForm');
+    const adminVerify = adminPage.locator('#aaLoginForm .aegis-turnstile-verify-button');
+    await adminVerify.waitFor({ state: 'visible', timeout: 10000 });
+    const initialAdminCaptchaState = await adminPage.evaluate(() => ({
+      verifyDisabled: document.querySelector('#aaLoginForm .aegis-turnstile-verify-button')?.disabled,
+      submitDisabled: document.querySelector('#aaLoginForm button[type="submit"]')?.disabled
+    }));
+    assert.equal(initialAdminCaptchaState.verifyDisabled, true, 'Live Master Admin verification must wait for credentials.');
+    assert.equal(initialAdminCaptchaState.submitDisabled, true, 'Live Master Admin login must not submit before verification.');
     const adminControls = await adminPage.evaluate(() => ({
       usernameType: document.querySelector('#aaUsername')?.type,
       passwordType: document.querySelector('#aaPassword')?.type,
