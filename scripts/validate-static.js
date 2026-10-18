@@ -194,8 +194,8 @@ assert(turnstileHelper.includes("host === 'localhost' || host === '127.0.0.1'")&
 assert(client.includes('AegisTurnstile.requireToken(login)')&&client.includes('AegisTurnstile.requireToken(signup)')&&client.includes('AegisTurnstile.requireToken(forgot)'),'Client sign-in, sign-up, and password recovery must require Turnstile');
 assert(client.includes('password.length<12||password.length>128')&&client.includes('minlength="12" maxlength="128"'),'Client password creation and recovery forms must enforce the shared 12–128 character policy.');
 assert(client.includes("db.functions.invoke('public-signup'")&&client.includes("db.functions.invoke('complete-password-reset'"),'Client signup and recovery must route password creation/reset through the HIBP-enforced Edge Functions.');
-assert(!/auth\\.signUp\\s*\\(/i.test(client),'Client must not bypass server-side password screening with direct Supabase signUp calls.');
-assert(!/auth\\.updateUser\\s*\\(\\s*\\{\\s*password\\s*:/i.test(client),'Client must not bypass server-side password screening with direct Supabase password updates.');
+assert(!/auth[.]signUp\s*\(/i.test(client),'Client must not bypass server-side password screening with direct Supabase signUp calls.');
+assert(!/auth[.]updateUser\s*\(/i.test(client),'Client must not bypass server-side password screening with direct Supabase password updates.');
 assert(client.includes('socialProviders')&&client.includes("['google','facebook']")&&client.includes('data-social-auth'),'Optional social login must support both providers and remain config-gated');
 assert(fs.readFileSync('supabase/functions/username-login/index.ts','utf8').includes('options: { captchaToken: captchaToken || undefined }'),'Username authentication must forward CAPTCHA token to Supabase Auth');
 assert(authUsernameLoginSource.includes('classifyAuthLoginError(authError)'),'Username login must distinguish CAPTCHA/rate-limit failures from invalid credentials');
