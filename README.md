@@ -42,7 +42,7 @@ The check validates the canonical client/admin source files, Supabase function w
 
 ## Security
 
-- Build 45 / version 2.6.6 includes the current Auth hardening and performance changes: Cloudflare Turnstile on sign-in/signup/recovery, a 12–128 character signup/recovery password policy, server-side breached-password checks, concurrent client startup requests, and a versioned app-shell cache with background refresh. Confirm the generated production manifest and APK signing channel after deployment; physical-device performance and install/update verification remain outstanding.
+- Build 46 / version 2.6.7 adds Shop marketplace round-trip route restoration, brief Auth-session hydration retries on return, immediately available real seed photos, above-the-fold image priority, and direct image loading without a separate probe. It retains Client startup optimizations, Cloudflare Turnstile on sign-in/signup/recovery, the 12–128 character password policy, and server-side breached-password checks. Physical-device and real-network image timing checks remain outstanding.
 - Cloudflare Turnstile's public sitekey is embedded in the client. The widget secret is not stored in the repository source. Supabase's native Auth CAPTCHA toggle remains pending manual dashboard activation; until then, do not describe the native CAPTCHA check as server-enforced.
 - Google login remains optional. Facebook login is intentionally hidden until Meta credentials/redirects are configured and the profile-linking migration is applied.
 - The custom breached-password check improves AegisPay-controlled signup/recovery flows, but is not a full substitute for Supabase's native leaked-password check on every possible direct Auth password update. Keep that limitation in mind when assessing production security.
@@ -59,4 +59,4 @@ The check validates the canonical client/admin source files, Supabase function w
 - Master Admin: `/admin/` from root `master-admin.html`
 - Cloudflare Pages: `aegispay-pro`
 - Supabase: `wtcspnrmsoisroavojop`
-- Android source candidate: Build 45 / versionName 2.6.6. The root `app-version.json` is a test-channel fallback; the Web Portal Deploy workflow generates the final `stable` or `test` manifest, versioned Client/Admin APK URLs, and SHA-256 values according to the signing configuration. Physical-device performance and install/update verification remain pending.
+- Android source candidate: Build 46 / versionName 2.6.7. The root `app-version.json` is a test-channel fallback; the Web Portal Deploy workflow generates the final `stable` or `test` manifest, versioned Client/Admin APK URLs, and SHA-256 values according to the signing configuration. Physical-device performance and install/update verification remain pending.
