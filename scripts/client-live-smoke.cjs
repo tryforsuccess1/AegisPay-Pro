@@ -84,7 +84,9 @@ async function visit(page, url, expectedSelector) {
     assert.equal(await clientVerify.isDisabled(), true, 'Live Client verification must wait for both credentials.');
     assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 0, resetCount: 0 },
       'Live Client Turnstile must not auto-execute or auto-reset when the UI appears.');
+    await page.locator('#le').focus();
     await page.locator('#le').fill('live-smoke@example.invalid');
+    await page.locator('#lp').focus();
     await page.locator('#lp').fill('not-a-real-password-for-live-smoke');
     assert.equal(await clientVerify.isDisabled(), false, 'Live Client verification should enable after credentials are entered.');
     assert.equal(await clientSubmit.isDisabled(), true, 'Live Client Login must wait for verification.');
