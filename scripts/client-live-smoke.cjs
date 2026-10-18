@@ -207,12 +207,12 @@ async function visit(page, url, expectedSelector) {
     assert.equal(await adminVerify.count(), 0, 'The separate verification button must remain removed on Master Admin login.');
     assert.equal(await adminSubmit.isDisabled(), false, 'Live Master Admin Login should enable after both credentials.');
     await adminSubmit.click();
-    await adminPage.waitForFunction(() => window.__turnstileMockStats.resetCount === 1, null, { timeout: 10000 });
+    await adminPage.waitForFunction(() => window.__turnstileMockStats.executeCount === 1, null, { timeout: 10000 });
     assert.ok(adminAuthRequest, 'Clicking Master Admin Login should continue to username auth after CAPTCHA verification.');
     assert.equal(adminAuthRequest.captchaToken, 'live-smoke-token-1',
       'Master Admin must forward the user-verified CAPTCHA token to the username-login endpoint.');
-    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 1 },
-      'Live Master Admin Turnstile should initialize and execute on Login click, then reset after mocked auth.');
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 0 },
+      'Master Admin Turnstile should initialize and execute on Login click; the admin login render replaces the form before the detached widget reset.');
 
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
