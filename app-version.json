@@ -1,10 +1,10 @@
 {
-  "versionCode": 43,
-  "versionName": "2.6.4",
+  "versionCode": 44,
+  "versionName": "2.6.5",
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
-    "Build 43 / 2.6.4 is an authentication-security test candidate, not a stable release.",
+    "Build 44 / 2.6.5 adds explicit, user-started Turnstile verification before login submission.",
     "Adds Cloudflare Turnstile to web and Android auth flows; complete Supabase CAPTCHA configuration and validate updated APKs before enabling enforcement.",
     "Password signup and recovery use a 12–128 character policy and server-side breached-password screening.",
     "Google sign-in remains optional; Facebook OAuth remains hidden until Meta provider credentials and redirect URLs are configured.",

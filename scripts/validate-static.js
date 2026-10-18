@@ -208,6 +208,8 @@ assert(passwordPolicyTests.includes('exactly 12 characters')&&passwordPolicyTest
 assert(publicSignupSource.includes('captchaToken: captchaToken || undefined')&&publicSignupSource.includes('passwordPolicyError(password)'),'Signup must forward the Supabase CAPTCHA token and apply server-side password rules');
 assert(passwordResetSource.includes('passwordPolicyError(password)')&&passwordResetSource.includes('assertPasswordNotPwned(password)'),'Password reset must apply both the central policy and leaked-password check');
 assert(turnstileHelper.includes('https://challenges.cloudflare.com/turnstile/v0/api.js')&&turnstileHelper.includes('requireToken')&&turnstileHelper.includes('window.turnstile.reset'),'Turnstile helper must render, require, and reset a one-use token');
+assert(turnstileHelper.includes("var MANUAL_LOGIN_FORMS = new Set(['liveLogin', 'aaLoginForm'])")&&turnstileHelper.includes("execution: manual ? 'execute' : 'render'")&&turnstileHelper.includes("appearance: manual ? 'interaction-only' : 'always'")&&turnstileHelper.includes("Verify I’m not a robot")&&turnstileHelper.includes('window.turnstile.execute(state.widgetId)'),'Client and Master Admin login must require a user-started human-verification step before login is enabled');
+assert(client.includes('if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(login)')&&fs.readFileSync('admin-auth.js','utf8').includes('if(captchaToken&&loginForm&&loginForm.isConnected&&window.AegisTurnstile)'),'Login widgets must not reset when submission is blocked before a verification token is used');
 assert(turnstileHelper.includes("host === 'localhost' || host === '127.0.0.1'")&&turnstileHelper.includes('1x00000000000000000000AA'),'Local browser tests must use Cloudflare test keys and production must retain its real sitekey.');
 assert(client.includes('AegisTurnstile.requireToken(login)')&&client.includes('AegisTurnstile.requireToken(signup)')&&client.includes('AegisTurnstile.requireToken(forgot)'),'Client sign-in, sign-up, and password recovery must require Turnstile');
 assert(client.includes('password.length<12||password.length>128')&&client.includes('minlength="12" maxlength="128"'),'Client password creation and recovery forms must enforce the shared 12–128 character policy.');
@@ -220,7 +222,7 @@ assert(authUsernameLoginSource.includes('classifyAuthLoginError(authError)'),'Us
 assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorSource.includes('AUTH_RATE_LIMITED')&&authLoginErrorSource.includes('INVALID_CREDENTIALS'),'Login error classifier must map CAPTCHA, rate-limit, and credential errors explicitly');
 assert(authLoginErrorTests.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorTests.includes('AUTH_RATE_LIMITED')&&authLoginErrorTests.includes('INVALID_CREDENTIALS'),'Login error classifier tests must cover each safe failure category');
 assert(client.includes('Security verification could not be validated.')&&fs.readFileSync('admin-auth.js','utf8').includes('Security verification could not be validated.'),'Client and admin login must surface CAPTCHA rejection clearly instead of reporting bad credentials');
-assert(client.includes('aegispay-web.aegispay.workers.dev/?verified=1')&&supabaseServiceSource.includes('aegispay-web.aegispay.workers.dev/?reset=1'),'Keep the currently approved auth redirect origin until the Supabase Auth allowlist is verified for the Pages origin');
+assert(client.includes("emailRedirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'")&&supabaseServiceSource.includes("var WEB_PASSWORD_RESET_REDIRECT='https://aegispay-pro.pages.dev/app/?reset=1';"),'Email verification and password-reset links must use the canonical Pages origin');
 assert(!client.includes("preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'"),'Client must not send an unused signup redirect; the server-owned signup destination is canonical');
 
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
@@ -389,8 +391,8 @@ for(const m of [
   'claim_aegispay_profile','public-signup','signInWithPassword','resetPasswordForEmail',
   'request_withdrawal','app_runtime_enabled','set_app_runtime_enabled'
 ])assert(service.includes(m),'Supabase marker missing: '+m);
-assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared password reset redirect must retain the current Worker destination until the Pages URL is approved');
-assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared auth helper must preserve the current redirect until Supabase Auth allowlist verification');
+assert(service.includes('https://aegispay-pro.pages.dev/app/?reset=1'),'Shared password reset redirect must use the canonical Pages app.');
+assert(service.includes('https://aegispay-pro.pages.dev/app/?reset=1'),'Shared auth helper must preserve the verified canonical redirect.');
 
 const gradle=fs.readFileSync('android/app/build.gradle','utf8');
 assert(gradle.includes("include 'client.html'")&&!gradle.includes("include 'client-fresh.html'")&&gradle.includes("include 'master-admin.html'"),'Android canonical entries missing');

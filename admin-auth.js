@@ -529,7 +529,9 @@ async function login(e){
     state.busy=false;
     render();
   }finally{
-    if(window.AegisTurnstile)window.AegisTurnstile.reset(loginForm);
+    // A Turnstile token is one-use. Only reset it after a verified login attempt,
+    // and only if the same form still exists in the DOM.
+    if(captchaToken&&loginForm&&loginForm.isConnected&&window.AegisTurnstile)window.AegisTurnstile.reset(loginForm);
   }
 }
 
@@ -978,17 +980,21 @@ root.addEventListener('click',function(e){
 });
 
 async function boot(){
+  // Render the logged-out form once while checking the session. Re-rendering an
+  // unchanged login form would replace the user's Turnstile widget during startup.
   render();
   if(!service||!service.isAvailable()){state.error='Supabase service unavailable.';render();return;}
+  let shouldRender=false;
   try{
     const session=await service.session();
     if(session){
+      shouldRender=true;
       const result=await service.claimAegisPayProfile();
       if(result.profile?.role==='MASTER ADMIN'){state.profile=result.profile;await refreshData();}
       else await service.signOut();
     }
   }catch(e){state.profile=null;}
-  render();
+  if(shouldRender)render();
   startSupportChatPolling();
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();

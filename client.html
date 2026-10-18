@@ -1641,9 +1641,10 @@ function bindAuthForms(){
     login.dataset.bound='1';
     login.addEventListener('submit',async e=>{
       e.preventDefault();e.stopPropagation();
+      let captchaToken='';
       try{
         if(!window.AegisTurnstile)throw Error('Security verification did not load. Please refresh and try again.');
-        const captchaToken=await window.AegisTurnstile.requireToken(login);
+        captchaToken=await window.AegisTurnstile.requireToken(login);
         const identifier=document.getElementById('le').value.trim();
         const password=document.getElementById('lp').value;
         if(identifier.includes('@')){
@@ -1681,7 +1682,7 @@ function bindAuthForms(){
         const notice=/captcha|turnstile|security verification/i.test(msg)?'Security verification could not be validated. Complete the Cloudflare check again and retry.':(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your email inbox/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
         uiNotice(notice);
       }finally{
-        if(window.AegisTurnstile)window.AegisTurnstile.reset(login);
+        if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(login);
       }
     },true);
   }
@@ -1690,13 +1691,14 @@ function bindAuthForms(){
     forgot.dataset.bound='1';
     forgot.addEventListener('submit',async e=>{
       e.preventDefault();e.stopPropagation();
+      let captchaToken='';
       const button=forgot.querySelector('button[type="submit"],button');
       const email=document.getElementById('fe').value.trim().toLowerCase();
       if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent='Sending...'}
       try{
         if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Please enter a valid registered email address.');
         if(!window.AegisTurnstile)throw Error('Security verification did not load. Please refresh and try again.');
-        const captchaToken=await window.AegisTurnstile.requireToken(forgot);
+        captchaToken=await window.AegisTurnstile.requireToken(forgot);
         const r=await db.auth.resetPasswordForEmail(email,{
           redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1',
           captchaToken
@@ -1708,7 +1710,7 @@ function bindAuthForms(){
         if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Send Reset Link '+ic('arrow')}
         uiNotice(x.message||'Unable to send password reset email. Please try again.');
       }finally{
-        if(window.AegisTurnstile)window.AegisTurnstile.reset(forgot);
+        if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(forgot);
       }
     },true);
   }
@@ -1717,11 +1719,12 @@ function bindAuthForms(){
     signup.dataset.bound='1';
     signup.addEventListener('submit',async e=>{
       e.preventDefault();e.stopPropagation();
+      let captchaToken='';
       const button=signup.querySelector('button[type="submit"],button');
       if(button){button.disabled=true;button.dataset.originalText=button.textContent;button.textContent='Creating Account...'}
       try{
         if(!window.AegisTurnstile)throw Error('Security verification did not load. Please refresh and try again.');
-        const captchaToken=await window.AegisTurnstile.requireToken(signup);
+        captchaToken=await window.AegisTurnstile.requireToken(signup);
         const email=document.getElementById('se').value.trim().toLowerCase();
         const username=document.getElementById('su').value.trim().toLowerCase();
         if(!/^[a-z0-9_]{3,32}$/.test(username))throw Error('Username must be 3–32 characters using letters, numbers, or underscore.');
@@ -1756,7 +1759,7 @@ function bindAuthForms(){
         if(rb)rb.onclick=async()=>{
           try{
             rb.disabled=true;rb.textContent='Sending...';
-            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'}});
+            const r=await db.auth.resend({type:'signup',email,options:{emailRedirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'}});
             if(r.error)throw r.error;
             uiNotice('A new verification email has been sent.','success');
             rb.textContent='Resend Verification Email';rb.disabled=false;
@@ -1766,7 +1769,7 @@ function bindAuthForms(){
         uiNotice(x.message||'Signup failed');
         if(button){button.disabled=false;button.textContent=button.dataset.originalText||'Sign Up'}
       }finally{
-        if(window.AegisTurnstile)window.AegisTurnstile.reset(signup);
+        if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(signup);
       }
     },true);
   }
