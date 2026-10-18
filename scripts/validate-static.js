@@ -145,6 +145,12 @@ assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+const serviceWorker=fs.readFileSync('service-worker.js','utf8');
+const startupSource=client.slice(client.indexOf('async function initData(){'),client.indexOf('\nfunction top(',client.indexOf('async function initData(){')));
+assert(startupSource.includes('const [userResult,s,t]=await Promise.all([')&&startupSource.includes('refreshNotificationCount()'),'Authenticated startup must load independent profile-related data concurrently.');
+assert(serviceWorker.includes("const CACHE='aegispay-shell-v29-fast-startup'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the auth helper, and install assets concurrently.');
+assert(serviceWorker.includes('const update=fetch(event.request,{cache:\'no-store\'})')&&serviceWorker.includes('caches.match(cacheKey).then(cached=>cached||update.catch')&&serviceWorker.includes('cacheUrl.search=\'\';'),'Static shell requests must be served from cache first, refresh in the background, and avoid caching URL query tokens.');
+assert(serviceWorker.includes("['code','access_token','refresh_token','token_hash','error','error_description']")&&serviceWorker.includes('const shouldStore=!authSensitive&&!isAuthCallback'),'OAuth and recovery URLs must never be stored as distinct cached requests.');
 assert(client.includes("entryType==='MASTER_ADMIN_CREDIT'")&&client.includes("label:adminCredit?'Deposit':")&&client.includes("status:adminCredit?'':x.entry_type||''")&&client.includes("filter=adminCredit?'dep':"),'Positive admin-issued credits must show only Deposit and belong to the Deposits filter');
 assert(masterAdmin.includes('Interaction and accessibility polish: admin controls use consistent touch targets'),'Master Admin touch target styles are missing');
 assert(masterAdmin.includes('button{min-height:40px}'),'Master Admin controls must have a consistent minimum height');
