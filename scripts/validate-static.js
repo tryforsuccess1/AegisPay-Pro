@@ -93,7 +93,7 @@ assert(!legacyDefinerRpcMigration.includes('FROM service_role'),'Legacy RPC hard
 const legacyDefinerRpcTestWorkflow=fs.readFileSync('.github/workflows/security-definer-rpc-tests.yml','utf8');
 const legacyDefinerRpcSqlAssertions=fs.readFileSync('scripts/sql-tests/legacy_definer_rpc_assertions.sql','utf8');
 assert(legacyDefinerRpcTestWorkflow.includes('legacy_definer_rpc_fixture.sql')&&legacyDefinerRpcTestWorkflow.includes('20261019030000_restrict_legacy_admin_definer_rpcs.sql')&&legacyDefinerRpcTestWorkflow.includes('legacy_definer_rpc_assertions.sql'),'SECURITY DEFINER permission migration must run in a disposable PostgreSQL CI test.');
-assert(legacyDefinerRpcSqlAssertions.includes('service_role grants changed unexpectedly')&&legacyDefinerRpcSqlAssertions.includes('Authenticated RLS identity helper grants must be preserved'),'SECURITY DEFINER permission tests must preserve backend access and RLS helper access.');
+assert(legacyDefinerRpcSqlAssertions.includes('Trusted service-role grants changed unexpectedly')&&legacyDefinerRpcSqlAssertions.includes('Authenticated RLS identity helper grants must be preserved'),'SECURITY DEFINER permission tests must preserve backend access and RLS helper access.');
 
 const triggerOnlyGrantMigration=fs.readFileSync('database/migrations/20261014120000_revoke_trigger_only_function_execute.sql','utf8');
 assert(triggerOnlyGrantMigration.includes('REVOKE ALL ON FUNCTION public.enforce_valid_tron_withdrawal_address()'),'Trigger-only wallet validator must not remain callable as an RPC');
