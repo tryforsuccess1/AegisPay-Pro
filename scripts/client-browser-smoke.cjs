@@ -55,6 +55,26 @@ const server = http.createServer((req, res) => {
       serviceWorkers: 'block',
       reducedMotion: 'reduce'
     });
+    await context.addInitScript(() => {
+      const stats = { renderCount: 0, executeCount: 0, resetCount: 0 };
+      const widgets = new Map();
+      let nextId = 0;
+      window.__turnstileMockStats = stats;
+      window.turnstile = {
+        render: function (_container, options) {
+          const id = 'smoke-widget-' + (++nextId);
+          widgets.set(id, options);
+          stats.renderCount += 1;
+          return id;
+        },
+        execute: function (id) {
+          stats.executeCount += 1;
+          const widget = widgets.get(id);
+          if (widget && typeof widget.callback === 'function') widget.callback('browser-smoke-token-' + stats.executeCount);
+        },
+        reset: function () { stats.resetCount += 1; }
+      };
+    });
     const page = await context.newPage();
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
@@ -137,9 +157,26 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.locator('#lp').evaluate(el => el.readOnly), false, 'Password should become editable on focus.');
     assert.equal(await page.locator('#le').inputValue(), '', 'Focusing must not populate username automatically.');
     assert.equal(await page.locator('#lp').inputValue(), '', 'Focusing must not populate password automatically.');
+
+    const clientSubmit = page.locator('#liveLogin button[type="submit"]');
+    const clientVerify = page.locator('#liveLogin .aegis-turnstile-verify-button');
+    await clientVerify.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await clientSubmit.isDisabled(), true, 'Client Login must remain disabled until a human-verification token exists.');
+    assert.equal(await clientVerify.isDisabled(), true, 'Human verification must wait until both login fields are entered.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 0,resetCount: 0},
+      'Turnstile must not execute or reset automatically when the login screen first appears.');
+    await page.locator('#le').fill('smoke-user@example.invalid');
+    await page.locator('#lp').fill('not-a-real-password-for-smoke-tests');
+    assert.equal(await clientVerify.isDisabled(), false, 'Client human verification should enable after the identifier and password are entered.');
+    assert.equal(await clientSubmit.isDisabled(), true, 'Client Login must stay disabled until verification completes.');
+    await clientVerify.click();
+    await page.waitForFunction(() => document.querySelector('#liveLogin button[type="submit"]')?.disabled === false, null, { timeout: 3000 });
+    assert.match(await clientVerify.textContent(), /Verified/i, 'Client verification button should show a verified state.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 1,resetCount: 0},
+      'Turnstile should execute only after the user starts verification and should not refresh itself.');
+    const clientContrast = await clientSubmit.evaluate(el => whiteTextMinContrast(getComputedStyle(el).backgroundImage));
     assert.ok(loginFields.loginHeight >= 44, 'Primary login button should provide a 44px minimum touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Language control should provide a 40px minimum touch target.');
-    const clientContrast = whiteTextMinContrast(loginFields.loginBackground);
     assert.ok(clientContrast >= 4.5, 'Client primary button white-text contrast is below WCAG AA: ' + clientContrast.toFixed(2));
 
     await page.locator('.ap-auth [data-a="lang"]').first().click();
@@ -274,7 +311,21 @@ const server = http.createServer((req, res) => {
     assert.ok(adminControls.submitHeight >= 40, 'Master Admin primary button should have a 40px minimum touch target.');
     assert.ok(adminControls.themeHeight >= 40, 'Master Admin theme button should have a 40px minimum touch target.');
     assert.ok(Math.abs(adminControls.themeWidth - adminControls.themeHeight) <= 1, 'Master Admin icon control should be square: ' + JSON.stringify(adminControls));
-    const adminContrast = whiteTextMinContrast(adminControls.loginBackground);
+
+    const adminSubmit = adminPage.locator('#aaLoginForm button[type="submit"]');
+    const adminVerify = adminPage.locator('#aaLoginForm .aegis-turnstile-verify-button');
+    await adminVerify.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await adminSubmit.isDisabled(), true, 'Master Admin sign-in must remain disabled until verification completes.');
+    assert.equal(await adminVerify.isDisabled(), true, 'Master Admin verification must wait for both credentials.');
+    await adminPage.locator('#aaUsername').fill('smoke-admin');
+    await adminPage.locator('#aaPassword').fill('not-a-real-password-for-smoke-tests');
+    assert.equal(await adminVerify.isDisabled(), false, 'Master Admin verification should enable after entering credentials.');
+    await adminVerify.click();
+    await adminPage.waitForFunction(() => document.querySelector('#aaLoginForm button[type="submit"]')?.disabled === false, null, { timeout: 3000 });
+    assert.match(await adminVerify.textContent(), /Verified/i, 'Master Admin verification button should show a verified state.');
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 1,resetCount: 0},
+      'Master Admin Turnstile must not execute or reset before the user starts verification.');
+    const adminContrast = await adminSubmit.evaluate(el => whiteTextMinContrast(getComputedStyle(el).backgroundImage));
     assert.ok(adminContrast >= 4.5, 'Master Admin primary button white-text contrast is below WCAG AA: ' + adminContrast.toFixed(2));
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
