@@ -991,11 +991,17 @@ window.AegisAuthRedirect={
 };
 async function initData(){
  const r=await db.rpc('claim_aegispay_profile'); if(r.error)throw r.error; profile=Array.isArray(r.data)?r.data[0]:r.data;
- authUser=(await db.auth.getUser()).data.user;
- await refreshNotificationCount();
- const s=await db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode']);
+ // These requests are independent once the authenticated profile is known.
+ // Run them together so initial navigation waits for one network round-trip, not three.
+ const [userResult,s,t]=await Promise.all([
+  db.auth.getUser(),
+  db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode']),
+  db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order'),
+  refreshNotificationCount()
+ ]);
+ authUser=userResult.data&&userResult.data.user||null;
  (s.data||[]).forEach(x=>settings[x.key]=x.value_json||{});
- const t=await db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order'); tiers=t.data||[];
+ tiers=t.data||[];
  startActivityTicker();
 }
 function top(t,b='home'){
