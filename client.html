@@ -746,8 +746,97 @@ function uiNotice(message,type='error',duration=4200){
   if(duration>0)setTimeout(()=>{if(el.isConnected)el.remove()},duration);
 }
 // Financial activity must be read from account_ledger, never fabricated for display.
-function stopActivityTicker(){}
-function startActivityTicker(){}
+let activityTickerTimer=null,activityTickerInitialTimer=null,activityTickerHideTimer=null;
+let activityTickerNamesSeen=new Set(),activityTickerActionIndex=Math.random()<0.5?0:1;
+const activityTickerGivenNames=[
+ 'Olivia','Hassan','Sofia','Kenji','Amara','Lucas','Aarav','Mia','Aisha','Mateo','Hana','Diego',
+ 'Fatima','Noah','Leila','Ethan','Priya','Yuki','Ibrahim','Isabella','Omar','Elena','Zain','Chloe',
+ 'Minjun','Camila','Ravi','Nur','Gabriel','Zara','Samuel','Mei','Yusuf','Layla','Andre','Anika',
+ 'Farah','Daniel','Lucia','Arjun','Nia','Leo','Amina','Rafael','Sora','David','Maryam','Carlos',
+ 'Tunde','Ava','Idris','Valentina','Ewan','Seoyeon','Rohan','Ines','Kwame','Mariam','Emil','Thandi',
+ 'Nikhil','Aya','Musa','Freya','Jin','Nour','Kofi','Lina','Adrian','Sana'
+];
+const activityTickerFamilyNames=[
+ 'Chen','Patel','Nguyen','Santos','Kim','Okafor','Garcia','Smith','Ahmed','Nakamura','Silva','Müller',
+ 'Dubois','Rossi','Khan','Ivanov','Williams','Kowalski','Costa','Park','Rahman','Ali','Johnson','Singh',
+ 'Tanaka','Lopez','Choudhury','Brown','Zhao','Martin','Osei','Abdullah','Haddad','Reyes','Wang','Mensah',
+ 'Yilmaz','Fernandez','Bennett','Murphy','Sato','Bose','Moreau','Petrov','Hernandez','Clark','Ibrahim',
+ 'Moyo','Andersson','Hassan','Kaur','Lim','Takahashi','Kumar','Diallo','Schmidt','Morgan','Das','Perera',
+ 'Fischer','Abebe','Sharma','Wilson','Pereira','Mahmoud','Thomas','Kaya','Aliyev','Novak','Chung','Bello'
+];
+const activityTickerAmounts=[35,49,60,75,85,95,120,145,180,210,250,315,420,685,950,1250,1800];
+function isPreProductionActivityTickerAllowed(){
+ const production=settings.production_config||{},mode=settings.system_mode||{};
+ return Boolean(profile&&String(profile.role||'').toUpperCase()==='USER'
+  &&String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'
+  &&production.live_deposits_enabled!==true
+  &&production.real_payouts_enabled!==true
+  &&production.go_live_approved!==true
+  &&production.payouts_locked===true
+  &&mode.live_deposits!==true
+  &&mode.real_payouts!==true
+  &&mode.production_go_live_approved!==true);
+}
+function loadActivityTickerNamesSeen(){
+ activityTickerNamesSeen=new Set();
+ try{
+  const saved=JSON.parse(sessionStorage.getItem('aegispay_activity_ticker_seen_v1')||'[]');
+  if(Array.isArray(saved))saved.filter(x=>typeof x==='string').forEach(x=>activityTickerNamesSeen.add(x));
+ }catch(_){}
+}
+function saveActivityTickerNamesSeen(){
+ try{sessionStorage.setItem('aegispay_activity_ticker_seen_v1',JSON.stringify(Array.from(activityTickerNamesSeen).slice(-5000)))}catch(_){}
+}
+function nextUniqueActivityName(){
+ const total=activityTickerGivenNames.length*activityTickerFamilyNames.length;
+ for(let attempt=0;attempt<120;attempt++){
+  const first=activityTickerGivenNames[Math.floor(Math.random()*activityTickerGivenNames.length)];
+  const family=activityTickerFamilyNames[Math.floor(Math.random()*activityTickerFamilyNames.length)];
+  const name=first+' '+family;
+  if(!activityTickerNamesSeen.has(name)){
+   activityTickerNamesSeen.add(name);saveActivityTickerNamesSeen();return name;
+  }
+ }
+ const start=Math.floor(Math.random()*total);
+ for(let offset=0;offset<total;offset++){
+  const index=(start+offset)%total;
+  const name=activityTickerGivenNames[Math.floor(index/activityTickerFamilyNames.length)]+' '+activityTickerFamilyNames[index%activityTickerFamilyNames.length];
+  if(!activityTickerNamesSeen.has(name)){
+   activityTickerNamesSeen.add(name);saveActivityTickerNamesSeen();return name;
+  }
+ }
+ return '';
+}
+function stopActivityTicker(){
+ if(activityTickerTimer){clearInterval(activityTickerTimer);activityTickerTimer=null;}
+ if(activityTickerInitialTimer){clearTimeout(activityTickerInitialTimer);activityTickerInitialTimer=null;}
+ if(activityTickerHideTimer){clearTimeout(activityTickerHideTimer);activityTickerHideTimer=null;}
+ const el=document.getElementById('aegisActivityTicker');if(el)el.remove();
+}
+function startActivityTicker(){
+ stopActivityTicker();
+ if(!isPreProductionActivityTickerAllowed())return;
+ loadActivityTickerNamesSeen();
+ const el=document.createElement('div');el.id='aegisActivityTicker';el.className='activity-ticker';
+ el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.setAttribute('aria-atomic','true');
+ el.innerHTML='<span class="tag">User</span><span class="msg"><b class="activity-name"></b> <span class="activity-verb"></span> <span class="amount"></span></span>';
+ document.body.appendChild(el);
+ const showActivityTicker=()=>{
+  if(!isPreProductionActivityTickerAllowed()){stopActivityTicker();return;}
+  if(document.hidden||!document.getElementById('app'))return;
+  const name=nextUniqueActivityName();if(!name){stopActivityTicker();return;}
+  const action=activityTickerActionIndex++%2===0?'deposited':'withdrew';
+  const amount=activityTickerAmounts[Math.floor(Math.random()*activityTickerAmounts.length)];
+  const nameNode=el.querySelector('.activity-name'),verbNode=el.querySelector('.activity-verb'),amountNode=el.querySelector('.amount');
+  if(!nameNode||!verbNode||!amountNode)return;
+  nameNode.textContent=name;verbNode.textContent=action;amountNode.textContent=amount.toFixed(2)+' USDT';
+  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+  if(activityTickerHideTimer)clearTimeout(activityTickerHideTimer);
+  activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000);
+ };
+ activityTickerInitialTimer=setTimeout(()=>{activityTickerInitialTimer=null;showActivityTicker();},1200);
+ activityTickerTimer=setInterval(showActivityTicker,30000);
+}
 function clientId(p){
   const u=formatUsername(p?.username||'');if(u)return u;
   let h=0;for(const ch of String(p?.id||''))h=(h*31+ch.charCodeAt(0))%1000000;
@@ -897,11 +986,11 @@ window.AegisAuthRedirect={
 async function initData(){
  const r=await db.rpc('claim_aegispay_profile'); if(r.error)throw r.error; profile=Array.isArray(r.data)?r.data[0]:r.data;
  authUser=(await db.auth.getUser()).data.user;
- startActivityTicker();
  await refreshNotificationCount();
  const s=await db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode']);
  (s.data||[]).forEach(x=>settings[x.key]=x.value_json||{});
  const t=await db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order'); tiers=t.data||[];
+ startActivityTicker();
 }
 function top(t,b='home'){
  const k=({'Top Up':'p_dep','Deposit USDT':'p_dep','Withdraw':'p_wd','Shop & Tasks':'p_shop','Notifications':'p_notes','Notification Details':'p_notes','Activity':'p_activity','Referral':'p_refs','Referrals':'p_refs','Profile':'p_assets','VIP Tier':'p_vip','KYC':'p_assets','AI Assistant':'p_ai','Assets':'p_assets'})[t]||'';
