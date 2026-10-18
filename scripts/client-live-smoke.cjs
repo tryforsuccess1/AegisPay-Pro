@@ -255,6 +255,21 @@ async function visit(page, url, expectedSelector) {
     assert.match(await legacyReset.text(), /PASSWORD_RESET_COMPLETE/,
       'Legacy reset callback must still serve the recovery flow instead of redirecting away.');
 
+    // The older hotfix Worker previously redirected to an unregistered worker name.
+    // It must now send legacy root/admin/callback URLs to canonical Pages routes.
+    const legacyHotfixBase = 'https://aegispay-web-hotfix.aegispay.workers.dev';
+    const legacyHotfixRoot = await fetch(legacyHotfixBase + '/', { redirect: 'manual' });
+    assert.equal(legacyHotfixRoot.status, 302, 'Legacy hotfix root must redirect to the canonical Client Portal.');
+    assert.equal(new URL(legacyHotfixRoot.headers.get('location')).href, baseUrl + '/app/',
+      'Legacy hotfix root must not redirect to a missing Worker.');
+    const legacyHotfixAdmin = await fetch(legacyHotfixBase + '/master-admin.html', { redirect: 'manual' });
+    assert.equal(legacyHotfixAdmin.status, 302, 'Legacy hotfix Master Admin route must redirect.');
+    assert.equal(new URL(legacyHotfixAdmin.headers.get('location')).href, baseUrl + '/admin/',
+      'Legacy hotfix Master Admin route must reach the canonical Admin portal.');
+    const legacyHotfixQuery = await fetch(legacyHotfixBase + '/?verified=1&keep=1', { redirect: 'manual' });
+    assert.equal(new URL(legacyHotfixQuery.headers.get('location')).href, baseUrl + '/app/?verified=1&keep=1',
+      'Legacy hotfix redirect must preserve verification query parameters.');
+
     const configResponse = await fetch(baseUrl + '/supabase-client.js');
     assert.equal(configResponse.status, 200, 'Live Supabase client configuration must load.');
     const configText = await configResponse.text();
