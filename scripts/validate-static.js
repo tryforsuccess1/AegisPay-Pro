@@ -391,8 +391,8 @@ for(const m of [
   'claim_aegispay_profile','public-signup','signInWithPassword','resetPasswordForEmail',
   'request_withdrawal','app_runtime_enabled','set_app_runtime_enabled'
 ])assert(service.includes(m),'Supabase marker missing: '+m);
-assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared password reset redirect must retain the current Worker destination until the Pages URL is approved');
-assert(service.includes('https://aegispay-web.aegispay.workers.dev/?reset=1'),'Shared auth helper must preserve the current redirect until Supabase Auth allowlist verification');
+assert(service.includes('https://aegispay-pro.pages.dev/app/?reset=1'),'Shared password reset redirect must use the canonical Pages app.');
+assert(service.includes('https://aegispay-pro.pages.dev/app/?reset=1'),'Shared auth helper must preserve the verified canonical redirect.');
 
 const gradle=fs.readFileSync('android/app/build.gradle','utf8');
 assert(gradle.includes("include 'client.html'")&&!gradle.includes("include 'client-fresh.html'")&&gradle.includes("include 'master-admin.html'"),'Android canonical entries missing');
