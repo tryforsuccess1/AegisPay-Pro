@@ -1,21 +1,24 @@
 # AegisPay Production Readiness
 
-## Current verified snapshot — 2026-10-18
+## Current verified snapshot — 2026-10-19
 
-- Canonical repository: `tryforsuccess1/AegisPay-Pro`; application code baseline verified on main `5f2106aaada22b0c3dccef537240f97db6d208f0`.
-- Latest CI, SQL migration tests, withdrawal migration tests, Android build and Web Portal Deploy all passed on this commit. The browser smoke-test step passed for landing, Client and Master Admin; type checks and password/HD wallet/sweep/shop regression checks passed.
-- Verified Pages deployment: `b3df2d5d-06d6-4370-9860-7c0bde9ebab4`, stage `success`; Client portal https://aegispay-pro.pages.dev/app/ and Master Admin https://aegispay-pro.pages.dev/admin/.
-- The deployed production artifact, not the root source fallback, publishes a generated stable Build 43 / 2.6.4 manifest with exact Client SHA-256 `78170d3ece8dc62221113361b7426538132deee4cde543b94c63b835f0156663` and Master Admin SHA-256 `ff4fb0683a8b9f88d884f2191a76454ed9638e420122bc09a7900673528193ee`. Both hashes match the delivered APKs and their alias copies. The signing certificate fingerprint matches the prior Build 42 release; physical-device install/update remains untested.
-- Supabase `username-login` is ACTIVE v9 with separate safe handling for CAPTCHA/rate-limit errors and generic wrong-credential responses.
-- Supabase project remains ACTIVE_HEALTHY. Security Advisor still reports 14 authenticated-callable SECURITY DEFINER routines (source-reviewed and retained intentionally, not automatically revoked), 3 RLS-enabled service-only deposit/sweep tables without client policies, and native leaked-password protection disabled. The last finding is a production security prerequisite; the table-policy INFO findings are intentional service-role-only isolation.
-- Payment posture is deliberately closed: `environment=PRE_PRODUCTION`, live deposits disabled, real payouts disabled, go-live approval false and payout lock true. `system_mode=MAINNET` does not mean payments are enabled. Latest counts are zero `deposit_wallets`, zero `deposit_submissions`, zero sweep journal rows and zero unresolved approved withdrawals.
-- The HD address API is deployed and fails closed without the required secure configuration. The sweep worker is Shasta testnet-only; dedicated isolated test secrets, funded test resources and transaction-level E2E reconciliation still need owner-side setup and verification before any production go-live.
-- Still requires account-owner action: native Supabase Auth Turnstile/CAPTCHA and minimum password length 12, redirect allowlist, leaked-password protection where available, valid Meta credentials for optional Facebook OAuth, and physical Android verification. No live payment gate was enabled by this work.
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`; verified `main` commit: `9cb666be1aa9060ccf664b2ff3942cdda37dcb93`.
+- GitHub CI, Android APK workflow, Client/Admin APK release workflow and Web Portal Deploy all passed for the current commit. Live browser smoke passed for the public landing, Client Portal, Master Admin, responsive/UI interactions and the deployed legacy compatibility redirect; it reported no same-origin HTTP errors or uncaught page errors.
+- Latest verified Cloudflare Pages production deployment: `98fd5f64-ac2c-4217-b8b3-216a8b55e2e2` (stage `success`). Canonical routes remain https://aegispay-pro.pages.dev/app/ and https://aegispay-pro.pages.dev/admin/.
+- Legacy Worker `aegispay-web-hotfix` version 3 is deployed with `compatibility_date=2026-10-18`; Cloudflare reports a 100% deployment allocation. This fixed the prior deploy failure caused by the future date `2026-10-19`.
+- Current generated Android candidate reported by the root manifest is Build 46 / v2.6.7, release channel `test`. APK builds passed; physical-device install/update is not covered by the automated browser or CI checks.
+- Supabase project `wtcspnrmsoisroavojop` remains `ACTIVE_HEALTHY`. Reviewed public tables have RLS enabled. Three deposit/sweep tables intentionally have no client policies and deny direct `anon`/`authenticated` table access. Five legacy admin RPCs now deny direct client execution; nine client-oriented SECURITY DEFINER RPCs remain callable for reviewed owner-scoped flows and are reported by Security Advisor for function-by-function review.
+- Native Supabase leaked-password protection is reported disabled by the Security Advisor. Custom server-side password breach checks exist for signup and password reset, but that does not change the native Auth setting.
+- CAPTCHA remains an open verification item: Auth logs for 2026-10-18 included 24 `POST /token` responses with `captcha_failed` / HTTP 400 in the queried audit window. The Cloudflare Turnstile site key in the client matches the account widget and the canonical/WebView domains are allowlisted, but the matching secret in Supabase Auth is not readable through this audit connection. CI used a CAPTCHA mock, so real interactive Supabase CAPTCHA acceptance must not be marked passed yet.
+- Payment posture is closed: `environment=PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, and `payouts_locked=true`. `system_mode=MAINNET` alone does not enable transactions. Current row counts verified zero deposit wallets, zero deposit submissions, zero sweep journal rows/items and zero approved/processing withdrawals missing payout TXIDs.
+- The cycle-settlement and mainnet-deposit-monitor cron jobs are active and the latest recorded runs on 2026-10-18 23:24 UTC succeeded. Because all deposit-related tables are empty and payment gates are closed, this does not demonstrate real on-chain reconciliation.
+- HD deposit addressing is deployed and fail-closed. The sweep implementation is Shasta testnet-only, disabled by default and not a Mainnet sweeping implementation. Isolated testnet configuration, resources and transaction-level reconciliation are required before go-live.
+- The repository contains older `aegispay-web`, `aegispay-aurora` and `aegispay-aurora-v2` Cloudflare Worker scripts with demo-style content and no discovered custom routes. They were not removed because current usage/ownership has not been confirmed.
+- Account-owner actions still required before a production-readiness claim: verify/save the Supabase Auth Turnstile secret pairing and run a real login test; enable native leaked-password protection where available; confirm redirect/provider/SMTP settings and repository visibility/branch protection; provision isolated testnet-only secrets/resources; and complete physical-device plus controlled end-to-end deposit/KYC/Shop/settlement/withdrawal validation. No live payment gate was opened by this audit.
 
-## Historical deployment state — 2026-10-08
+## Historical deployment state — 2026-10-08 (archived; superseded by the current snapshot above)
 
-
-## Verified deployment state — 2026-10-08
+## Archived deployment snapshot — 2026-10-08 (not current)
 
 - GitHub repository: `msmgroups5/AegisPay-pro`
 - Production source branch: `main`
