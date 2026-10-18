@@ -529,7 +529,9 @@ async function login(e){
     state.busy=false;
     render();
   }finally{
-    if(window.AegisTurnstile)window.AegisTurnstile.reset(loginForm);
+    // A Turnstile token is one-use. Only reset it after a verified login attempt,
+    // and only if the same form still exists in the DOM.
+    if(captchaToken&&loginForm&&loginForm.isConnected&&window.AegisTurnstile)window.AegisTurnstile.reset(loginForm);
   }
 }
 
