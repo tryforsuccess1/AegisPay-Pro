@@ -765,17 +765,13 @@ const activityTickerFamilyNames=[
  'Fischer','Abebe','Sharma','Wilson','Pereira','Mahmoud','Thomas','Kaya','Aliyev','Novak','Chung','Bello'
 ];
 const activityTickerAmounts=[35,49,60,75,85,95,120,145,180,210,250,315,420,685,950,1250,1800];
-function isPreProductionActivityTickerAllowed(){
- const production=settings.production_config||{},mode=settings.system_mode||{};
- return Boolean(profile&&String(profile.role||'').toUpperCase()==='USER'
-  &&String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'
-  &&production.live_deposits_enabled!==true
-  &&production.real_payouts_enabled!==true
-  &&production.go_live_approved!==true
-  &&production.payouts_locked===true
-  &&mode.live_deposits!==true
-  &&mode.real_payouts!==true
-  &&mode.production_go_live_approved!==true);
+async function isPreProductionActivityTickerAllowed(){
+ if(!profile||String(profile.role||'').toUpperCase()!=='USER'
+  ||!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase()))return false;
+ try{
+  const result=await db.functions.invoke('preproduction-activity-ticker',{body:{}});
+  return !result.error&&result.data?.enabled===true;
+ }catch(_){return false;}
 }
 function loadActivityTickerNamesSeen(){
  activityTickerNamesSeen=new Set();
@@ -813,29 +809,39 @@ function stopActivityTicker(){
  if(activityTickerHideTimer){clearTimeout(activityTickerHideTimer);activityTickerHideTimer=null;}
  const el=document.getElementById('aegisActivityTicker');if(el)el.remove();
 }
-function startActivityTicker(){
+async function startActivityTicker(){
  stopActivityTicker();
- if(!isPreProductionActivityTickerAllowed())return;
+ if(!profile||String(profile.role||'').toUpperCase()!=='USER'
+  ||!['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase()))return;
+ if(!await isPreProductionActivityTickerAllowed())return;
+ if(!profile||String(profile.role||'').toUpperCase()!=='USER')return;
  loadActivityTickerNamesSeen();
  const el=document.createElement('div');el.id='aegisActivityTicker';el.className='activity-ticker';
  el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.setAttribute('aria-atomic','true');
  el.innerHTML='<span class="tag">User</span><span class="msg"><b class="activity-name"></b> <span class="activity-verb"></span> <span class="amount"></span></span>';
  document.body.appendChild(el);
- const showActivityTicker=()=>{
-  if(!isPreProductionActivityTickerAllowed()){stopActivityTicker();return;}
-  if(document.hidden||!document.getElementById('app'))return;
-  const name=nextUniqueActivityName();if(!name){stopActivityTicker();return;}
-  const action=activityTickerActionIndex++%2===0?'deposited':'withdrew';
-  const amount=activityTickerAmounts[Math.floor(Math.random()*activityTickerAmounts.length)];
-  const nameNode=el.querySelector('.activity-name'),verbNode=el.querySelector('.activity-verb'),amountNode=el.querySelector('.amount');
-  if(!nameNode||!verbNode||!amountNode)return;
-  nameNode.textContent=name;verbNode.textContent=action;amountNode.textContent=amount.toFixed(2)+' USDT';
-  el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
-  if(activityTickerHideTimer)clearTimeout(activityTickerHideTimer);
-  activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000);
+ let showInFlight=false;
+ const showActivityTicker=async()=>{
+  if(showInFlight||document.hidden||!document.getElementById('app'))return;
+  showInFlight=true;
+  try{
+   if(!await isPreProductionActivityTickerAllowed()){stopActivityTicker();return;}
+   if(!el.isConnected||!profile||String(profile.role||'').toUpperCase()!=='USER'){stopActivityTicker();return;}
+   const name=nextUniqueActivityName();if(!name){stopActivityTicker();return;}
+   const action=activityTickerActionIndex++%2===0?'deposited':'withdrew';
+   const amount=activityTickerAmounts[Math.floor(Math.random()*activityTickerAmounts.length)];
+   const nameNode=el.querySelector('.activity-name'),verbNode=el.querySelector('.activity-verb'),amountNode=el.querySelector('.amount');
+   if(!nameNode||!verbNode||!amountNode)return;
+   nameNode.textContent=name;verbNode.textContent=action;amountNode.textContent=amount.toFixed(2)+' USDT';
+   el.classList.remove('show');void el.offsetWidth;el.classList.add('show');
+   if(activityTickerHideTimer)clearTimeout(activityTickerHideTimer);
+   activityTickerHideTimer=setTimeout(()=>el.classList.remove('show'),7000);
+  }catch(_){
+   stopActivityTicker();
+  }finally{showInFlight=false;}
  };
- activityTickerInitialTimer=setTimeout(()=>{activityTickerInitialTimer=null;showActivityTicker();},1200);
- activityTickerTimer=setInterval(showActivityTicker,30000);
+ activityTickerInitialTimer=setTimeout(()=>{activityTickerInitialTimer=null;void showActivityTicker();},1200);
+ activityTickerTimer=setInterval(()=>{void showActivityTicker();},30000);
 }
 function clientId(p){
   const u=formatUsername(p?.username||'');if(u)return u;
