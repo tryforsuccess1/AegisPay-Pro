@@ -175,13 +175,32 @@ async function visit(page, url, expectedSelector) {
 
     // Intercept the username-login edge call so test credentials never reach the backend.
     let adminAuthRequest = null;
+    const corsHeaders = {
+      'access-control-allow-origin': '*',
+      'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
+      'access-control-allow-headers': 'authorization, apikey, content-type, x-client-info',
+      'access-control-max-age': '600'
+    };
     await adminPage.route('**/functions/v1/username-login**', async route => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
       try { adminAuthRequest = route.request().postDataJSON(); } catch (_) { adminAuthRequest = null; }
       await route.fulfill({
         status: 400,
+        headers: corsHeaders,
         contentType: 'application/json',
         body: JSON.stringify({ error: 'Invalid username or password.' })
       });
+    });
+    // Admin login signs out after a mocked auth failure; keep that cleanup request local too.
+    await adminPage.route('**/auth/v1/logout**', async route => {
+      if (route.request().method() === 'OPTIONS') {
+        await route.fulfill({ status: 204, headers: corsHeaders });
+        return;
+      }
+      await route.fulfill({ status: 204, headers: corsHeaders });
     });
     await adminPage.locator('#aaUsername').fill('live-smoke-admin');
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-live-smoke');
