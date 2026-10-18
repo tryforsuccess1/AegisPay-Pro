@@ -1485,7 +1485,7 @@ function taskImageUrl(url){
  const raw=String(url||'').trim();
  if(!raw)return '';
  if(/^data:image\//i.test(raw)||/^blob:/i.test(raw)||raw.startsWith(location.origin))return raw;
- return location.origin+'/product-image?url='+encodeURIComponent(raw);
+ return 'https://aegispay-web.aegispay.workers.dev/product-image?url='+encodeURIComponent(raw);
 }
 function bindTaskImageFallback(root){
  if(!root)return;
