@@ -454,8 +454,14 @@ for(const p of [
 assert(client.includes('const qr=(address)=>')&&client.includes('wallet?qr(wallet)'),'Deposit QR must be generated from the configured receiving address, not a hard-coded image');
 assert(client.includes('encodeURIComponent(wallet)'),'Active deposit flow must encode its configured wallet into the QR generator URL');
 assert(!client.includes('DEPOSIT_QR')&&!client.includes('TPr8f6Qx2J9mN4kR7vY8sZmU'),'Legacy deposit UI must not contain a hard-coded QR or receiving address');
-assert(!client.includes('globalActivityFeed')&&!client.includes('aegisActivityTicker')&&!client.includes("Olivia - UK"),'Client must not show simulated deposits/withdrawals as real user activity');
-assert(!client.includes('timed demo activity ticker'),'Legacy code comments must not advertise the removed simulated ticker as active functionality');
+assert(client.includes('function isPreProductionActivityTickerAllowed()')&&client.includes("String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'"),'The sample activity ticker must be restricted to pre-production.');
+assert(client.includes('production.live_deposits_enabled!==true')&&client.includes('production.real_payouts_enabled!==true')&&client.includes('production.go_live_approved!==true')&&client.includes('production.payouts_locked===true'),'The sample activity ticker must fail closed when production deposit or payout gates are opened.');
+assert(client.includes("el.innerHTML='<span class=\"tag\">User</span>"),'The activity popup must use only the requested User label.');
+assert(client.includes("const action=activityTickerActionIndex++%2===0?'deposited':'withdrew'"),'The pre-production ticker must alternate deposit and withdrawal examples.');
+assert(client.includes('function nextUniqueActivityName()')&&client.includes("sessionStorage.getItem('aegispay_activity_ticker_seen_v1')")&&client.includes('activityTickerNamesSeen.has(name)'),'Activity popup names must not repeat during a browser session.');
+assert(client.includes('activityTickerInitialTimer=setTimeout')&&client.includes('activityTickerTimer=setInterval(showActivityTicker,30000)')&&client.includes('activityTickerHideTimer=setTimeout(()=>el.classList.remove(\'show\'),7000)'),'The activity popup must show shortly after login, repeat every 30 seconds, and hide after 7 seconds.');
+assert(client.includes("startActivityTicker();")&&client.indexOf('startActivityTicker();')>client.indexOf("select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode'])"),'Activity ticker starts only after live pre-production settings are loaded.');
+assert(client.includes("setAttribute('aria-live','polite')"),'Activity popup must announce updates accessibly.');
 
 assert(signupSource.includes('pruneExpiredRateLimits(now)'), 'Public signup must periodically prune expired in-memory rate-limit keys');
 assert(signupSource.includes('now - lastSeen >= 15_000') && signupSource.includes('now - lastSeen >= 60_000'), 'Signup rate-limit cleanup must preserve existing IP and email cooldown windows');
