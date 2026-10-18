@@ -2174,6 +2174,12 @@ if(qs.get('shop_purchase')==='confirmed'){
 
 // Email verification does not need a persistent recovery session; it only confirms the address and returns the client to sign-in.
 if(qs.get('verified')==='1'){window.__emailVerified=true;history.replaceState({},document.title,location.pathname);await db.auth.signOut();window.go('login');return}
+if(qs.get('passwordUpdated')==='1'){
+  history.replaceState({},document.title,location.pathname);
+  window.go('login');
+  setTimeout(()=>uiNotice('Password updated successfully. Please sign in using your new password.','success'),0);
+  return;
+}
 // Show actionable feedback when Supabase rejects a recovery link before issuing a session.
 const recoveryErrorCode=hashParams.get('error_code')||qs.get('error_code')||'';
 if(qs.get('reset')==='1'&&(recoveryErrorCode||hashParams.has('error')||qs.has('error'))){

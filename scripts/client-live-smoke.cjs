@@ -25,6 +25,30 @@ async function visit(page, url, expectedSelector) {
       serviceWorkers: 'block',
       reducedMotion: 'reduce'
     });
+    // Mock the browser API surface, not Supabase Auth. These checks use dummy
+    // credentials and never submit a login request or create an account.
+    await context.addInitScript(() => {
+      const stats = { renderCount: 0, executeCount: 0, resetCount: 0 };
+      const widgets = new Map();
+      let nextId = 0;
+      window.__turnstileMockStats = stats;
+      window.turnstile = {
+        render: function (_container, options) {
+          const id = 'live-smoke-widget-' + (++nextId);
+          widgets.set(id, options);
+          stats.renderCount += 1;
+          return id;
+        },
+        execute: function (id) {
+          stats.executeCount += 1;
+          const widget = widgets.get(id);
+          if (widget && typeof widget.callback === 'function') {
+            widget.callback('live-smoke-token-' + stats.executeCount);
+          }
+        },
+        reset: function () { stats.resetCount += 1; }
+      };
+    });
 
     const page = await context.newPage();
     page.on('pageerror', error => pageErrors.push('client: ' + error.message));
@@ -52,6 +76,25 @@ async function visit(page, url, expectedSelector) {
     assert.ok(loginFields.loginHeight >= 44, 'Live Client login button must provide a 44px touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Live Client language button must provide a 40px touch target.');
     assert.ok(loginFields.appVisible, 'Live Client app root must render.');
+
+    const clientSubmit = page.locator('#liveLogin button[type="submit"]');
+    const clientVerify = page.locator('#liveLogin .aegis-turnstile-verify-button');
+    await clientVerify.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await clientSubmit.isDisabled(), true, 'Live Client Login must start disabled until manual verification.');
+    assert.equal(await clientVerify.isDisabled(), true, 'Live Client verification must wait for both credentials.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 0, resetCount: 0 },
+      'Live Client Turnstile must not auto-execute or auto-reset when the UI appears.');
+    await page.locator('#le').focus();
+    await page.locator('#le').fill('live-smoke@example.invalid');
+    await page.locator('#lp').focus();
+    await page.locator('#lp').fill('not-a-real-password-for-live-smoke');
+    assert.equal(await clientVerify.isDisabled(), false, 'Live Client verification should enable after credentials are entered.');
+    assert.equal(await clientSubmit.isDisabled(), true, 'Live Client Login must wait for verification.');
+    await clientVerify.click();
+    await page.waitForFunction(() => document.querySelector('#liveLogin button[type="submit"]')?.disabled === false, null, { timeout: 5000 });
+    assert.match(await clientVerify.textContent(), /Verified/i, 'Live Client verification should report success before Login.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 0 },
+      'Live Client Turnstile should execute only after the user starts it and should not reset itself.');
 
     await page.locator('.ap-auth [data-a="lang"]').first().click();
     await page.locator('#ov.show').waitFor({ state: 'visible', timeout: 5000 });
@@ -109,6 +152,22 @@ async function visit(page, url, expectedSelector) {
     assert.ok(Math.abs(adminControls.themeWidth - adminControls.themeHeight) <= 1,
       'Live Master Admin theme button must be square: ' + JSON.stringify(adminControls));
 
+    const adminSubmit = adminPage.locator('#aaLoginForm button[type="submit"]');
+    const adminVerify = adminPage.locator('#aaLoginForm .aegis-turnstile-verify-button');
+    await adminVerify.waitFor({ state: 'visible', timeout: 10000 });
+    assert.equal(await adminSubmit.isDisabled(), true, 'Live Master Admin login must start disabled until manual verification.');
+    assert.equal(await adminVerify.isDisabled(), true, 'Live Master Admin verification must wait for credentials.');
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 0, resetCount: 0 },
+      'Live Master Admin Turnstile must not auto-execute or auto-reset when the UI appears.');
+    await adminPage.locator('#aaUsername').fill('live-smoke-admin');
+    await adminPage.locator('#aaPassword').fill('not-a-real-password-for-live-smoke');
+    assert.equal(await adminVerify.isDisabled(), false, 'Live Master Admin verification should enable after credentials.');
+    await adminVerify.click();
+    await adminPage.waitForFunction(() => document.querySelector('#aaLoginForm button[type="submit"]')?.disabled === false, null, { timeout: 5000 });
+    assert.match(await adminVerify.textContent(), /Verified/i, 'Live Master Admin verification should report success before Login.');
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 0 },
+      'Live Master Admin Turnstile should execute only on user action and should not refresh itself.');
+
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
     assert.notEqual(await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode')), adminModeBefore,
@@ -128,6 +187,27 @@ async function visit(page, url, expectedSelector) {
 
     assert.deepEqual(sameOriginErrors, [], 'Live site returned failed same-origin resources: ' + sameOriginErrors.join(' | '));
     assert.deepEqual(pageErrors, [], 'Live site uncaught browser errors: ' + pageErrors.join(' | '));
+
+    // The legacy Worker must send normal website traffic to the canonical Pages
+    // UI while retaining old reset callbacks on their original origin for PKCE.
+    const legacyBase = 'https://aegispay-web.aegispay.workers.dev';
+    const legacyRoot = await fetch(legacyBase + '/', { redirect: 'manual' });
+    assert.equal(legacyRoot.status, 302, 'Legacy Worker root must redirect to the canonical Client Portal.');
+    assert.equal(new URL(legacyRoot.headers.get('location')).href, baseUrl + '/app/',
+      'Legacy Worker root redirect must target the canonical Client Portal.');
+    const legacyAdmin = await fetch(legacyBase + '/admin/', { redirect: 'manual' });
+    assert.equal(legacyAdmin.status, 302, 'Legacy Worker Admin route must redirect to the canonical Master Admin.');
+    assert.equal(new URL(legacyAdmin.headers.get('location')).href, baseUrl + '/admin/',
+      'Legacy Worker Admin redirect must target the canonical Master Admin.');
+    const legacyVerified = await fetch(legacyBase + '/?verified=1&keep=1', { redirect: 'manual' });
+    assert.equal(legacyVerified.status, 302, 'Legacy email-verification callback must redirect to the canonical app.');
+    const verifiedLocation = new URL(legacyVerified.headers.get('location'));
+    assert.equal(verifiedLocation.href, baseUrl + '/app/?verified=1&keep=1',
+      'Legacy verification redirect must preserve callback query parameters.');
+    const legacyReset = await fetch(legacyBase + '/?reset=1', { redirect: 'manual' });
+    assert.equal(legacyReset.status, 200, 'Legacy password-reset callbacks must remain on the old origin for session verification.');
+    assert.match(await legacyReset.text(), /PASSWORD_RESET_COMPLETE/,
+      'Legacy reset callback must still serve the recovery flow instead of redirecting away.');
 
     const configResponse = await fetch(baseUrl + '/supabase-client.js');
     assert.equal(configResponse.status, 200, 'Live Supabase client configuration must load.');
