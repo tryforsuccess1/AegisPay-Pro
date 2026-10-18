@@ -162,8 +162,8 @@ const server = http.createServer((req, res) => {
     const clientVerify = page.locator('#liveLogin .aegis-turnstile-verify-button');
     assert.equal(await clientVerify.count(), 0, 'Client login must not show a separate human-verification button.');
     assert.equal(await clientSubmit.isDisabled(), true, 'Client Login must wait for valid login details before becoming clickable.');
-    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 0,resetCount: 0},
-      'Turnstile must not execute or reset before the user clicks Login.');
+    assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 0,executeCount: 0,resetCount: 0},
+      'Login Turnstile must not load, execute, or reset before the user clicks Login.');
     let clientPasswordRequest = null;
     await page.route('**/auth/v1/token**', async route => {
       const url = new URL(route.request().url());
@@ -333,8 +333,8 @@ const server = http.createServer((req, res) => {
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-smoke-tests');
     assert.equal(await adminVerify.count(), 0, 'The separate verification button must remain removed on Master Admin login.');
     assert.equal(await adminSubmit.isDisabled(), false, 'Master Admin Login should enable after both credentials are entered.');
-    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 0,resetCount: 0},
-      'Master Admin Turnstile must wait for Login to be clicked before starting verification.');
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), {renderCount: 0,executeCount: 0,resetCount: 0},
+      'Master Admin Turnstile must not load or execute before Login is clicked.');
     const adminContrast = whiteTextMinContrast(await adminSubmit.evaluate(el => getComputedStyle(el).backgroundImage));
     assert.ok(adminContrast >= 4.5, 'Master Admin primary button white-text contrast is below WCAG AA: ' + adminContrast.toFixed(2));
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
