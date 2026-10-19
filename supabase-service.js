@@ -3,7 +3,11 @@
 
 var MOBILE_CLIENT_AUTH_CALLBACK='com.aegispay.app.client://auth/callback';
 var MOBILE_ADMIN_AUTH_CALLBACK='com.aegispay.app.admin://auth/callback';
-var WEB_PASSWORD_RESET_REDIRECT='https://aegispay-pro.pages.dev/app/?reset=1';
+function webPasswordResetRedirect(){
+  var host=String(window.location&&window.location.hostname||'').toLowerCase();
+  if(host==='aegispay-web.aegispay.workers.dev')return 'https://aegispay-web.aegispay.workers.dev/app/?reset=1';
+  return 'https://aegispay-pro.pages.dev/app/?reset=1';
+}
 function authRedirectUri(){
   if(!window.AEGIS_ANDROID_APP)return new URL('/app/auth/callback',window.location.origin).href;
   return window.AEGIS_ADMIN_PORTAL ? MOBILE_ADMIN_AUTH_CALLBACK : MOBILE_CLIENT_AUTH_CALLBACK;
@@ -167,7 +171,7 @@ window.AegisSupabaseService={
  async sendPasswordReset(email,captchaToken){
   var c=this.client();
   if(!c)throw new Error('Supabase client unavailable');
-  var result=await c.auth.resetPasswordForEmail(String(email||'').trim().toLowerCase(),{redirectTo:WEB_PASSWORD_RESET_REDIRECT,captchaToken:captchaToken||undefined});
+  var result=await c.auth.resetPasswordForEmail(String(email||'').trim().toLowerCase(),{redirectTo:webPasswordResetRedirect(),captchaToken:captchaToken||undefined});
   if(result.error)throw result.error;
   return true;
  },

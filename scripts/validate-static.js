@@ -70,6 +70,7 @@ const must=[
   'supabase/functions/_shared/pwned-passwords.ts','supabase/functions/_shared/pwned-passwords_test.ts',
   'supabase/functions/_shared/password-policy.ts','supabase/functions/_shared/password-policy_test.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
+  'workers/aegispay-web/index.js','workers/aegispay-web/wrangler.jsonc','scripts/check-web-proxy.js',
   'site/index.html','site/site.css','android/app/build.gradle',
   'android/app/src/main/java/com/aegispay/app/MainActivity.java',
   '.github/workflows/ci.yml','.github/workflows/android-apk.yml',
