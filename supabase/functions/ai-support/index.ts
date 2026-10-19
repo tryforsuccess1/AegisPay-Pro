@@ -715,8 +715,8 @@ Deno.serve(async (req: Request) => {
         if (endpointUrl.protocol !== "https:") throw new Error("AI endpoint must use HTTPS.");
         const anthropic = endpointUrl.hostname.toLowerCase() === "api.anthropic.com";
         let requestUrl = completionUrl(AI_ENDPOINT);
-        if (anthropic && !endpointUrl.pathname.replace(/\\/+$/, "").endsWith("/v1/messages")) {
-          endpointUrl.pathname = endpointUrl.pathname.replace(/\\/+$/, "") + "/v1/messages";
+        if (anthropic && !endpointUrl.pathname.replace(/\/+$/, "").endsWith("/v1/messages")) {
+          endpointUrl.pathname = endpointUrl.pathname.replace(/\/+$/, "") + "/v1/messages";
           requestUrl = endpointUrl.toString();
         }
         const requestHeaders: Record<string, string> = anthropic
