@@ -68,10 +68,16 @@ async function visit(page, url, expectedSelector) {
       }
     });
 
-    await visit(page, baseUrl + '/', 'a.top-cta[href="/app/"]');
+    await visit(page, baseUrl + '/', 'a.top-cta[href="https://aegispay-web.aegispay.workers.dev/app/"]');
     assert.match(await page.title(), /AegisPay/i, 'Public landing page title should identify AegisPay.');
     assert.ok(await page.getByRole('link', { name: /Open App|Open secure web app/i }).count(),
       'Landing page should expose a working Open App route.');
+    assert.equal(await page.locator('a.top-cta').getAttribute('href'), 'https://aegispay-web.aegispay.workers.dev/app/',
+      'The primary Open App link must use the stable workers.dev portal, never a deployment-specific Pages URL.');
+    assert.equal(await page.locator('a.secondary-cta').getAttribute('href'), 'https://aegispay-web.aegispay.workers.dev/app/',
+      'The hero portal link must use the stable workers.dev portal.');
+    assert.equal(await page.locator('.footer a[href="https://aegispay-web.aegispay.workers.dev/app/"]').count(), 1,
+      'The footer Client Portal link must use the stable workers.dev portal.');
 
     await visit(page, baseUrl + '/app/', '#liveLogin');
     if (process.env.AEGIS_VERIFY_SHOP_FIX === '1') {
