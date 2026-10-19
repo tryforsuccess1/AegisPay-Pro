@@ -165,7 +165,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          npm install --no-save --no-package-lock playwright@1.55.0
+          npm install --no-save --no-package-lock playwright@1.64.1
           npx playwright install --with-deps chromium
       - name: Verify deployed production landing, Client and Master Admin flows
         env:
