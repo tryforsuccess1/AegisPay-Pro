@@ -421,12 +421,12 @@ function settings(){
     '<section class="aa-panel"><form id="aaSettingsForm" class="aa-form-grid">'+
       field('setNetwork','Deposit Network',dr.network||'TRON TESTNET')+
       field('setReceiving','Receiving Address',dr.receiving_address||'')+
-      field('setDepositFee','Deposit Fee',Number(dr.fee||2),'number')+
-      field('setWithdrawMin','Withdrawal Minimum',Number(wr.minimum||50),'number')+
-      field('setWithdrawFee','Withdrawal Fee Rate',Number(wr.fee_rate||.10),'number')+
-      field('setCycleHours','Cycle Hours',Number(cr.hours||18),'number')+
-      field('setRef1','Level 1 Referral Reward',Number(rr.level_1||5),'number')+
-      field('setRef2','Level 2 Referral Reward',Number(rr.level_2||2),'number')+
+      field('setDepositFee','Deposit Fee',Number(dr.fee??2),'number')+
+      field('setWithdrawMin','Withdrawal Minimum',Number(wr.minimum??50),'number')+
+      field('setWithdrawFee','Withdrawal Fee Rate',Number(wr.fee_rate??.10),'number')+
+      field('setCycleHours','Cycle Hours',Number(cr.hours??18),'number')+
+      field('setRef1','Level 1 Referral Reward',Number(rr.level_1??5),'number')+
+      field('setRef2','Level 2 Referral Reward',Number(rr.level_2??2),'number')+
       '<div class="aa-span-2 aa-ai-control"><div><strong>AI Evidence Precheck</strong><small>Controls AI precheck for KYC and deposit evidence. This toggle is separate from withdrawal approvals.</small></div><button type="button" class="aa-system-toggle '+((s.ai_review||{}).enabled!==false?'on':'off')+'" data-action="ai-toggle">'+((s.ai_review||{}).enabled!==false?'PRECHECK ON':'PRECHECK OFF')+'</button></div>'+
       '<div class="aa-span-2 aa-ai-control"><div><strong>Withdrawal AI Approval Bot</strong><small>ON: only small, low-risk requests with verified KYC, matching locked wallet, clean balance checks and no recent withdrawals may auto-approve at 98%+ policy confidence. All other cases stay in your manual review queue. Real payouts remain behind the Phase 3 server gate.</small></div><button type="button" class="aa-system-toggle '+((s.withdrawal_ai||{}).enabled===true?'on':'off')+'" data-action="withdrawal-ai-toggle">'+((s.withdrawal_ai||{}).enabled===true?'WITHDRAWAL AI ON':'WITHDRAWAL AI OFF')+'</button></div>'+
       field('setWithdrawalAICap','Maximum automatic withdrawal approval (USDT)',Number((s.withdrawal_ai||{}).max_auto_approve_usdt||100),'number')+
