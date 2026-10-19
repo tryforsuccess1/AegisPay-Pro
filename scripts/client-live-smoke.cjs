@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const { chromium } = require('playwright');
 
 const baseUrl = String(process.env.AEGIS_LIVE_URL || 'https://aegispay-pro.pages.dev').replace(/\/+$/, '');
+const fallbackUrl = String(process.env.AEGIS_FALLBACK_URL || '').replace(/\/+$/, '');
 const sameOriginErrors = [];
 const pageErrors = [];
 
@@ -144,6 +145,56 @@ async function visit(page, url, expectedSelector) {
       clientWidths.push(width);
     }
 
+    if (fallbackUrl) {
+      const fallbackPage = await context.newPage();
+      fallbackPage.on('pageerror', error => pageErrors.push('fallback: ' + error.message));
+      fallbackPage.on('response', response => {
+        if ((response.url().startsWith(fallbackUrl) || response.url().startsWith(baseUrl)) && response.status() >= 400) {
+          sameOriginErrors.push('fallback ' + response.status() + ' ' + response.url());
+        }
+      });
+      const fallbackResponse = await visit(fallbackPage, fallbackUrl + '/', '#liveLogin');
+      assert.equal(new URL(fallbackPage.url()).origin, new URL(fallbackUrl).origin,
+        'Fallback portal must stay on workers.dev instead of redirecting the browser to pages.dev.');
+      assert.equal(fallbackResponse.headers()['x-aegispay-portal-source'], 'canonical-pages-proxy',
+        'Fallback route must serve the current canonical Pages application through the proxy.');
+      const fallbackTurnstileScript = await fallbackPage.request.get(fallbackUrl + '/aegis-turnstile.js');
+      assert.equal(fallbackTurnstileScript.status(), 200, 'Fallback route must load the current Turnstile asset.');
+      assert.match(await fallbackTurnstileScript.text(), /0x4AAAAAAFZaOeTke8FQpVNS/,
+        'Fallback Turnstile asset must contain the configured public site key.');
+
+      const blockedImage = await fallbackPage.request.get(fallbackUrl + '/product-image?url=' + encodeURIComponent('https://evil.invalid/not-an-image.png'));
+      assert.equal(blockedImage.status(), 403, 'Fallback image proxy must reject non-allowlisted hosts.');
+
+      let fallbackAuthRequest = null;
+      await fallbackPage.route('**/auth/v1/token**', async route => {
+        const url = new URL(route.request().url());
+        if (url.searchParams.get('grant_type') !== 'password') return route.continue();
+        try { fallbackAuthRequest = route.request().postDataJSON(); } catch (_) { fallbackAuthRequest = null; }
+        await route.fulfill({
+          status: 400,
+          contentType: 'application/json',
+          body: JSON.stringify({ code: 'invalid_credentials', error: 'invalid_grant', msg: 'Invalid login credentials' })
+        });
+      });
+      await fallbackPage.locator('#le').fill('fallback-smoke@example.invalid');
+      await fallbackPage.locator('#lp').fill('not-a-real-password-for-live-smoke');
+      const fallbackSubmit = fallbackPage.locator('#liveLogin button[type="submit"]');
+      assert.equal(await fallbackSubmit.isDisabled(), false, 'Fallback Client Login should enable after credentials.');
+      await fallbackSubmit.click();
+      await fallbackPage.waitForFunction(() => window.__turnstileMockStats.resetCount === 1, null, { timeout: 10000 });
+      assert.ok(fallbackAuthRequest, 'Fallback Login should continue to the mocked Auth endpoint after CAPTCHA.');
+      assert.equal(fallbackAuthRequest.gotrue_meta_security?.captcha_token, 'live-smoke-token-1',
+        'Fallback Login must forward the CAPTCHA token to Supabase Auth metadata.');
+      assert.deepEqual(await fallbackPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 1 },
+        'Fallback Turnstile must initialize and execute on Login click, then reset after the mocked auth attempt.');
+
+      const fallbackAdminResponse = await fallbackPage.request.get(fallbackUrl + '/admin/');
+      assert.equal(fallbackAdminResponse.status(), 200, 'Fallback Master Admin route must render through the proxy.');
+      assert.match(await fallbackAdminResponse.text(), /id="aaLoginForm"/,
+        'Fallback Master Admin route must serve the current Admin login page.');
+    }
+
     const adminPage = await context.newPage();
     adminPage.on('pageerror', error => pageErrors.push('admin: ' + error.message));
     adminPage.on('response', response => {
@@ -234,26 +285,31 @@ async function visit(page, url, expectedSelector) {
     assert.deepEqual(sameOriginErrors, [], 'Live site returned failed same-origin resources: ' + sameOriginErrors.join(' | '));
     assert.deepEqual(pageErrors, [], 'Live site uncaught browser errors: ' + pageErrors.join(' | '));
 
-    // The legacy Worker must send normal website traffic to the canonical Pages
-    // UI while retaining old reset callbacks on their original origin for PKCE.
-    const legacyBase = 'https://aegispay-web.aegispay.workers.dev';
-    const legacyRoot = await fetch(legacyBase + '/', { redirect: 'manual' });
-    assert.equal(legacyRoot.status, 302, 'Legacy Worker root must redirect to the canonical Client Portal.');
-    assert.equal(new URL(legacyRoot.headers.get('location')).href, baseUrl + '/app/',
-      'Legacy Worker root redirect must target the canonical Client Portal.');
-    const legacyAdmin = await fetch(legacyBase + '/admin/', { redirect: 'manual' });
-    assert.equal(legacyAdmin.status, 302, 'Legacy Worker Admin route must redirect to the canonical Master Admin.');
-    assert.equal(new URL(legacyAdmin.headers.get('location')).href, baseUrl + '/admin/',
-      'Legacy Worker Admin redirect must target the canonical Master Admin.');
-    const legacyVerified = await fetch(legacyBase + '/?verified=1&keep=1', { redirect: 'manual' });
-    assert.equal(legacyVerified.status, 302, 'Legacy email-verification callback must redirect to the canonical app.');
-    const verifiedLocation = new URL(legacyVerified.headers.get('location'));
-    assert.equal(verifiedLocation.href, baseUrl + '/app/?verified=1&keep=1',
-      'Legacy verification redirect must preserve callback query parameters.');
-    const legacyReset = await fetch(legacyBase + '/?reset=1', { redirect: 'manual' });
-    assert.equal(legacyReset.status, 200, 'Legacy password-reset callbacks must remain on the old origin for session verification.');
-    assert.match(await legacyReset.text(), /PASSWORD_RESET_COMPLETE/,
-      'Legacy reset callback must still serve the recovery flow instead of redirecting away.');
+    // Validate the stable workers.dev fallback only in the production deploy
+    // workflow, after it has deployed the proxy. Pull-request CI must not depend
+    // on mutating or pre-deploy state of that live Worker.
+    if (fallbackUrl) {
+      const fallbackRoot = await fetch(fallbackUrl + '/', { redirect: 'manual' });
+      assert.equal(fallbackRoot.status, 200, 'Fallback Worker root must serve the Client Portal without redirecting to pages.dev.');
+      assert.equal(fallbackRoot.headers.get('x-aegispay-portal-source'), 'canonical-pages-proxy',
+        'Fallback Worker must identify the current canonical proxy response.');
+      assert.match(await fallbackRoot.text(), /id="liveLogin"/,
+        'Fallback Worker root must serve the current Client login HTML.');
+
+      const fallbackAdmin = await fetch(fallbackUrl + '/admin/', { redirect: 'manual' });
+      assert.equal(fallbackAdmin.status, 200, 'Fallback Worker Admin route must serve the current Master Admin without redirecting.');
+      assert.equal(fallbackAdmin.headers.get('x-aegispay-portal-source'), 'canonical-pages-proxy');
+      assert.match(await fallbackAdmin.text(), /id="aaLoginForm"/,
+        'Fallback Worker Admin route must serve the Admin login form.');
+
+      const fallbackVerified = await fetch(fallbackUrl + '/?verified=1&keep=1', { redirect: 'manual' });
+      assert.equal(fallbackVerified.status, 200, 'Fallback email-verification return must remain on the workers.dev origin.');
+      assert.equal(fallbackVerified.headers.get('x-aegispay-portal-source'), 'canonical-pages-proxy');
+      const fallbackReset = await fetch(fallbackUrl + '/?reset=1', { redirect: 'manual' });
+      assert.equal(fallbackReset.status, 200, 'Fallback password-reset callback must remain on workers.dev.');
+      assert.match(await fallbackReset.text(), /PASSWORD_RESET_COMPLETE/,
+        'Fallback password-reset callback must retain the recovery flow.');
+    }
 
     // This alias is newly deployed by the main-branch release workflow.
     // Gate only this assertion during pull-request CI; production deploy smoke sets

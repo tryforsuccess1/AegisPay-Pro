@@ -5,7 +5,7 @@ import { passwordPolicyError } from "../_shared/password-policy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const PRODUCTION_REDIRECT = "https://aegispay-pro.pages.dev/app/?verified=1";
+const PRODUCTION_REDIRECT = "https://aegispay-web.aegispay.workers.dev/app/?verified=1";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",

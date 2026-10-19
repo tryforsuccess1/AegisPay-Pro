@@ -70,6 +70,7 @@ const must=[
   'supabase/functions/_shared/pwned-passwords.ts','supabase/functions/_shared/pwned-passwords_test.ts',
   'supabase/functions/_shared/password-policy.ts','supabase/functions/_shared/password-policy_test.ts',
   'supabase/functions/submit-kyc/ai-review.ts','supabase/functions/submit-deposit/ai-review.ts',
+  'workers/aegispay-web/index.js','workers/aegispay-web/wrangler.jsonc','scripts/check-web-proxy.js',
   'site/index.html','site/site.css','android/app/build.gradle',
   'android/app/src/main/java/com/aegispay/app/MainActivity.java',
   '.github/workflows/ci.yml','.github/workflows/android-apk.yml',
@@ -239,14 +240,15 @@ assert(authUsernameLoginSource.includes('classifyAuthLoginError(authError)'),'Us
 assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorSource.includes('AUTH_RATE_LIMITED')&&authLoginErrorSource.includes('INVALID_CREDENTIALS'),'Login error classifier must map CAPTCHA, rate-limit, and credential errors explicitly');
 assert(authLoginErrorTests.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorTests.includes('AUTH_RATE_LIMITED')&&authLoginErrorTests.includes('INVALID_CREDENTIALS'),'Login error classifier tests must cover each safe failure category');
 assert(client.includes('Security verification could not be validated.')&&fs.readFileSync('admin-auth.js','utf8').includes('Security verification could not be validated.'),'Client and admin login must surface CAPTCHA rejection clearly instead of reporting bad credentials');
-assert(client.includes("emailRedirectTo:'https://aegispay-pro.pages.dev/app/?verified=1'")&&supabaseServiceSource.includes("var WEB_PASSWORD_RESET_REDIRECT='https://aegispay-pro.pages.dev/app/?reset=1';"),'Email verification and password-reset links must use the canonical Pages origin');
+assert(client.includes("function emailVerificationRedirectTo(){")&&client.includes("return 'https://aegispay-pro.pages.dev/app/?verified=1';")&&client.includes("return 'https://aegispay-web.aegispay.workers.dev/app/?verified=1';")&&supabaseServiceSource.includes("function webPasswordResetRedirect(){")&&supabaseServiceSource.includes("return 'https://aegispay-pro.pages.dev/app/?reset=1';")&&supabaseServiceSource.includes("return 'https://aegispay-web.aegispay.workers.dev/app/?reset=1';"),'Verification and password-reset emails must choose a valid portal origin for canonical and fallback hosts');
 assert(!client.includes("preferredLanguage:'en',redirectTo:'https://aegispay-web.aegispay.workers.dev/?verified=1'"),'Client must not send an unused signup redirect; the server-owned signup destination is canonical');
 
 const pwnedPasswordTestsLower=pwnedPasswordTests.toLowerCase();
 assert(pwnedPasswordTestsLower.includes('breached passwords are rejected')&&pwnedPasswordTestsLower.includes('only the first five hash characters')&&pwnedPasswordTestsLower.includes('fails closed'),'Password screening regression tests must cover breached, clean and unavailable cases');
 const signupRedirectSource=fs.readFileSync('supabase/functions/public-signup/index.ts','utf8');
-assert(signupRedirectSource.includes('const PRODUCTION_REDIRECT = "https://aegispay-pro.pages.dev/app/?verified=1";'),'Signup verification must use the approved canonical Pages redirect');
-assert(client.includes("redirectTo:'https://aegispay-pro.pages.dev/app/?reset=1'"),'Password reset emails must return to the canonical Pages app route');
+assert(signupRedirectSource.includes('const PRODUCTION_REDIRECT = "https://aegispay-web.aegispay.workers.dev/app/?verified=1";'),'Signup verification must use the stable proxy portal origin instead of sending users back to an unreachable Pages hostname');
+assert(client.includes("function passwordResetRedirectTo(){")&&client.includes("return 'https://aegispay-pro.pages.dev/app/?reset=1';")&&client.includes("return 'https://aegispay-web.aegispay.workers.dev/app/?reset=1';")&&client.includes("redirectTo:passwordResetRedirectTo()"),'Password reset emails must use the current host route without breaking canonical Pages clients');
+assert(client.includes("https://aegispay-web.aegispay.workers.dev/app/?ref=")&&!client.includes("const referralLink=code?'https://aegispay-pro.pages.dev/app/?ref="),'Shared referral URLs must use the stable workers.dev portal instead of the Pages hostname');
 assert(client.includes("replace(/^#/,'').replace(/^\\?/,'')")&&client.includes('This password reset link has expired or has already been used.')&&client.includes("hashParams.has('error')"),'Password recovery must handle provider error fragments and explain expired links');
 const aiSupportSource=fs.readFileSync('supabase/functions/ai-support/index.ts','utf8');
 assert(aiSupportSource.includes('AI_ASSISTANT_ENDPOINT')&&aiSupportSource.includes('AI_ASSISTANT_API_KEY')&&aiSupportSource.includes('completionUrl'),'AI support must resolve its configured HTTPS model endpoint and API key');
@@ -306,10 +308,10 @@ assert(client.includes('resetPasswordForEmail'),'Client password reset request i
 assert(client.includes("reset=1"),'Client password reset redirect marker is missing');
 assert(client.includes('exchangeCodeForSession'),'PKCE password reset handling is missing');
 assert(client.includes("setSession({access_token:accessToken,refresh_token:refreshToken})"),'Implicit password recovery token handling is missing');
-assert(client.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Password reset must use the canonical Pages destination approved in Supabase Auth');
+assert(client.includes("function passwordResetRedirectTo(){")&&client.includes("https://aegispay-pro.pages.dev/app/?reset=1")&&client.includes("https://aegispay-web.aegispay.workers.dev/app/?reset=1"),'Password reset must retain the canonical Pages and stable fallback Worker destinations');
 assert(client.includes("qs.get('passwordUpdated')==='1'")&&client.includes('Password updated successfully. Please sign in using your new password.'),'Legacy password-reset callbacks must show a clear success message on the canonical login page.');
-assert(signupRedirectSource.includes("https://aegispay-pro.pages.dev/app/?verified=1"),'Signup verification must use the canonical Pages destination approved in Supabase Auth');
-assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-pro.pages.dev/app/?verified=1'),'Password reset and signup verification must target the canonical Pages app');
+assert(signupRedirectSource.includes("https://aegispay-web.aegispay.workers.dev/app/?verified=1"),'Signup verification must return to the stable Worker portal');
+assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&client.includes('https://aegispay-web.aegispay.workers.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-web.aegispay.workers.dev/app/?verified=1'),'Password reset retains both supported origins and signup verification uses the stable fallback portal');
 assert(client.includes("db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name})"),'Client wallet-link flow must use the owner-name protected RPC');
 assert(client.includes("complete-cycle-checkout"),'Client Shop checkout endpoint is not wired');
 assert(client.includes("db.rpc('complete_shop_task',{p_task_id:taskId})"),'Client per-task Shop completion RPC is missing');
