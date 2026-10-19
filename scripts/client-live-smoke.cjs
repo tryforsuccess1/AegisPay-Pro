@@ -236,7 +236,7 @@ async function visit(page, url, expectedSelector) {
 
     }
 
-    const shopUrl = String(process.env.AEGIS_SHOP_URL || 'https://aegispay-shopping.aegispay.workers.dev').replace(/\\/+$/, '');
+    const shopUrl = String(process.env.AEGIS_SHOP_URL || 'https://aegispay-shopping.aegispay.workers.dev').replace(/\/+$/, '');
     const shopPage = await context.newPage();
     await shopPage.addInitScript(() => {
       window.__aegisInitialLoginFlash = false;
