@@ -76,6 +76,8 @@ async function visit(page, url, expectedSelector) {
     await visit(page, baseUrl + '/app/', '#liveLogin');
     assert.equal(await page.evaluate(() => window.__aegisInitialLoginFlash), false,
       'Client must show a session-restore loading state instead of flashing Login before auth bootstrap completes.');
+    assert.equal(await page.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
+      'Browse Shop navigation must be exposed to the inline UI click handler.');
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
       passwordType: document.querySelector('#lp')?.type,
@@ -178,6 +180,8 @@ async function visit(page, url, expectedSelector) {
       const fallbackResponse = await visit(fallbackPage, fallbackUrl + '/app/', '#liveLogin');
       assert.equal(await fallbackPage.evaluate(() => window.__aegisInitialLoginFlash), false,
         'Fallback Client must not briefly show Login during session restoration.');
+      assert.equal(await fallbackPage.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
+        'Fallback Browse Shop navigation must be exposed to the inline UI click handler.');
       assert.equal(new URL(fallbackPage.url()).origin, new URL(fallbackUrl).origin,
         'Fallback portal must stay on workers.dev instead of redirecting the browser to pages.dev.');
       assert.equal(fallbackResponse.headers()['x-aegispay-portal-source'], 'canonical-pages-proxy',
@@ -234,6 +238,15 @@ async function visit(page, url, expectedSelector) {
 
     const shopUrl = String(process.env.AEGIS_SHOP_URL || 'https://aegispay-shopping.aegispay.workers.dev').replace(/\\/+$/, '');
     const shopPage = await context.newPage();
+    await shopPage.addInitScript(() => {
+      window.__aegisInitialLoginFlash = false;
+      const observer = new MutationObserver(() => {
+        if (window.__aegisAuthBootstrapComplete !== true && document.querySelector('#liveLogin')) {
+          window.__aegisInitialLoginFlash = true;
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
     shopPage.on('pageerror', error => pageErrors.push('shop: ' + error.message));
     shopPage.on('response', response => {
       if (response.url().startsWith(shopUrl) && response.status() >= 400) {
