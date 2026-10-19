@@ -177,7 +177,9 @@ async function visit(page, url, expectedSelector) {
           body: JSON.stringify({ code: 'invalid_credentials', error: 'invalid_grant', msg: 'Invalid login credentials' })
         });
       });
+      await fallbackPage.locator('#le').focus();
       await fallbackPage.locator('#le').fill('fallback-smoke@example.invalid');
+      await fallbackPage.locator('#lp').focus();
       await fallbackPage.locator('#lp').fill('not-a-real-password-for-live-smoke');
       const fallbackSubmit = fallbackPage.locator('#liveLogin button[type="submit"]');
       assert.equal(await fallbackSubmit.isDisabled(), false, 'Fallback Client Login should enable after credentials.');

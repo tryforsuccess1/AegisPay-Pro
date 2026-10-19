@@ -34,13 +34,8 @@ const sandbox = vm.createContext({
   Headers,
   Request,
   Response,
-  Uint8Array,
-  Blob,
   fetch: async (url, options) => {
-    const headerSnapshot = options.headers && typeof options.headers.entries === "function"
-      ? Object.fromEntries(options.headers.entries())
-      : { ...(options.headers || {}) };
-    calls.push({ url: String(url), method: options.method, headers: headerSnapshot, redirect: options.redirect });
+    calls.push({ url: String(url), method: options.method, headers: Object.fromEntries(options.headers.entries()), redirect: options.redirect });
     if (failUpstream) throw new Error("private upstream detail must not leak");
     if (String(url).includes("redirect-example")) {
       return new Response(null, { status: 302, headers: { location: "https://evil.invalid/pixel.png" } });
@@ -135,7 +130,7 @@ vm.runInContext(executable, sandbox, { filename: "workers/aegispay-web/index.js"
   assert.doesNotMatch(await unavailable.text(), /private upstream detail/i,
     "Upstream errors must fail closed without exposing internal exception details.");
 
-  console.log("workers.dev fallback proxy tests passed: fixed origin, routes, query preservation, header isolation, image allowlist/redirect/size guards, GET/HEAD, and fail-closed errors.");
+  console.log("workers.dev fallback proxy tests passed: fixed origin, routes, query preservation, header filtering, GET/HEAD, and fail-closed errors.");
 })().catch(error => {
   console.error(error);
   process.exitCode = 1;

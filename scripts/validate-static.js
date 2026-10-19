@@ -308,10 +308,10 @@ assert(client.includes('resetPasswordForEmail'),'Client password reset request i
 assert(client.includes("reset=1"),'Client password reset redirect marker is missing');
 assert(client.includes('exchangeCodeForSession'),'PKCE password reset handling is missing');
 assert(client.includes("setSession({access_token:accessToken,refresh_token:refreshToken})"),'Implicit password recovery token handling is missing');
-assert(client.includes("function passwordResetRedirectTo(){")&&client.includes("https://aegispay-pro.pages.dev/app/?reset=1")&&client.includes("https://aegispay-web.aegispay.workers.dev/app/?reset=1"),'Password reset must retain the canonical Pages and stable fallback Worker destinations');
+assert(client.includes("https://aegispay-pro.pages.dev/app/?reset=1"),'Password reset must use the canonical Pages destination approved in Supabase Auth');
 assert(client.includes("qs.get('passwordUpdated')==='1'")&&client.includes('Password updated successfully. Please sign in using your new password.'),'Legacy password-reset callbacks must show a clear success message on the canonical login page.');
-assert(signupRedirectSource.includes("https://aegispay-web.aegispay.workers.dev/app/?verified=1"),'Signup verification must return to the stable Worker portal');
-assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&client.includes('https://aegispay-web.aegispay.workers.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-web.aegispay.workers.dev/app/?verified=1'),'Password reset retains both supported origins and signup verification uses the stable fallback portal');
+assert(signupRedirectSource.includes("https://aegispay-pro.pages.dev/app/?verified=1"),'Signup verification must use the canonical Pages destination approved in Supabase Auth');
+assert(client.includes('https://aegispay-pro.pages.dev/app/?reset=1')&&signupRedirectSource.includes('https://aegispay-pro.pages.dev/app/?verified=1'),'Password reset and signup verification must target the canonical Pages app');
 assert(client.includes("db.rpc('link_withdrawal_wallet',{p_address:wallet,p_owner_name:profile.name})"),'Client wallet-link flow must use the owner-name protected RPC');
 assert(client.includes("complete-cycle-checkout"),'Client Shop checkout endpoint is not wired');
 assert(client.includes("db.rpc('complete_shop_task',{p_task_id:taskId})"),'Client per-task Shop completion RPC is missing');
