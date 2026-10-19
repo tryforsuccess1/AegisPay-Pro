@@ -37,6 +37,8 @@ assert.match(html, /dataset\.localFallback/, 'Failed direct and proxied product 
 assert.match(html, /image unavailable/, 'Shop must have a final visible fallback instead of a broken image tile');
 assert.match(html, /location\.replace\(safeReturn\.toString\(\)\)/);
 assert.match(worker, /source:\s*"tryforsuccess1\/AegisPay-Pro"/);
+assert.match(worker, /x-aegis-shop-image-proxy-result.*upstream-unavailable/,
+  'Shop image proxy must mark a handled upstream missing-image response separately from an unhandled Worker route.');
 console.log('Shop and startup checks passed: inline JavaScript parses; 210 products; safe return routing; no pre-auth login flash; Android Back route retained.');
 
 assert.match(html, /const FAST_REAL_IMAGES=/, 'Shop must have a compact set of real image URLs ready before the full catalog request finishes.');
