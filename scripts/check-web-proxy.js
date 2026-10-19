@@ -15,6 +15,8 @@ assert.match(source, /X-AegisPay-Portal-Source/);
 assert.match(source, /redirect:\s*"follow"/);
 assert.match(source, /request\.method !== "GET" && request\.method !== "HEAD"/);
 assert.match(source, /FORWARDED_REQUEST_HEADERS/);
+assert.match(source, /IMAGE_HOSTS/);
+assert.match(source, /MAX_IMAGE_BYTES/);
 assert.doesNotMatch(source, /incoming\.host|incoming\.hostname|request\.headers\.get\(["']host/i,
   "Proxy target must not be controlled by the incoming Host header.");
 assert.ok(clientHtml.includes("function passwordResetRedirectTo(){"));
@@ -33,8 +35,20 @@ const sandbox = vm.createContext({
   Request,
   Response,
   fetch: async (url, options) => {
-    calls.push({ url: String(url), method: options.method, headers: Object.fromEntries(options.headers.entries()) });
+    calls.push({ url: String(url), method: options.method, headers: Object.fromEntries(options.headers.entries()), redirect: options.redirect });
     if (failUpstream) throw new Error("private upstream detail must not leak");
+    if (String(url).includes("redirect-example")) {
+      return new Response(null, { status: 302, headers: { location: "https://evil.invalid/pixel.png" } });
+    }
+    if (String(url).includes("large-example")) {
+      return new Response(null, { status: 200, headers: { "content-type": "image/png", "content-length": "99999999" } });
+    }
+    if (String(url).includes("images.unsplash.com")) {
+      return new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { "content-type": "image/png", "content-length": "4" }
+      });
+    }
     return new Response(options.method === "HEAD" ? null : "<html>current AegisPay portal</html>", {
       status: 200,
       headers: { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=3600" }
@@ -83,9 +97,32 @@ vm.runInContext(executable, sandbox, { filename: "workers/aegispay-web/index.js"
   assert.equal(calls[3].method, "HEAD");
   assert.equal(await head.text(), "");
 
+  const image = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/product-image?url=" + encodeURIComponent("https://images.unsplash.com/photo-abc")));
+  assert.equal(image.status, 200, "Approved image hosts must remain available through the fallback host.");
+  assert.equal(image.headers.get("content-type"), "image/png");
+  assert.equal(image.headers.get("access-control-allow-origin"), "*");
+  assert.equal(calls[4].url, "https://images.unsplash.com/photo-abc");
+  assert.equal(calls[4].redirect, "manual");
+  assert.equal(await image.arrayBuffer().then(v => v.byteLength), 4);
+
+  const unsafeImage = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/product-image?url=" + encodeURIComponent("https://evil.invalid/any.png")));
+  assert.equal(unsafeImage.status, 403, "Unapproved external hosts must not be fetched.");
+  assert.equal(calls.length, 5, "Disallowed image hosts must not reach fetch.");
+
+  const malformedImage = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/product-image?url=" + encodeURIComponent("not a URL")));
+  assert.equal(malformedImage.status, 400);
+
+  const redirectImage = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/product-image?url=" + encodeURIComponent("https://images.unsplash.com/redirect-example")));
+  assert.equal(redirectImage.status, 403, "An otherwise allowed image host may not redirect to an unapproved host.");
+  assert.equal(calls.length, 6, "Blocked image redirects must not contact the unapproved host.");
+
+  const oversizedImage = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/product-image?url=" + encodeURIComponent("https://images.unsplash.com/large-example")));
+  assert.equal(oversizedImage.status, 413, "Images over the 8 MiB limit must be rejected before downloading the body.");
+  assert.equal(calls.length, 7);
+
   const post = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/", { method: "POST" }));
   assert.equal(post.status, 405);
-  assert.equal(calls.length, 4, "Unsupported methods must not reach the upstream.");
+  assert.equal(calls.length, 7, "Unsupported methods must not reach the upstream.");
 
   failUpstream = true;
   const unavailable = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/"));

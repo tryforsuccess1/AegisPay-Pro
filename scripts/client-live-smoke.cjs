@@ -163,6 +163,9 @@ async function visit(page, url, expectedSelector) {
       assert.match(await fallbackTurnstileScript.text(), /0x4AAAAAAFZaOeTke8FQpVNS/,
         'Fallback Turnstile asset must contain the configured public site key.');
 
+      const blockedImage = await fallbackPage.request.get(fallbackUrl + '/product-image?url=' + encodeURIComponent('https://evil.invalid/not-an-image.png'));
+      assert.equal(blockedImage.status(), 403, 'Fallback image proxy must reject non-allowlisted hosts.');
+
       let fallbackAuthRequest = null;
       await fallbackPage.route('**/auth/v1/token**', async route => {
         const url = new URL(route.request().url());
