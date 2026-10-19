@@ -311,7 +311,7 @@ async function visit(page, url, expectedSelector) {
       assert.match(await fallbackRoot.text(), /id="liveLogin"/,
         'Fallback Worker root must serve the current Client login HTML.');
 
-      const fallbackAdmin = await fetch(fallbackUrl + '/admin/', { redirect: 'manual' });
+      const fallbackAdmin = await fetch(fallbackUrl + '/admin/', { redirect: 'manual', headers: { accept: 'text/html' } });
       assert.equal(fallbackAdmin.status, 200, 'Fallback Worker Admin route must serve the current Master Admin without redirecting.');
       assert.equal(fallbackAdmin.headers.get('x-aegispay-portal-source'), 'canonical-pages-proxy');
       assert.match(await fallbackAdmin.text(), /id="aaLoginForm"/,
