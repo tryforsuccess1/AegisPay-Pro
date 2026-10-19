@@ -172,11 +172,10 @@ function systemCard(){
 }
 
 function withdrawalAIControl(){
-  const c=state.settings.withdrawal_ai||{},enabled=c.enabled===true,cap=Number(c.max_auto_approve_usdt||100);
-  return '<section class="aa-panel" style="margin:14px 0"><div class="aa-panel-head"><div><h2>Withdrawal AI Approval</h2><p>Automatic approval is limited to eligible, low-risk cases. All uncertain requests stay in the Master Admin queue.</p></div><span class="aa-badge '+(enabled?'aa-badge-green':'aa-badge-amber')+'">'+(enabled?'BOT ON':'BOT OFF')+'</span></div>'+
-    '<div class="aa-detail-grid"><span>Approval limit<b>'+money(cap)+' USDT</b></span><span>Confidence threshold<b>98%+</b></span><span>Current payout gate<b>'+(state.productionDiag&&state.productionDiag.mainnet_payout_operational===true?'READY':'LOCKED')+'</b></span></div>'+
-    '<button type="button" class="aa-system-toggle '+(enabled?'on':'off')+'" data-action="withdrawal-ai-toggle">'+(enabled?'TURN WITHDRAWAL AI OFF':'TURN WITHDRAWAL AI ON')+'</button>'+
-    '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Master Admin escalation enabled</strong><small>Requests that fail confidence, KYC, wallet, balance or risk checks are sent to manual review. This toggle cannot unlock live payouts.</small></div></div></section>';
+  const gate=state.productionDiag&&state.productionDiag.mainnet_payout_operational===true;
+  return '<section class="aa-panel" style="margin:14px 0"><div class="aa-panel-head"><div><h2>Withdrawal Requests</h2><p>Every withdrawal request is sent to the Admin review queue. AI does not approve or initiate a payout.</p></div><span class="aa-badge aa-badge-amber">MANUAL REVIEW</span></div>'+
+    '<div class="aa-detail-grid"><span>Approval policy<b>Master Admin only</b></span><span>AI auto-approval<b>Disabled by policy</b></span><span>Current payout gate<b>'+(gate?'READY':'LOCKED')+'</b></span></div>'+
+    '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Admin approval required</strong><small>Withdrawal eligibility and payment execution are separate. Requests remain pending until an authorized Admin reviews them; real payouts remain behind the server-side production gate.</small></div></div></section>';
 }
 
 function dashboard(){
@@ -349,6 +348,18 @@ function supportCasesView(){
   const activeCase=cases.find(x=>x.id===state.activeSupportChatId&&x.representative_requested);
   const activeStatus=String(state.supportChatCase?.status||activeCase?.status||'OPEN').toUpperCase();
   const joined=Boolean(state.supportChatCase?.representative_joined_at||activeCase?.representative_joined_at);
+  function supportAttachmentRows(items){
+    return (Array.isArray(items)?items:[]).map(function(item){
+      const href=String(item?.signedUrl||'');
+      const valid=/^https:\/\/wtcspnrmsoisroavojop\.supabase\.co\/storage\/v1\/object\/sign\/private-support-attachments\//i.test(href);
+      const name=esc(String(item?.name||'Attachment'));
+      if(!valid)return '<div class="aa-muted" style="font-size:11px;margin-top:6px">Attachment unavailable; ask the client to re-send it.</div>';
+      if(/^image\/(jpeg|png|webp)$/i.test(String(item?.mimeType||''))){
+        return '<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="display:block;margin-top:7px"><img src="'+esc(href)+'" alt="'+name+'" loading="lazy" style="display:block;max-width:220px;max-height:220px;object-fit:contain;border:1px solid rgba(140,150,175,.3);border-radius:10px"><small>'+name+'</small></a>';
+      }
+      return '<a href="'+esc(href)+'" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" style="display:inline-block;margin-top:7px">📎 '+name+' · Open file</a>';
+    }).join('');
+  }
   const chatMessages=(state.supportChatMessages||[]).map(function(m){
     const role=String(m.sender_role||'SYSTEM').toUpperCase();
     if(role==='SYSTEM')return '<div class="aa-live-chat-system" style="align-self:center;max-width:92%;padding:8px 12px;border-radius:12px;text-align:center;background:rgba(217,96,156,.10);border:1px solid rgba(217,96,156,.25);font-size:12px">'+esc(m.message_text||'')+'</div>';
@@ -357,7 +368,7 @@ function supportCasesView(){
     const bubbleClass=role==='CLIENT'?'client':role==='REPRESENTATIVE'?'rep':'ai';
     const align=role==='CLIENT'?'flex-start':role==='REPRESENTATIVE'?'flex-end':'flex-start';
     const bg=role==='REPRESENTATIVE'?'rgba(139,92,246,.10)':role==='CLIENT'?'rgba(59,130,246,.08)':'rgba(148,163,184,.08)';
-    return '<div class="aa-live-chat-message '+bubbleClass+'" style="align-self:'+align+';max-width:88%;padding:10px 12px;border-radius:13px;border:1px solid rgba(140,150,175,.23);background:'+bg+';overflow-wrap:anywhere"><small style="display:block;margin-bottom:5px;font-size:10px;font-weight:700;color:var(--text)">'+esc(label)+'</small><div style="font-size:12px;line-height:1.5;white-space:pre-wrap">'+esc(m.message_text||'')+'</div><time style="display:block;margin-top:5px;font-size:9px;color:var(--muted)">'+esc(date(m.created_at))+'</time></div>';
+    return '<div class="aa-live-chat-message '+bubbleClass+'" style="align-self:'+align+';max-width:88%;padding:10px 12px;border-radius:13px;border:1px solid rgba(140,150,175,.23);background:'+bg+';overflow-wrap:anywhere"><small style="display:block;margin-bottom:5px;font-size:10px;font-weight:700;color:var(--text)">'+esc(label)+'</small><div style="font-size:12px;line-height:1.5;white-space:pre-wrap">'+esc(m.message_text||'')+'</div>'+supportAttachmentRows(m.attachments)+'<time style="display:block;margin-top:5px;font-size:9px;color:var(--muted)">'+esc(date(m.created_at))+'</time></div>';
   }).join('');
   const chatPanel=activeCase?'<section class="aa-panel aa-live-chat-panel" style="margin-bottom:18px"><div class="aa-panel-head"><div><h2>Live chat · '+esc(activeCase.user?.name||activeCase.user?.email||'Client')+'</h2><p>Messages appear here and in the client’s Aegis AI conversation.</p></div><span class="aa-badge '+(joined&&activeStatus==='IN_PROGRESS'?'aa-badge-green':'aa-badge-amber')+'">'+(joined&&activeStatus==='IN_PROGRESS'?'REPRESENTATIVE LIVE':esc(activeStatus))+'</span></div>'+
     (!joined&&['OPEN','IN_PROGRESS'].includes(activeStatus)?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Waiting for representative</strong><small>Select Start Live Chat to notify the client that you are now available in their existing conversation.</small></div></div>':'')+
@@ -430,9 +441,7 @@ function settings(){
       field('setRef1','Level 1 Referral Reward',Number(rr.level_1??5),'number')+
       field('setRef2','Level 2 Referral Reward',Number(rr.level_2??2),'number')+
       '<div class="aa-span-2 aa-ai-control"><div><strong>AI Evidence Precheck</strong><small>Controls AI precheck for KYC and deposit evidence. This toggle is separate from withdrawal approvals.</small></div><button type="button" class="aa-system-toggle '+((s.ai_review||{}).enabled!==false?'on':'off')+'" data-action="ai-toggle">'+((s.ai_review||{}).enabled!==false?'PRECHECK ON':'PRECHECK OFF')+'</button></div>'+
-      '<div class="aa-span-2 aa-ai-control"><div><strong>Withdrawal AI Approval Bot</strong><small>ON: only small, low-risk requests with verified KYC, matching locked wallet, clean balance checks and no recent withdrawals may auto-approve at 98%+ policy confidence. All other cases stay in your manual review queue. Real payouts remain behind the Phase 3 server gate.</small></div><button type="button" class="aa-system-toggle '+((s.withdrawal_ai||{}).enabled===true?'on':'off')+'" data-action="withdrawal-ai-toggle">'+((s.withdrawal_ai||{}).enabled===true?'WITHDRAWAL AI ON':'WITHDRAWAL AI OFF')+'</button></div>'+
-      field('setWithdrawalAICap','Maximum automatic withdrawal approval (USDT)',Number((s.withdrawal_ai||{}).max_auto_approve_usdt||100),'number')+
-      '<div class="aa-span-2"><button type="button" class="aa-secondary" data-action="withdrawal-ai-limit">Save Withdrawal AI Limit</button></div>'+
+      '<div class="aa-span-2 aa-ai-control"><div><strong>Withdrawal Requests</strong><small>Claude is not used to approve withdrawals. Every request requires Master Admin review. Real payout execution remains behind the Phase 3 server gate.</small></div><span class="aa-badge aa-badge-amber">MANUAL REVIEW ONLY</span></div>'+
       '<div class="aa-span-2"><button class="aa-primary" type="submit">Save Platform Rules</button></div>'+
     '</form></section>'+
     productionReadiness()+
