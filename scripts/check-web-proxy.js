@@ -34,6 +34,7 @@ const sandbox = vm.createContext({
   Headers,
   Request,
   Response,
+  Uint8Array,
   Blob,
   fetch: async (url, options) => {
     calls.push({ url: String(url), method: options.method, headers: Object.fromEntries(options.headers.entries()), redirect: options.redirect });
