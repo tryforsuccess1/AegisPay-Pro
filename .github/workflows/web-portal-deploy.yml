@@ -172,5 +172,6 @@ jobs:
           AEGIS_LIVE_URL: https://aegispay-pro.pages.dev
           AEGIS_FALLBACK_URL: https://aegispay-web.aegispay.workers.dev
           AEGIS_SHOP_URL: https://aegispay-shopping.aegispay.workers.dev
+          AEGIS_VERIFY_SHOP_FIX: "1"
           AEGIS_CHECK_LEGACY_HOTFIX: "1"
         run: node scripts/client-live-smoke.cjs
