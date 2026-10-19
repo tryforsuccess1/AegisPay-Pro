@@ -421,9 +421,11 @@ Deno.serve(async (req: Request) => {
       : attachment.mimeType === "image/png" ? "png"
       : attachment.mimeType === "image/webp" ? "webp" : "pdf";
     const path = authUserId + "/" + caseId + "/" + crypto.randomUUID() + "." + ext;
+    const uploadBuffer = new ArrayBuffer(attachment.bytes.byteLength);
+    new Uint8Array(uploadBuffer).set(attachment.bytes);
     const { error } = await admin.storage.from(SUPPORT_ATTACHMENT_BUCKET).upload(
       path,
-      new Blob([attachment.bytes], { type: attachment.mimeType }),
+      new Blob([uploadBuffer], { type: attachment.mimeType }),
       { contentType: attachment.mimeType, upsert: false }
     );
     if (error) throw new Error("The attachment could not be stored securely.");
@@ -799,6 +801,7 @@ Deno.serve(async (req: Request) => {
     const op = profile.role === "USER" ? await handleSafeOperation(admin, profile, message, context) : { handled: false };
     if (op.handled) {
       let supportCase = null;
+      const opAnswer = String(op.answer || fallback(message, context, history));
       const withdrawalRequest = profile.role === "USER" && isWithdrawalRequestIntent(message);
       const needsRepresentative = profile.role === "USER" && (op.needsEscalation || withdrawalRequest || isSupportIssueIntent(message));
       if (needsRepresentative) {
@@ -807,16 +810,16 @@ Deno.serve(async (req: Request) => {
             admin, { id: profile.auth_user_id }, profile, message,
             withdrawalRequest
               ? "Client submitted a withdrawal-related request. Admin review is required; no automatic payout has been initiated."
-              : op.answer,
+              : opAnswer,
             "CUSTOMER_REPRESENTATIVE"
           );
         } catch (_) {
-          return json({ configured: false, provider: "aegispay-guidance", answer: sanitizeClientAnswer(op.answer + "\n\nWe could not notify support automatically. Please tap Talk to a Customer Representative and retry."), supportCaseError: true, degraded: false }, 200);
+          return json({ configured: false, provider: "aegispay-guidance", answer: sanitizeClientAnswer(opAnswer + "\n\nWe could not notify support automatically. Please tap Talk to a Customer Representative and retry."), supportCaseError: true, degraded: false }, 200);
         }
       }
       const responseText = withdrawalRequest
         ? "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon."
-        : op.answer + (supportCase ? "\n\nA representative may contact you soon." : "");
+        : opAnswer + (supportCase ? "\n\nA representative may contact you soon." : "");
       return json({ configured: false, provider: "aegispay-guidance", answer: sanitizeClientAnswer(responseText), degraded: false, supportCase });
     }
 
