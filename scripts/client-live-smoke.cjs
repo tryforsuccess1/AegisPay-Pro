@@ -193,10 +193,21 @@ async function visit(page, url, expectedSelector) {
       assert.deepEqual(await fallbackPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 1 },
         'Fallback Turnstile must initialize and execute on Login click, then reset after the mocked auth attempt.');
 
-      const fallbackAdminResponse = await fallbackPage.request.get(fallbackUrl + '/admin/');
-      assert.equal(fallbackAdminResponse.status(), 200, 'Fallback Master Admin route must render through the proxy.');
-      assert.match(await fallbackAdminResponse.text(), /id="aaLoginForm"/,
-        'Fallback Master Admin route must serve the current Admin login page.');
+      const fallbackAdminPage = await context.newPage();
+      fallbackAdminPage.on('pageerror', error => pageErrors.push('fallback-admin: ' + error.message));
+      fallbackAdminPage.on('response', response => {
+        if ((response.url().startsWith(fallbackUrl) || response.url().startsWith(baseUrl)) && response.status() >= 400) {
+          sameOriginErrors.push('fallback-admin ' + response.status() + ' ' + response.url());
+        }
+      });
+      await visit(fallbackAdminPage, fallbackUrl + '/admin/', '#aaLoginForm');
+      assert.equal(new URL(fallbackAdminPage.url()).origin, new URL(fallbackUrl).origin,
+        'Fallback Admin browser must remain on workers.dev.');
+      assert.equal(await fallbackAdminPage.locator('#aaLoginForm').count(), 1,
+        'Fallback Master Admin browser must render exactly one live login form.');
+      assert.equal(await fallbackAdminPage.locator('#aaLoginForm button[type="submit"]').isVisible(), true,
+        'Fallback Master Admin login action must be visible.');
+
     }
 
     const adminPage = await context.newPage();
