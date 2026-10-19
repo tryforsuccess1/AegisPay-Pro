@@ -6,9 +6,25 @@ const vm = require('node:vm');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'workers/aegispay-shopping/shop.html'), 'utf8');
 const worker = fs.readFileSync(path.join(root, 'workers/aegispay-shopping/index.js'), 'utf8');
+const client = fs.readFileSync(path.join(root, 'client.html'), 'utf8');
+const android = fs.readFileSync(path.join(root, 'android/app/src/main/java/com/aegispay/app/MainActivity.java'), 'utf8');
 const scripts = Array.from(html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/gi), match => match[1]);
 assert.ok(scripts.length >= 2, 'Shop page should contain an early error guard and app script.');
 for (const [index, source] of scripts.entries()) new vm.Script(source, { filename: 'shop-inline-' + index + '.js' });
+
+const bootStart = client.indexOf("function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}");
+const bootEnd = client.indexOf('</script>', bootStart);
+assert.ok(bootStart >= 0 && bootEnd > bootStart, 'Client startup block should be present.');
+const bootBlock = client.slice(bootStart, bootEnd);
+assert.match(bootBlock, /function showAuthBootstrap\\(\\)/, 'Client must render a session-restore state first.');
+assert.match(bootBlock, /Restoring your secure session/, 'Session restoration should be clearly signalled while auth is checking.');
+assert.match(bootBlock, /showAuthBootstrap\\(\\);/, 'Client must not synchronously render Login before session restoration.');
+assert.doesNotMatch(bootBlock, /go\\('login'\\);/, 'The initial Client script must not flash Login before auth bootstrap.');
+assert.match(client, /function openAegisShopMarketplace\\(taskId,productId,title\\)/, 'Both Browse Shop and task Purchase must share the safe marketplace navigator.');
+assert.match(client, /openAegisShopMarketplace\\(\\)/, 'Browse Shop Marketplace must call the shared navigator.');
+assert.match(android, /private String pendingShopReturnUrl;/, 'Android must retain a safe Shop return route for the hardware Back button.');
+assert.match(android, /uri\\.getQueryParameter\\("return"\\)/, 'Android Shop navigation must read the encoded return route.');
+assert.match(android, /isTrustedLocalPortal\\(returnUri\\)/, 'Android must validate a Shop return against the trusted local app origin.');
 new vm.Script(worker.replace('import SHOP_HTML from "./shop.html";', 'const SHOP_HTML = "";').replace('export default {', 'const worker = {'), { filename: 'workers/aegispay-shopping/index.js' });
 const categories = Array.from(html.matchAll(/\{k:'([^']+)',e:'[^']+',items:\[([\s\S]*?)\]\}/g));
 assert.equal(categories.length, 7, 'Shop should define seven categories.');
@@ -20,7 +36,7 @@ assert.match(html, /dataset\.localFallback/, 'Failed direct and proxied product 
 assert.match(html, /image unavailable/, 'Shop must have a final visible fallback instead of a broken image tile');
 assert.match(html, /location\.replace\(safeReturn\.toString\(\)\)/);
 assert.match(worker, /source:\s*"tryforsuccess1\/AegisPay-Pro"/);
-console.log('Shop page checks passed: inline JavaScript parses; 7 categories × 30 products; safe return wiring is present.');
+console.log('Shop and startup checks passed: inline JavaScript parses; 210 products; safe return routing; no pre-auth login flash; Android Back route retained.');
 
 assert.match(html, /const FAST_REAL_IMAGES=/, 'Shop must have a compact set of real image URLs ready before the full catalog request finishes.');
 assert.match(html, /ITEMS\.forEach\(function\(product\)\{product\.photo=fastRealPhoto\(product\);\}\)/, 'Real product photos must seed the initial render before the catalog CSV is loaded.');
