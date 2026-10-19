@@ -1578,6 +1578,7 @@ function openTaskMarketplace(taskId){
  if(!product){uiNotice('Product details are not available for this task yet.','error');return}
  openAegisShopMarketplace(taskId,product.id,String(offer?.title||product.title||'').trim());
 }
+window.openAegisShopMarketplace=openAegisShopMarketplace;
 function openTaskProduct(taskId){
  const x=taskProductData[String(taskId)]||{},task=x.task||{},offer=x.offer||{};
  let product=x.product||null;
