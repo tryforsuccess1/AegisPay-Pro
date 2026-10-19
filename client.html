@@ -2346,7 +2346,7 @@ window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){
     const p=profile,r=await db.from('referrals').select('referral_level,platform_reward,created_at,referred_user_id').eq('user_id',p.id).order('created_at',{ascending:false});
     if(r.error){uiNotice('Unable to load referral records.','error');return;}
     const rows=r.data||[],reward=rows.reduce(function(n,x){return n+Number(x.platform_reward||0);},0),code=String(p.referral_code||'').trim().toUpperCase();
-    const referralLink=code?'https://aegispay-pro.pages.dev/app/?ref='+encodeURIComponent(code)+'&signup=1':'';
+    const referralLink=code?'https://aegispay-web.aegispay.workers.dev/app/?ref='+encodeURIComponent(code)+'&signup=1':'';
     const lvl=function(n){const rr=rows.filter(function(x){return Number(x.referral_level)===n;});return '<div class="p2-step"><span class="n">'+n+'</span><div class="grow"><b>Level '+n+'</b><small>'+rr.length+' members · '+rr.reduce(function(t,y){return t+Number(y.platform_reward||0);},0).toFixed(2)+' USDT rewards</small></div></div>';};
     app.innerHTML=top('Referral')+
       '<div class="p2-balance" style="background:radial-gradient(90% 130% at 100% 0,rgba(201,75,138,.20),transparent 55%),linear-gradient(135deg,#28166f,#0f1026 72%)"><small style="color:#4a3a2c">Your Referral Code</small><h2 style="font-size:28px;letter-spacing:1px;color:#FFFFFF">'+esc(code||'—')+'</h2><div class="sub" style="color:#DDE5FF">Share your personal link. The referral code will be filled into the signup form.</div></div>'+
