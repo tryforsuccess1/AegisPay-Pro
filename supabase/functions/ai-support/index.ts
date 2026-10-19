@@ -711,15 +711,34 @@ Deno.serve(async (req: Request) => {
         JSON.stringify(context),
       ].join("\n");
       try {
-        const response = await fetch(completionUrl(AI_ENDPOINT), {
+        const endpointUrl = new URL(AI_ENDPOINT);
+        if (endpointUrl.protocol !== "https:") throw new Error("AI endpoint must use HTTPS.");
+        const anthropic = endpointUrl.hostname.toLowerCase() === "api.anthropic.com";
+        let requestUrl = completionUrl(AI_ENDPOINT);
+        if (anthropic && !endpointUrl.pathname.replace(/\\/+$/, "").endsWith("/v1/messages")) {
+          endpointUrl.pathname = endpointUrl.pathname.replace(/\\/+$/, "") + "/v1/messages";
+          requestUrl = endpointUrl.toString();
+        }
+        const requestHeaders: Record<string, string> = anthropic
+          ? { "x-api-key": AI_KEY, "anthropic-version": "2023-06-01", "Content-Type": "application/json" }
+          : { "Authorization": "Bearer " + AI_KEY, "Content-Type": "application/json" };
+        const requestBody = anthropic
+          ? { model: AI_MODEL, max_tokens: 600, system: systemPrompt,
+              messages: [...history, { role: "user", content: message }] }
+          : { model: AI_MODEL, temperature: 0.15, max_tokens: 600,
+              messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: message }] };
+        const response = await fetch(requestUrl, {
           method: "POST",
-          headers: { "Authorization": "Bearer " + AI_KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: AI_MODEL, temperature: 0.15, max_tokens: 600,
-            messages: [{ role: "system", content: systemPrompt }, ...history, { role: "user", content: message }] }),
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
           signal: AbortSignal.timeout(12000)
         });
         const bodyJson = await response.json().catch(() => null);
-        if (response.ok) answer = String(bodyJson?.choices?.[0]?.message?.content || bodyJson?.output_text || "").trim();
+        if (response.ok) {
+          answer = anthropic
+            ? (Array.isArray(bodyJson?.content) ? bodyJson.content.filter((x: any) => x?.type === "text").map((x: any) => String(x.text || "")).join("\\n") : "").trim()
+            : String(bodyJson?.choices?.[0]?.message?.content || bodyJson?.output_text || "").trim();
+        }
         if (!answer) { answer = fallback(message, context, history); degraded = true; }
       } catch (_) { answer = fallback(message, context, history); degraded = true; }
     }
