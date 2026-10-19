@@ -328,7 +328,7 @@ const shopCheckoutRoleHardening=fs.readFileSync('database/migrations/20261010_fa
 assert(shopCheckoutRoleHardening.includes("auth.jwt() ->> 'role'"),'Shop checkout must support current Supabase JWT claim settings');
 assert(shopCheckoutRoleHardening.includes("v_jwt_role IS NULL OR v_jwt_role NOT IN ('authenticated','service_role')"),'Shop checkout must reject missing and unsupported JWT roles');
 assert(client.includes("qs.get('shop_purchase')==='confirmed'"),'Client Shop purchase return callback is missing');
-assert(client.includes("&product=")||client.includes("'&product='"),'Shop task marketplace link must carry the assigned product ID');
+assert(client.includes("destination.searchParams.set('product',String(productId))"),'Shared Shop marketplace navigation must carry the assigned product ID');
 assert(client.includes("qs.get('reset')==='1'"),'Client password reset route is missing');
 assert(!client.includes("db.rpc('link_withdrawal_wallet',{p_wallet:wallet})"),'Legacy one-argument wallet RPC must not be called by the client');
 assert(!client.includes('aegispay-client1.netlify.app')&&!client.includes('aegispay-ali-archive.netlify.app'),'Legacy Netlify production redirect remains in client source');
