@@ -135,13 +135,19 @@ async function fetchProductImage(request, incoming) {
       chunks.push(part.value);
     }
 
+    const imageBytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      imageBytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
     const headers = new Headers({
       "content-type": contentType,
       "cache-control": "public, max-age=86400, stale-while-revalidate=604800",
       "access-control-allow-origin": "*",
       "x-content-type-options": "nosniff"
     });
-    const response = new Response(request.method === "HEAD" ? null : new Blob(chunks, { type: contentType }), {
+    const response = new Response(request.method === "HEAD" ? null : imageBytes, {
       status: 200,
       headers
     });
