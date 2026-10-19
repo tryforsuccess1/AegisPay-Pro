@@ -242,6 +242,8 @@ async function visit(page, url, expectedSelector) {
 
     const shopUrl = String(process.env.AEGIS_SHOP_URL || 'https://aegispay-shopping.aegispay.workers.dev').replace(/\/+$/, '');
     const shopPage = await context.newPage();
+    const shopImageFallbackChecks = [];
+    let expectedMissingShopImages = 0;
     await shopPage.addInitScript(() => {
       window.__aegisInitialLoginFlash = false;
       const observer = new MutationObserver(() => {
@@ -253,9 +255,25 @@ async function visit(page, url, expectedSelector) {
     });
     shopPage.on('pageerror', error => pageErrors.push('shop: ' + error.message));
     shopPage.on('response', response => {
-      if (response.url().startsWith(shopUrl) && response.status() >= 400) {
-        sameOriginErrors.push('shop ' + response.status() + ' ' + response.url());
+      if (!response.url().startsWith(shopUrl) || response.status() < 400) return;
+      const responseUrl = new URL(response.url());
+      // Old product datasets can contain Amazon CDN URLs that have since expired.
+      // The Shop Worker intentionally responds with "Image unavailable" and the
+      // storefront then switches the tile to its local fallback artwork. Permit
+      // only that exact upstream-missing-image response; a missing Worker route
+      // (for example, a "Not found" 404) must still fail the smoke test.
+      if (responseUrl.pathname === '/image-proxy' && response.status() === 404) {
+        shopImageFallbackChecks.push((async () => {
+          const body = await response.text().catch(() => '');
+          if (body.trim() === 'Image unavailable') {
+            expectedMissingShopImages += 1;
+            return;
+          }
+          sameOriginErrors.push('shop ' + response.status() + ' ' + response.url() + ' (' + body.slice(0, 120) + ')');
+        })());
+        return;
       }
+      sameOriginErrors.push('shop ' + response.status() + ' ' + response.url());
     });
     await visit(shopPage, shopUrl + '/', 'html[data-shop-ready="true"]');
     assert.match(await shopPage.title(), /AegisPay Shop/i, 'Shop Worker should show the Shop marketplace page.');
@@ -375,6 +393,11 @@ async function visit(page, url, expectedSelector) {
       adminWidths.push(width);
     }
 
+    await Promise.all(shopImageFallbackChecks);
+    if (expectedMissingShopImages > 0) {
+      console.log('SHOP IMAGE FALLBACK: ' + expectedMissingShopImages +
+        ' stale external product image URL(s) returned the expected "Image unavailable" response; these do not block Shop navigation.');
+    }
     assert.deepEqual(sameOriginErrors, [], 'Live site returned failed same-origin resources: ' + sameOriginErrors.join(' | '));
     assert.deepEqual(pageErrors, [], 'Live site uncaught browser errors: ' + pageErrors.join(' | '));
 
