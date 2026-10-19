@@ -372,7 +372,7 @@ function supportCasesView(){
 function productionReadiness(){
   const d=state.productionDiag||{};
   // Prefer the authenticated Edge Function diagnostic when the legacy RPC is unavailable or returns a partial payload.
-  const p=Object.assign({},d.readiness||{},state.production||{});
+  const p=Object.assign({},state.production||{},d.readiness||{});
   const depositOn=Boolean(p.production_config_live_deposits);
   const payoutOn=Boolean(p.production_config_real_payouts);
   const locked=p.payouts_locked!==false;
