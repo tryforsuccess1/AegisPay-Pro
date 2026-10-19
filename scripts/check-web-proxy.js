@@ -25,17 +25,7 @@ assert.ok(clientHtml.includes("redirectTo:passwordResetRedirectTo()"));
 assert.ok(serviceSource.includes("function webPasswordResetRedirect(){"));
 assert.ok(serviceSource.includes("redirectTo:webPasswordResetRedirect()"));
 
-const imageFailureCatch = `  } catch (_) {
-    return errorResponse(502, "Image fetch failed", request.method);
-  }
-}`;
-assert.ok(source.includes(imageFailureCatch), "Image-proxy error handler marker must exist.");
-const instrumentedSource = source.replace(imageFailureCatch, `  } catch (error) {
-    globalThis.__testImageProxyError = String(error);
-    return errorResponse(502, "Image fetch failed", request.method);
-  }
-}`);
-const executable = instrumentedSource.replace(/export default\s*\{/, "globalThis.__worker = {");
+const executable = source.replace(/export default\s*\{/, "globalThis.__worker = {");
 assert.notEqual(executable, source, "Worker module needs a default export for the test harness.");
 const calls = [];
 let failUpstream = false;
@@ -47,7 +37,10 @@ const sandbox = vm.createContext({
   Uint8Array,
   Blob,
   fetch: async (url, options) => {
-    calls.push({ url: String(url), method: options.method, headers: Object.fromEntries(options.headers.entries()), redirect: options.redirect });
+    const headerSnapshot = options.headers && typeof options.headers.entries === "function"
+      ? Object.fromEntries(options.headers.entries())
+      : { ...(options.headers || {}) };
+    calls.push({ url: String(url), method: options.method, headers: headerSnapshot, redirect: options.redirect });
     if (failUpstream) throw new Error("private upstream detail must not leak");
     if (String(url).includes("redirect-example")) {
       return new Response(null, { status: 302, headers: { location: "https://evil.invalid/pixel.png" } });
@@ -110,7 +103,7 @@ vm.runInContext(executable, sandbox, { filename: "workers/aegispay-web/index.js"
   assert.equal(await head.text(), "");
 
   const image = await workerInstance.fetch(new Request("https://aegispay-web.aegispay.workers.dev/product-image?url=" + encodeURIComponent("https://images.unsplash.com/photo-abc")));
-  assert.equal(image.status, 200, "Approved image hosts must remain available through the fallback host; proxy error: " + (sandbox.__testImageProxyError || "none"));
+  assert.equal(image.status, 200, "Approved image hosts must remain available through the fallback host.");
   assert.equal(image.headers.get("content-type"), "image/png");
   assert.equal(image.headers.get("access-control-allow-origin"), "*");
   assert.equal(calls[4].url, "https://images.unsplash.com/photo-abc");
