@@ -146,6 +146,10 @@ assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+const landingPage=fs.readFileSync('site/index.html','utf8');
+const stablePortal='https://aegispay-web.aegispay.workers.dev';
+assert((landingPage.match(/href="https:\/\/aegispay-web\.aegispay\.workers\.dev\/app\//g)||[]).length>=3&&!landingPage.includes('href="/app/"'),
+  'All public Client Portal CTAs must use the stable workers.dev front door instead of the canonical Pages or per-deployment preview host.');
 const serviceWorker=fs.readFileSync('service-worker.js','utf8');
 const shopWorkerPage=fs.readFileSync('workers/aegispay-shopping/shop.html','utf8');
 const taskImageBinder=client.slice(client.indexOf('function bindTaskImageFallback(root){'),client.indexOf('function bindTaskDelegation()',client.indexOf('function bindTaskImageFallback(root){')));
