@@ -382,6 +382,13 @@ nav.aegis-bottom-nav a.on {
   transition: box-shadow .15s ease;
 }
 .ai-input-shell:focus-within { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--p2); }
+.ai-input-shell { gap: 4px; }
+.ai-attach-btn { flex: 0 0 32px; width: 32px; height: 32px; min-width: 32px; padding: 0; display: grid; place-items: center; border: 0; border-radius: 12px; background: var(--s2); color: var(--p2); font: 600 24px/1 var(--ff); cursor: pointer; }
+.ai-attach-btn:disabled, .ai-attachment-remove:disabled { opacity: .55; cursor: wait; }
+.ai-attachment-name { max-width: 82px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--mut); font: 600 9px/1.2 var(--ff); }
+.ai-attachment-remove { flex: 0 0 22px; width: 22px; height: 28px; padding: 0; border: 0; background: transparent; color: var(--p2); font: 600 18px/1 var(--ff); cursor: pointer; }
+.ai-attachment-name[hidden], .ai-attachment-remove[hidden], #aiAttachmentInput[hidden] { display: none !important; }
+.ai-input-shell.has-attachment input#aiInput { padding-left: 6px; padding-right: 4px; font-size: 12px; }
 .ai-input-shell input#aiInput {
   flex: 1 1 auto; min-width: 0; width: 100%; height: 100%; min-height: 0;
   padding: 0 16px; border: 1px solid var(--line); border-radius: 17px;
@@ -726,7 +733,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><section class="ai-support-cta" aria-label="Customer support"><button class="ai-support-button" id="aiRepresentative" type="button"><span class="ai-support-icon">i</span><span class="ai-support-copy"><strong>Talk to a Customer Representative</strong><small>Need more help? Our support team can review your issue.</small></span><span class="ai-support-chevron">›</span></button><div id="aiRepresentativeStatus" class="ai-support-status" aria-live="polite" hidden></div></section><div class="ai-composer"><div class="ai-input-shell"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"></div><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
+bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><section class="ai-support-cta" aria-label="Customer support"><button class="ai-support-button" id="aiRepresentative" type="button"><span class="ai-support-icon">i</span><span class="ai-support-copy"><strong>Talk to a Customer Representative</strong><small>Need more help? Our support team can review your issue.</small></span><span class="ai-support-chevron">›</span></button><div id="aiRepresentativeStatus" class="ai-support-status" aria-live="polite" hidden></div></section><div class="ai-composer"><div class="ai-input-shell" id="aiInputShell"><button class="ai-attach-btn" id="aiAttach" type="button" aria-label="Attach screenshot or PDF" title="Attach screenshot or PDF">+</button><input id="aiAttachmentInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><span id="aiAttachmentName" class="ai-attachment-name" hidden></span><button class="ai-attachment-remove" id="aiAttachmentRemove" type="button" aria-label="Remove attachment" hidden>×</button></div><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 function showAuthBootstrap(){
  app.innerHTML='<div class="card" role="status" aria-live="polite" style="margin-top:22vh;padding:24px;text-align:center"><div style="font-size:22px;font-weight:700;letter-spacing:-.4px">Aegis<span style="background:linear-gradient(135deg,var(--p1),var(--p2));background-clip:text;-webkit-background-clip:text;color:transparent">Pay</span></div><p class="mu" style="margin-top:8px">Restoring your secure session…</p><div aria-hidden="true" style="height:3px;width:120px;margin:18px auto 0;border-radius:9px;background:linear-gradient(90deg,var(--p1),var(--p2))"></div></div>';
@@ -1827,6 +1834,9 @@ function bindAuthForms(){
 
 const AI_HISTORY_KEY='aegispay_ai_history_v2';
 let aiHistory=[];
+let aiSelectedAttachment=null;
+const AI_SUPPORT_ATTACHMENT_MAX_BYTES=3*1024*1024;
+const AI_SUPPORT_ATTACHMENT_TYPES=new Set(['image/jpeg','image/png','image/webp','application/pdf']);
 let awaitingRepresentativeIssue=false;
 let representativeRequestInFlight=false;
 let liveSupportCaseId=null;
@@ -1857,6 +1867,54 @@ function safeAiDisplayText(value){
   const text=String(value||'').trim();
   return /\bmaster\s+admin\b|\btelegram\b/i.test(text) ? 'A representative may contact you soon.' : text;
 }
+function aiSafeSupportAttachmentUrl(value){
+  const url=String(value||'');
+  return /^https:\/\/wtcspnrmsoisroavojop\.supabase\.co\/storage\/v1\/object\/sign\/private-support-attachments\//i.test(url)?url:'';
+}
+function aiSupportAttachmentMarkup(items){
+  return (Array.isArray(items)?items:[]).map(function(item){
+    const url=aiSafeSupportAttachmentUrl(item?.signedUrl);
+    const name=esc(String(item?.name||'Attachment'));
+    if(!url)return '<div class="ai-attachment-failed">Attachment unavailable. Please ask the representative to resend it.</div>';
+    const image=/^image\/(jpeg|png|webp)$/i.test(String(item?.mimeType||''));
+    if(image)return '<a class="ai-attachment-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer"><img src="'+esc(url)+'" alt="'+name+'" loading="lazy" style="display:block;max-width:190px;max-height:190px;object-fit:contain;border-radius:10px;border:1px solid var(--line);margin-top:7px"><small>'+name+'</small></a>';
+    return '<a class="ai-attachment-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">📎 '+name+' · Open file</a>';
+  }).join('');
+}
+function updateAiAttachmentUI(){
+  const file=aiSelectedAttachment;
+  const shell=document.getElementById('aiInputShell');
+  const label=document.getElementById('aiAttachmentName');
+  const remove=document.getElementById('aiAttachmentRemove');
+  const input=document.getElementById('aiInput');
+  if(shell)shell.classList.toggle('has-attachment',Boolean(file));
+  if(label){label.hidden=!file;label.textContent=file?String(file.name||'Attachment'):'';
+    label.title=file?String(file.name||'Attachment'):'';}
+  if(remove)remove.hidden=!file;
+  if(input&&file&&!liveSupportCase?.representative_joined_at)input.placeholder='Add details (optional)...';
+}
+function aiClearAttachment(){
+  aiSelectedAttachment=null;
+  const picker=document.getElementById('aiAttachmentInput');
+  if(picker)picker.value='';
+  updateAiAttachmentUI();
+}
+function aiSerializeAttachment(file){
+  if(!file)return Promise.resolve(null);
+  if(!AI_SUPPORT_ATTACHMENT_TYPES.has(String(file.type||'').toLowerCase()))return Promise.reject(new Error('Choose a JPG, PNG, WebP image or PDF file.'));
+  if(file.size<1||file.size>AI_SUPPORT_ATTACHMENT_MAX_BYTES)return Promise.reject(new Error('Attachments must be 3 MB or smaller.'));
+  return new Promise(function(resolve,reject){
+    const reader=new FileReader();
+    reader.onload=function(){
+      const dataUrl=String(reader.result||'');
+      const comma=dataUrl.indexOf(',');
+      if(comma<0)return reject(new Error('The selected file could not be read.'));
+      resolve({name:String(file.name||'attachment').slice(0,100),mimeType:String(file.type||'').toLowerCase(),base64:dataUrl.slice(comma+1)});
+    };
+    reader.onerror=function(){reject(new Error('The selected file could not be read.'));};
+    reader.readAsDataURL(file);
+  });
+}
 function aiHistoryRows(items){
   return items.map(x=>'<div class="'+(x.role==='user'?'m2':'m1')+' ai-msg">'+esc(x.role==='assistant'?safeAiDisplayText(x.content):x.content)+'</div>').join('');
 }
@@ -1867,7 +1925,7 @@ function aiLiveMessageRows(){
     if(role==='SYSTEM')return '<div class="ai-live-system" role="status">'+esc(safeAiDisplayText(text))+'</div>';
     const mine=role==='CLIENT';
     const label=mine?'You':role==='REPRESENTATIVE'?'Customer Representative':'Aegis AI';
-    return '<div class="'+(mine?'m2':'m1')+' ai-msg '+(role==='REPRESENTATIVE'?'ai-live-representative':'')+'"><small class="ai-live-message-label">'+esc(label)+'</small><div>'+esc(text)+'</div></div>';
+    return '<div class="'+(mine?'m2':'m1')+' ai-msg '+(role==='REPRESENTATIVE'?'ai-live-representative':'')+'"><small class="ai-live-message-label">'+esc(label)+'</small><div>'+esc(text)+'</div>'+aiSupportAttachmentMarkup(m.attachments)+'</div>';
   }).join('');
 }
 function aiLiveStorageKey(suffix){
@@ -1973,22 +2031,24 @@ function startAiLiveSupportPolling(){
     refreshAiLiveSupportState();
   },2500);
 }
-async function sendLiveSupportMessage(raw){
+async function sendLiveSupportMessage(raw,attachmentFile=aiSelectedAttachment){
   const message=String(raw||'').trim().slice(0,2000);
-  if(!message||!liveSupportCaseId||liveSupportSendInFlight)return;
+  if((!message&&!attachmentFile)||!liveSupportCaseId||liveSupportSendInFlight)return;
   if(!liveSupportCase || !['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase()))return;
   liveSupportSendInFlight=true;
   const input=document.getElementById('aiInput'),send=document.getElementById('aiSend'),notice=document.getElementById('aiRepresentativeStatus');
   if(input){input.value='';input.disabled=true;}
   if(send)send.disabled=true;
   try{
-    const result=await db.functions.invoke('ai-support',{body:{action:'client_send_chat_message',caseId:liveSupportCaseId,message}});
+    const attachment=attachmentFile?await aiSerializeAttachment(attachmentFile):null;
+    const result=await db.functions.invoke('ai-support',{body:{action:'client_send_chat_message',caseId:liveSupportCaseId,message,attachment}});
     if(result.error||!result.data?.ok||!result.data?.message)throw new Error('send_failed');
     liveSupportMessages.push(result.data.message);
     liveSupportMessages=liveSupportMessages.slice(-250);
+    if(attachmentFile&&attachmentFile===aiSelectedAttachment)aiClearAttachment();
     aiRender();
   }catch(_){
-    if(notice){notice.hidden=false;notice.textContent='Your message could not be sent. Please try again.';}
+    if(notice){notice.hidden=false;notice.textContent='Your message or attachment could not be sent. Please try again.';}
     if(input)input.value=message;
   }finally{
     liveSupportSendInFlight=false;
@@ -1999,8 +2059,11 @@ async function sendLiveSupportMessage(raw){
   }
 }
 function aiSetBusy(busy){
-  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative');
+  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative'),attach=document.getElementById('aiAttach'),picker=document.getElementById('aiAttachmentInput'),remove=document.getElementById('aiAttachmentRemove');
   if(input)input.disabled=busy;
+  if(attach)attach.disabled=busy;
+  if(picker)picker.disabled=busy;
+  if(remove)remove.disabled=busy;
   if(button)button.disabled=busy;
   if(representative)representative.disabled=busy||representativeRequestInFlight;
 }
@@ -2011,11 +2074,11 @@ function usefulSupportMessage(value){
   /* Route immediately only when earlier messages actually describe an issue, not a routine question. */
   return /\b(not working|doesn't work|does not work|can't|cannot|unable|failed|failure|stuck|missing|disappeared|error|bug|complaint|problem|issue|wrong|incorrect|pending|not showing|not appear|not received|not credited|not updated|not reflected|rejected|blocked|suspended|tried again|still not|keeps failing|need help|help me|manual review|verification delay)\b|\b(nahi|nahin|nhi|masla|maslay|galat|galt|nahi chal|kaam nahi|show nahi|credit nahi|receive nahi|update nahi)\b/i.test(text);
 }
-async function submitRepresentativeRequest(issueText){
+async function submitRepresentativeRequest(issueText,attachmentFile=aiSelectedAttachment){
   if(representativeRequestInFlight)return;
   if(!profile){oldGo('login');return;}
   const message=String(issueText||'').trim().slice(0,1000);
-  if(message.length<8){
+  if(message.length<8&&!attachmentFile){
     awaitingRepresentativeIssue=true;
     aiHistory.push({role:'assistant',content:'Of course. Please briefly describe the issue you need help with, and I will send it to our customer representative.'});
     aiSaveHistory();aiRender();
@@ -2037,7 +2100,8 @@ async function submitRepresentativeRequest(issueText){
   try{
     const history=aiHistory.filter(x=>x&&['user','assistant'].includes(x.role)).slice(-10);
     const transcriptSeedCount=aiHistory.length;
-    const result=await db.functions.invoke('ai-support',{body:{action:'create_support_case',message,history}});
+    const attachment=attachmentFile?await aiSerializeAttachment(attachmentFile):null;
+    const result=await db.functions.invoke('ai-support',{body:{action:'create_support_case',message,history,attachment}});
     if(result.error){
       let detail='';
       try{if(result.error.context&&typeof result.error.context.clone==='function'){const body=await result.error.context.clone().json();detail=body&&body.error?String(body.error):'';}}catch(_){}
@@ -2047,10 +2111,11 @@ async function submitRepresentativeRequest(issueText){
     if(data.ok!==true||!data.supportCase)throw Error(data.error||'The support request could not be confirmed.');
     rememberAiLiveCase(data.supportCase.id,transcriptSeedCount);
     liveSupportCase={...data.supportCase,representative_requested:true};
+    if(attachmentFile&&attachmentFile===aiSelectedAttachment&&data.attachmentSaved!==false)aiClearAttachment();
     liveSupportStateLoaded=false;
     liveSupportMessages=[];
     if(status)status.textContent='● Waiting for a representative';
-    if(supportStatus){supportStatus.hidden=false;supportStatus.textContent='Your request has been received. A representative may contact you soon.';}
+    if(supportStatus){supportStatus.hidden=false;supportStatus.textContent=data.attachmentSaved===false?'Your request was received, but the file did not upload. Send the attachment again in this chat.':data.supportCase.telegramNotified===false?'Your request was saved, but the notification could not be confirmed. Please try again if support does not respond.':'Your request has been received. A representative may contact you soon.';}
     await refreshAiLiveSupportState();
   }catch(error){
     const answer='We could not submit your request. Please try again.';
@@ -2065,6 +2130,12 @@ async function submitRepresentativeRequest(issueText){
 }
 async function talkToRepresentative(){
   if(representativeRequestInFlight)return;
+  if(aiSelectedAttachment){
+    const earlierWithFile=aiHistory.filter(x=>x&&x.role==='user'&&usefulSupportMessage(x.content)).slice(-4);
+    const attachmentIssue=earlierWithFile.map((x,i)=>(i+1)+'. '+String(x.content||'').trim()).join('\n').slice(-800)||'Please review the attached screenshot.';
+    await submitRepresentativeRequest(attachmentIssue,aiSelectedAttachment);
+    return;
+  }
   const earlier=aiHistory.filter(x=>x&&x.role==='user'&&usefulSupportMessage(x.content)).slice(-4);
   if(!earlier.length){
     awaitingRepresentativeIssue=true;
@@ -2081,15 +2152,24 @@ async function talkToRepresentative(){
 }
 async function aiAsk(raw){
   const message=String(raw||'').trim().slice(0,1000);
-  if(!message)return;
+  const attachmentFile=aiSelectedAttachment;
+  if(!message&&!attachmentFile)return;
+  const attachmentNote=attachmentFile?'\n[Attachment: '+String(attachmentFile.name||'file')+']':'';
+  const displayMessage=(message||('Please review the attached file: '+String(attachmentFile?.name||'attachment'))).slice(0,1000);
   if(awaitingRepresentativeIssue){
     awaitingRepresentativeIssue=false;
-    aiHistory.push({role:'user',content:message});aiSaveHistory();aiRender();
-    await submitRepresentativeRequest(message);
+    aiHistory.push({role:'user',content:displayMessage+attachmentNote});aiSaveHistory();aiRender();
+    await submitRepresentativeRequest(displayMessage,attachmentFile);
     return;
   }
   if(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase())){
-    await sendLiveSupportMessage(message);
+    await sendLiveSupportMessage(message,attachmentFile);
+    return;
+  }
+  if(attachmentFile){
+    const input=document.getElementById('aiInput');if(input)input.value='';
+    aiHistory.push({role:'user',content:displayMessage+attachmentNote});aiSaveHistory();aiRender();
+    await submitRepresentativeRequest(displayMessage,attachmentFile);
     return;
   }
   const input=document.getElementById('aiInput');
@@ -2098,7 +2178,7 @@ async function aiAsk(raw){
   aiHistory.push({role:'user',content:message});
   aiRender();aiSaveHistory();aiSetBusy(true);
   const box=document.getElementById('aiMessages');
-  if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Thinking…</div>');box.scrollTop=box.scrollHeight}
+  if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Checking your request…</div>');box.scrollTop=box.scrollHeight;}
   try{
     const rr=await db.functions.invoke('ai-support',{body:{message,history:previous}});
     if(rr.error){
@@ -2110,14 +2190,20 @@ async function aiAsk(raw){
         }
       }catch(_){}
       const httpStatus=Number(rr.error.status||(rr.error.context&&rr.error.context.status)||0);
-      throw Error((httpStatus?String(httpStatus)+' ':'')+(detail||rr.error.message||'AI support is temporarily unavailable.'));
+      throw Error((httpStatus?String(httpStatus)+' ':'')+(detail||rr.error.message||'Support is temporarily unavailable.'));
     }
     const answer=safeAiDisplayText(String(rr.data?.answer||'').trim());
-    if(!answer)throw Error('AegisPay AI did not return an answer.');
+    if(!answer)throw Error('AegisPay Support did not return a response.');
+    if(rr.data?.supportCase?.id){
+      rememberAiLiveCase(rr.data.supportCase.id,aiHistory.length);
+      liveSupportCase={...rr.data.supportCase,representative_requested:true};
+      liveSupportStateLoaded=false;
+    }
     aiHistory.push({role:'assistant',content:answer});
     aiSaveHistory();
     const status=document.getElementById('aiOnline');
-    if(status)status.textContent=rr.data?.degraded?'● Support mode':'● Online';
+    if(status)status.textContent=rr.data?.supportCase?'● Representative requested':'● Ready to help';
+    if(rr.data?.supportCase?.id)await refreshAiLiveSupportState();
   }catch(e){
     const reason=String(e&&e.message||'');
     const needsSignin=/401|unauthori[sz]ed|jwt|expired|session|token/i.test(reason);
@@ -2138,7 +2224,33 @@ async function aiAsk(raw){
   }
 }
 function bindAiBot(){
-  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative');
+  const input=document.getElementById('aiInput'),button=document.getElementById('aiSend'),representative=document.getElementById('aiRepresentative'),attach=document.getElementById('aiAttach'),picker=document.getElementById('aiAttachmentInput'),remove=document.getElementById('aiAttachmentRemove');
+  if(attach&&!attach.dataset.bound){
+    attach.dataset.bound='1';
+    attach.onclick=()=>picker?.click();
+  }
+  if(picker&&!picker.dataset.bound){
+    picker.dataset.bound='1';
+    picker.addEventListener('change',()=>{
+      const file=picker.files&&picker.files[0];
+      if(!file){updateAiAttachmentUI();return;}
+      if(!AI_SUPPORT_ATTACHMENT_TYPES.has(String(file.type||'').toLowerCase())){
+        aiClearAttachment();try{uiNotice('Choose a JPG, PNG, WebP image or PDF file.','error');}catch(_){}
+        return;
+      }
+      if(file.size<1||file.size>AI_SUPPORT_ATTACHMENT_MAX_BYTES){
+        aiClearAttachment();try{uiNotice('Attachments must be 3 MB or smaller.','error');}catch(_){}
+        return;
+      }
+      aiSelectedAttachment=file;
+      updateAiAttachmentUI();
+    });
+  }
+  if(remove&&!remove.dataset.bound){
+    remove.dataset.bound='1';
+    remove.onclick=()=>aiClearAttachment();
+  }
+  updateAiAttachmentUI();
   if(button&&!button.dataset.bound){
     button.dataset.bound='1';
     button.onclick=()=>aiAsk(input?.value||'');
