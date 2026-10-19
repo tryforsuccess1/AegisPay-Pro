@@ -27,7 +27,7 @@ jobs:
       - name: Syntax-check live production browser smoke test
         run: node --check scripts/client-live-smoke.cjs
       - name: Install browser smoke-test dependencies
-        run: npm install --no-save --no-package-lock playwright@1.55.0 @supabase/supabase-js@2.117.2
+        run: npm install --no-save --no-package-lock playwright@1.64.1 @supabase/supabase-js@2.117.2
       - name: Prepare the pinned Supabase browser SDK for local smoke testing
         run: |
           cp node_modules/@supabase/supabase-js/dist/umd/supabase.js supabase-sdk.js
