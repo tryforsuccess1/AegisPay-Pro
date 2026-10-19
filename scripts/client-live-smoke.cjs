@@ -252,10 +252,19 @@ async function visit(page, url, expectedSelector) {
       observer.observe(document, { childList: true, subtree: true });
     });
     shopPage.on('pageerror', error => pageErrors.push('shop: ' + error.message));
+    const recoverableShopImageMisses = [];
     shopPage.on('response', response => {
-      if (response.url().startsWith(shopUrl) && response.status() >= 400) {
-        sameOriginErrors.push('shop ' + response.status() + ' ' + response.url());
+      if (!response.url().startsWith(shopUrl) || response.status() < 400) return;
+      const responseUrl = new URL(response.url());
+      // Product-image URLs come from a public third-party sample catalogue and some are retired.
+      // The Shop deliberately retries through this proxy, then falls back to its local SVG artwork.
+      // Treat only upstream 404/410 image misses as recoverable; all page, script, catalog and other
+      // proxy failures still fail the production smoke test.
+      if (responseUrl.pathname === '/image-proxy' && [404, 410].includes(response.status())) {
+        recoverableShopImageMisses.push(response.url());
+        return;
       }
+      sameOriginErrors.push('shop ' + response.status() + ' ' + response.url());
     });
     await visit(shopPage, shopUrl + '/', 'html[data-shop-ready="true"]');
     assert.match(await shopPage.title(), /AegisPay Shop/i, 'Shop Worker should show the Shop marketplace page.');
@@ -271,6 +280,20 @@ async function visit(page, url, expectedSelector) {
     assert.equal(shopHealth.bootError, '', 'Shop must not raise a catalogue initialisation error.');
     assert.ok(shopHealth.productCards > 0, 'Shop should render visible product cards.');
     assert.equal(shopHealth.backVisible, true, 'Shop should show its Back to AegisPay control.');
+    await shopPage.waitForFunction(() => {
+      const images = [...document.querySelectorAll('#grid .p .img img')].slice(0, 4);
+      return images.length > 0 && images.every(image => image.complete && image.naturalWidth > 0);
+    }, null, { timeout: 20000 });
+    const renderedImages = await shopPage.evaluate(() => ({
+      total: [...document.querySelectorAll('#grid .p .img img')].slice(0, 4).length,
+      loaded: [...document.querySelectorAll('#grid .p .img img')].slice(0, 4).filter(image => image.complete && image.naturalWidth > 0).length,
+      localFallbacks: [...document.querySelectorAll('#grid .p .img img')].slice(0, 4).filter(image => image.dataset.localFallback === '1').length
+    }));
+    assert.ok(renderedImages.loaded >= 4, 'First four Shop product tiles must show either their remote image or local fallback: ' + JSON.stringify(renderedImages));
+    if (recoverableShopImageMisses.length > 0) {
+      assert.ok(renderedImages.localFallbacks > 0,
+        'When retired third-party product images return 404/410, Shop must render its local fallback artwork.');
+    }
 
     const shopReturn = new URL('/app/', fallbackUrl || baseUrl);
     shopReturn.searchParams.set('aegisReturnPage', 'shop');
