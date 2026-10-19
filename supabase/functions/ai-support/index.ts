@@ -3,9 +3,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const AI_ENDPOINT = Deno.env.get("AI_ASSISTANT_ENDPOINT") || Deno.env.get("AI_REVIEW_ENDPOINT") || "";
-const AI_KEY = Deno.env.get("AI_ASSISTANT_API_KEY") || Deno.env.get("AI_REVIEW_API_KEY") || "";
-const AI_MODEL = Deno.env.get("AI_ASSISTANT_MODEL") || Deno.env.get("AI_REVIEW_MODEL") || "";
+const AI_ENDPOINT = Deno.env.get("AI_REVIEW_ENDPOINT") || Deno.env.get("AI_ASSISTANT_ENDPOINT") || "";
+const AI_KEY = Deno.env.get("AI_REVIEW_API_KEY") || Deno.env.get("AI_ASSISTANT_API_KEY") || "";
+const AI_MODEL = Deno.env.get("AI_REVIEW_MODEL") || Deno.env.get("AI_ASSISTANT_MODEL") || "";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
