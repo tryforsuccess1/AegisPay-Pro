@@ -76,6 +76,15 @@ const server = http.createServer((req, res) => {
       };
     });
     const page = await context.newPage();
+    await page.addInitScript(() => {
+      window.__aegisInitialLoginFlash = false;
+      const observer = new MutationObserver(() => {
+        if (window.__aegisAuthBootstrapComplete !== true && document.querySelector('#liveLogin')) {
+          window.__aegisInitialLoginFlash = true;
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
     await page.goto('http://127.0.0.1:4173/client.html', { waitUntil: 'domcontentloaded' });
@@ -110,6 +119,10 @@ const server = http.createServer((req, res) => {
     assert.equal(chipScroll.webkitScrollbarThumb, 'none', 'Horizontal scrollbar thumb must be hidden for Activity filters.');
     assert.ok(chipScroll.scrollLeft > chipScroll.before, 'Activity filter row must retain native horizontal scrolling.');
     await page.locator('#liveLogin').waitFor({ state: 'visible', timeout: 15000 });
+    assert.equal(await page.evaluate(() => window.__aegisInitialLoginFlash), false,
+      'Local Client must render the session-restoration state without flashing Login before auth bootstrap.');
+    assert.equal(await page.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
+      'Local Client must expose the shared Shop marketplace navigation handler to inline controls.');
     const googleButton = page.locator('#liveLogin [data-google-auth]');
     await googleButton.waitFor({ state: 'visible', timeout: 5000 });
     const googleControl = await googleButton.evaluate(el => ({
