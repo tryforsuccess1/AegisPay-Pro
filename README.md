@@ -18,9 +18,12 @@ AegisPay uses one canonical production client/admin web stack with Supabase as t
 ## Production routes
 
 - Public website: `/`
-- Client portal: `/app/`
-- Master Admin: `/admin/`
+- Stable Client portal: `https://aegispay-web.aegispay.workers.dev/app/`
+- Stable Master Admin: `https://aegispay-web.aegispay.workers.dev/admin/`
+- Route aliases on the stable Worker: `/` → Client, `/master-admin.html` → Master Admin; prefer the explicit `/app/` and `/admin/` paths.
 - Client APK: `/downloads/aegispay-client.apk`
+
+**Portal-link policy:** Share the stable `aegispay-web.aegispay.workers.dev` URLs for Client and Master Admin. Do not share `<deployment-id>.aegispay-pro.pages.dev` preview URLs: the prefix changes with deployments and is not the permanent portal address. Cloudflare Pages remains the asset origin behind the stable Worker proxy.
 
 The `site/` portal copies are deployment artifacts. They are never independent application sources.
 
@@ -55,8 +58,9 @@ The check validates the canonical client/admin source files, Supabase function w
 ## Canonical production baseline
 
 - Production branch: `main`
-- Client portal: `/app/` from root `client.html`
-- Master Admin: `/admin/` from root `master-admin.html`
-- Cloudflare Pages: `aegispay-pro`
+- Client portal: `https://aegispay-web.aegispay.workers.dev/app/` from root `client.html`
+- Master Admin: `https://aegispay-web.aegispay.workers.dev/admin/` from root `master-admin.html`
+- Permanent portal front door: Cloudflare Worker `aegispay-web.aegispay.workers.dev`
+- Asset deployment origin: Cloudflare Pages project `aegispay-pro`
 - Supabase: `wtcspnrmsoisroavojop`
 - Android source candidate: Build 46 / versionName 2.6.7. The root `app-version.json` is a test-channel fallback; the Web Portal Deploy workflow generates the final `stable` or `test` manifest, versioned Client/Admin APK URLs, and SHA-256 values according to the signing configuration. Physical-device performance and install/update verification remain pending.
