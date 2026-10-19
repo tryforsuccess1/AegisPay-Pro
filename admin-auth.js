@@ -370,7 +370,9 @@ function supportCasesView(){
     chatPanel+'<section class="aa-list">'+(rows||empty('No support cases.','Unresolved client issues escalated by AegisPay AI will appear here.'))+'</section></main>';
 }
 function productionReadiness(){
-  const p=state.production||{},d=state.productionDiag||{};
+  const d=state.productionDiag||{};
+  // Prefer the authenticated Edge Function diagnostic when the legacy RPC is unavailable or returns a partial payload.
+  const p=Object.assign({},d.readiness||{},state.production||{});
   const depositOn=Boolean(p.production_config_live_deposits);
   const payoutOn=Boolean(p.production_config_real_payouts);
   const locked=p.payouts_locked!==false;
