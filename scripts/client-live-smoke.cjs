@@ -52,6 +52,15 @@ async function visit(page, url, expectedSelector) {
     });
 
     const page = await context.newPage();
+    await page.addInitScript(() => {
+      window.__aegisInitialLoginFlash = false;
+      const observer = new MutationObserver(() => {
+        if (window.__aegisAuthBootstrapComplete !== true && document.querySelector('#liveLogin')) {
+          window.__aegisInitialLoginFlash = true;
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
     page.on('pageerror', error => pageErrors.push('client: ' + error.message));
     page.on('response', response => {
       if (response.url().startsWith(baseUrl) && response.status() >= 400) {
@@ -65,6 +74,12 @@ async function visit(page, url, expectedSelector) {
       'Landing page should expose a working Open App route.');
 
     await visit(page, baseUrl + '/app/', '#liveLogin');
+    if (process.env.AEGIS_VERIFY_SHOP_FIX === '1') {
+      assert.equal(await page.evaluate(() => window.__aegisInitialLoginFlash), false,
+        'Client must show a session-restore loading state instead of flashing Login before auth bootstrap completes.');
+      assert.equal(await page.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
+        'Browse Shop navigation must be exposed to the inline UI click handler.');
+    }
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
       passwordType: document.querySelector('#lp')?.type,
@@ -155,7 +170,22 @@ async function visit(page, url, expectedSelector) {
       });
       // Keep the browser on /app/ so the Client UI's route-relative behavior and auth callbacks
       // match its canonical deployment rather than merely testing the proxy's root alias.
+      await fallbackPage.addInitScript(() => {
+        window.__aegisInitialLoginFlash = false;
+        const observer = new MutationObserver(() => {
+          if (window.__aegisAuthBootstrapComplete !== true && document.querySelector('#liveLogin')) {
+            window.__aegisInitialLoginFlash = true;
+          }
+        });
+        observer.observe(document, { childList: true, subtree: true });
+      });
       const fallbackResponse = await visit(fallbackPage, fallbackUrl + '/app/', '#liveLogin');
+      if (process.env.AEGIS_VERIFY_SHOP_FIX === '1') {
+        assert.equal(await fallbackPage.evaluate(() => window.__aegisInitialLoginFlash), false,
+          'Fallback Client must not briefly show Login during session restoration.');
+        assert.equal(await fallbackPage.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
+          'Fallback Browse Shop navigation must be exposed to the inline UI click handler.');
+      }
       assert.equal(new URL(fallbackPage.url()).origin, new URL(fallbackUrl).origin,
         'Fallback portal must stay on workers.dev instead of redirecting the browser to pages.dev.');
       assert.equal(fallbackResponse.headers()['x-aegispay-portal-source'], 'canonical-pages-proxy',
@@ -208,6 +238,54 @@ async function visit(page, url, expectedSelector) {
       assert.equal(await fallbackAdminPage.locator('#aaLoginForm button[type="submit"]').isVisible(), true,
         'Fallback Master Admin login action must be visible.');
 
+    }
+
+    const shopUrl = String(process.env.AEGIS_SHOP_URL || 'https://aegispay-shopping.aegispay.workers.dev').replace(/\/+$/, '');
+    const shopPage = await context.newPage();
+    await shopPage.addInitScript(() => {
+      window.__aegisInitialLoginFlash = false;
+      const observer = new MutationObserver(() => {
+        if (window.__aegisAuthBootstrapComplete !== true && document.querySelector('#liveLogin')) {
+          window.__aegisInitialLoginFlash = true;
+        }
+      });
+      observer.observe(document, { childList: true, subtree: true });
+    });
+    shopPage.on('pageerror', error => pageErrors.push('shop: ' + error.message));
+    shopPage.on('response', response => {
+      if (response.url().startsWith(shopUrl) && response.status() >= 400) {
+        sameOriginErrors.push('shop ' + response.status() + ' ' + response.url());
+      }
+    });
+    await visit(shopPage, shopUrl + '/', 'html[data-shop-ready="true"]');
+    assert.match(await shopPage.title(), /AegisPay Shop/i, 'Shop Worker should show the Shop marketplace page.');
+    const shopHealth = await shopPage.evaluate(() => ({
+      products: Number(document.documentElement.dataset.shopProductCount || 0),
+      categories: Number(document.documentElement.dataset.shopCategoryCount || 0),
+      bootError: document.documentElement.dataset.shopBootError || '',
+      productCards: document.querySelectorAll('#grid .p').length,
+      backVisible: !!document.querySelector('#backb') && getComputedStyle(document.querySelector('#backb')).visibility !== 'hidden'
+    }));
+    assert.equal(shopHealth.products, 210, 'Shop should initialise the full 210-product catalogue.');
+    assert.equal(shopHealth.categories, 7, 'Shop should initialise all seven categories.');
+    assert.equal(shopHealth.bootError, '', 'Shop must not raise a catalogue initialisation error.');
+    assert.ok(shopHealth.productCards > 0, 'Shop should render visible product cards.');
+    assert.equal(shopHealth.backVisible, true, 'Shop should show its Back to AegisPay control.');
+
+    const shopReturn = new URL('/app/', fallbackUrl || baseUrl);
+    shopReturn.searchParams.set('aegisReturnPage', 'shop');
+    const shopEntry = new URL('/', shopUrl);
+    shopEntry.searchParams.set('from', 'aegispay');
+    shopEntry.searchParams.set('return', shopReturn.toString());
+    await visit(shopPage, shopEntry.toString(), 'html[data-shop-ready="true"]');
+    await shopPage.locator('#backb').click();
+    await shopPage.waitForURL(url => url.origin === shopReturn.origin && url.pathname.startsWith('/app/'), { timeout: 45000 });
+    assert.equal(new URL(shopPage.url()).searchParams.get('aegisReturnPage'), 'shop',
+      'Shop Back must return to the originating Client Shop route, not the generic landing/login path.');
+    await shopPage.locator('#liveLogin').waitFor({ state: 'visible', timeout: 20000 });
+    if (process.env.AEGIS_VERIFY_SHOP_FIX === '1') {
+      assert.equal(await shopPage.evaluate(() => window.__aegisInitialLoginFlash), false,
+        'Returning from Shop must restore auth before rendering Login.');
     }
 
     const adminPage = await context.newPage();

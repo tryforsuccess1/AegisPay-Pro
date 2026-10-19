@@ -728,7 +728,10 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
 
 bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="info b">'+apIcon('info')+'<div>The assistant provides guidance and troubleshooting. It cannot edit balances or approve/reject withdrawals.</div></div><div class="info" id="aiOnline" aria-live="polite">● Ready to help</div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><section class="ai-support-cta" aria-label="Customer support"><button class="ai-support-button" id="aiRepresentative" type="button"><span class="ai-support-icon">i</span><span class="ai-support-copy"><strong>Talk to a Customer Representative</strong><small>Need more help? Our support team can review your issue.</small></span><span class="ai-support-chevron">›</span></button><div id="aiRepresentativeStatus" class="ai-support-status" aria-live="polite" hidden></div></section><div class="ai-composer"><div class="ai-input-shell"><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"></div><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
-go('login');
+function showAuthBootstrap(){
+ app.innerHTML='<div class="card" role="status" aria-live="polite" style="margin-top:22vh;padding:24px;text-align:center"><div style="font-size:22px;font-weight:700;letter-spacing:-.4px">Aegis<span style="background:linear-gradient(135deg,var(--p1),var(--p2));background-clip:text;-webkit-background-clip:text;color:transparent">Pay</span></div><p class="mu" style="margin-top:8px">Restoring your secure session…</p><div aria-hidden="true" style="height:3px;width:120px;margin:18px auto 0;border-radius:9px;background:linear-gradient(90deg,var(--p1),var(--p2))"></div></div>';
+}
+showAuthBootstrap();
 </script>
 <script src="./supabase-sdk.js"></script>
 <script>
@@ -1560,14 +1563,22 @@ function bindTaskImageFallback(root){
   },true);
 }
 function closeTaskProduct(){const m=document.getElementById('taskProductModal');if(m)m.classList.remove('show');}
+function openAegisShopMarketplace(taskId,productId,title){
+ const destination=new URL('https://aegispay-shopping.aegispay.workers.dev/');
+ destination.searchParams.set('from','aegispay');
+ if(taskId)destination.searchParams.set('task',String(taskId));
+ if(productId)destination.searchParams.set('product',String(productId));
+ const query=String(title||'').trim();
+ if(query)destination.searchParams.set('q',query);
+ destination.searchParams.set('return',aegisClientReturnUrl());
+ window.location.assign(destination.toString());
+}
 function openTaskMarketplace(taskId){
  const x=taskProductData[String(taskId)]||{},product=x.product,offer=x.offer;
  if(!product){uiNotice('Product details are not available for this task yet.','error');return}
- const returnUrl=aegisClientReturnUrl();
- const shopQuery=String(offer?.title||product.title||'').trim();
- const u='https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&task='+encodeURIComponent(taskId)+'&product='+encodeURIComponent(product.id)+'&q='+encodeURIComponent(shopQuery)+'&return='+encodeURIComponent(returnUrl);
- location.href=u;
+ openAegisShopMarketplace(taskId,product.id,String(offer?.title||product.title||'').trim());
 }
+window.openAegisShopMarketplace=openAegisShopMarketplace;
 function openTaskProduct(taskId){
  const x=taskProductData[String(taskId)]||{},task=x.task||{},offer=x.offer||{};
  let product=x.product||null;
@@ -1656,7 +1667,7 @@ async function liveShop(){
  }else{
    statusCard='<div class="card"><div class="sh-title" style="margin-top:0">Active Shop Cycle <span>'+Number(cycle.cycle_base||0).toFixed(2)+' USDT</span></div><div class="two"><div><small class="mu">Tasks</small><h3>'+completedCount+'/'+rows.length+'</h3></div><div><small class="mu">Remaining Balance</small><h3>'+remaining.toFixed(2)+' USDT</h3></div></div><div class="warn" style="margin-top:12px"><span>Complete each assigned task individually. When the final task is completed, the 18-hour settlement starts automatically.</span></div></div>';
  }
- app.innerHTML='<div class="scr on"><div class="pt" data-i18n="p_shop">Shop Tasks</div><div class="ps">Products assigned for your selected tier. A task value is debited when you complete it.</div>'+statusCard+'<div class="sh-title">Assigned Task Set <span>'+rows.length+' tasks</span></div><div class="card" style="padding:4px 16px">'+taskHtml+'</div><button class="btn o" style="margin-bottom:14px" onclick="location.href=\'https://aegispay-shopping.aegispay.workers.dev/?from=aegispay&return=\'+encodeURIComponent(aegisClientReturnUrl())">Browse Shop Marketplace</button><div class="card"><div class="sh-title" style="margin-top:0">How the cycle works</div><div class="mu" style="font-size:11.5px;line-height:1.6">Open an assigned product to view its picture, rating and review previews. Purchase it through Shop, return here, then complete the task. After the final task, the 18-hour settlement timer starts automatically.</div></div><div id="taskProductModal" class="task-modal" aria-hidden="true"><div class="task-modal-box"><div id="taskProductContent"></div></div></div></div>'+nav('shop');
+ app.innerHTML='<div class="scr on"><div class="pt" data-i18n="p_shop">Shop Tasks</div><div class="ps">Products assigned for your selected tier. A task value is debited when you complete it.</div>'+statusCard+'<div class="sh-title">Assigned Task Set <span>'+rows.length+' tasks</span></div><div class="card" style="padding:4px 16px">'+taskHtml+'</div><button class="btn o" style="margin-bottom:14px" onclick="openAegisShopMarketplace()">Browse Shop Marketplace</button><div class="card"><div class="sh-title" style="margin-top:0">How the cycle works</div><div class="mu" style="font-size:11.5px;line-height:1.6">Open an assigned product to view its picture, rating and review previews. Purchase it through Shop, return here, then complete the task. After the final task, the 18-hour settlement timer starts automatically.</div></div><div id="taskProductModal" class="task-modal" aria-hidden="true"><div class="task-modal-box"><div id="taskProductContent"></div></div></div></div>'+nav('shop');
  bindTaskImageFallback(app);
  bindTaskDelegation();
 }
@@ -2291,7 +2302,7 @@ if(s.data.session){
     return liveHome();
   }
 }
-window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.go('login');if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0)}}
+window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.__aegisAuthBootstrapComplete=true;window.go('login');if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0)}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
 (function(){

@@ -49,6 +49,7 @@ public class MainActivity extends AppCompatActivity {
     private WebView webView;
     private ValueCallback<Uri[]> pendingFileSelection;
     private String pendingAuthRedirect;
+    private String pendingShopReturnUrl;
     private boolean webReady;
     private boolean localFallbackLoaded;
     private long activeUpdateDownloadId = -1L;
@@ -88,8 +89,14 @@ public class MainActivity extends AppCompatActivity {
                 if (webView != null) {
                     Uri current = Uri.parse(webView.getUrl() == null ? "" : webView.getUrl());
                     if (isTrustedShop(current)) {
+                        String shopReturn = pendingShopReturnUrl;
+                        pendingShopReturnUrl = null;
                         setNativeBridge(true);
-                        webView.loadUrl("https://appassets.androidplatform.net/assets/aegispay/" + getString(R.string.entry_html));
+                        if (shopReturn != null) {
+                            webView.loadUrl(shopReturn);
+                        } else {
+                            webView.loadUrl("https://appassets.androidplatform.net/assets/aegispay/" + getString(R.string.entry_html));
+                        }
                         return;
                     }
                     if (webView.canGoBack()) {
@@ -212,11 +219,17 @@ public class MainActivity extends AppCompatActivity {
 
     private boolean handleWebNavigation(Uri uri, boolean isForMainFrame) {
         if (isTrustedLocalPortal(uri)) {
+            if (pendingShopReturnUrl != null && pendingShopReturnUrl.equals(uri.toString())) {
+                pendingShopReturnUrl = null;
+            }
             setNativeBridge(true);
             return false;
         }
         if (!isForMainFrame) return true;
         if (isTrustedShop(uri)) {
+            String rawReturn = uri.getQueryParameter("return");
+            Uri returnUri = rawReturn == null ? null : Uri.parse(rawReturn);
+            pendingShopReturnUrl = isTrustedLocalPortal(returnUri) ? returnUri.toString() : null;
             webReady = false;
             setNativeBridge(false);
             return false;
