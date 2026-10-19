@@ -153,7 +153,9 @@ async function visit(page, url, expectedSelector) {
           sameOriginErrors.push('fallback ' + response.status() + ' ' + response.url());
         }
       });
-      const fallbackResponse = await visit(fallbackPage, fallbackUrl + '/', '#liveLogin');
+      // Keep the browser on /app/ so the Client UI's route-relative behavior and auth callbacks
+      // match its canonical deployment rather than merely testing the proxy's root alias.
+      const fallbackResponse = await visit(fallbackPage, fallbackUrl + '/app/', '#liveLogin');
       assert.equal(new URL(fallbackPage.url()).origin, new URL(fallbackUrl).origin,
         'Fallback portal must stay on workers.dev instead of redirecting the browser to pages.dev.');
       assert.equal(fallbackResponse.headers()['x-aegispay-portal-source'], 'canonical-pages-proxy',
