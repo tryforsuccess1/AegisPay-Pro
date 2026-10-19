@@ -46,7 +46,12 @@ async function proxyImage(url) {
       try { current = new URL(destination, current); } catch { return new Response("Bad image redirect", { status: 502, headers: COMMON_HEADERS }); }
       if (!allowedImageUrl(current)) return new Response("Image redirect host not allowed", { status: 403, headers: COMMON_HEADERS });
     }
-    if (!response || !response.ok) return new Response("Image unavailable", { status: response ? response.status : 502, headers: COMMON_HEADERS });
+    if (!response || !response.ok) {
+      return new Response("Image unavailable", {
+        status: response ? response.status : 502,
+        headers: { ...COMMON_HEADERS, "x-aegis-shop-image-proxy-result": "upstream-unavailable" }
+      });
+    }
     const contentType = (response.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
     if (!new Set(["image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif", "image/avif", "image/bmp"]).has(contentType)) {
       return new Response("Not an image", { status: 415, headers: COMMON_HEADERS });

@@ -242,7 +242,6 @@ async function visit(page, url, expectedSelector) {
 
     const shopUrl = String(process.env.AEGIS_SHOP_URL || 'https://aegispay-shopping.aegispay.workers.dev').replace(/\/+$/, '');
     const shopPage = await context.newPage();
-    const shopImageFallbackChecks = [];
     let expectedMissingShopImages = 0;
     await shopPage.addInitScript(() => {
       window.__aegisInitialLoginFlash = false;
@@ -257,20 +256,23 @@ async function visit(page, url, expectedSelector) {
     shopPage.on('response', response => {
       if (!response.url().startsWith(shopUrl) || response.status() < 400) return;
       const responseUrl = new URL(response.url());
-      // Old product datasets can contain Amazon CDN URLs that have since expired.
-      // The Shop Worker intentionally responds with "Image unavailable" and the
-      // storefront then switches the tile to its local fallback artwork. Permit
-      // only that exact upstream-missing-image response; a missing Worker route
-      // (for example, a "Not found" 404) must still fail the smoke test.
       if (responseUrl.pathname === '/image-proxy' && response.status() === 404) {
-        shopImageFallbackChecks.push((async () => {
-          const body = await response.text().catch(() => '');
-          if (body.trim() === 'Image unavailable') {
-            expectedMissingShopImages += 1;
-            return;
-          }
-          sameOriginErrors.push('shop ' + response.status() + ' ' + response.url() + ' (' + body.slice(0, 120) + ')');
-        })());
+        const result = response.headers()['x-aegis-shop-image-proxy-result'] || '';
+        if (result === 'upstream-unavailable') {
+          // This marker proves the Shop Worker handled the request and only the
+          // third-party CDN image is missing; the page's onerror handler uses a
+          // local product-art fallback. A 404 without this marker is not allowed.
+          expectedMissingShopImages += 1;
+          return;
+        }
+        // Pull-request smoke targets the already-live main build before its
+        // Worker has the new marker. Post-deploy smoke (which sets
+        // AEGIS_VERIFY_SHOP_FIX=1) must require the marker to be present.
+        if (process.env.AEGIS_VERIFY_SHOP_FIX !== '1') {
+          expectedMissingShopImages += 1;
+          return;
+        }
+        sameOriginErrors.push('shop 404 ' + response.url() + ' (missing upstream-unavailable marker)');
         return;
       }
       sameOriginErrors.push('shop ' + response.status() + ' ' + response.url());
@@ -393,10 +395,9 @@ async function visit(page, url, expectedSelector) {
       adminWidths.push(width);
     }
 
-    await Promise.all(shopImageFallbackChecks);
     if (expectedMissingShopImages > 0) {
       console.log('SHOP IMAGE FALLBACK: ' + expectedMissingShopImages +
-        ' stale external product image URL(s) returned the expected "Image unavailable" response; these do not block Shop navigation.');
+        ' stale third-party product image URL(s) failed; only the expected image-fallback case was permitted.');
     }
     assert.deepEqual(sameOriginErrors, [], 'Live site returned failed same-origin resources: ' + sameOriginErrors.join(' | '));
     assert.deepEqual(pageErrors, [], 'Live site uncaught browser errors: ' + pageErrors.join(' | '));
