@@ -1839,6 +1839,7 @@ let aiSelectedAttachment=null;
 const AI_SUPPORT_ATTACHMENT_MAX_BYTES=3*1024*1024;
 const AI_SUPPORT_ATTACHMENT_TYPES=new Set(['image/jpeg','image/png','image/webp','application/pdf']);
 let awaitingRepresentativeIssue=false;
+let aiConversationMode='assistant';
 let representativeRequestInFlight=false;
 let liveSupportCaseId=null;
 let liveSupportCase=null;
@@ -1992,6 +1993,7 @@ function clearClientSupportConversation(){
   liveSupportStateLoaded=true;
   liveSupportSeedCount=0;
   awaitingRepresentativeIssue=false;
+  aiConversationMode='assistant';
   aiHistory=[];
   try{
     sessionStorage.removeItem(aiLiveStorageKey('case'));
@@ -2010,38 +2012,47 @@ function updateAiLiveSupportUI(){
   const subtitle=button?.querySelector('small');
   const input=document.getElementById('aiInput');
   const chips=document.querySelector('.ai-assistant-screen > .chips');
+  const repMode=aiConversationMode==='representative';
   const joined=Boolean(liveSupportCase?.representative_joined_at && String(liveSupportCase.status).toUpperCase()==='IN_PROGRESS');
   const waiting=Boolean(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase?.status||'').toUpperCase()) && !joined);
+  const activeCase=Boolean(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase?.status||'').toUpperCase()));
   if(status){
-    if(joined)status.textContent='● A representative is now live in this chat';
+    if(!repMode)status.textContent='● AI Assistant ready';
+    else if(joined)status.textContent='● A representative is now live in this chat';
     else if(waiting)status.textContent='● Waiting for a representative';
     else if(liveSupportCaseId && ['RESOLVED','CLOSED'].includes(String(liveSupportCase?.status||'').toUpperCase()))status.textContent='● Support conversation '+String(liveSupportCase.status).toLowerCase();
-    else if(!liveSupportCaseId)status.textContent='● Ready to help';
+    else status.textContent='● Customer representative chat';
   }
   if(notice){
-    if(joined){notice.hidden=true;notice.textContent='';}
-    else if(waiting){notice.hidden=false;notice.textContent='Your request has been received. A representative may contact you soon.';}
+    if(repMode&&joined){notice.hidden=true;notice.textContent='';}
+    else if(repMode&&waiting){notice.hidden=false;notice.textContent='Your request has been received. A representative may contact you soon.';}
+    else if(!repMode&&joined){notice.hidden=false;notice.textContent='A representative is live. Open the chat below whenever you need human help; your AI conversation stays available.';}
+    else if(!repMode&&waiting){notice.hidden=false;notice.textContent='A support request is open. Open it below to message your representative; your AI conversation stays available.';}
     else if(liveSupportCaseId && ['RESOLVED','CLOSED'].includes(String(liveSupportCase?.status||'').toUpperCase())){notice.hidden=false;notice.textContent=String(liveSupportCase.status).toUpperCase()==='RESOLVED'?'This support conversation has been marked resolved.':'This support conversation has been closed.';}
     else notice.hidden=true;
   }
-  if(chips)chips.style.display=(joined||waiting)?'none':'';
-  if(title)title.textContent=joined?'Representative is live in this chat':waiting?'Representative requested':'Talk to a Customer Representative';
-  if(subtitle)subtitle.textContent=joined?'Send your messages here and the representative will reply in this chat.':waiting?'Your request is received. You can add more details while you wait.':'Need more help? Our support team can review your issue.';
-  if(button){button.disabled=representativeRequestInFlight||liveSupportSendInFlight||waiting;button.setAttribute('aria-disabled',button.disabled?'true':'false');button.title=joined?'Open the live conversation':waiting?'A representative request is already pending':'Request a customer representative';}
+  if(chips)chips.style.display=(repMode&&(joined||waiting))?'none':'';
+  if(title)title.textContent=activeCase?(repMode?'Return to AI Assistant':joined?'Open live representative chat':'Open representative chat'):'Talk to a Customer Representative';
+  if(subtitle){
+    if(activeCase&&!repMode)subtitle.textContent=joined?'A representative is live. Tap to open that chat; your AI conversation stays available.':'A support request is open. Tap to message your representative; your AI conversation stays available.';
+    else if(activeCase&&repMode)subtitle.textContent='Return to the AI Assistant without closing this support conversation.';
+    else subtitle.textContent='Need more help? Our support team can review your issue.';
+  }
+  if(button){button.disabled=representativeRequestInFlight||liveSupportSendInFlight;button.setAttribute('aria-disabled',button.disabled?'true':'false');button.title=activeCase?(repMode?'Return to AI Assistant':'Open the representative conversation'):'Request a customer representative';}
   if(input){
-    input.placeholder=joined?'Message your representative...':waiting?'Add a message for the representative...':'Type your question...';
-    input.setAttribute('aria-label',joined?'Message your customer representative':waiting?'Add a message for your representative':'Ask AegisPay AI');
+    const representativeComposer=repMode&&activeCase;
+    input.placeholder=representativeComposer?(joined?'Message your representative...':'Add a message for the representative...'):awaitingRepresentativeIssue?'Describe your issue for the representative...':'Type your question...';
+    input.setAttribute('aria-label',representativeComposer?(joined?'Message your customer representative':'Add a message for your representative'):'Ask AegisPay AI');
   }
 }
 function aiRender(){
   const box=document.getElementById('aiMessages');
   if(!box)return;
   const hasServerTranscript=Boolean(liveSupportStateLoaded && liveSupportMessages.length);
-  if(hasServerTranscript){
-    const status=String(liveSupportCase?.status||'').toUpperCase();
-    const postCaseHistory=(!liveSupportCaseId || ['RESOLVED','CLOSED'].includes(status))?aiHistory.slice(liveSupportSeedCount):[];
-    box.innerHTML=aiLiveMessageRows()+aiHistoryRows(postCaseHistory);
+  if(aiConversationMode==='representative' && hasServerTranscript){
+    box.innerHTML=aiLiveMessageRows();
   }else{
+    // Keep AI answers visible even when the same request also opened a human support case.
     box.innerHTML=aiHistoryRows(aiHistory);
   }
   box.scrollTop=box.scrollHeight;
@@ -2185,6 +2196,7 @@ async function submitRepresentativeRequest(issueText,attachmentFile=aiSelectedAt
     const data=result.data||{};
     if(data.ok!==true||!data.supportCase)throw Error(data.error||'The support request could not be confirmed.');
     rememberAiLiveCase(data.supportCase.id,transcriptSeedCount);
+    aiConversationMode='representative';
     liveSupportCase={...data.supportCase,representative_requested:true};
     if(attachmentFile&&attachmentFile===aiSelectedAttachment&&data.attachmentSaved!==false)aiClearAttachment();
     liveSupportStateLoaded=false;
@@ -2237,7 +2249,7 @@ async function aiAsk(raw){
     await submitRepresentativeRequest(displayMessage,attachmentFile);
     return;
   }
-  if(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase())){
+  if(aiConversationMode==='representative' && liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase())){
     await sendLiveSupportMessage(message,attachmentFile);
     return;
   }
@@ -2337,14 +2349,14 @@ function bindAiBot(){
   if(representative&&!representative.dataset.bound){
     representative.dataset.bound='1';
     representative.onclick=()=>{
-      const joined=Boolean(liveSupportCase?.representative_joined_at&&String(liveSupportCase.status||'').toUpperCase()==='IN_PROGRESS');
-      if(joined){
-        const box=document.getElementById('aiMessages');
-        if(box)box.scrollTo({top:box.scrollHeight,behavior:'smooth'});
+      const activeSupportCase=Boolean(liveSupportCaseId&&liveSupportCase?.representative_requested&&['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase()));
+      if(activeSupportCase){
+        aiConversationMode=aiConversationMode==='representative'?'assistant':'representative';
+        aiRender();
         if(input)input.focus({preventScroll:true});
         return;
       }
-      if(liveSupportCaseId&&liveSupportCase?.representative_requested&&['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase())){
+      if(awaitingRepresentativeIssue){
         if(input)input.focus({preventScroll:true});
         return;
       }
@@ -2355,6 +2367,7 @@ function bindAiBot(){
 document.addEventListener('click',function(e){const q=e.target.closest('[data-q]');if(q&&document.getElementById('aiMessages'))aiAsk(q.getAttribute('data-q')||'')});
 async function liveBot(){
   if(!profile)return oldGo('login');
+  aiConversationMode='assistant';
   aiLoadHistory();
   restoreAiLivePrefs();
   app.innerHTML=SC.bot();
@@ -2366,6 +2379,7 @@ async function liveBot(){
 }
 async function openAegisSupport(){
   if(!profile)return oldGo('login');
+  aiConversationMode='assistant';
   const root=document.getElementById('app');
   try{
     if(!root)throw Error('Client application root is missing.');
