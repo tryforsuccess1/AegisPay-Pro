@@ -2,6 +2,31 @@
 -- This migration does not enable live deposits, payouts, cron, or testnet sweeping.
 BEGIN;
 
+-- A narrowly scoped row-level allowlist lets one synthetic account use Shasta
+-- in this project without changing the live deposit_rules network.
+CREATE TABLE IF NOT EXISTS public.shasta_test_users (
+  user_id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+  enabled boolean NOT NULL DEFAULT false,
+  purpose text NOT NULL DEFAULT 'Shasta E2E test account',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.shasta_test_users ENABLE ROW LEVEL SECURITY;
+DO $roles$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+    EXECUTE 'REVOKE ALL ON TABLE public.shasta_test_users FROM anon';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+    EXECUTE 'REVOKE ALL ON TABLE public.shasta_test_users FROM authenticated';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.shasta_test_users TO service_role';
+  END IF;
+END;
+$roles$;
+REVOKE ALL ON TABLE public.shasta_test_users FROM PUBLIC;
+
 CREATE OR REPLACE FUNCTION public.guard_shasta_deposit_verification()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -21,7 +46,15 @@ BEGIN
   SELECT COALESCE(value_json, '{}'::jsonb)
     INTO v_rules
     FROM public.platform_settings
-   WHERE key = 'deposit_rules';
+   WHERE key = 'shasta_testnet_rules';
+
+  IF NOT EXISTS (
+       SELECT 1 FROM public.shasta_test_users t
+        WHERE t.user_id = NEW.user_id AND t.enabled = true
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta deposit credit is restricted to the explicitly allowlisted test account';
+  END IF;
 
   IF upper(btrim(COALESCE(v_rules ->> 'network', ''))) <> 'TRON TESTNET'
      OR btrim(COALESCE(v_rules ->> 'token_contract', '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'
