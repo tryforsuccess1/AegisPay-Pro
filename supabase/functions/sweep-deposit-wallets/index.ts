@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
-import { loadShastaTestRules, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
+import { loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -13,8 +13,6 @@ const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "tru
 const HD_MNEMONIC = Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
 const HD_PASSPHRASE = Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
 const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
-const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
-const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const NETWORK = "TRON TESTNET";
 const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
@@ -363,9 +361,6 @@ Deno.serve(async (req: Request) => {
   if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
   if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
     return json({ error: "Testnet sweep is not configured." }, 503);
-  }
-  if (!shastaSecretsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY)) {
-    return json({ error: "Shasta sweep refuses reused Mainnet wallet secrets.", code: "TESTNET_SECRET_REUSE_BLOCKED" }, 423);
   }
   if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
 
