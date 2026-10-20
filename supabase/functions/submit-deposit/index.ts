@@ -1,11 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadPrivateImage, runVisionReview } from "./ai-review.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const SHASTA_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -37,17 +40,27 @@ Deno.serve(async (req: Request) => {
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
 
+    const { data: profile, error: profileError } = await admin.from("users")
+      .select("id,auth_user_id,role,status,first_deposit_done,frozen_until").eq("auth_user_id", auth.user.id).maybeSingle();
+    if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
+    if (profile.role !== "USER" || ["BLOCKED", "SUSPENDED", "DELETED"].includes(String(profile.status).toUpperCase())) return json({ error: "This account cannot submit deposits." }, 403);
+    if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
+
+    const isShastaTestUser = await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED);
+    const shastaRules = isShastaTestUser ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED) : null;
+    if (isShastaTestUser && !shastaRules) return json({ error: "Shasta test mode is unavailable while live-money gates are open or test configuration is invalid.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
+
     const [{ data: modeRow, error: modeError }, { data: productionRow, error: productionError }, { data: depositRulesRow, error: depositRulesError }] = await Promise.all([
       admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
       admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
-      admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", isShastaTestUser ? "shasta_testnet_rules" : "deposit_rules").maybeSingle(),
     ]);
     if (modeError || productionError || depositRulesError || !modeRow?.value_json || !productionRow?.value_json || !depositRulesRow?.value_json) {
-      return json({ error: "Unable to confirm Mainnet deposit readiness.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
+      return json({ error: "Unable to confirm deposit readiness.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
     }
     const mode = modeRow.value_json;
     const production = productionRow.value_json;
-    const rules = depositRulesRow.value_json;
+    const rules = isShastaTestUser ? shastaRules! : depositRulesRow.value_json;
     const depositNetwork = String(rules.network || "").toUpperCase();
     if (depositNetwork === "TRON MAINNET") {
       const mainnetTokenContract = String(rules.token_contract || "").trim();
@@ -66,15 +79,13 @@ Deno.serve(async (req: Request) => {
         production.go_live_approved === true && production.payouts_locked === false &&
         payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
       if (!mainnetDepositsOpen) return json({ error: "New Mainnet deposits are paused until production payouts are fully configured, approved, reconciled, and unlocked.", code: "MAINNET_DEPOSITS_PAUSED" }, 423);
-    } else if (depositNetwork !== "TRON TESTNET") {
+    } else if (depositNetwork === "TRON TESTNET") {
+      if (!isShastaTestUser || !shastaRules || String(rules.token_contract || "").trim() !== SHASTA_USDT) {
+        return json({ error: "Shasta deposits are available only to the explicitly allowlisted test account.", code: "SHASTA_TEST_ACCOUNT_REQUIRED" }, 403);
+      }
+    } else {
       return json({ error: "Unsupported deposit network." }, 503);
     }
-
-    const { data: profile, error: profileError } = await admin.from("users")
-      .select("id,auth_user_id,role,status,first_deposit_done,frozen_until").eq("auth_user_id", auth.user.id).maybeSingle();
-    if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
-    if (profile.role !== "USER" || ["BLOCKED", "SUSPENDED", "DELETED"].includes(String(profile.status).toUpperCase())) return json({ error: "This account cannot submit deposits." }, 403);
-    if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
     const { data: depositWallet, error: depositWalletError } = await admin.from("deposit_wallets")
       .select("id,address,network,token_contract,status").eq("user_id", profile.id).eq("network", depositNetwork).eq("status", "ACTIVE").maybeSingle();
