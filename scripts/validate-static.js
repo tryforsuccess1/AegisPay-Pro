@@ -341,6 +341,8 @@ assert(client.includes("result.data.network")&&client.includes("result.data.toke
 assert(client.includes("walletNetwork!=='TRON TESTNET'"),"Pre-production Mainnet pause must not suppress an explicitly allowlisted Shasta test address.");
 assert(client.includes('Deposits are currently paused')&&client.includes('No unique receiving address has been issued to this account')&&client.includes('id="retryDepositAddress"')&&client.includes('id="depositRequests"')&&client.includes('id="depositCredits"'),'Deposit UI must show a safe pre-production/unavailable state with retry, request history and verified-credit history instead of appearing blank.');
 assert(client.includes("if(!/^[A-Fa-f0-9]{64}$/.test(tx))")&&client.includes('await liveTopup();'),'Deposit submission must validate a full 64-character TRON TXID and refresh the request status immediately after submitting.');
+assert(client.includes("data-shasta-verify")&&client.includes("db.functions.invoke('verify-deposit',{body:{depositId:id}})")&&client.includes("Checking Shasta"),"Pending Shasta deposit requests must expose an authenticated on-chain recheck action.");
+
 assert(!client.includes('Generate Deposit Link')&&!client.includes('Bitcoin (BTC)')&&!client.includes('Network fee</div><em>1.00 USDT</em>'),'Legacy demo deposit/payment values must not be presented as real receiving options.');
 assert(client.includes('liveWithdraw'),'Client Withdrawal runtime is missing');
 assert(client.includes('Username or Email'),'Canonical client login must accept username or email');
@@ -436,6 +438,8 @@ assert(client.includes('Deposits temporarily paused')&&client.includes('settings
 assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
 assert(depositMonitorSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositMonitorSource.includes('production.payouts_locked === false'),'Deposit monitor must not credit Mainnet deposits while payouts are locked');
 assert(depositVerifySource.includes('MAINNET_DEPOSITS_PAUSED')&&depositVerifySource.includes('production.payouts_locked === false')&&depositVerifySource.includes('payoutCredentialsReady'),'Direct Mainnet deposit verification must enforce the same production payout-readiness gate');
+assert(depositVerifySource.includes('chainReviewEligible')&&depositVerifySource.includes('CHAIN_VERIFIED_SHASTA_TRANSFER')&&depositVerifySource.includes('exactUsdtRawAmountMatches'),"An allowlisted Shasta manual-review deposit must be promoted only after exact confirmed on-chain transfer proof.");
+
 const mainnetGateAndPayoutApproval = /mode\.live_deposits\s*===\s*true\s*&&\s*mode\.real_payouts\s*===\s*true\s*&&\s*mode\.production_go_live_approved\s*===\s*true/;
 assert(mainnetGateAndPayoutApproval.test(depositVerifySource),'Direct Mainnet verification must AND all deposit/payout readiness flags');
 assert(mainnetGateAndPayoutApproval.test(depositMonitorSource),'Mainnet monitor must AND all deposit/payout readiness flags');
@@ -445,7 +449,7 @@ assert(depositVerifySource.includes('mainnetTokenContract !== MAINNET_USDT')&&de
 assert(depositReadinessSource.includes('mainnetUsdtContractOk')&&depositReadinessSource.includes('mainnetBaseConfigOk')&&depositReadinessSource.includes('mainnet_usdt_contract_ok'),'Production readiness must fail closed and report official USDT token-contract readiness');
 assert(depositSafetyMigration.includes('Live mainnet deposits require approved PRODUCTION mode')&&depositSafetyMigration.includes('PRE_PRODUCTION_PAYOUTS_LOCKED'),'Database settings RPC and current Mainnet configuration must fail closed');
 assert(depositMonitorSource.includes('verify_deposit_monitor_cron_secret')&&depositMonitorSource.includes('x-aegis-cron-secret'),'Deposit monitor must validate the configured Vault-backed cron secret');
-assert(depositMonitorSource.includes('.in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])'),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
+assert(depositMonitorSource.includes('deposit.ai_review_status === "MANUAL_REVIEW"')&&depositMonitorSource.includes('CHAIN_VERIFIED_SHASTA_TRANSFER')&&depositMonitorSource.includes('REVIEW_NOT_APPROVED'),'Monitor may resolve manual-review rows only after exact Shasta chain proof and must still skip unapproved Mainnet submissions.');
 assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
 assert(adminAuth.includes('DO NOT EXECUTE THIS PAYOUT')&&adminAuth.includes('Changing the profile wallet does not automatically change this existing request'),'Invalid recipients must be visibly blocked in the Master Admin queue');
 const invalidWalletRefund=fs.readFileSync('database/migrations/20261011_reconcile_invalid_unbroadcast_withdrawal.sql','utf8');
