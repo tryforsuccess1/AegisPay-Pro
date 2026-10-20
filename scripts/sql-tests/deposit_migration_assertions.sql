@@ -10,6 +10,9 @@ DECLARE
   v_grandparent_balance numeric;
   v_grandparent_profit numeric;
   v_referral_entries integer;
+  v_first_deposit_before boolean;
+  v_selected_tier_before text;
+  v_referrals_for_user_before integer;
   v_function regprocedure := to_regprocedure('public.apply_verified_deposit(uuid,text,text,timestamptz,text)');
 BEGIN
   -- A Master Admin must not be able to open Mainnet production when a fake token contract is configured.
@@ -367,6 +370,12 @@ BEGIN
            WHERE user_id='11111111-1111-4111-8111-111111111111' AND network='TRON TESTNET'),
          receiving_address='T'||repeat('4',33)
    WHERE id='66666666-6666-4666-8666-666666666666';
+  SELECT first_deposit_done, selected_tier_id::text
+    INTO v_first_deposit_before, v_selected_tier_before
+    FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
+  SELECT count(*) INTO v_referrals_for_user_before
+    FROM public.referrals WHERE referred_user_id='11111111-1111-4111-8111-111111111111';
+
   PERFORM public.apply_verified_deposit(
     '66666666-6666-4666-8666-666666666666',
     'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','10000000',
@@ -378,13 +387,13 @@ BEGIN
   IF v_balance <> 110 OR v_principal <> 110 THEN
     RAISE EXCEPTION 'Testnet deposit should continue to work while Mainnet deposits are paused';
   END IF;
-  IF (SELECT first_deposit_done FROM public.users WHERE id='11111111-1111-4111-8111-111111111111') IS DISTINCT FROM false THEN
-    RAISE EXCEPTION 'Shasta credit consumed the account Mainnet first-deposit entitlement';
+  IF (SELECT first_deposit_done FROM public.users WHERE id='11111111-1111-4111-8111-111111111111') IS DISTINCT FROM v_first_deposit_before THEN
+    RAISE EXCEPTION 'Shasta credit changed the account Mainnet first-deposit entitlement';
   END IF;
-  IF (SELECT selected_tier_id FROM public.users WHERE id='11111111-1111-4111-8111-111111111111') IS NOT NULL THEN
+  IF (SELECT selected_tier_id::text FROM public.users WHERE id='11111111-1111-4111-8111-111111111111') IS DISTINCT FROM v_selected_tier_before THEN
     RAISE EXCEPTION 'Shasta credit changed the account Mainnet tier selection';
   END IF;
-  IF (SELECT count(*) FROM public.referrals WHERE referred_user_id='11111111-1111-4111-8111-111111111111') <> 0 THEN
+  IF (SELECT count(*) FROM public.referrals WHERE referred_user_id='11111111-1111-4111-8111-111111111111') <> v_referrals_for_user_before THEN
     RAISE EXCEPTION 'Shasta test credit issued production referral rewards';
   END IF;
   IF (SELECT value_json->>'network' FROM public.platform_settings WHERE key='deposit_rules') <> 'TRON MAINNET'
