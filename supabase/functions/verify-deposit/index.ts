@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  exactUsdtRawAmountMatches,
+  findExactShastaUsdtTransfer,
+  TRON_SHASTA_USDT_CONTRACT,
+} from "../_shared/tron-deposit-validation.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -10,7 +15,7 @@ const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
 const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
-const SHASTA_TEST_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
+const SHASTA_TEST_USDT = TRON_SHASTA_USDT_CONTRACT;
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -61,12 +66,25 @@ Deno.serve(async (req: Request) => {
       .select("value_json").eq("key", "deposit_rules").maybeSingle();
     const rules = settingsRow?.value_json || {};
     const network = String(rules.network || "").toUpperCase();
+    if (String(deposit.network || "").toUpperCase() !== network) {
+      return json({ error: "Deposit network differs from the recorded request or current settings. Manual reconciliation is required.", code: "DEPOSIT_NETWORK_MISMATCH" }, 409);
+    }
+    if (network === "TRON TESTNET" &&
+      (String(rules.token_contract || "").trim() !== SHASTA_TEST_USDT
+        || String(deposit.token_contract || "") !== SHASTA_TEST_USDT
+        || !deposit.deposit_wallet_id
+        || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(deposit.receiving_address || "")))) {
+      return json({ error: "Shasta verification requires the pinned USDT contract and this user's assigned HD deposit address.", code: "TESTNET_WALLET_OR_TOKEN_MISMATCH" }, 409);
+    }
 
     let baseUrl = "";
     let contract = "";
     if (network === "TRON TESTNET") {
+      if (String(rules.token_contract || "").trim() !== SHASTA_TEST_USDT) {
+        return json({ error: "Shasta verification requires the pinned testnet USDT contract.", code: "UNSUPPORTED_TESTNET_TOKEN_CONTRACT" }, 403);
+      }
       baseUrl = "https://api.shasta.trongrid.io";
-      contract = String(rules.token_contract || SHASTA_TEST_USDT).trim();
+      contract = SHASTA_TEST_USDT;
     } else if (network === "TRON MAINNET") {
       const mainnetTokenContract = String(rules.token_contract || "").trim();
       if (mainnetTokenContract !== MAINNET_USDT) {
@@ -140,21 +158,31 @@ Deno.serve(async (req: Request) => {
     if (!chainRes.ok) return json({ error: "TRON verification service returned " + chainRes.status + "." }, 502);
     const chain = await chainRes.json();
     const transfers = Array.isArray(chain.data) ? chain.data : [];
-    const match = transfers.find((x: any) =>
-      String(x.transaction_id).toLowerCase() === String(deposit.txid).toLowerCase()
-      && String(x.to) === receiving
-      && String(x.token_info?.address || contract) === contract
-      && String(x.type || "Transfer") === "Transfer"
-      && x.success !== false
-    );
+    const match = network === "TRON TESTNET"
+      ? findExactShastaUsdtTransfer(transfers, String(deposit.txid || ""), receiving)
+      : transfers.find((x: any) =>
+        String(x.transaction_id).toLowerCase() === String(deposit.txid).toLowerCase()
+        && String(x.to) === receiving
+        && String(x.token_info?.address || contract) === contract
+        && String(x.type || "Transfer") === "Transfer"
+        && x.success !== false
+      );
     if (!match) return json({ status: "PENDING_VERIFICATION", message: "No matching confirmed transfer found yet." }, 202);
 
-    const decimals = Number(match.token_info?.decimals ?? 6);
     const raw = String(match.value || "0");
-    const chainAmount = Number(raw) / Math.pow(10, decimals);
-    const requestedAmount = Number(deposit.gross_amount);
-    if (!Number.isFinite(chainAmount) || Math.abs(chainAmount - requestedAmount) > 0.000001) {
-      return json({ error: "On-chain amount does not match the submitted deposit amount." }, 409);
+    let chainAmount: number;
+    if (network === "TRON TESTNET") {
+      if (!exactUsdtRawAmountMatches(match, deposit.gross_amount)) {
+        return json({ error: "On-chain raw USDT amount does not exactly match the submitted deposit amount." }, 409);
+      }
+      chainAmount = Number(raw) / 1_000_000;
+    } else {
+      const decimals = Number(match.token_info?.decimals ?? 6);
+      chainAmount = Number(raw) / Math.pow(10, decimals);
+      const requestedAmount = Number(deposit.gross_amount);
+      if (!Number.isFinite(chainAmount) || Math.abs(chainAmount - requestedAmount) > 0.000001) {
+        return json({ error: "On-chain amount does not match the submitted deposit amount." }, 409);
+      }
     }
 
     const { data: applied, error: applyError } = await admin.rpc("apply_verified_deposit", {
