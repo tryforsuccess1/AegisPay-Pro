@@ -2267,7 +2267,7 @@ async function aiAsk(raw){
   const box=document.getElementById('aiMessages');
   if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Checking your request…</div>');box.scrollTop=box.scrollHeight;}
   try{
-    const rr=await db.functions.invoke('ai-support',{body:{message,history:previous}});
+    const rr=await db.functions.invoke('ai-support',{body:{message,history:previous,mode:'assistant'}});
     if(rr.error){
       let detail='';
       try{
