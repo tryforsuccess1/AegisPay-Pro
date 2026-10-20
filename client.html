@@ -1243,7 +1243,7 @@ async function liveTopup(){
   const s=String(value||'').toUpperCase();
   if(s==='VERIFIED')return {label:'Verified',cls:'ok'};
   if(s==='PENDING_VERIFICATION')return {label:'Pending verification',cls:'wa'};
-  if(s==='REJECTED'||s==='FAILED')return {label:'Rejected',cls:'er'};
+  if(s==='REJECTED'||s==='FAILED')return {label:'Rejected',cls:'rd'};
   if(s==='FAILED_REVIEW'||s==='MANUAL_REVIEW')return {label:'Manual review required',cls:'wa'};
   if(s==='CANCELLED')return {label:'Cancelled',cls:'mu'};
   return {label:s?s.replace(/_/g,' ').toLowerCase().replace(/(^|\s)\S/g,m=>m.toUpperCase()):'Submitted',cls:'mu'};
