@@ -188,7 +188,7 @@ Deno.serve(async (req: Request) => {
       const canonicalTxid = isValidTronTxid(String(deposit.txid || "")) ? String(deposit.txid) : "";
       const preferredTxid = canonicalTxid || claimedTxid;
       match = preferredTxid ? findExactShastaUsdtTransfer(transfers, preferredTxid, receiving) : null;
-      if (!match) {
+      if (!match || !exactUsdtRawAmountMatches(match, deposit.gross_amount)) {
         const createdAt = new Date(deposit.created_at || Date.now()).getTime();
         const notBefore = Math.max(1, createdAt - 24 * 60 * 60 * 1000);
         const candidates = findShastaTransfersByAmount(transfers, receiving, deposit.gross_amount, notBefore);
