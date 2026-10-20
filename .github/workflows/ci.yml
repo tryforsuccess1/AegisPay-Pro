@@ -56,6 +56,8 @@ jobs:
         run: deno test supabase/functions/_shared/auth-login-error_test.ts
       - name: Test Workers AI request authentication and fallback contract
         run: deno test supabase/functions/_shared/aegis-ai-client_test.ts
+      - name: Test AI support Admin escalation policy
+        run: deno test supabase/functions/_shared/ai-support-escalation_test.ts
       - name: Test TRON HD address derivation
         run: deno test --node-modules-dir=auto --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE supabase/functions/_shared/tron-hd-wallet_test.ts
       - name: Test HD sweep idempotency and transaction recovery state machine
