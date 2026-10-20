@@ -235,7 +235,7 @@ html[data-mode=dark] .notif-card .ntext,html[data-mode=dark] .notif-card .ntime{
 #toast{position:fixed;z-index:260;left:50%;top:16px;transform:translate(-50%,-90px);background:var(--hd);color:#fff;font-weight:700;font-size:13px;padding:11px 18px;border-radius:24px;transition:.35s;max-width:90%;text-align:center}
 #toast.on{transform:translate(-50%,0)}
 
-.msgs .ai-msg{display:inline-flex;flex-direction:column;align-items:flex-start;width:max-content;max-width:min(45%,34rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:7px 10px;border-radius:15px;font-size:12px;line-height:1.42;overflow-wrap:anywhere}
+.msgs .ai-msg{display:inline-flex;flex-direction:column;align-items:flex-start;width:max-content;max-width:min(84%,38rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:10px 13px;border-radius:17px;font-size:15px;line-height:1.45;overflow-wrap:anywhere;word-break:normal}
 .msgs .ai-msg>div,.msgs .ai-msg>.ai-attachment-link{max-width:100%;min-width:0;overflow-wrap:anywhere}
 .msgs .ai-msg.m1{background:var(--s1);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;color:var(--tx)}
 .msgs .ai-msg.m2{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
@@ -408,34 +408,72 @@ nav.aegis-bottom-nav a.on {
   .ai-support-copy small { font-size: 9.5px; }
 }
 
-/* AI Assistant layout: keep the page fixed and allow scrolling only inside the message list. */
+/* Telegram-style AI chat: full-height conversation, wide bubbles and a compact docked composer. */
 body:has(.ai-assistant-screen) {
   height:100dvh; overflow:hidden; overscroll-behavior:none;
 }
 body:has(.ai-assistant-screen) #app {
-  height:100dvh; min-height:0; box-sizing:border-box; overflow:hidden; padding-bottom:112px;
+  height:100dvh; min-height:0; box-sizing:border-box; overflow:hidden;
+  padding:calc(8px + env(safe-area-inset-top, 0px)) 12px calc(8px + env(safe-area-inset-bottom, 0px));
 }
 .scr.on.ai-assistant-screen {
-  height:calc(100dvh - 128px - env(safe-area-inset-bottom, 0px));
-  min-height:0; overflow:hidden; overscroll-behavior:none;
+  display:flex; flex-direction:column; height:100%; min-height:0;
+  overflow:hidden; overscroll-behavior:none; animation:none; transform:none;
+  gap:0;
 }
+.ai-assistant-screen > .hd,
+.ai-assistant-screen > .chips { flex:0 0 auto; }
+.ai-assistant-screen > .chips { gap:7px; margin:0; padding:4px 0 7px; }
 .ai-assistant-screen > .msgs {
   flex:1 1 auto; min-height:0; max-height:none;
-  margin:8px 0; padding:0 0 8px; box-sizing:border-box;
+  margin:6px 0 8px; padding:0 0 4px; box-sizing:border-box;
+  display:flex; flex-direction:column; gap:8px;
   overflow-x:hidden; overflow-y:auto; overflow-anchor:none;
   overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y;
 }
 .ai-assistant-screen > .ai-support-cta {
   position:static; left:auto; bottom:auto; transform:none;
-  width:100%; max-width:none; margin:4px 0 8px; flex:0 0 auto;
+  width:100%; max-width:none; margin:2px 0 7px; flex:0 0 auto;
 }
+.ai-assistant-screen .ai-support-button {
+  min-height:38px; padding:6px 9px; gap:8px; border-radius:12px;
+  box-shadow:none;
+}
+.ai-assistant-screen .ai-support-icon {
+  width:25px; height:25px; flex:0 0 25px; border-radius:8px; font-size:12px;
+}
+.ai-assistant-screen .ai-support-copy { gap:0; }
+.ai-assistant-screen .ai-support-copy strong { font-size:12px; line-height:1.3; }
+.ai-assistant-screen .ai-support-copy small { display:none; }
+.ai-assistant-screen .ai-support-status { margin:3px 2px 0; font-size:10px; }
+.ai-assistant-screen:not(.ai-representative-mode) > #aiRepresentativeStatus { display:none !important; }
+/* A Telegram-like chat screen uses the header back button instead of the app-wide tab bar. */
+.ai-assistant-screen > nav.aegis-bottom-nav { display:none !important; }
 .ai-assistant-screen > .ai-composer {
   position:static; left:auto; bottom:auto; transform:none;
-  width:100%; max-width:none; margin:0 0 2px; flex:0 0 auto;
+  display:flex; align-items:center; gap:7px;
+  width:100%; max-width:none; margin:0; padding:0; flex:0 0 auto;
 }
+.ai-assistant-screen .ai-composer > .ai-attach-btn {
+  flex:0 0 40px; width:40px; height:40px; min-width:40px; min-height:40px;
+  border-radius:50%; font-size:24px; box-shadow:none;
+}
+.ai-assistant-screen .ai-input-shell {
+  flex:1 1 auto; min-width:0; width:100%; height:48px; padding:3px;
+  border-radius:25px; gap:3px;
+}
+.ai-assistant-screen .ai-input-shell input#aiInput {
+  min-width:0; padding:0 13px; border-radius:21px; font-size:14px;
+}
+.ai-assistant-screen .ai-composer button#aiSend {
+  flex:0 0 42px; width:42px; height:42px; min-width:42px; min-height:42px;
+  border-radius:50%; box-shadow:none;
+}
+.ai-assistant-screen .ai-composer button#aiSend svg { width:19px; height:19px; }
 @media (max-height:620px) {
-  .scr.on.ai-assistant-screen { height:calc(100dvh - 128px - env(safe-area-inset-bottom, 0px)); }
-  .ai-assistant-screen > .msgs { min-height:72px; max-height:none; margin:6px 0; }
+  .scr.on.ai-assistant-screen { height:100%; }
+  .ai-assistant-screen > .msgs { min-height:56px; margin:4px 0 6px; }
+  .ai-assistant-screen .ai-support-button { min-height:34px; padding:5px 8px; }
 }
 
 </style>
@@ -2044,6 +2082,8 @@ function updateAiLiveSupportUI(){
   const input=document.getElementById('aiInput');
   const chips=document.querySelector('.ai-assistant-screen > .chips');
   const repMode=aiConversationMode==='representative';
+  const screen=document.querySelector('.ai-assistant-screen');
+  if(screen)screen.classList.toggle('ai-representative-mode',repMode);
   const joined=Boolean(liveSupportCase?.representative_joined_at && String(liveSupportCase.status).toUpperCase()==='IN_PROGRESS');
   const waiting=Boolean(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase?.status||'').toUpperCase()) && !joined);
   const activeCase=Boolean(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase?.status||'').toUpperCase()));
