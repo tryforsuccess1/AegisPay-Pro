@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { requestAegisAI } from "../_shared/aegis-ai-client.ts";
+import { isExplicitHumanSupportRequest, shouldEscalateUnresolvedIssue } from "../_shared/ai-support-escalation.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -351,13 +352,6 @@ Deno.serve(async (req: Request) => {
     if (/\b(security|hacked|unauthorized|fraud|suspicious)\b/.test(q)) return "SECURITY";
     if (/\b(error|bug|crash|not working|failed|stuck)\b/.test(q)) return "TECHNICAL";
     return "GENERAL";
-  };
-  const shouldEscalate = (message: string, answer: string, degraded: boolean, explicitlyNeedsHelp: boolean) => {
-    const q = message.toLowerCase();
-    const issue = /\b(not working|doesn't work|does not work|can't|cannot|unable|failed|failure|stuck|missing|disappeared|error|bug|complaint|problem|issue|wrong amount|incorrect|still not|tried again|keeps failing|keeps showing)\b/.test(q);
-    const answerDefers = /\b(contact (?:the )?(?:master admin|support)|tell me the exact|please share the exact|i could not|i couldn't|unable to|cannot resolve|needs? master admin|requires? master admin|manual investigation|please provide more detail|i need more information)\b/i.test(answer);
-    const stillUnresolved = /\b(still|again|same problem|keeps|already tried|does not help|did not help)\b/.test(q);
-    return explicitlyNeedsHelp || issue && (answerDefers || degraded || stillUnresolved);
   };
   async function notifySupport(admin: ReturnType<typeof createClient<any>>, profile: any, caseRow: any) {
     const bot = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
@@ -841,23 +835,27 @@ Deno.serve(async (req: Request) => {
     })).filter((x: any) => ["user", "assistant"].includes(x.role) && x.content).slice(-10);
     const context = await loadSupportContext(admin, profile);
 
+    const explicitHumanSupportRequest = profile.role === "USER" && isExplicitHumanSupportRequest(message);
     const op = profile.role === "USER" ? await handleSafeOperation(admin, profile, message, context) : { handled: false };
     if (op.handled) {
       let supportCase = null;
       const opAnswer = String(op.answer || fallback(message, context, history));
       const withdrawalRequest = profile.role === "USER" && isWithdrawalRequestIntent(message);
-      const needsRepresentative = profile.role === "USER" && (op.needsEscalation || withdrawalRequest || isSupportIssueIntent(message));
-      if (needsRepresentative && !assistantMode) {
-        try {
-          const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
-          if (activeDelivery) return json({
-            configured: false, provider: "aegispay-guidance",
-            answer: "Your message has been added to the representative conversation already open in your Client chat.",
-            degraded: false, role: profile.role, supportCase: activeDelivery.case,
-            message: activeDelivery.message, routedToRepresentative: true
-          });
-        } catch (_) {
-          return json({ error: "Your message could not be added to the active representative conversation." }, 503);
+      const needsRepresentative = profile.role === "USER" &&
+        (Boolean(op.needsEscalation) || explicitHumanSupportRequest);
+      if (needsRepresentative) {
+        if (!assistantMode) {
+          try {
+            const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
+            if (activeDelivery) return json({
+              configured: false, provider: "aegispay-guidance",
+              answer: "Your message has been added to the representative conversation already open in your Client chat.",
+              degraded: false, role: profile.role, supportCase: activeDelivery.case,
+              message: activeDelivery.message, routedToRepresentative: true
+            });
+          } catch (_) {
+            return json({ error: "Your message could not be added to the active representative conversation." }, 503);
+          }
         }
         try {
           supportCase = await openSupportCase(
@@ -865,14 +863,15 @@ Deno.serve(async (req: Request) => {
             withdrawalRequest
               ? "Client submitted a withdrawal-related request. Admin review is required; no automatic payout has been initiated."
               : opAnswer,
-            "CUSTOMER_REPRESENTATIVE"
+            explicitHumanSupportRequest ? "CUSTOMER_REPRESENTATIVE" : "AI_ESCALATION"
           );
         } catch (_) {
           return json({ configured: false, provider: "aegispay-guidance", answer: sanitizeClientAnswer(opAnswer + "\n\nWe could not notify support automatically. Please tap Talk to a Customer Representative and retry."), supportCaseError: true, degraded: false }, 200);
         }
       }
       const responseText = withdrawalRequest
-        ? "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon."
+        ? "Withdrawal requests must be submitted through the secure Withdrawals workflow. This assistant cannot approve or initiate a payout. Review the displayed fee and net amount there before confirming." +
+          (supportCase ? "\n\nA representative may contact you soon." : "")
         : opAnswer + (supportCase ? "\n\nA representative may contact you soon." : "");
       return json({ configured: false, provider: "aegispay-guidance", answer: sanitizeClientAnswer(responseText), degraded: false, supportCase });
     }
@@ -885,10 +884,10 @@ Deno.serve(async (req: Request) => {
     let supportCase = null;
     const withdrawalRequest = profile.role === "USER" && isWithdrawalRequestIntent(message);
 
-    // Financial approval/payment paths stay deterministic and manual-review-only.
-    // General authenticated support questions use Cloudflare Workers AI; provider
-    // failures fall back to the established local guidance without exposing errors.
-    if (!withdrawalRequest) {
+    // Don't spend a model request on an explicit human handoff or payout action.
+    // Neither category should notify Admin unless the client asked for a human or
+    // there is a concrete, unresolved customer issue.
+    if (!withdrawalRequest && !explicitHumanSupportRequest) {
       try {
         const generated = await requestAegisAI({
           authorizationToken,
@@ -907,15 +906,20 @@ Deno.serve(async (req: Request) => {
       } catch (_) {
         degraded = true;
       }
+    } else if (withdrawalRequest) {
+      answer = "Withdrawal requests must be submitted through the secure Withdrawals workflow. This assistant cannot approve or initiate a payout. Review the displayed fee and net amount there before confirming.";
     } else {
-      answer = "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon.";
+      answer = "I'll pass this to a customer representative.";
     }
 
-    const needsEscalation = profile.role === "USER" &&
-      (withdrawalRequest || isSupportIssueIntent(message) || shouldEscalate(message, answer, degraded, false));
+    const needsEscalation = profile.role === "USER" && (
+      explicitHumanSupportRequest ||
+      shouldEscalateUnresolvedIssue({ message, answer, degraded })
+    );
     if (needsEscalation) {
-      // In Assistant mode, answer the question in the AI transcript. Do not silently
-      // route every new message into the human chat just because a case is active.
+      // If a legacy client is already in representative mode, route to that existing
+      // case. Normal AI Assistant messages never create a case unless a human is
+      // explicitly requested or the issue cannot be resolved.
       if (!assistantMode) {
         try {
           const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
@@ -935,11 +939,11 @@ Deno.serve(async (req: Request) => {
           withdrawalRequest
             ? "Client submitted a withdrawal-related request. Admin review is required; no automatic payout has been initiated."
             : answer,
-          "CUSTOMER_REPRESENTATIVE"
+          explicitHumanSupportRequest ? "CUSTOMER_REPRESENTATIVE" : "AI_ESCALATION"
         );
         if (withdrawalRequest) {
-          answer = "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon.";
-        } else {
+          answer = "Withdrawal requests must be submitted through the secure Withdrawals workflow. This assistant cannot approve or initiate a payout. A representative may contact you soon.";
+        } else if (!explicitHumanSupportRequest) {
           answer += "\n\nA representative may contact you soon.";
         }
       } catch (_) {
