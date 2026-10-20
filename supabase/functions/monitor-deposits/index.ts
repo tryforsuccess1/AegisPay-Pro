@@ -60,7 +60,7 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
     const canonicalTxid = isValidTronTxid(String(deposit.txid || "")) ? String(deposit.txid) : "";
     const preferredTxid = canonicalTxid || claimedTxid;
     match = preferredTxid ? findExactShastaUsdtTransfer(rows, preferredTxid, receiving) : null;
-    if (!match) {
+    if (!match || !exactUsdtRawAmountMatches(match, deposit.gross_amount)) {
       const createdAt = new Date(deposit.created_at || Date.now()).getTime();
       const candidates = findShastaTransfersByAmount(rows, receiving, deposit.gross_amount, Math.max(1, createdAt - 24 * 60 * 60 * 1000));
       if (!candidates.length) return { id: deposit.id, status: "PENDING_NO_CHAIN_MATCH" };
