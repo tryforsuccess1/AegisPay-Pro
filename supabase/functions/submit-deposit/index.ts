@@ -121,7 +121,7 @@ Deno.serve(async (req: Request) => {
     } catch {
       return json({ error: "The uploaded screenshot could not be read or failed file validation." }, 400);
     }
-    const digest = await crypto.subtle.digest("SHA-256", image.bytes);
+    const digest = await crypto.subtle.digest("SHA-256", image.bytes.slice().buffer as ArrayBuffer);
     const evidenceSha256 = Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
     const { data: duplicateEvidence, error: evidenceLookupError } = await admin.from("deposit_submissions")
       .select("id,status").eq("network", depositNetwork).eq("evidence_sha256", evidenceSha256)
