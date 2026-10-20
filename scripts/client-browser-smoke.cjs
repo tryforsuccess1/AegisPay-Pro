@@ -237,6 +237,8 @@ const server = http.createServer((req, res) => {
         hasSend: !!scratch.querySelector('#aiSend'),
         hasRepresentative: !!scratch.querySelector('#aiRepresentative'),
         hasInputShell: !!scratch.querySelector('.ai-input-shell'),
+        hasGuidanceBanner: !!scratch.querySelector('.ai-assistant-screen > .info.b'),
+        hasOnlineBanner: !!scratch.querySelector('.ai-assistant-screen > #aiOnline'),
         messageScrollStyle: (() => {
           const msgs = scratch.querySelector('#aiMessages');
           const st = getComputedStyle(msgs);
@@ -258,6 +260,8 @@ const server = http.createServer((req, res) => {
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
     assert.ok(aiTemplate.navLinks === 4, 'AI Assistant template must render all four primary navigation items.');
     assert.ok(aiTemplate.hasRepresentative, 'AI Assistant must offer Talk to a Customer Representative.');
+    assert.equal(aiTemplate.hasGuidanceBanner, false, 'AI Assistant must not reserve vertical space for the redundant policy banner.');
+    assert.equal(aiTemplate.hasOnlineBanner, false, 'AI Assistant must not reserve vertical space for the duplicate representative status banner.');
     assert.ok(aiTemplate.hasInputShell, 'AI message input must be wrapped in an evenly framed focus shell.');
     assert.match(aiTemplate.representativeLabel, /Talk to a Customer Representative/i);
     assert.equal(aiTemplate.messageScrollStyle.overflowY, 'auto', 'AI messages must remain vertically scrollable.');
