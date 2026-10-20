@@ -5,6 +5,7 @@ import {
   findExactShastaUsdtTransfer,
   TRON_SHASTA_USDT_CONTRACT,
 } from "../_shared/tron-deposit-validation.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -16,6 +17,7 @@ const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
 const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SHASTA_TEST_USDT = TRON_SHASTA_USDT_CONTRACT;
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -62,9 +64,22 @@ Deno.serve(async (req: Request) => {
       }, 202);
     }
 
-    const { data: settingsRow } = await admin.from("platform_settings")
-      .select("value_json").eq("key", "deposit_rules").maybeSingle();
-    const rules = settingsRow?.value_json || {};
+    const depositNetwork = String(deposit.network || "").toUpperCase();
+    const isShastaTestUser = depositNetwork === "TRON TESTNET"
+      ? await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED)
+      : false;
+    if (depositNetwork === "TRON TESTNET" && !isShastaTestUser) {
+      return json({ error: "Shasta verification is restricted to the explicitly allowlisted test account.", code: "SHASTA_TEST_ACCOUNT_REQUIRED" }, 403);
+    }
+    const shastaRules = isShastaTestUser ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED) : null;
+    if (isShastaTestUser && !shastaRules) {
+      return json({ error: "Shasta test mode is unavailable while live-money gates are open or test configuration is invalid.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
+    }
+    const settingsKey = isShastaTestUser ? "shasta_testnet_rules" : "deposit_rules";
+    const { data: settingsRow, error: settingsError } = await admin.from("platform_settings")
+      .select("value_json").eq("key", settingsKey).maybeSingle();
+    if (settingsError || !settingsRow?.value_json) return json({ error: "Deposit configuration is unavailable.", code: "DEPOSIT_CONFIG_UNAVAILABLE" }, 503);
+    const rules = isShastaTestUser ? shastaRules! : settingsRow.value_json;
     const network = String(rules.network || "").toUpperCase();
     if (String(deposit.network || "").toUpperCase() !== network) {
       return json({ error: "Deposit network differs from the recorded request or current settings. Manual reconciliation is required.", code: "DEPOSIT_NETWORK_MISMATCH" }, 409);
