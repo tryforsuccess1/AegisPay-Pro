@@ -215,7 +215,7 @@ assert(client.includes('function aiRender(options={})')&&client.includes('const 
 assert(client.includes("+NV('bot')+'</div>'"),'AI Assistant template must use a navigation helper available in its own script scope');
 assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:previous,mode:'assistant'}})"),'AI Assistant must submit its message and conversation history in explicit AI mode to ai-support');
 assert(client.includes("button.onclick=()=>aiAsk(input?.value||'')"),'AI send button must invoke the AI request handler');
-assert(client.includes("if(aiConversationMode==='representative' && hasServerTranscript)")&&client.includes('box.innerHTML=aiHistoryRows(aiHistory);'),'AI replies must remain visible even when the same request also opens a support case.');
+assert(client.includes("const rows=aiConversationMode==='representative' && hasServerTranscript")&&client.includes(": aiHistoryRows(aiHistory);"),'AI replies must remain visible even when the same request also opens a support case.');
 assert(client.includes("if(aiConversationMode==='representative' && liveSupportCaseId")&&client.includes('await sendLiveSupportMessage(message,attachmentFile);'),'Messages must only route to the representative when the user explicitly switches to representative chat.');
 assert(client.includes("aiConversationMode=aiConversationMode==='representative'?'assistant':'representative';")&&client.includes("aiConversationMode='representative';\n    liveSupportCase={...data.supportCase,representative_requested:true};"),'The AI/support control must switch panels explicitly and open representative mode after an explicit support request.');
 const aiWorkerConfig=fs.readFileSync('workers/aegispay-web/wrangler.jsonc','utf8');
