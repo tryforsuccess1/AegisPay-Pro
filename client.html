@@ -752,19 +752,8 @@ home:()=>`<div class="tb" style="padding-top:22px"><div class="av">A</div><div s
  <div class="promo" onclick="go('referral')"><div style="flex:1"><b>Invite friends, earn USDT</b><p>5 USDT per direct invite, 2 USDT per indirect.</p><span class="pill">Code: AP10023 ${ic('copy')}</span></div><div class="gb">${ic('gift')}</div></div>
  <div class="sh">Recent Activity</div><div class="card" style="padding:4px 16px">${tx('dl','#1a9a6e','Deposit · USDT','Today, 10:24','+100.00','up')}${tx('up','#d98a1a','Withdraw · USDT','Yesterday','−25.00','dn')}${tx('gift','#f06a4d','Referral reward','12 Sep','+5.00','up')}</div>${NV('home')}`,
 
-topup:()=>`${T('Top Up','home')}<div class="sh">Payment Method</div>
- <div class="opt s">${bub('▽','#d63a4a')}<div>USDT (TRC20)<small>Fast · Low fees</small></div><span class="chip">Best</span></div>
- <div class="opt">${bub('₮','#8a7a68')}<div>USDT (ERC20)<small>Higher network fees</small></div>${ic('chev')}</div>
- <div class="opt">${bub('₿','#d98a1a')}<div>Bitcoin (BTC)<small>Secure &amp; global</small></div>${ic('chev')}</div>
- <div class="opt">${bub(ic('card'),'#c94b8a')}<div>Bank Transfer<small>Local deposit</small></div>${ic('chev')}</div>
- <div class="card amt"><small>Amount (USDT)</small><h2>100<span class="mu" style="font-size:18px"> USDT</span></h2><div class="fl" style="justify-content:center;margin:12px 0 0"><span>50</span><span class="on">100</span><span>500</span><span>1,000</span></div></div>
- <div class="card"><div class="row" style="padding-top:0"><div class="mu">Network fee</div><em>1.00 USDT</em></div><div class="row" style="border:0;padding-bottom:0"><div>You receive</div><em class="up">99.00 USDT</em></div></div>
- <button class="btn" onclick="go('deposit')">Generate Deposit Link ${ic('arrow')}</button>`,
-
-deposit:()=>`${T('Deposit USDT','topup')}<div style="text-align:center"><span class="chip">Network: TRC20</span>${qr('')}<p class="mu" style="font-size:12px">Scan to deposit USDT (TRC20)</p></div>
- <div class="sh" style="margin-top:16px">Deposit Address</div><div class="in f">Open the secure deposit page to view the configured receiving address.<span style="color:var(--c)">${ic('copy')}</span></div>
- <div class="warn">${ic('alert')}<span>Send only USDT (TRC20) to this address. Other networks may cause permanent loss of funds.</span></div>
- <div class="two"><button class="btn o">${ic('link')} Save Link</button><button class="btn">${ic('share')} Share</button></div>`,
+topup:()=>`${T('Top Up','home')}<div class="info b">${ic('info')}<div><b>Secure USDT deposit</b><p>Your authenticated receiving address, QR code and deposit verification form load in the secure deposit workflow.</p></div></div><button class="btn" type="button" onclick="go('topup')">Open secure deposit flow ${ic('arrow')}</button>`,
+ deposit:()=>`${T('Deposit USDT','topup')}<div class="info b">${ic('info')}<div>Use only the unique address issued inside your authenticated AegisPay account. If deposits are paused, do not send funds.</div></div><button class="btn" type="button" onclick="go('topup')">Open secure deposit flow ${ic('arrow')}</button>`,
 
 withdraw:()=>`${T('Withdraw','home')}<div class="card" style="text-align:center"><small class="mu">Available balance</small><h2 style="font-size:32px;margin:4px 0">2,480.50 <span class="mu" style="font-size:15px">USDT</span></h2></div>
  <div class="sh">Wallet Address (TRC20)</div><div class="in" style="padding:0;overflow:hidden"><span style="padding-left:14px;color:var(--mu)">${ic('link')}</span><input id="withdrawWallet" type="text" placeholder="Enter wallet address" autocomplete="off" style="flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--t);font:500 13px Sora;padding:14px 4px"><button type="button" style="border:0;background:transparent;color:var(--c);font:600 12px Sora;padding:14px 12px">Scan</button></div>
@@ -1217,29 +1206,91 @@ async function completeShopTask(taskId){
 
 async function getMyDepositAddress(){
  const result=await db.functions.invoke('get-deposit-address',{body:{}});
- if(result.error||!result.data||!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(result.data.address||'')))throw new Error('A unique deposit address is unavailable. Do not send funds until the address appears in AegisPay.');
+ if(result.error){
+  let payload=result.data&&typeof result.data==='object'?result.data:{};
+  try{
+   const response=result.error.context;
+   if(response&&typeof response.clone==='function')payload=await response.clone().json();
+  }catch(_){}
+  const code=String(payload.code||'');
+  const status=Number(result.error.context&&result.error.context.status||0);
+  const message=code==='DEPOSIT_ADDRESS_NETWORK_PAUSED'||status===423
+   ?'Deposits are paused while AegisPay completes its pre-production payment-readiness checks.'
+   :code==='HD_WALLET_NOT_CONFIGURED'
+    ?'The secure deposit wallet is not configured yet. No address has been issued.'
+    :'The secure deposit service could not issue a unique receiving address. No funds were moved.';
+  throw Object.assign(new Error(message),{code,status});
+ }
+ if(!result.data||!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(result.data.address||''))){
+  throw Object.assign(new Error('A unique deposit address is unavailable. Do not send funds until the authenticated AegisPay page displays your address.'),{code:'ADDRESS_MISSING'});
+ }
  return String(result.data.address);
 }
 async function liveTopup(){
  const d=settings.deposit_rules||{};
- let wallet='';try{wallet=await getMyDepositAddress()}catch(_){app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="location.reload()">'+apIcon('back')+'</button><h1>Deposit USDT</h1></div><div class="info b"><div><b>Deposit address unavailable</b><p>No address was issued. Do not send funds until your authenticated deposit page displays a unique TRON address.</p></div></div>'+nav('hidden')+'</div>';return;}
+ let wallet='',addressError=null;
+ try{wallet=await getMyDepositAddress()}catch(e){addressError=e}
+ const production=settings.production_config||{},system=settings.system_mode||{};
+ const paymentsPaused=String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'||
+  production.live_deposits_enabled!==true||system.live_deposits!==true;
  const minDeposit=Math.max(10,Number(d.minimum_amount||d.minimum_deposit||d.min_deposit||10)||10);
- const led=await db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(100);
- const deposits=(led.data||[]).filter(x=>Number(x.amount)>0&&/deposit|top.?up|funding|txid/i.test(String((x.description||'')+' '+(x.entry_type||''))));
- app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_dep">Deposit USDT</h1></div>'+
-  '<div class="info b">'+apIcon('info')+'<div>Only verified deposits are credited. Duplicate TXIDs and unconfirmed transfers are not credited. Deposit status is confirmed by the server.</div></div>'+
-  '<div class="steps"><i></i><i></i><i></i><i></i><i></i></div><div class="note" style="margin:6px 2px 0">1 Amount · 2 Transfer · 3 Evidence · 4 Server review · 5 Credit</div>'+
-  '<div class="fl">1. Amount (USDT)<span style="color:var(--mut);font-weight:700">Minimum '+minDeposit.toFixed(2)+' USDT</span></div><input id="depAmount" type="number" inputmode="decimal" min="'+minDeposit+'" step="0.01" placeholder="0.00">'+
-  '<div class="fl">2. Receiving address <span style="color:var(--mut);font-weight:700">Network: TRON (TRC20)</span></div>'+
-  '<div class="card" style="padding:12px"><div class="qr-live">'+(wallet?'<img src="https://api.qrserver.com/v1/create-qr-code/?size=312x312&margin=8&data='+encodeURIComponent(wallet)+'" alt="TRC20 deposit wallet QR code" loading="lazy" referrerpolicy="no-referrer">':'<div class="empty">QR appears when a deposit address is configured.</div>')+'</div><div class="addr"><span style="flex:1" id="depositAddress">'+(wallet?esc(wallet):'Deposit wallet address is not configured')+'</span>'+(wallet?'<button class="btn sm o" type="button" id="copyDepositAddress">Copy</button>':'')+'</div><div class="note">Verify the receiving address and network before sending. Never send funds to an address shown outside the authenticated client portal.</div></div>'+
-  '<div class="fl">3. Transaction screenshot <span style="color:var(--mut);font-weight:700">Image · max 10 MB</span></div>'+
-  '<label class="up" for="proof">'+apIcon('upl')+'<div id="proofName">Choose screenshot<small>Stored privately and scoped to your account</small></div><input type="file" id="proof" accept="image/jpeg,image/png,image/webp" hidden></label>'+
-  '<div class="fl">TXID</div><input id="txid" autocomplete="off" placeholder="Paste transaction hash">'+
-  '<div style="height:16px"></div><button class="btn" type="button" id="submitDep">Submit for verification</button>'+
-  '<h2><b>Deposit history</b></h2><div class="card list" id="depL">'+(deposits.length?deposits.map(x=>'<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>'+esc(x.description||x.entry_type||'USDT Deposit')+'</b><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></div><div class="v pos">+'+Number(x.amount).toFixed(2)+'<small>USDT</small></div></div>').join(''):'<div class="empty">No deposit entries yet.</div>')+'</div>'+nav('hidden')+'</div>';
+ const [ledgerResult,submissionResult]=await Promise.all([
+  db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(100),
+  db.from('deposit_submissions').select('id,gross_amount,status,ai_review_status,created_at,txid,network').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(25)
+ ]);
+ const deposits=(ledgerResult.data||[]).filter(x=>Number(x.amount)>0&&/deposit|top.?up|funding|txid/i.test(String((x.description||'')+' '+(x.entry_type||''))));
+ const statusView=(value)=>{
+  const s=String(value||'').toUpperCase();
+  if(s==='VERIFIED')return {label:'Verified',cls:'ok'};
+  if(s==='PENDING_VERIFICATION')return {label:'Pending verification',cls:'wa'};
+  if(s==='REJECTED'||s==='FAILED')return {label:'Rejected',cls:'rd'};
+  if(s==='FAILED_REVIEW'||s==='MANUAL_REVIEW')return {label:'Manual review required',cls:'wa'};
+  if(s==='CANCELLED')return {label:'Cancelled',cls:'mu'};
+  return {label:s?s.replace(/_/g,' ').toLowerCase().replace(/(^|\s)\S/g,m=>m.toUpperCase()):'Submitted',cls:'mu'};
+ };
+ const requestRows=submissionResult.error
+  ?'<div class="empty">Deposit request history could not be loaded. Please try again.</div>'
+  :(submissionResult.data||[]).length
+   ?submissionResult.data.map(x=>{
+     const st=statusView(x.status),tx=String(x.txid||'');
+     const shortTx=tx.length>18?tx.slice(0,10)+'…'+tx.slice(-6):tx;
+     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small></div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
+    }).join('')
+   :'<div class="empty">No deposit requests have been submitted yet.</div>';
+ const creditRows=ledgerResult.error
+  ?'<div class="empty">Verified credit history could not be loaded. Please try again.</div>'
+  :deposits.length
+   ?deposits.map(x=>'<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>'+esc(x.description||x.entry_type||'Verified USDT deposit')+'</b><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></div><div class="v pos">+'+Number(x.amount).toFixed(2)+'<small>USDT</small></div></div>').join('')
+   :'<div class="empty">No verified deposit credits yet.</div>';
+ const header='<div class="hd"><button class="bk" type="button" id="depositBack" aria-label="Back">'+apIcon('back')+'</button><h1 data-i18n="p_dep">Deposit USDT</h1></div>';
+ const pausedTitle=paymentsPaused||addressError&&addressError.code==='DEPOSIT_ADDRESS_NETWORK_PAUSED'
+  ?'Deposits are currently paused'
+  :'Deposit address unavailable';
+ const pausedMessage=paymentsPaused
+  ?'AegisPay is in pre-production. A unique receiving address will appear here only after the payment-readiness checks and required approvals are complete.'
+  :addressError&&addressError.code==='HD_WALLET_NOT_CONFIGURED'
+   ?'The secure deposit wallet has not been configured. Please contact support; no address has been issued.'
+   :'The secure deposit service could not issue your personal receiving address right now. No funds were moved.';
+ const addressPanel=wallet
+  ?'<div class="info b">'+apIcon('info')+'<div>Only verified transfers are credited. Duplicate TXIDs and unconfirmed transfers are not credited. Deposit status is confirmed by the server.</div></div>'+
+   '<div class="steps"><i></i><i></i><i></i><i></i><i></i></div><div class="note" style="margin:6px 2px 0">1 Amount · 2 Transfer · 3 Evidence · 4 Server review · 5 Credit</div>'+
+   '<div class="fl">1. Amount (USDT)<span style="color:var(--mut);font-weight:700">Minimum '+minDeposit.toFixed(2)+' USDT</span></div><input id="depAmount" type="number" inputmode="decimal" min="'+minDeposit+'" step="0.01" placeholder="0.00">'+
+   '<div class="fl">2. Receiving address <span style="color:var(--mut);font-weight:700">Network: '+esc(String(d.network||'TRON'))+'</span></div>'+
+   '<div class="card" style="padding:12px"><div class="qr-live"><img src="https://api.qrserver.com/v1/create-qr-code/?size=312x312&margin=8&data='+encodeURIComponent(wallet)+'" alt="Unique TRON deposit wallet QR code" loading="lazy" referrerpolicy="no-referrer"></div><div class="addr"><span style="flex:1;overflow-wrap:anywhere" id="depositAddress">'+esc(wallet)+'</span><button class="btn sm o" type="button" id="copyDepositAddress">Copy</button></div><div class="note">Check the full address and network before transferring. Only send the supported USDT token to this address.</div></div>'+
+   '<div class="fl">3. Transaction screenshot <span style="color:var(--mut);font-weight:700">Image · max 10 MB</span></div>'+
+   '<label class="up" for="proof">'+apIcon('upl')+'<div id="proofName">Choose screenshot<small>Stored privately and scoped to your account</small></div><input type="file" id="proof" accept="image/jpeg,image/png,image/webp" hidden></label>'+
+   '<div class="fl">4. Transaction ID (TXID)</div><input id="txid" autocomplete="off" placeholder="Paste the 64-character transaction hash">'+
+   '<div style="height:12px"></div><button class="btn" type="button" id="submitDep">Submit for verification</button>'
+  :'<div class="info b">'+apIcon('info')+'<div><b>'+esc(pausedTitle)+'</b><p>'+esc(pausedMessage)+'</p></div></div>'+
+   '<div class="card" style="padding:14px"><div class="sh" style="margin-top:0">Before you send funds</div><p class="note">No unique receiving address has been issued to this account. Do not transfer USDT to a treasury address, old screenshot, chat message, or any address copied from outside this authenticated deposit page.</p><div class="two" style="margin-top:12px"><button class="btn o" type="button" id="retryDepositAddress">Check again</button><button class="btn" type="button" id="depositViewActivity">Deposit history</button></div></div>';
+ app.innerHTML='<div class="scr on">'+header+addressPanel+
+  '<div class="sh" style="margin-top:18px">Deposit requests</div><div class="card list" id="depositRequests">'+requestRows+'</div>'+
+  '<div class="sh">Verified deposit credits</div><div class="card list" id="depositCredits">'+creditRows+'</div>'+nav('hidden')+'</div>';
+ const back=document.getElementById('depositBack');if(back)back.onclick=()=>window.go('home');
+ const retry=document.getElementById('retryDepositAddress');if(retry)retry.onclick=()=>liveTopup();
+ const viewActivity=document.getElementById('depositViewActivity');if(viewActivity)viewActivity.onclick=()=>window.go('activity');
+ const copy=document.getElementById('copyDepositAddress');if(copy)copy.onclick=()=>copyTextToClipboard(wallet,'Deposit address copied.');
  const amount=document.getElementById('depAmount'),txid=document.getElementById('txid'),proof=document.getElementById('proof'),submit=document.getElementById('submitDep');
- const copy=document.getElementById('copyDepositAddress');
- if(copy)copy.onclick=()=>copyTextToClipboard(wallet,'Deposit address copied.');
  if(proof)proof.onchange=()=>{
   const f=proof.files&&proof.files[0];if(!f)return;
   if(!['image/jpeg','image/png','image/webp'].includes(f.type)){proof.value='';uiNotice('JPEG, PNG or WebP images only.','error');return}
@@ -1250,8 +1301,8 @@ async function liveTopup(){
   try{
    const value=Number(amount.value),f=proof.files&&proof.files[0],tx=txid.value.trim();
    if(!Number.isFinite(value)||value<minDeposit)throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
-   if(!wallet)throw Error('Deposit wallet is temporarily unavailable. Please contact support.');
-   if(!tx||/\s/.test(tx)||tx.length<16)throw Error('Enter a valid transaction ID / TXID.');
+   if(!wallet)throw Error('No unique receiving address is available. Do not send funds.');
+   if(!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format.');
    if(!f)throw Error('Please attach the transaction screenshot.');
    submit.disabled=true;submit.textContent='Submitting…';
    const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase());
@@ -1259,10 +1310,10 @@ async function liveTopup(){
    if(up.error)throw up.error;
    const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path}});
    if(result.error)throw result.error;
-   uiNotice(result.data?.message||'Deposit submitted for verification.','success');
-   await window.go('activity');
+   uiNotice(result.data&&result.data.message||'Deposit submitted for verification.','success');
+   await liveTopup();
   }catch(e){uiNotice(e.message||'Deposit could not be submitted.','error')}
-  finally{if(submit){submit.disabled=false;submit.textContent='Submit for verification'}}
+  finally{const currentSubmit=document.getElementById('submitDep');if(currentSubmit){currentSubmit.disabled=false;currentSubmit.textContent='Submit for verification'}}
  };
 }
 async function liveVip(){
