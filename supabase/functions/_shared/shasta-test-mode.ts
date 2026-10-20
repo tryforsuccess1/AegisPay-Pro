@@ -11,6 +11,7 @@ export type ShastaTestRules = {
 };
 
 const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+const TRON_MAINNET_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 
 export function validShastaTestRules(value: unknown): value is ShastaTestRules {
   if (!value || typeof value !== "object") return false;
@@ -54,14 +55,17 @@ export async function loadShastaTestRules(
     { data: rulesRow, error: rulesError },
     { data: modeRow, error: modeError },
     { data: productionRow, error: productionError },
+    { data: mainnetRow, error: mainnetError },
   ] = await Promise.all([
     admin.from("platform_settings").select("value_json").eq("key", "shasta_testnet_rules").maybeSingle(),
     admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
     admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+    admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
   ]);
-  if (rulesError || modeError || productionError || !rulesRow?.value_json || !modeRow?.value_json || !productionRow?.value_json) return null;
+  if (rulesError || modeError || productionError || mainnetError || !rulesRow?.value_json || !modeRow?.value_json || !productionRow?.value_json || !mainnetRow?.value_json) return null;
   const mode = modeRow.value_json;
   const production = productionRow.value_json;
+  const mainnet = mainnetRow.value_json;
   const paymentGatesSafelyClosed =
     String(mode.mode || "").toUpperCase() === "MAINNET"
     && mode.live_deposits === false
@@ -72,6 +76,11 @@ export async function loadShastaTestRules(
     && production.real_payouts_enabled === false
     && production.go_live_approved === false
     && production.payouts_locked === true;
-  if (!paymentGatesSafelyClosed || !validShastaTestRules(rulesRow.value_json)) return null;
+  const distinctTreasuries =
+    String(mainnet.network || "").toUpperCase() === "TRON MAINNET"
+    && String(mainnet.token_contract || "").trim() === TRON_MAINNET_USDT_CONTRACT
+    && TRON_ADDRESS_RE.test(String(mainnet.receiving_address || "").trim())
+    && String(mainnet.receiving_address).trim() !== String(rulesRow.value_json.receiving_address || "").trim();
+  if (!paymentGatesSafelyClosed || !validShastaTestRules(rulesRow.value_json) || !distinctTreasuries) return null;
   return rulesRow.value_json as ShastaTestRules;
 }
