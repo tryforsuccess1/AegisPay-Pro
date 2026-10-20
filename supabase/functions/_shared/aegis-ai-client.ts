@@ -2,19 +2,11 @@ const DEFAULT_AI_WORKER_URL = "https://aegispay-web.aegispay.workers.dev/api/ai"
 const MAX_ANSWER_LENGTH = 2_400;
 const REQUEST_TIMEOUT_MS = 13_000;
 
-export type AegisAIContext = {
-  account: Record<string, unknown>;
-  shop: Record<string, unknown>;
-  kyc: Record<string, unknown>;
-  withdrawal: Record<string, unknown>;
-  referrals: Record<string, unknown>;
-};
-
 export type AegisAIRequest = {
   authorizationToken: string;
   message: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
-  context: AegisAIContext;
+  context: unknown;
 };
 
 export async function requestAegisAI(
