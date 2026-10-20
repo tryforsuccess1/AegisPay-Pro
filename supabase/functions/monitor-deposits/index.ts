@@ -76,6 +76,37 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
       return { id: deposit.id, status: "AMOUNT_MISMATCH" };
     }
   }
+  if (network === "TRON TESTNET" && deposit.ai_review_status === "MANUAL_REVIEW") {
+    if (!deposit.screenshot_path) return { id: deposit.id, status: "MISSING_EVIDENCE" };
+    const existingChecks = deposit.ai_checks && typeof deposit.ai_checks === "object" && !Array.isArray(deposit.ai_checks)
+      ? deposit.ai_checks as Record<string, unknown>
+      : {};
+    const chainEvidence = {
+      result: "CONFIRMED",
+      network: "TRON TESTNET",
+      token_contract: contract,
+      receiving_address: receiving,
+      txid: String(match.transaction_id),
+      raw_amount: raw,
+      block_timestamp: match.block_timestamp ? new Date(Number(match.block_timestamp)).toISOString() : null,
+      verification_source: "TronGrid confirmed-only Shasta monitor",
+    };
+    const { data: reviewRow, error: reviewError } = await admin.from("deposit_submissions")
+      .update({
+        ai_review_status: "APPROVED",
+        ai_review_reason: "CHAIN_VERIFIED_SHASTA_TRANSFER",
+        ai_reviewed_at: new Date().toISOString(),
+        ai_checks: { ...existingChecks, chain_verification: chainEvidence },
+        ai_policy_version: "SHASTA_CHAIN_VERIFICATION_V1",
+      })
+      .eq("id", deposit.id)
+      .eq("status", "PENDING_VERIFICATION")
+      .eq("ai_review_status", "MANUAL_REVIEW")
+      .select("id")
+      .maybeSingle();
+    if (reviewError || !reviewRow) return { id: deposit.id, status: "CHAIN_REVIEW_STATE_CHANGED" };
+  }
+
   const { error } = await admin.rpc("apply_verified_deposit", {
     p_deposit_id: deposit.id,
     p_sender_address: String(match.from || ""),
@@ -111,9 +142,10 @@ Deno.serve(async (req: Request) => {
     }
     const shastaRules = await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED);
 
+    // Include Shasta manual-review rows so confirmed on-chain proof can resolve
+    // receipt/OCR uncertainty. The loop keeps all Mainnet review gates unchanged.
     const { data: pending, error } = await admin.from("deposit_submissions").select("*")
       .eq("status", "PENDING_VERIFICATION")
-      .in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])
       .order("created_at", { ascending: true }).limit(100);
     if (error) return json({ error: "Unable to load pending deposits." }, 500);
 
@@ -178,6 +210,14 @@ Deno.serve(async (req: Request) => {
       try {
         const depositNetwork = String(deposit.network || "").toUpperCase();
         if (depositNetwork === "TRON TESTNET") {
+          if (!["APPROVED","MANUAL_APPROVED","MANUAL_REVIEW"].includes(String(deposit.ai_review_status || ""))) {
+            results.push({ id: deposit.id, status: "REVIEW_NOT_ELIGIBLE" });
+            continue;
+          }
+          if (!deposit.screenshot_path) {
+            results.push({ id: deposit.id, status: "MISSING_EVIDENCE" });
+            continue;
+          }
           if (!shastaRules) {
             results.push({ id: deposit.id, status: "SHASTA_TEST_MODE_BLOCKED" });
             continue;
@@ -196,6 +236,10 @@ Deno.serve(async (req: Request) => {
           continue;
         }
         if (depositNetwork === "TRON MAINNET") {
+          if (!["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || ""))) {
+            results.push({ id: deposit.id, status: "REVIEW_NOT_APPROVED" });
+            continue;
+          }
           if (!mainnetDepositsOpen || network !== "TRON MAINNET" || contract !== MAINNET_USDT) {
             results.push({ id: deposit.id, status: "MAINNET_DEPOSITS_PAUSED" });
             continue;
