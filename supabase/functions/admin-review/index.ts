@@ -140,12 +140,13 @@ Deno.serve(async (req: Request) => {
       }).eq("id", id).eq("status", "PENDING_VERIFICATION").select("id").maybeSingle();
       if (updateError || !reviewed) return json({ error: "Deposit could not be reserved for manual review. Refresh and reconcile before retrying." }, 409);
 
-      await admin.from("audit_events").insert({
+      const { error: auditAttemptError } = await admin.from("audit_events").insert({
         actor_user_id: actor.id, target_user_id: deposit.user_id,
         event_type: "MASTER_ADMIN_MANUAL_SHASTA_CREDIT_ATTEMPT",
         description: "Manual Shasta deposit credit attempted for " + txid + "; confirmed blocks " + confirmations + "; reason: " + reason,
         reference_id: id,
       });
+      if (auditAttemptError) return json({ error: "Manual credit is blocked because the required audit record could not be written." }, 503);
 
       const { data: applied, error: applyError } = await admin.rpc("apply_verified_deposit", {
         p_deposit_id: id,
