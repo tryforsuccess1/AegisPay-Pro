@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v30-support-attachment-button';
+const CACHE='aegispay-shell-v31-fast-automatic-turnstile';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE

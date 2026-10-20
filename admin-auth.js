@@ -504,7 +504,7 @@ async function login(e){
     if(!window.AegisTurnstile)throw new Error('Security verification did not load. Please refresh and try again.');
     captchaToken=await window.AegisTurnstile.requireToken(loginForm);
   }catch(captchaError){
-    state.error=captchaError.message||'Complete the security check before signing in.';
+    state.error=captchaError.message||'Please wait for automatic security verification before signing in.';
     state.busy=false;
     render();
     return;
@@ -536,7 +536,7 @@ async function login(e){
     await service.signOut().catch(function(){});
     state.profile=null;
     const signInMessage=String(err&&err.message||'Sign-in failed.');
-    state.error=/captcha|turnstile|security verification/i.test(signInMessage)?'Security verification could not be validated. Please refresh and complete the Cloudflare check, then retry.':signInMessage;
+    state.error=/captcha|turnstile|security verification/i.test(signInMessage)?'Security verification could not be completed automatically. Please try signing in again in a moment.':signInMessage;
     state.busy=false;
     render();
   }finally{

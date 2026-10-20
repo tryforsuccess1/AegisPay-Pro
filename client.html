@@ -1736,7 +1736,7 @@ function bindAuthForms(){
         await liveHome();
       }catch(x){
         const msg=x.message||'Login failed';
-        const notice=/captcha|turnstile|security verification/i.test(msg)?'Security verification could not be validated. Complete the Cloudflare check again and retry.':(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your email inbox/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
+        const notice=/captcha|turnstile|security verification/i.test(msg)?'Security verification could not be completed automatically. Please try Login again in a moment.':(/email not confirmed|email.*confirm|not verified/i.test(msg)?'Please verify your email first. Check your email inbox/Spam folder.':(/invalid login credentials/i.test(msg)?'Invalid username/email or password.':msg));
         uiNotice(notice);
       }finally{
         if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(login);

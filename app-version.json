@@ -1,9 +1,10 @@
 {
-  "versionCode": 47,
-  "versionName": "2.6.8",
+  "versionCode": 48,
+  "versionName": "2.6.9",
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
+    "Build 48 / 2.6.9 preloads Cloudflare Turnstile on the login screen, retries transient verification failures automatically, and uses non-interactive verification so users do not need to tick a checkbox. Server-side token validation remains required.",
     "Build 47 / 2.6.8 makes the AI Support plus attachment button visibly separate from the message input and bumps the service-worker cache so the latest chat controls replace stale app-shell markup.",
     "Build 46 / 2.6.7 restores the exact Client screen after returning from the external Shop marketplace and briefly retries Auth session hydration to avoid a transient login flash.",
     "The marketplace now renders real seed photos immediately, prioritizes the first four visible product images, and replaces seed photos with matching public-catalog photos when the catalog finishes loading.",

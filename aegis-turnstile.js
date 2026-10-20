@@ -8,6 +8,22 @@
   var MANUAL_LOGIN_FORMS = new Set(['liveLogin', 'aaLoginForm']);
   var states = new WeakMap();
   var apiPromise = null;
+  var API_LOAD_TIMEOUT_MS = 10000;
+  var VERIFY_RETRY_LIMIT = 2;
+  var VERIFY_RETRY_DELAY_MS = 450;
+  var VERIFY_ATTEMPT_TIMEOUT_MS = 8000;
+
+  function preconnectCloudflare() {
+    var head = document.head || document.documentElement;
+    if (!head || document.querySelector('link[data-aegis-turnstile-preconnect]')) return;
+    var link = document.createElement('link');
+    link.rel = 'preconnect';
+    link.href = 'https://challenges.cloudflare.com';
+    link.crossOrigin = 'anonymous';
+    link.setAttribute('data-aegis-turnstile-preconnect', 'true');
+    head.appendChild(link);
+  }
+  preconnectCloudflare();
 
   var style = document.createElement('style');
   style.textContent = [
@@ -26,31 +42,43 @@
     if (window.turnstile && typeof window.turnstile.render === 'function') return Promise.resolve();
     if (apiPromise) return apiPromise;
     apiPromise = new Promise(function (resolve, reject) {
-      var script = document.createElement('script');
-      var timeout = window.setTimeout(function () {
-        apiPromise = null;
-        script.remove();
-        reject(new Error('Cloudflare security verification did not load. Please refresh and try again.'));
-      }, 20000);
-      script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-      script.async = true;
-      script.defer = true;
-      script.onload = function () {
-        window.clearTimeout(timeout);
-        if (window.turnstile && typeof window.turnstile.render === 'function') resolve();
-        else {
-          apiPromise = null;
+      function loadAttempt(attempt) {
+        var script = document.createElement('script');
+        var finished = false;
+        var timeout = window.setTimeout(function () {
+          fail(new Error('Cloudflare security verification did not load. Please check your connection and try again.'));
+        }, API_LOAD_TIMEOUT_MS);
+        function fail(error) {
+          if (finished) return;
+          finished = true;
+          window.clearTimeout(timeout);
           script.remove();
-          reject(new Error('Cloudflare security verification is unavailable. Please refresh.'));
+          if (attempt < 1) {
+            window.setTimeout(function () { loadAttempt(attempt + 1); }, VERIFY_RETRY_DELAY_MS);
+            return;
+          }
+          apiPromise = null;
+          reject(error);
         }
-      };
-      script.onerror = function () {
-        window.clearTimeout(timeout);
-        apiPromise = null;
-        script.remove();
-        reject(new Error('Cloudflare security verification could not load. Check your connection and retry.'));
-      };
-      document.head.appendChild(script);
+        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+        script.async = true;
+        script.defer = true;
+        script.onload = function () {
+          if (finished) return;
+          if (window.turnstile && typeof window.turnstile.render === 'function') {
+            finished = true;
+            window.clearTimeout(timeout);
+            resolve();
+          } else {
+            fail(new Error('Cloudflare security verification is unavailable. Please try again.'));
+          }
+        };
+        script.onerror = function () {
+          fail(new Error('Cloudflare security verification could not load. Retrying automatically…'));
+        };
+        document.head.appendChild(script);
+      }
+      loadAttempt(0);
     });
     return apiPromise;
   }
@@ -100,6 +128,10 @@
   function settleVerification(state, token, error) {
     var resolve = state.pendingResolve;
     var reject = state.pendingReject;
+    if (state.verificationTimer) window.clearTimeout(state.verificationTimer);
+    if (state.retryTimer) window.clearTimeout(state.retryTimer);
+    state.verificationTimer = null;
+    state.retryTimer = null;
     state.pendingResolve = null;
     state.pendingReject = null;
     state.pendingPromise = null;
@@ -108,6 +140,50 @@
     } else if (resolve) {
       resolve(token);
     }
+  }
+
+  function armVerificationWatchdog(state) {
+    if (state.verificationTimer) window.clearTimeout(state.verificationTimer);
+    var timeoutMs = Math.max(5000, VERIFY_ATTEMPT_TIMEOUT_MS - (state.retryCount * 1500));
+    state.verificationTimer = window.setTimeout(function () {
+      state.verificationTimer = null;
+      if (!state.manual || !state.inProgress || !state.pendingPromise) return;
+      failOrRetryVerification(state, new Error('Cloudflare security verification timed out.'));
+    }, timeoutMs);
+  }
+
+  function failOrRetryVerification(state, error) {
+    state.token = '';
+    state.issuedAt = 0;
+    state.error = error instanceof Error ? error : new Error(String(error || 'Cloudflare security verification failed.'));
+    if (state.manual && state.inProgress && state.pendingPromise &&
+        state.retryCount < VERIFY_RETRY_LIMIT && window.turnstile &&
+        state.widgetId !== null && state.form.isConnected) {
+      state.retryCount += 1;
+      state.status.textContent = 'Security verification is taking longer than expected. Retrying automatically (' +
+        state.retryCount + '/' + VERIFY_RETRY_LIMIT + ')…';
+      if (state.retryTimer) window.clearTimeout(state.retryTimer);
+      state.retryTimer = window.setTimeout(function () {
+        state.retryTimer = null;
+        if (!state.form.isConnected || !state.inProgress || !state.pendingPromise) return;
+        try {
+          window.turnstile.reset(state.widgetId);
+          window.turnstile.execute(state.widgetId);
+          armVerificationWatchdog(state);
+        } catch (_) {
+          failOrRetryVerification(state, new Error('Cloudflare security verification could not start.'));
+        }
+      }, VERIFY_RETRY_DELAY_MS);
+      return;
+    }
+    state.inProgress = false;
+    if (state.manual) {
+      state.status.textContent = 'Security verification could not finish automatically. Click Login to try again.';
+    } else {
+      state.status.textContent = state.error.message;
+    }
+    settleVerification(state, null, state.error);
+    syncManualControls(state);
   }
 
   function attach(form) {
@@ -153,7 +229,10 @@
       challengeValues: '',
       pendingPromise: null,
       pendingResolve: null,
-      pendingReject: null
+      pendingReject: null,
+      retryCount: 0,
+      verificationTimer: null,
+      retryTimer: null
     };
     states.set(form, state);
 
@@ -207,12 +286,14 @@
           execution: manual ? 'execute' : 'render',
           appearance: manual ? 'execute' : 'always',
           retry: manual ? 'never' : 'auto',
-          'refresh-expired': manual ? 'manual' : 'auto',
-          'refresh-timeout': manual ? 'manual' : 'auto',
+          'retry-interval': 3000,
+          'refresh-expired': 'auto',
+          'refresh-timeout': 'auto',
           callback: function (token) {
             state.token = String(token || '');
             state.issuedAt = Date.now();
             state.error = null;
+            state.retryCount = 0;
             state.inProgress = false;
             state.verifiedValues = currentValues();
             if (manual) {
@@ -234,11 +315,15 @@
           'expired-callback': function () {
             state.token = '';
             state.issuedAt = 0;
+            if (manual && state.inProgress && state.pendingPromise) {
+              failOrRetryVerification(state, new Error('Cloudflare security verification expired.'));
+              return;
+            }
             state.inProgress = false;
             state.error = null;
             var message = manual
-              ? 'Security check expired. Click Login to try again.'
-              : 'Security check expired. Please complete it again.';
+              ? 'Security verification expired. Click Login to try again.'
+              : 'Security verification expired. Please submit again to retry.';
             status.textContent = message;
             settleVerification(state, null, new Error(message));
             syncManualControls(state);
@@ -246,6 +331,10 @@
           'error-callback': function () {
             state.token = '';
             state.issuedAt = 0;
+            if (manual && state.inProgress && state.pendingPromise) {
+              failOrRetryVerification(state, new Error('Cloudflare security verification failed.'));
+              return;
+            }
             state.inProgress = false;
             state.error = new Error('Cloudflare security verification failed. Please try again.');
             status.textContent = state.error.message;
@@ -255,10 +344,14 @@
           'timeout-callback': function () {
             state.token = '';
             state.issuedAt = 0;
+            if (manual && state.inProgress && state.pendingPromise) {
+              failOrRetryVerification(state, new Error('Cloudflare security verification timed out.'));
+              return;
+            }
             state.inProgress = false;
             var message = manual
-              ? 'Security check timed out. Click Login to try again.'
-              : 'Security check timed out. Please complete it again.';
+              ? 'Security verification timed out. Click Login to try again.'
+              : 'Security verification timed out. Please submit again to retry.';
             status.textContent = message;
             settleVerification(state, null, new Error(message));
             syncManualControls(state);
@@ -271,7 +364,7 @@
             : '';
           syncManualControls(state);
         } else {
-          status.textContent = 'Complete the security check to continue.';
+          status.textContent = 'Verifying automatically…';
         }
       }).catch(function (error) {
         state.error = error instanceof Error ? error : new Error('Security verification unavailable.');
@@ -284,8 +377,15 @@
     }
 
     state.initializeWidget = initializeWidget;
-    // Signup and recovery display their widgets immediately; login waits for a Login click.
-    if (!manual) initializeWidget().catch(function () {});
+    // Warm Turnstile before the visitor submits. The login challenge itself still starts only
+    // after a valid Login click, so verification remains tied to the current credentials.
+    if (manual) {
+      loadApi().catch(function (error) {
+        state.error = error instanceof Error ? error : new Error('Cloudflare security verification is unavailable.');
+      });
+    } else {
+      initializeWidget().catch(function () {});
+    }
 
 
     return state;
@@ -325,6 +425,7 @@
         state.challengeValues = credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000');
         state.inProgress = true;
         state.error = null;
+        state.retryCount = 0;
         state.pendingPromise = new Promise(function (resolve, reject) {
           state.pendingResolve = resolve;
           state.pendingReject = reject;
@@ -341,16 +442,14 @@
           if (!window.turnstile || state.widgetId === null) {
             throw state.error || new Error('Cloudflare security verification is unavailable. Please refresh.');
           }
-          state.status.textContent = 'Complete the Cloudflare security check to continue.';
+          state.status.textContent = 'Verifying automatically…';
           if (state.started) window.turnstile.reset(state.widgetId);
           state.started = true;
           window.turnstile.execute(state.widgetId);
+          armVerificationWatchdog(state);
         } catch (error) {
-          state.inProgress = false;
           state.error = error instanceof Error ? error : new Error('Cloudflare security verification failed. Please try again.');
-          state.status.textContent = state.error.message;
-          settleVerification(state, null, state.error);
-          syncManualControls(state);
+          failOrRetryVerification(state, state.error);
         }
 
         var issuedToken;
@@ -381,7 +480,7 @@
         : 'Please complete the Cloudflare security check, then submit again.';
       syncManualControls(state);
       throw new Error(state.manual
-        ? 'Please verify that you are human before logging in.'
+        ? 'Cloudflare security verification did not complete. Please try Login again.'
         : 'Please complete the Cloudflare security check before continuing.');
     }
 
@@ -402,6 +501,11 @@
     var state = form && states.get(form);
     if (!state) return;
     if (state.pendingPromise) settleVerification(state, null, new Error('Security verification was reset. Click Login to try again.'));
+    if (state.verificationTimer) window.clearTimeout(state.verificationTimer);
+    if (state.retryTimer) window.clearTimeout(state.retryTimer);
+    state.verificationTimer = null;
+    state.retryTimer = null;
+    state.retryCount = 0;
     state.token = '';
     state.issuedAt = 0;
     state.error = null;
