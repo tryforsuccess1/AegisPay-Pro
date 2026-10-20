@@ -24,6 +24,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node for pinned browser SDK
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Prepare the pinned Supabase browser SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save --no-package-lock @supabase/supabase-js@2.117.2
+          cp node_modules/@supabase/supabase-js/dist/umd/supabase.js supabase-sdk.js
+          test -s supabase-sdk.js
+
       - name: Validate Cloudflare deployment credentials
         shell: bash
         run: |
