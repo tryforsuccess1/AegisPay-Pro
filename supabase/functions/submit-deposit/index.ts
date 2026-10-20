@@ -161,7 +161,11 @@ Deno.serve(async (req: Request) => {
     const aiApproved = aiEnabled && review.configured && validConfidence && confidence >= 0.95
       && result.receipt_visible === true && result.txid_matches === true && result.amount_matches === true
       && result.recipient_matches === true && result.legible === true && result.blurry === false && !tampering;
-    const aiStatus = !aiEnabled ? "MANUAL_REVIEW" : !review.configured ? "UNAVAILABLE" : hardFailure ? "REJECTED" : aiApproved ? "APPROVED" : "MANUAL_REVIEW";
+    // Shasta always remains eligible for a confirmed-chain review even when the AI
+    // provider is unavailable or the user-entered TXID is missing/mistyped.
+    const aiStatus = isShastaTestUser
+      ? (hardFailure ? "REJECTED" : aiApproved ? "APPROVED" : "MANUAL_REVIEW")
+      : (!aiEnabled ? "MANUAL_REVIEW" : !review.configured ? "UNAVAILABLE" : hardFailure ? "REJECTED" : aiApproved ? "APPROVED" : "MANUAL_REVIEW");
     const reason = !aiEnabled ? "AI_BOT_DISABLED" : !review.configured ? "AI_REVIEW_UNAVAILABLE"
       : hardFailure ? "SCREENSHOT_UNCLEAR_OR_MISMATCHED"
       : tampering ? "POTENTIAL_TAMPERING"
