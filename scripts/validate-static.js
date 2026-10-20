@@ -208,7 +208,7 @@ assert(client.split(notificationHeaderRoute).length-1>=2,'Home and detail header
 const requiredClientInvokes=['ai-support','complete-cycle-checkout','complete-password-reset','execute-payout','preproduction-activity-ticker','public-signup','record-user-access','submit-deposit','submit-kyc','telegram-withdrawal','username-login','withdrawal-ai-review'];
 assert(client.includes('id="aiMessages"')&&client.includes('id="aiInput"')&&client.includes('id="aiSend"'),'AI Assistant must render its message panel, input, and send control');
 assert(client.includes("+NV('bot')+'</div>'"),'AI Assistant template must use a navigation helper available in its own script scope');
-assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:previous}})"),'AI Assistant must submit its message and conversation history to ai-support');
+assert(client.includes("db.functions.invoke('ai-support',{body:{message,history:previous,mode:'assistant'}})"),'AI Assistant must submit its message and conversation history in explicit AI mode to ai-support');
 assert(client.includes("button.onclick=()=>aiAsk(input?.value||'')"),'AI send button must invoke the AI request handler');
 assert(client.includes("if(aiConversationMode==='representative' && hasServerTranscript)")&&client.includes('box.innerHTML=aiHistoryRows(aiHistory);'),'AI replies must remain visible even when the same request also opens a support case.');
 assert(client.includes("if(aiConversationMode==='representative' && liveSupportCaseId")&&client.includes('await sendLiveSupportMessage(message,attachmentFile);'),'Messages must only route to the representative when the user explicitly switches to representative chat.');
