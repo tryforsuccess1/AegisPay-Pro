@@ -88,3 +88,15 @@ jobs:
           grep -q "result.data.tokenContract" /tmp/shasta-ui-preview.html
           curl --fail --silent --show-error --location --max-time 20 "https://shasta-test-ui.aegispay-pro.pages.dev/app/service-worker.js" -o /tmp/shasta-preview-service-worker.js
           grep -q "aegispay-shell-v36-shasta-network-aware" /tmp/shasta-preview-service-worker.js
+
+      - name: Smoke-test Master Admin manual Shasta review controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://shasta-test-ui.aegispay-pro.pages.dev"
+          curl --fail --silent --show-error --location --max-time 20 "$base/master-admin.html" -o /tmp/shasta-master-admin.html
+          curl --fail --silent --show-error --location --max-time 20 "$base/admin-auth.js" -o /tmp/shasta-admin-auth.js
+          test -s /tmp/shasta-master-admin.html
+          grep -q "admin-auth.js" /tmp/shasta-master-admin.html
+          grep -q "manualShastaCredit" /tmp/shasta-admin-auth.js
+          grep -q "Master Admin Manual Verify + Credit (Shasta)" /tmp/shasta-admin-auth.js
