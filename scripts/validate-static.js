@@ -341,9 +341,9 @@ assert(client.includes("result.data.network")&&client.includes("result.data.toke
 assert(client.includes("walletNetwork!=='TRON TESTNET'"),"Pre-production Mainnet pause must not suppress an explicitly allowlisted Shasta test address.");
 assert(client.includes('Deposits are currently paused')&&client.includes('No unique receiving address has been issued to this account')&&client.includes('id="retryDepositAddress"')&&client.includes('id="depositRequests"')&&client.includes('id="depositCredits"'),'Deposit UI must show a safe pre-production/unavailable state with retry, request history and verified-credit history instead of appearing blank.');
 assert(client.includes("walletNetwork!=='TRON TESTNET'&&!/^[A-Fa-f0-9]{64}$/.test(tx)")&&client.includes("Optional for Shasta")&&client.includes('await liveTopup();'),'Shasta may omit/mistype TXID but Mainnet still requires a full 64-character TXID and the UI refreshes request status after submission.');
-assert(depositSubmitSource.includes("const txid = isShastaTestUser ? null")&&depositSubmitSource.includes("submitted_txid: submittedTxid")&&depositSubmitSource.includes("!isShastaTestUser && !validEnteredTxid"),"Shasta submissions store TXID as an untrusted hint while Mainnet validation stays strict.");
-assert(depositVerifySource.includes("findShastaTransfersByAmount")&&depositVerifySource.includes("SHASTA_MATCH_AMBIGUOUS")&&depositVerifySource.includes("Canonical TXID discovered"),"Shasta TXID fallback may only link a unique confirmed exact-amount transfer.");
-assert(depositMonitorSource.includes("findShastaTransfersByAmount")&&depositMonitorSource.includes("SHASTA_MATCH_ALREADY_LINKED"),"Automatic Shasta monitor must discover a unique unclaimed transfer when TXID is missing or mistyped.");
+
+
+
 assert(client.includes("data-shasta-verify")&&client.includes("db.functions.invoke('verify-deposit',{body:{depositId:id}})")&&client.includes("Checking Shasta"),"Pending Shasta deposit requests must expose an authenticated on-chain recheck action.");
 
 assert(!client.includes('Generate Deposit Link')&&!client.includes('Bitcoin (BTC)')&&!client.includes('Network fee</div><em>1.00 USDT</em>'),'Legacy demo deposit/payment values must not be presented as real receiving options.');
@@ -432,6 +432,10 @@ const optionalTxidMigration=fs.readFileSync('database/migrations/20261021120000_
 assert(optionalTxidMigration.includes('ALTER COLUMN txid DROP NOT NULL')&&optionalTxidMigration.includes('ADD COLUMN IF NOT EXISTS submitted_txid')&&optionalTxidMigration.includes('Canonical transaction ID confirmed by server-side on-chain verification'),"Shasta screenshot-first migration must make canonical TXID nullable only as an on-chain pending state and preserve user input for audit.");
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+assert(depositSubmitSource.includes("const txid = isShastaTestUser ? null")&&depositSubmitSource.includes("submitted_txid: submittedTxid")&&depositSubmitSource.includes("!isShastaTestUser && !validEnteredTxid"),"Shasta submissions store TXID as an untrusted hint while Mainnet validation stays strict.");
+assert(depositVerifySource.includes("findShastaTransfersByAmount")&&depositVerifySource.includes("SHASTA_MATCH_AMBIGUOUS")&&depositVerifySource.includes("Canonical TXID discovered"),"Shasta TXID fallback may only link a unique confirmed exact-amount transfer.");
+assert(depositMonitorSource.includes("findShastaTransfersByAmount")&&depositMonitorSource.includes("SHASTA_MATCH_ALREADY_LINKED"),"Automatic Shasta monitor must discover a unique unclaimed transfer when TXID is missing or mistyped.");
+
 const accessLogSource=fs.readFileSync('supabase/functions/record-user-access/index.ts','utf8');
 assert(accessLogSource.includes('event_type: eventType'), 'User access event logger must persist the declared eventType using the database event_type column');
 const telegramApproverSplitter = String.raw`split(/[\s,]+/)`;
