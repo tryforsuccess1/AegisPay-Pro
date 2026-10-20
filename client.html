@@ -1263,7 +1263,8 @@ async function liveTopup(){
    ?submissionResult.data.map(x=>{
      const st=statusView(x.status),tx=String(x.txid||'');
      const shortTx=tx.length>18?tx.slice(0,10)+'…'+tx.slice(-6):tx;
-     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small></div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
+     const canCheckShasta=String(x.network||'').toUpperCase()==='TRON TESTNET'&&x.status==='PENDING_VERIFICATION';
+     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small>'+(canCheckShasta?'<button class="btn sm o" type="button" style="margin-top:8px" data-shasta-verify="'+esc(x.id)+'">Verify on Shasta</button>':'')+'</div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
     }).join('')
    :'<div class="empty">No deposit requests have been submitted yet.</div>';
  const creditRows=ledgerResult.error
@@ -1295,6 +1296,27 @@ async function liveTopup(){
  app.innerHTML='<div class="scr on">'+header+addressPanel+
   '<div class="sh" style="margin-top:18px">Deposit requests</div><div class="card list" id="depositRequests">'+requestRows+'</div>'+
   '<div class="sh">Verified deposit credits</div><div class="card list" id="depositCredits">'+creditRows+'</div>'+nav('hidden')+'</div>';
+ document.querySelectorAll('[data-shasta-verify]').forEach(button=>{
+  button.onclick=async()=>{
+   const id=button.getAttribute('data-shasta-verify');
+   if(!id)return;
+   button.disabled=true;button.textContent='Checking Shasta…';
+   try{
+    const result=await db.functions.invoke('verify-deposit',{body:{depositId:id}});
+    if(result.error)throw result.error;
+    const state=String(result.data&&result.data.status||'').toUpperCase();
+    if(state==='VERIFIED'){
+     uiNotice('Shasta transfer verified by the server. The confirmed transfer was reconciled with the deposit ledger.','success');
+    }else{
+     uiNotice(result.data&&(result.data.message||result.data.error)||'The server has not confirmed this transfer yet. No credit was applied.','info');
+    }
+    await liveTopup();
+   }catch(e){
+    uiNotice(e.message||'Shasta verification could not run. No funds were moved.','error');
+    button.disabled=false;button.textContent='Verify on Shasta';
+   }
+  };
+ });
  const back=document.getElementById('depositBack');if(back)back.onclick=()=>window.go('home');
  const retry=document.getElementById('retryDepositAddress');if(retry)retry.onclick=()=>liveTopup();
  const viewActivity=document.getElementById('depositViewActivity');if(viewActivity)viewActivity.onclick=()=>window.go('activity');
