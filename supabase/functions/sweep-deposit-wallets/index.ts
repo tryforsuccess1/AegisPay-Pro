@@ -397,7 +397,7 @@ Deno.serve(async (req: Request) => {
     const { data: allowlistedUsers, error: allowlistError } = await admin.from("shasta_test_users")
       .select("user_id").eq("enabled", true);
     if (allowlistError) return json({ error: "Unable to confirm the Shasta test-account allowlist." }, 503);
-    const testUserIds = [...new Set((allowlistedUsers || []).map((row: any) => String(row.user_id || ""))]
+    const testUserIds = [...new Set((allowlistedUsers || []).map((row: any) => String(row.user_id || "")))]
       .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
     if (!testUserIds.length) return json({ network: NETWORK, checked: 0, results: [], reason: "NO_ALLOWLISTED_TEST_USERS" });
     const { data: wallets, error: walletError } = await admin.from("deposit_wallets")
