@@ -3,9 +3,9 @@
 Status as of 2026-10-20:
 - Draft PR: https://github.com/tryforsuccess1/AegisPay-Pro/pull/89
 - Current branch: `feat/step2-shasta-deposit-e2e`
-- The additive database migration `harden_shasta_deposit_credit_20261020` has been applied to the existing Supabase project after CI and disposable PostgreSQL assertions passed.
+- The additive database migrations `harden_shasta_deposit_credit_20261020` and `isolate_shasta_test_credit_side_effects_20261021` have been applied to the existing Supabase project after CI and disposable PostgreSQL assertions passed.
 - Global `deposit_rules` is still Mainnet. `shasta_test_users` exists but is empty; `shasta_testnet_rules` is not set.
-- No Shasta test secrets, test account, deposit wallet or transfer have been configured/created yet.
+- Shasta treasury config is saved, the owner-approved profile is allowlisted, and the reviewed deposit/monitor/sweep Edge Functions have been deployed. No per-user Shasta deposit wallet has been issued and no transfer has been sent. Runtime address issuance must verify the secret values and signer address.
 - The payment switches remain in pre-production safe state; do not change them for this test.
 
 ## 1. Preflight and required secrets
@@ -49,20 +49,13 @@ Before proceeding verify:
 
 The Shasta helper fails closed when these conditions do not hold.
 
-## 3. Create one synthetic test account
+## 3. Owner-approved test profile
 
-- Sign up a new disposable test user through the normal app/auth flow. Do not repurpose any real customer account.
-- Ensure it has no real funds, deposit history, referrer or downstream users.
-- Find the associated `public.users.id` for that newly created account through an authorized project-admin query; use that profile ID (not the Auth ID) in the allowlist.
-- Insert the allowlist row only after secrets/config are ready:
-
-```sql
-INSERT INTO public.shasta_test_users(user_id, enabled, purpose)
-VALUES ('<PUBLIC_USERS_PROFILE_UUID>'::uuid, true, 'Shasta E2E test account')
-ON CONFLICT (user_id) DO UPDATE
-  SET enabled = true, purpose = 'Shasta E2E test account',
-      updated_at = now();
-```
+- The owner approved using an existing active AegisPay profile rather than creating a separate synthetic user for this run.
+- The profile has an existing app balance and has been enabled in `public.shasta_test_users`; do not copy its UUID into source code or commit it to this runbook.
+- A successful Shasta test credit will increase that profile's `current_platform_balance` and `principal_balance`. The test-specific credit RPC now preserves `first_deposit_done` and `selected_tier_id` and skips L1/L2 referral rewards for `TRON TESTNET`.
+- Live withdrawals remain locked. After the E2E, reconcile the testnet-labelled deposit and ledger entries and decide whether to reverse the test credit through the authorized, audited reversal workflow so the app balance is not mistaken for Mainnet funds.
+- Do not create another allowlist row unless the owner explicitly changes the test identity.
 
 ## 4. Deploy and test
 
