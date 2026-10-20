@@ -407,6 +407,37 @@ nav.aegis-bottom-nav a.on {
   .ai-support-button { padding: 8px 10px; gap: 8px; }
   .ai-support-copy small { font-size: 9.5px; }
 }
+
+/* AI Assistant layout: keep the page fixed and allow scrolling only inside the message list. */
+body:has(.ai-assistant-screen) {
+  height:100dvh; overflow:hidden; overscroll-behavior:none;
+}
+body:has(.ai-assistant-screen) #app {
+  height:100dvh; min-height:0; box-sizing:border-box; overflow:hidden; padding-bottom:112px;
+}
+.scr.on.ai-assistant-screen {
+  height:calc(100dvh - 128px - env(safe-area-inset-bottom, 0px));
+  min-height:0; overflow:hidden; overscroll-behavior:none;
+}
+.ai-assistant-screen > .msgs {
+  flex:1 1 auto; min-height:0; max-height:none;
+  margin:8px 0; padding:0 0 8px; box-sizing:border-box;
+  overflow-x:hidden; overflow-y:auto; overflow-anchor:none;
+  overscroll-behavior:contain; -webkit-overflow-scrolling:touch; touch-action:pan-y;
+}
+.ai-assistant-screen > .ai-support-cta {
+  position:static; left:auto; bottom:auto; transform:none;
+  width:100%; max-width:none; margin:4px 0 8px; flex:0 0 auto;
+}
+.ai-assistant-screen > .ai-composer {
+  position:static; left:auto; bottom:auto; transform:none;
+  width:100%; max-width:none; margin:0 0 2px; flex:0 0 auto;
+}
+@media (max-height:620px) {
+  .scr.on.ai-assistant-screen { height:calc(100dvh - 128px - env(safe-area-inset-bottom, 0px)); }
+  .ai-assistant-screen > .msgs { min-height:72px; max-height:none; margin:6px 0; }
+}
+
 </style>
 </head>
 <body>
@@ -2045,17 +2076,35 @@ function updateAiLiveSupportUI(){
     input.setAttribute('aria-label',representativeComposer?(joined?'Message your customer representative':'Add a message for your representative'):'Ask AegisPay AI');
   }
 }
-function aiRender(){
+function renderAiRows(box,rows,forceBottom=false){
+  const previousScrollTop=box.scrollTop;
+  const previousDistanceToBottom=box.scrollHeight-box.scrollTop-box.clientHeight;
+  if(box.innerHTML!==rows){
+    // Live-support polling runs every 2.5 seconds. Avoid replacing identical DOM; that resets
+    // native scroll position on some browsers while the user is reading a long reply.
+    box.innerHTML=rows;
+    if(forceBottom || previousDistanceToBottom<=56){
+      box.scrollTop=box.scrollHeight;
+    }else{
+      // Keep the reader's viewport stable when a new message arrives away from the bottom.
+      box.scrollTop=Math.min(previousScrollTop,Math.max(0,box.scrollHeight-box.clientHeight));
+    }
+  }else if(forceBottom){
+    box.scrollTop=box.scrollHeight;
+  }
+}
+if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
+  // Local-only hook lets Chromium regression tests exercise the same scroll helper.
+  window.__aegisTestRenderAiRows=renderAiRows;
+}
+function aiRender(options={}){
   const box=document.getElementById('aiMessages');
   if(!box)return;
   const hasServerTranscript=Boolean(liveSupportStateLoaded && liveSupportMessages.length);
-  if(aiConversationMode==='representative' && hasServerTranscript){
-    box.innerHTML=aiLiveMessageRows();
-  }else{
-    // Keep AI answers visible even when the same request also opened a human support case.
-    box.innerHTML=aiHistoryRows(aiHistory);
-  }
-  box.scrollTop=box.scrollHeight;
+  const rows=aiConversationMode==='representative' && hasServerTranscript
+    ? aiLiveMessageRows()
+    : aiHistoryRows(aiHistory);
+  renderAiRows(box,rows,options.forceBottom===true);
   updateAiLiveSupportUI();
 }
 async function refreshAiLiveSupportState(){
@@ -2132,7 +2181,7 @@ async function sendLiveSupportMessage(raw,attachmentFile=aiSelectedAttachment){
     liveSupportMessages.push(result.data.message);
     liveSupportMessages=clientVisibleSupportMessages(liveSupportCaseId,liveSupportMessages).slice(-250);
     if(attachmentFile&&attachmentFile===aiSelectedAttachment)aiClearAttachment();
-    aiRender();
+    aiRender({forceBottom:true});
   }catch(error){
     if(notice){notice.hidden=false;notice.textContent=String(error?.message||'Your message or attachment could not be sent. Please try again.');}
     if(input)input.value=message;
@@ -2245,7 +2294,7 @@ async function aiAsk(raw){
   const displayMessage=(message||('Please review the attached file: '+String(attachmentFile?.name||'attachment'))).slice(0,1000);
   if(awaitingRepresentativeIssue){
     awaitingRepresentativeIssue=false;
-    aiHistory.push({role:'user',content:displayMessage+attachmentNote});aiSaveHistory();aiRender();
+    aiHistory.push({role:'user',content:displayMessage+attachmentNote});aiSaveHistory();aiRender({forceBottom:true});
     await submitRepresentativeRequest(displayMessage,attachmentFile);
     return;
   }
@@ -2255,7 +2304,7 @@ async function aiAsk(raw){
   }
   if(attachmentFile){
     const input=document.getElementById('aiInput');if(input)input.value='';
-    aiHistory.push({role:'user',content:displayMessage+attachmentNote});aiSaveHistory();aiRender();
+    aiHistory.push({role:'user',content:displayMessage+attachmentNote});aiSaveHistory();aiRender({forceBottom:true});
     await submitRepresentativeRequest(displayMessage,attachmentFile);
     return;
   }
@@ -2263,7 +2312,7 @@ async function aiAsk(raw){
   if(input)input.value='';
   const previous=aiHistory.filter(x=>x&&['user','assistant'].includes(x.role)).slice(-10);
   aiHistory.push({role:'user',content:message});
-  aiRender();aiSaveHistory();aiSetBusy(true);
+  aiRender({forceBottom:true});aiSaveHistory();aiSetBusy(true);
   const box=document.getElementById('aiMessages');
   if(box){box.insertAdjacentHTML('beforeend','<div class="m1 ai-msg ai-loading" id="aiThinking">Checking your request…</div>');box.scrollTop=box.scrollHeight;}
   try{

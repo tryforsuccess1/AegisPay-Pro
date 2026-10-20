@@ -313,7 +313,11 @@ const server = http.createServer((req, res) => {
         nav: {top:navRect.top,bottom:navRect.bottom,height:navRect.height},
         viewportHeight: window.innerHeight,
         composerBottom: Math.max(shellRect.bottom,sendRect.bottom),
-        support: (() => { const r=root.querySelector('.ai-support-cta').getBoundingClientRect(); return {top:r.top,bottom:r.bottom}; })(),
+        support: (() => { const el=root.querySelector('.ai-support-cta'); const r=el.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,position:getComputedStyle(el).position}; })(),
+        composerPosition:getComputedStyle(root.querySelector('.ai-composer')).position,
+        messages: (() => { const el=root.querySelector('#aiMessages'); const r=el.getBoundingClientRect(); const st=getComputedStyle(el); return {top:r.top,bottom:r.bottom,height:r.height,marginBottom:st.marginBottom,maxHeight:st.maxHeight,overflowY:st.overflowY}; })(),
+        screenOverflow:getComputedStyle(screen).overflow,
+        documentHeight:document.scrollingElement.scrollHeight,
         scrollWidth: document.documentElement.scrollWidth,
         clientWidth: window.innerWidth
       };
@@ -322,7 +326,42 @@ const server = http.createServer((req, res) => {
     assert.match(composerLayout.backgroundImage, /linear-gradient/i, 'The input shell must render the visible pink gradient border.');
     assert.ok(composerLayout.input.left > composerLayout.shell.left && composerLayout.input.right < composerLayout.shell.right, 'The input border must sit evenly inside the pink shell.');
     assert.ok(composerLayout.composerBottom < composerLayout.nav.top, 'The message composer must remain above the fixed bottom navigation: ' + JSON.stringify(composerLayout));
+    assert.equal(composerLayout.support.position, 'static', 'Support CTA must live in the chat layout instead of floating over/away from the message pane.');
+    assert.equal(composerLayout.composerPosition, 'static', 'Composer must participate in the chat layout and stay attached above bottom navigation.');
+    assert.equal(composerLayout.screenOverflow, 'hidden', 'AI screen must not scroll the whole page; only its message panel should scroll.');
+    assert.equal(composerLayout.messages.overflowY, 'auto', 'AI answer panel must be the vertical scroll container.');
+    assert.equal(composerLayout.messages.maxHeight, 'none', 'AI message area should flex within available space without an arbitrary viewport cap.');
+    assert.equal(composerLayout.messages.marginBottom, '8px', 'AI answer panel must not reserve a large fake bottom gap.');
+    assert.ok(composerLayout.support.top - composerLayout.messages.bottom <= 20, 'Support CTA should sit close to the message panel, without excess blank space: ' + JSON.stringify(composerLayout));
+    assert.ok(composerLayout.documentHeight <= composerLayout.viewportHeight + 2, 'AI chat must keep document height locked to viewport to prevent page-scroll jumps: ' + JSON.stringify(composerLayout));
     assert.ok(composerLayout.scrollWidth <= composerLayout.clientWidth, 'AI composer must not create horizontal overflow.');
+
+    const scrollStability = await page.evaluate(() => {
+      const box=document.querySelector('#aiMessages');
+      const apply=window.__aegisTestRenderAiRows;
+      if(typeof apply!=='function')throw new Error('Local AI scroll regression hook is not available.');
+      const row=(i)=>'<div class="'+(i%2===0?'m2':'m1')+' ai-msg">Message '+i+': realistic multi-line support text for stable scrolling checks.</div>';
+      let rows=Array.from({length:32},(_,i)=>row(i)).join('');
+      apply(box,rows,true);
+      const maxScroll=Math.max(0,box.scrollHeight-box.clientHeight);
+      box.scrollTop=Math.min(140,maxScroll/3);
+      const before=box.scrollTop;
+      apply(box,rows,false); // Same-content polling must not reset scrollTop.
+      const afterSameContent=box.scrollTop;
+      rows+=row(32);
+      apply(box,rows,false); // New content must preserve the reader's position away from bottom.
+      const afterNewContent=box.scrollTop;
+      box.scrollTop=box.scrollHeight;
+      rows+=row(33);
+      apply(box,rows,false);
+      const bottomDistance=box.scrollHeight-box.scrollTop-box.clientHeight;
+      return {before,afterSameContent,afterNewContent,bottomDistance,maxScroll,clientHeight:box.clientHeight,documentHeight:document.scrollingElement.scrollHeight,viewportHeight:window.innerHeight};
+    });
+    assert.ok(scrollStability.maxScroll > 200, 'Scroll regression test needs a genuinely long conversation: ' + JSON.stringify(scrollStability));
+    assert.equal(scrollStability.afterSameContent, scrollStability.before, 'Polling with unchanged messages must not move the chat viewport.');
+    assert.equal(scrollStability.afterNewContent, scrollStability.before, 'New messages must not yank a reader away from the position they are reading.');
+    assert.ok(scrollStability.bottomDistance <= 1, 'When already at the bottom, new AI answers should auto-scroll into view: ' + JSON.stringify(scrollStability));
+    assert.ok(scrollStability.documentHeight <= scrollStability.viewportHeight + 2, 'Scroll stability test must not create document-level scrolling: ' + JSON.stringify(scrollStability));
 
     const viewportResults = [];
     for (const width of [320, 360, 390, 430, 768, 1280]) {
