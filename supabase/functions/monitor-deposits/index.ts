@@ -5,6 +5,7 @@ import {
   findExactShastaUsdtTransfer,
   TRON_SHASTA_USDT_CONTRACT,
 } from "../_shared/tron-deposit-validation.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -16,6 +17,7 @@ const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
 const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SHASTA_TEST_USDT = TRON_SHASTA_USDT_CONTRACT;
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
@@ -104,7 +106,10 @@ Deno.serve(async (req: Request) => {
     const rules = rulesRow?.value_json || {};
     const network = String(rules.network || "").toUpperCase();
     const receiving = String(rules.receiving_address || "").trim();
-    if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) return json({ error: "Valid receiving address is not configured." }, 503);
+    if (network === "TRON MAINNET" && !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) {
+      return json({ error: "Valid Mainnet receiving address is not configured." }, 503);
+    }
+    const shastaRules = await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED);
 
     const { data: pending, error } = await admin.from("deposit_submissions").select("*")
       .eq("status", "PENDING_VERIFICATION")
@@ -112,6 +117,7 @@ Deno.serve(async (req: Request) => {
       .order("created_at", { ascending: true }).limit(100);
     if (error) return json({ error: "Unable to load pending deposits." }, 500);
 
+    let mainnetDepositsOpen = false;
     if (network === "TRON MAINNET") {
       const mainnetTokenContract = String(rules.token_contract || "").trim();
       if (mainnetTokenContract !== MAINNET_USDT) {
@@ -131,7 +137,7 @@ Deno.serve(async (req: Request) => {
         .is("payout_txid", null).limit(1);
       if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
       const payoutCredentialsReady = Boolean(TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0);
-      const mainnetDepositsOpen =
+      mainnetDepositsOpen =
         mainnetTokenContract === MAINNET_USDT &&
         mode.mode === "MAINNET" &&
         mode.live_deposits === true &&
@@ -143,8 +149,9 @@ Deno.serve(async (req: Request) => {
         production.go_live_approved === true &&
         production.payouts_locked === false &&
         payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
-      if (!mainnetDepositsOpen) return json({ error: "Mainnet deposit monitoring is paused until production payouts are fully configured, approved, reconciled, and unlocked.", code: "MAINNET_DEPOSITS_PAUSED" }, 403);
-      if (!TRONGRID_KEY) {
+      // Keep scanning eligible Shasta test deposits while Mainnet remains paused.
+      // Mainnet rows are separately skipped below unless this full readiness gate passes.
+      if (mainnetDepositsOpen && !TRONGRID_KEY) {
         if (!pending?.length) return json({ monitorStatus: "AWAITING_PROVIDER_KEY", checked: 0, results: [] });
         return json({ error: "TRONGRID_API_KEY is not configured; approved deposits cannot be checked automatically." }, 503);
       }
@@ -169,15 +176,40 @@ Deno.serve(async (req: Request) => {
     const results = [];
     for (const deposit of pending || []) {
       try {
-        const perDepositReceiver = network === "TRON TESTNET"
-          ? String(deposit.receiving_address || "").trim()
-          : String(deposit.receiving_address || (deposit.deposit_wallet_id ? "" : receiving)).trim();
-        results.push(await verifyOne(admin, deposit, perDepositReceiver, baseUrl, contract, network));
+        const depositNetwork = String(deposit.network || "").toUpperCase();
+        if (depositNetwork === "TRON TESTNET") {
+          if (!shastaRules) {
+            results.push({ id: deposit.id, status: "SHASTA_TEST_MODE_BLOCKED" });
+            continue;
+          }
+          const isTestUser = await isAllowlistedShastaTestUser(admin, String(deposit.user_id || ""), SHASTA_TEST_MODE_ENABLED);
+          if (!isTestUser) {
+            results.push({ id: deposit.id, status: "SHASTA_TEST_ACCOUNT_REQUIRED" });
+            continue;
+          }
+          if (String(deposit.token_contract || "") !== SHASTA_TEST_USDT) {
+            results.push({ id: deposit.id, status: "TESTNET_TOKEN_MISMATCH" });
+            continue;
+          }
+          const testReceiver = String(deposit.receiving_address || "").trim();
+          results.push(await verifyOne(admin, deposit, testReceiver, "https://api.shasta.trongrid.io", SHASTA_TEST_USDT, "TRON TESTNET"));
+          continue;
+        }
+        if (depositNetwork === "TRON MAINNET") {
+          if (!mainnetDepositsOpen || network !== "TRON MAINNET" || contract !== MAINNET_USDT) {
+            results.push({ id: deposit.id, status: "MAINNET_DEPOSITS_PAUSED" });
+            continue;
+          }
+          const perDepositReceiver = String(deposit.receiving_address || (deposit.deposit_wallet_id ? "" : receiving)).trim();
+          results.push(await verifyOne(admin, deposit, perDepositReceiver, "https://api.trongrid.io", contract, "TRON MAINNET"));
+          continue;
+        }
+        results.push({ id: deposit.id, status: "UNSUPPORTED_DEPOSIT_NETWORK" });
       } catch {
         results.push({ id: deposit.id, status: "ERROR" });
       }
     }
-    return json({ checked: results.length, results });
+    return json({ checked: results.length, results, mainnetDepositsOpen });
   } catch {
     return json({ error: "Deposit monitor failed." }, 500);
   }
