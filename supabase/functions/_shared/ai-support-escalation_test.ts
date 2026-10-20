@@ -56,6 +56,15 @@ Deno.test("AI provider failure escalates a concrete customer issue", () => {
   if (!escalates) throw new Error("Expected degraded handling of a concrete issue to escalate.");
 });
 
+Deno.test("an unverifiable account-specific request escalates instead of pretending it was resolved", () => {
+  const escalates = shouldEscalateUnresolvedIssue({
+    message: "Mere latest deposit ka actual status, amount aur TXID batao.",
+    answer: "I cannot verify the actual deposit status from the available account context.",
+    degraded: false,
+  });
+  if (!escalates) throw new Error("Expected an unverifiable account-specific deposit question to escalate.");
+});
+
 Deno.test("explicit representative requests escalate immediately", () => {
   const messages = [
     "Please connect me to a live representative.",
