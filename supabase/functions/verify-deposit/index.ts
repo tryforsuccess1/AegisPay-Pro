@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   exactUsdtRawAmountMatches,
   findExactShastaUsdtTransfer,
+  findShastaTransfersByAmount,
+  isValidTronTxid,
   TRON_SHASTA_USDT_CONTRACT,
 } from "../_shared/tron-deposit-validation.ts";
 import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
@@ -177,16 +179,49 @@ Deno.serve(async (req: Request) => {
     if (!chainRes.ok) return json({ error: "TRON verification service returned " + chainRes.status + "." }, 502);
     const chain = await chainRes.json();
     const transfers = Array.isArray(chain.data) ? chain.data : [];
-    const match = network === "TRON TESTNET"
-      ? findExactShastaUsdtTransfer(transfers, String(deposit.txid || ""), receiving)
-      : transfers.find((x: any) =>
+    let match: any = null;
+    if (network === "TRON TESTNET") {
+      // Prefer a true TXID match if the user's claim exists on this recipient's
+      // confirmed transfer list. If the claim is blank, malformed or not present,
+      // search for a unique exact-amount transfer received in the prior 24 hours.
+      const claimedTxid = isValidTronTxid(String(deposit.submitted_txid || "")) ? String(deposit.submitted_txid) : "";
+      const canonicalTxid = isValidTronTxid(String(deposit.txid || "")) ? String(deposit.txid) : "";
+      const preferredTxid = canonicalTxid || claimedTxid;
+      match = preferredTxid ? findExactShastaUsdtTransfer(transfers, preferredTxid, receiving) : null;
+      if (!match) {
+        const createdAt = new Date(deposit.created_at || Date.now()).getTime();
+        const notBefore = Math.max(1, createdAt - 24 * 60 * 60 * 1000);
+        const candidates = findShastaTransfersByAmount(transfers, receiving, deposit.gross_amount, notBefore);
+        if (!candidates.length) {
+          return json({ status: "PENDING_VERIFICATION", message: "No confirmed Shasta USDT transfer matches this amount and receiving address yet. No balance has been credited." }, 202);
+        }
+        const candidateTxids = candidates.map((x) => String(x.transaction_id));
+        const { data: previouslyClaimed, error: claimLookupError } = await admin.from("deposit_submissions")
+          .select("id,txid").eq("network", "TRON TESTNET").in("txid", candidateTxids).neq("id", deposit.id);
+        if (claimLookupError) return json({ error: "Unable to confirm whether a matching transfer is already linked to another deposit.", code: "SHASTA_CLAIM_LOOKUP_FAILED" }, 503);
+        const claimedIds = new Set((previouslyClaimed || []).map((x: any) => String(x.txid || "").toLowerCase()));
+        const unclaimed = candidates.filter((x) => !claimedIds.has(String(x.transaction_id || "").toLowerCase()));
+        if (unclaimed.length !== 1) {
+          return json({
+            status: "PENDING_VERIFICATION",
+            code: unclaimed.length > 1 ? "SHASTA_MATCH_AMBIGUOUS" : "SHASTA_MATCH_ALREADY_LINKED",
+            message: unclaimed.length > 1
+              ? "More than one confirmed Shasta USDT transfer matches this amount and time window. No automatic credit was applied; manual review is required."
+              : "The matching Shasta transfer is already linked to another deposit request. No duplicate credit was applied.",
+          }, 202);
+        }
+        match = unclaimed[0];
+      }
+    } else {
+      match = transfers.find((x: any) =>
         String(x.transaction_id).toLowerCase() === String(deposit.txid).toLowerCase()
         && String(x.to) === receiving
         && String(x.token_info?.address || contract) === contract
         && String(x.type || "Transfer") === "Transfer"
         && x.success !== false
       );
-    if (!match) return json({ status: "PENDING_VERIFICATION", message: "No matching confirmed transfer found yet." }, 202);
+    }
+    if (!match) return json({ status: "PENDING_VERIFICATION", message: "No matching confirmed transfer found yet. No balance has been credited." }, 202);
 
     const raw = String(match.value || "0");
     let chainAmount: number;
@@ -201,6 +236,25 @@ Deno.serve(async (req: Request) => {
       const requestedAmount = Number(deposit.gross_amount);
       if (!Number.isFinite(chainAmount) || Math.abs(chainAmount - requestedAmount) > 0.000001) {
         return json({ error: "On-chain amount does not match the submitted deposit amount." }, 409);
+      }
+    }
+
+    // Save the canonical TXID only after matching a confirmed on-chain transfer.
+    // submitted_txid preserves the untrusted user hint for audit; txid is authoritative.
+    if (network === "TRON TESTNET" && String(deposit.txid || "").toLowerCase() !== String(match.transaction_id).toLowerCase()) {
+      const priorHint = String(deposit.submitted_txid || deposit.txid || "").trim().slice(0, 128);
+      const { data: linked, error: linkError } = await admin.from("deposit_submissions")
+        .update({
+          txid: String(match.transaction_id),
+          submitted_txid: priorHint || null,
+          verification_note: "Canonical TXID discovered from a unique confirmed Shasta USDT transfer matching exact amount and recipient.",
+        })
+        .eq("id", deposit.id)
+        .eq("status", "PENDING_VERIFICATION")
+        .select("id")
+        .maybeSingle();
+      if (linkError || !linked) {
+        return json({ error: "The confirmed transaction could not be linked uniquely to this deposit. No credit was applied.", code: "SHASTA_TXID_LINK_FAILED" }, 409);
       }
     }
 
