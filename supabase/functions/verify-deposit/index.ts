@@ -222,6 +222,13 @@ Deno.serve(async (req: Request) => {
       );
     }
     if (!match) return json({ status: "PENDING_VERIFICATION", message: "No matching confirmed transfer found yet. No balance has been credited." }, 202);
+    if (network === "TRON TESTNET") {
+      const blockTimestamp = Number(match.block_timestamp);
+      const createdAt = new Date(deposit.created_at || Date.now()).getTime();
+      if (!Number.isFinite(blockTimestamp) || blockTimestamp < createdAt - 24 * 60 * 60 * 1000 || blockTimestamp > Date.now() + 5 * 60 * 1000) {
+        return json({ status: "PENDING_VERIFICATION", message: "The confirmed transfer timestamp is outside the safe 24-hour matching window. No credit was applied." }, 202);
+      }
+    }
 
     const raw = String(match.value || "0");
     let chainAmount: number;
