@@ -5,7 +5,7 @@ Status as of 2026-10-20:
 - Current branch: `feat/step2-shasta-deposit-e2e`
 - The additive database migrations `harden_shasta_deposit_credit_20261020` and `isolate_shasta_test_credit_side_effects_20261021` have been applied to the existing Supabase project after CI and disposable PostgreSQL assertions passed.
 - Global `deposit_rules` is still Mainnet. `shasta_test_users` exists but is empty; `shasta_testnet_rules` is not set.
-- Shasta treasury config is saved, the owner-approved profile is allowlisted, and the reviewed deposit/monitor/sweep Edge Functions have been deployed. No per-user Shasta deposit wallet has been issued and no transfer has been sent. Runtime address issuance must verify the secret values and signer address.
+- Shasta treasury config is saved, the owner-approved profile is allowlisted, and the reviewed deposit/monitor/sweep Edge Functions have been deployed. The per-user Shasta child wallet has been issued. The first 10.00 USDT deposit E2E is complete and server-verified; exactly one ledger credit was recorded. No sweep has been executed yet.
 - The payment switches remain in pre-production safe state; do not change them for this test.
 
 ## 1. Preflight and required secrets
@@ -68,6 +68,18 @@ After the config and test user are verified:
 6. Exercise negative cases: wrong contract, wrong receiver, wrong raw amount, unallowlisted user, missing test-mode secret, open payment gate and duplicate TXID. Each must fail closed and create no extra credit.
 7. For sweep tests, first confirm each child wallet has the required Shasta TRX/Energy resources. Temporarily enable `AEGIS_ENABLE_TESTNET_SWEEP=true` only for the manual test window, invoke the worker manually with the cron secret, then disable the flag again. Verify saved signed bytes/TXID are reused on retry and ambiguous receipts are sent to manual review.
 8. Reconcile the sweep journal, child/treasury balances, source deposit links and final ledger. Disable the allowlist row and `AEGIS_SHASTA_TEST_MODE` when finished; retain records for audit.
+
+## First completed deposit: evidence and reconciliation
+
+- Status: `VERIFIED` / review `APPROVED` (`CHAIN_VERIFIED_SHASTA_TRANSFER`).
+- Network: `TRON TESTNET`; pinned contract: `TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs`.
+- TXID: `ad5ee7961b0a811dc60940a2d0d5162f74826060205a637dc6706b667ebc8ef1`.
+- Receiving child wallet: `TPXkczErK2Bo66MMU9HxYvnPFqB6mGYTTJ`; sender/treasury: `TH7NgA7G17X4hm88SPL9TPptnmsSx7PbMR`.
+- Raw amount `10000000` = `10.00 USDT`; confirmed block timestamp and TronGrid verification source were recorded.
+- Ledger reconciliation: exactly one `USER_DEPOSIT` row for `10.00` references the deposit; profile balance moved from `25.36` to `35.36`; `principal_balance=10.00`.
+- Mainnet first-deposit entitlement remains false; selected tier remains `T1`; no testnet referral reward was created.
+- Mainnet live-deposit, real-payout and go-live flags remain false, PRE_PRODUCTION remains set, and payouts remain locked.
+- Deposit path is complete. **Sweep/recovery/idempotent retry verification is still pending**; do not run a sweep or enable a production cron until separate preflight/approval.
 
 ## Stop conditions
 
