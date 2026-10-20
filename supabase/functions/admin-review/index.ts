@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       const blockTimestamp = new Date(blockMillis).toISOString();
 
       const { data: deposit, error: depositError } = await admin.from("deposit_submissions")
-        .select("id,user_id,status,network,gross_amount,deposit_fee,txid,submitted_txid,token_contract,receiving_address,deposit_wallet_id,screenshot_path,created_at,ai_checks")
+        .select("id,user_id,status,network,gross_amount,deposit_fee,txid,submitted_txid,token_contract,receiving_address,deposit_wallet_id,screenshot_path,evidence_sha256,created_at,ai_checks")
         .eq("id", id).maybeSingle();
       if (depositError || !deposit) return json({ error: "Deposit request was not found." }, 404);
       if (deposit.status !== "PENDING_VERIFICATION") return json({ error: "Deposit is no longer awaiting review; no second credit was attempted." }, 409);
@@ -99,6 +99,22 @@ Deno.serve(async (req: Request) => {
       const { data: recipientValid, error: recipientValidationError } = await admin.rpc("is_valid_tron_address", { p_address: String(wallet.address) });
       if (recipientValidationError || recipientValid !== true) return json({ error: "Assigned receiving address failed TRON Base58Check validation." }, 409);
 
+      let evidenceSha256 = String(deposit.evidence_sha256 || "");
+      if (!/^[a-f0-9]{64}$/.test(evidenceSha256)) {
+        const { data: proofBlob, error: proofError } = await admin.storage.from("private-verification").download(String(deposit.screenshot_path));
+        if (proofError || !proofBlob || proofBlob.size <= 0 || proofBlob.size > 10 * 1024 * 1024) {
+          return json({ error: "The uploaded evidence could not be re-read safely; manual credit is blocked." }, 409);
+        }
+        const proofBytes = new Uint8Array(await proofBlob.arrayBuffer());
+        const proofDigest = await crypto.subtle.digest("SHA-256", proofBytes.slice().buffer as ArrayBuffer);
+        evidenceSha256 = Array.from(new Uint8Array(proofDigest)).map((x) => x.toString(16).padStart(2, "0")).join("");
+      }
+      const { data: duplicateEvidence, error: duplicateEvidenceError } = await admin.from("deposit_submissions")
+        .select("id,status").eq("network", "TRON TESTNET").eq("evidence_sha256", evidenceSha256)
+        .neq("id", id).neq("status", "REJECTED").limit(1).maybeSingle();
+      if (duplicateEvidenceError) return json({ error: "Unable to check duplicate evidence; manual credit is blocked." }, 503);
+      if (duplicateEvidence) return json({ error: "This exact screenshot is already attached to another active deposit request; duplicate manual credit is blocked." }, 409);
+
       const [canonicalCollision, submittedCollision] = await Promise.all([
         admin.from("deposit_submissions").select("id,status").eq("network", "TRON TESTNET").eq("txid", txid).neq("id", id).limit(1).maybeSingle(),
         admin.from("deposit_submissions").select("id,status").eq("network", "TRON TESTNET").eq("submitted_txid", txid).neq("id", id).limit(1).maybeSingle(),
@@ -131,6 +147,7 @@ Deno.serve(async (req: Request) => {
         ? deposit.ai_checks as Record<string, unknown> : {};
       const { data: reviewed, error: updateError } = await admin.from("deposit_submissions").update({
         txid,
+        evidence_sha256: evidenceSha256,
         ai_review_status: "MANUAL_APPROVED",
         ai_review_reason: "MASTER_ADMIN_MANUAL_SHASTA_APPROVED",
         ai_reviewed_at: new Date().toISOString(),
