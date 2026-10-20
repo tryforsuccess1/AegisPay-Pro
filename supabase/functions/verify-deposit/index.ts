@@ -57,19 +57,23 @@ Deno.serve(async (req: Request) => {
     const { data: deposit, error: depError } = await depositQuery.maybeSingle();
     if (depError || !deposit) return json({ error: "Deposit not found." }, 404);
     if (deposit.status !== "PENDING_VERIFICATION") return json({ status: deposit.status });
-    if (!deposit.screenshot_path || !["APPROVED","MANUAL_APPROVED"].includes(deposit.ai_review_status)) {
-      return json({
-        status: "PENDING_VERIFICATION",
-        message: "Deposit evidence has not passed review. No balance has been credited.",
-      }, 202);
-    }
 
     const depositNetwork = String(deposit.network || "").toUpperCase();
+    // The allowlist is checked against the deposit owner (not the caller profile,
+    // so an authorized Master Admin can investigate the same isolated test row).
     const isShastaTestUser = depositNetwork === "TRON TESTNET"
-      ? await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED)
+      ? await isAllowlistedShastaTestUser(admin, String(deposit.user_id || ""), SHASTA_TEST_MODE_ENABLED)
       : false;
     if (depositNetwork === "TRON TESTNET" && !isShastaTestUser) {
       return json({ error: "Shasta verification is restricted to the explicitly allowlisted test account.", code: "SHASTA_TEST_ACCOUNT_REQUIRED" }, 403);
+    }
+    const reviewApproved = ["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || ""));
+    const chainReviewEligible = isShastaTestUser && deposit.ai_review_status === "MANUAL_REVIEW";
+    if (!deposit.screenshot_path || (!reviewApproved && !chainReviewEligible)) {
+      return json({
+        status: "PENDING_VERIFICATION",
+        message: "Deposit evidence has not passed review and is not eligible for isolated Shasta on-chain review. No balance has been credited.",
+      }, 202);
     }
     const shastaRules = isShastaTestUser ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED) : null;
     if (isShastaTestUser && !shastaRules) {
@@ -197,6 +201,41 @@ Deno.serve(async (req: Request) => {
       const requestedAmount = Number(deposit.gross_amount);
       if (!Number.isFinite(chainAmount) || Math.abs(chainAmount - requestedAmount) > 0.000001) {
         return json({ error: "On-chain amount does not match the submitted deposit amount." }, 409);
+      }
+    }
+
+    // A confirmed, exact Shasta TRC-20 transfer is stronger evidence than an
+    // incomplete wallet receipt. Promote only after chain, contract, recipient,
+    // success and exact raw amount have all matched. Mainnet review rules remain unchanged.
+    if (network === "TRON TESTNET" && deposit.ai_review_status === "MANUAL_REVIEW") {
+      const existingChecks = deposit.ai_checks && typeof deposit.ai_checks === "object" && !Array.isArray(deposit.ai_checks)
+        ? deposit.ai_checks as Record<string, unknown>
+        : {};
+      const chainEvidence = {
+        result: "CONFIRMED",
+        network: "TRON TESTNET",
+        token_contract: contract,
+        receiving_address: receiving,
+        txid: String(match.transaction_id),
+        raw_amount: raw,
+        block_timestamp: match.block_timestamp ? new Date(Number(match.block_timestamp)).toISOString() : null,
+        verification_source: "TronGrid confirmed-only Shasta transfer query",
+      };
+      const { data: reviewRow, error: reviewError } = await admin.from("deposit_submissions")
+        .update({
+          ai_review_status: "APPROVED",
+          ai_review_reason: "CHAIN_VERIFIED_SHASTA_TRANSFER",
+          ai_reviewed_at: new Date().toISOString(),
+          ai_checks: { ...existingChecks, chain_verification: chainEvidence },
+          ai_policy_version: "SHASTA_CHAIN_VERIFICATION_V1",
+        })
+        .eq("id", deposit.id)
+        .eq("status", "PENDING_VERIFICATION")
+        .eq("ai_review_status", "MANUAL_REVIEW")
+        .select("id")
+        .maybeSingle();
+      if (reviewError || !reviewRow) {
+        return json({ error: "The Shasta transfer was confirmed, but its review state changed concurrently. No balance was credited; refresh and retry.", code: "CHAIN_REVIEW_STATE_CHANGED" }, 409);
       }
     }
 
