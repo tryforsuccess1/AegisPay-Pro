@@ -1,3 +1,5 @@
+import { handleAegisAI } from "./ai-handler.mjs";
+
 const CANONICAL_ORIGIN = "https://aegispay-pro.pages.dev";
 const CLIENT_ENTRY_PATHS = new Set(["/", "/index.html", "/client", "/client/", "/client.html", "/app"]);
 const ADMIN_ENTRY_PATHS = new Set(["/admin", "/admin/", "/master-admin.html"]);
@@ -161,12 +163,15 @@ async function fetchProductImage(request, incoming) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    const incoming = new URL(request.url);
+    if (incoming.pathname === "/api/ai") {
+      return handleAegisAI(request, env);
+    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       return errorResponse(405, "Method Not Allowed", request.method, { "Allow": "GET, HEAD" });
     }
 
-    const incoming = new URL(request.url);
     if (incoming.pathname === "/product-image") {
       return fetchProductImage(request, incoming);
     }
