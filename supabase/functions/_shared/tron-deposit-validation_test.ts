@@ -2,6 +2,8 @@ import { assertEquals } from "jsr:@std/assert@1.0.14";
 import {
   exactUsdtRawAmountMatches,
   findExactShastaUsdtTransfer,
+  findShastaTransfersByAmount,
+  isValidTronTxid,
   TRON_SHASTA_USDT_CONTRACT,
   usdtAmountToRaw,
 } from "./tron-deposit-validation.ts";
@@ -52,4 +54,17 @@ Deno.test("raw chain amount must equal the requested decimal amount without floa
   assertEquals(exactUsdtRawAmountMatches({ ...validTransfer, value: "12340001" }, "12.34"), false);
   assertEquals(exactUsdtRawAmountMatches({ ...validTransfer, value: "0" }, "0"), false);
   assertEquals(exactUsdtRawAmountMatches({ ...validTransfer, value: "12.34" }, "12.34"), false);
+});
+
+Deno.test("TXID may be absent or mistyped while Shasta transfer matching stays exact", () => {
+  assertEquals(isValidTronTxid(txid), true);
+  assertEquals(isValidTronTxid("mistyped-txid"), false);
+  assertEquals(isValidTronTxid(""), false);
+  const since = validTransfer.block_timestamp as number - 60_000;
+  assertEquals(findShastaTransfersByAmount([validTransfer], recipient, "12.34", since), [validTransfer]);
+  assertEquals(findShastaTransfersByAmount([validTransfer], recipient, "12.35", since), []);
+  assertEquals(findShastaTransfersByAmount([{...validTransfer, to: sender}], recipient, "12.34", since), []);
+  assertEquals(findShastaTransfersByAmount([{...validTransfer, token_info: {address: recipient, decimals: 6}}], recipient, "12.34", since), []);
+  assertEquals(findShastaTransfersByAmount([{...validTransfer, block_timestamp: since - 1}], recipient, "12.34", since), []);
+  assertEquals(findShastaTransfersByAmount([validTransfer, {...validTransfer, transaction_id: "b".repeat(64)}], recipient, "12.34", since).length, 2);
 });
