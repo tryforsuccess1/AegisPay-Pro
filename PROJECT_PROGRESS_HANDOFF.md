@@ -19,20 +19,22 @@ Supabase project: `wtcspnrmsoisroavojop`
 
 ## Active work
 
-Current task: integrate the secure deposit flow into the Client UI without enabling Mainnet deposit/payout gates.
+Current task: **Step 2 — harden and complete the isolated TRON Shasta deposit E2E.**
 
-- PR: https://github.com/tryforsuccess1/AegisPay-Pro/pull/88
-- Branch: `feat/deposit-ui-integration`
-- Branch includes UI routing to authenticated `get-deposit-address`, safe pre-production/address-unavailable messaging, explicit do-not-send-funds warning, retry/history controls, separate deposit-request and verified-credit history, full 64-character hexadecimal TRON TXID validation, and removal of fake/demo payment choices from legacy fallback screens.
-- Android debug APK build passed for the current UI branch.
-- Deposit and withdrawal SQL migration tests passed.
-- Static CI first failed due a quote in a new assertion; that assertion has been fixed in commit `7ba88ac88c70840a8347b6fe0c79280b5dfbe00c`. Recheck CI, responsive Chromium browser tests and migration checks against the newest PR head.
-- Do not merge or deploy PR #88 until the latest CI and both SQL migration checks pass. After merge, confirm Cloudflare deployment and live read-only smoke check. Do not enable production payment flags.
+- Step 1 is complete: PR #88 merged as `4db87aaeacbe699d786b6a7809b38aaa24ed4171`; its main CI, SQL/withdrawal migration tests, Android builds, portal deployment, and APK release workflows passed.
+- Step 2 hardening branch: `feat/step2-shasta-deposit-e2e`.
+- Draft PR #89: https://github.com/tryforsuccess1/AegisPay-Pro/pull/89
+- The branch pins Shasta monitoring and user verification to the official configured testnet USDT contract, requires the recorded per-user HD wallet mapping, validates the exact six-decimal token amount without floating-point tolerance, and adds a database guard before a Shasta submission can become `VERIFIED`.
+- Deno tests cover exact transfer identity and raw amounts. Disposable PostgreSQL assertions reject a non-Shasta contract and a receiver that does not match the assigned HD address.
+- CI, SQL migration tests, withdrawal migration tests, security foundation tests, legacy SECURITY DEFINER permission tests, manual balance-adjustment tests, and Android APK builds passed for initial PR head `aec2cb8a37b3e8d768f7993eaeed6e44ef6d4852`. Recheck all workflows against the final head before merging PR #89.
+- Read-only inspection of the connected Supabase project on 2026-10-20 confirmed `system_mode.mode=MAINNET`, network setting `TRON MAINNET`, live deposits false, real payouts false, go-live approval false, `PRE_PRODUCTION`, and payout lock true. Deposit wallet and sweep journal counts were zero and one withdrawal remains `FAILED`.
+- The connected Supabase project currently exposes only its `main` branch. No isolated Shasta project/branch or dedicated testnet secrets were configured; no transaction was sent, no migration was applied to Supabase, and no Edge Function was deployed. Actual chain E2E therefore remains **blocked on isolated test-environment provisioning and secret setup**.
+- Keep `AEGIS_ENABLE_TESTNET_SWEEP` unset in production and add no production cron schedule. Never use the production project for Shasta test transfers and never open Mainnet/live-money gates as a shortcut.
 
 ## Seven-step remaining-work plan
 
-1. **Finish secure deposit UI integration.** Get PR #88 main CI, Chromium/browser tests and SQL/withdrawal migration checks green; merge, deploy, and verify the authenticated deposit screen clearly shows the pre-production pause and history without issuing a public/treasury address.
-2. **Complete isolated TRON Shasta testnet deposit E2E.** In a dedicated isolated test environment only: configure a dedicated test seed/signer and test assets, issue per-user address, verify transaction monitoring, sweep idempotency/recovery, confirmation thresholds, exact token/amount/network validation, credit exactly once, and reconcile ledger/history. Never reuse a personal/mainnet seed; never open live payment gates as a shortcut.
+1. **Complete. Secure deposit UI integration.** PR #88 merged as `4db87aaeacbe699d786b6a7809b38aaa24ed4171`; main CI, browser checks, SQL/withdrawal migration tests, Android builds, portal deployment, and APK release workflows passed. Mainnet payment gates remain closed.
+2. **In progress. Isolated TRON Shasta testnet deposit E2E.** PR #89 adds contract pinning, exact raw amount checks, per-user HD wallet checks and a database credit guard, with unit and disposable PostgreSQL tests. Actual chain E2E still requires a separately isolated test environment, dedicated Shasta-only secrets/test assets, a test transaction, sweep recovery observation, and ledger/history reconciliation. Never reuse a personal/mainnet seed; never open live payment gates as a shortcut.
 3. **Finish Auth security prerequisites.** Enable native Supabase Auth Turnstile CAPTCHA after verifying updated web and Android flows; set minimum password length to 12; revisit native leaked-password protection or document approved mitigation and residual limitation; verify redirect allowlists and live sign-in/signup/reset/update flow.
 4. **Investigate the existing FAILED withdrawal.** Determine the safe failure reason using non-sensitive metadata/logs, verify no funds were transferred or double-posted, reconcile status/ledger/chain records, document resolution. Keep payout gate closed until reconciled.
 5. **End-to-end business workflows.** With dedicated test accounts, verify Shop task purchase/completion, rewards and referral calculations, cycle settlement, KYC submission/review, account-scoped histories, and withdrawal dual approval/reconciliation.
@@ -41,4 +43,4 @@ Current task: integrate the secure deposit flow into the Client UI without enabl
 
 ## Resume instructions for a new ChatGPT conversation
 
-Read this file first and then inspect the current PR #88 head/check status and latest `main`. Resume at Step 1; do not assume this file's PR/commit/check statuses remain current. Ask before any Mainnet gate changes. Keep a short status update and update this file as milestones finish.
+Read this file first, inspect latest `main`, and recheck PR #89 plus all workflow conclusions against its current head. Resume at Step 2; do not assume the listed CI head remains current. Do not merge until every required workflow is green. Actual Shasta E2E needs an isolated test environment and configured testnet-only secrets; do not alter the production Supabase project to simulate isolation. Ask before any cost-incurring test project/branch provisioning and before any Mainnet gate changes.
