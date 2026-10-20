@@ -244,7 +244,7 @@ const server = http.createServer((req, res) => {
           messages.append(shortBubble,longBubble);
           const shortRect=shortBubble.getBoundingClientRect();
           const longRect=longBubble.getBoundingClientRect();
-          return {shortWidth:shortRect.width,longWidth:longRect.width,fontSize:getComputedStyle(shortBubble).fontSize,lineHeight:getComputedStyle(shortBubble).lineHeight};
+          return {shortWidth:shortRect.width,longWidth:longRect.width,messageAreaWidth:messages.getBoundingClientRect().width,fontSize:getComputedStyle(shortBubble).fontSize,lineHeight:getComputedStyle(shortBubble).lineHeight,display:getComputedStyle(shortBubble).display};
         })(),
         hasInput: !!scratch.querySelector('#aiInput'),
         hasSend: !!scratch.querySelector('#aiSend'),
@@ -271,6 +271,9 @@ const server = http.createServer((req, res) => {
     });
     assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
     assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.longWidth, 'Chat bubbles must use content-fit widths instead of a fixed full row width: ' + JSON.stringify(aiTemplate.bubbleSizing));
+    assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.messageAreaWidth * 0.35, 'A short message bubble must stay compact relative to the chat panel: ' + JSON.stringify(aiTemplate.bubbleSizing));
+    assert.ok(aiTemplate.bubbleSizing.longWidth <= aiTemplate.bubbleSizing.messageAreaWidth * 0.8, 'A longer message bubble must wrap within the Telegram-style chat width cap: ' + JSON.stringify(aiTemplate.bubbleSizing));
+    assert.equal(aiTemplate.bubbleSizing.display, 'inline-flex', 'Chat bubbles must use intrinsic inline-flex sizing.');
     assert.equal(aiTemplate.bubbleSizing.fontSize, '12px', 'Chat bubble font must be compact but readable.');
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
     assert.ok(aiTemplate.navLinks === 4, 'AI Assistant template must render all four primary navigation items.');

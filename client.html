@@ -235,7 +235,8 @@ html[data-mode=dark] .notif-card .ntext,html[data-mode=dark] .notif-card .ntime{
 #toast{position:fixed;z-index:260;left:50%;top:16px;transform:translate(-50%,-90px);background:var(--hd);color:#fff;font-weight:700;font-size:13px;padding:11px 18px;border-radius:24px;transition:.35s;max-width:90%;text-align:center}
 #toast.on{transform:translate(-50%,0)}
 
-.msgs .ai-msg{width:fit-content;max-width:min(82%,34rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:7px 10px;border-radius:15px;font-size:12px;line-height:1.42;overflow-wrap:anywhere}
+.msgs .ai-msg{display:inline-flex;flex-direction:column;align-items:flex-start;width:max-content;max-width:min(78%,34rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:7px 10px;border-radius:15px;font-size:12px;line-height:1.42;overflow-wrap:anywhere}
+.msgs .ai-msg>div,.msgs .ai-msg>.ai-attachment-link{max-width:100%;min-width:0;overflow-wrap:anywhere}
 .msgs .ai-msg.m1{background:var(--s1);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;color:var(--tx)}
 .msgs .ai-msg.m2{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
 html[data-mode="dark"] .msgs .ai-msg.m1{background:var(--s1)!important;color:var(--tx)!important}
@@ -364,7 +365,7 @@ nav.aegis-bottom-nav a.on {
   color: var(--hd); text-align: center; font: 600 11px/1.45 var(--ff);
 }
 .ai-live-representative { border-color: rgba(217,96,156,.22); }
-.ai-live-message-label { display: block; margin-bottom: 4px; font: 700 10px/1.25 var(--ff); color: var(--p2); }
+/* Sender identity is conveyed by Telegram-style bubble alignment, not a wide in-bubble label. */
 
 .ai-composer {
   position: fixed; z-index: 6; left: 50%; transform: translateX(-50%);
@@ -1928,7 +1929,7 @@ function aiLiveMessageRows(){
     }
     const mine=role==='CLIENT';
     const label=mine?'You':role==='REPRESENTATIVE'?'Customer Representative':'Aegis AI';
-    return '<div class="'+(mine?'m2':'m1')+' ai-msg '+(role==='REPRESENTATIVE'?'ai-live-representative':'')+'"><small class="ai-live-message-label">'+esc(label)+'</small><div>'+esc(text)+'</div>'+aiSupportAttachmentMarkup(m.attachments)+'</div>';
+    return '<div class="'+(mine?'m2':'m1')+' ai-msg '+(role==='REPRESENTATIVE'?'ai-live-representative':'')+'"><div>'+esc(text)+'</div>'+aiSupportAttachmentMarkup(m.attachments)+'</div>';
   }).join('');
 }
 function aiLiveStorageKey(suffix){

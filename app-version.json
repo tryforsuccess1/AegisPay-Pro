@@ -1,9 +1,10 @@
 {
-  "versionCode": 50,
-  "versionName": "2.6.11",
+  "versionCode": 51,
+  "versionName": "2.6.12",
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
+    "Build 51 / 2.6.12 uses intrinsic Telegram-style message bubbles: bubble width follows content, long messages wrap within a 78% chat-width cap, and sender labels no longer widen short messages. Font size remains 12px.",
     "Build 50 / 2.6.11 sizes AI support bubbles to their text with a compact readable font, makes the live-representative card focus the chat instead of presenting a wait cursor, and clears Client-local support history when Master Admin resolves the case while preserving the Admin transcript. Backend now returns an explicit clientChatCleared signal.",
     "Build 49 / 2.6.10 removes duplicate AI chat banners, hides the repeated live-representative status, and clears stale resolved support-case session pointers while preserving the visible transcript. The non-interactive, preloaded Cloudflare Turnstile improvements remain included.",
     "Build 48 / 2.6.9 preloads Cloudflare Turnstile on the login screen, retries transient verification failures automatically, and uses non-interactive verification so users do not need to tick a checkbox. Server-side token validation remains required.",
