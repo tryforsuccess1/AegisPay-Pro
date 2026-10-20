@@ -30,12 +30,19 @@ function fixture({ run, fetcher, now = () => 1_000, store = new Map() } = {}) {
     }
   };
   const authFetcher = fetcher || (async (url, init) => {
-    assert.equal(String(url), "https://auth.example.invalid/auth/v1/user");
     assert.equal(init.headers.Authorization, "Bearer valid-user-access-token");
     assert.equal(init.headers.apikey, "public-test-key");
-    return new Response(JSON.stringify({ id: "authenticated-user-1" }), {
-      status: 200, headers: { "Content-Type": "application/json" }
-    });
+    if (String(url) === "https://auth.example.invalid/auth/v1/user") {
+      return new Response(JSON.stringify({ id: "authenticated-user-1" }), {
+        status: 200, headers: { "Content-Type": "application/json" }
+      });
+    }
+    if (String(url).startsWith("https://auth.example.invalid/rest/v1/users?")) {
+      return new Response(JSON.stringify([{
+        id: "aegis-profile-1", role: "USER", status: "ACTIVE", auth_user_id: "authenticated-user-1"
+      }]), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+    throw new Error("Unexpected auth URL");
   });
   return {
     env, seen, store, now,
@@ -100,5 +107,20 @@ test("invalid user token is rejected and not sent to the model", async () => {
   const f = fixture({ fetcher: async () => new Response(JSON.stringify({ message: "invalid" }), { status: 401 }) });
   const res = await f.call({ message: "Hello" });
   assert.equal(res.status, 401);
+  assert.equal(f.seen.calls, 0);
+});
+
+test("suspended AegisPay profiles are rejected before model execution", async () => {
+  const fetcher = async (url) => {
+    if (String(url).endsWith("/auth/v1/user")) {
+      return new Response(JSON.stringify({ id: "authenticated-user-1" }), { status: 200 });
+    }
+    return new Response(JSON.stringify([{
+      id: "aegis-profile-1", role: "USER", status: "SUSPENDED", auth_user_id: "authenticated-user-1"
+    }]), { status: 200 });
+  };
+  const f = fixture({ fetcher });
+  const res = await f.call({ message: "Hello" });
+  assert.equal(res.status, 403);
   assert.equal(f.seen.calls, 0);
 });
