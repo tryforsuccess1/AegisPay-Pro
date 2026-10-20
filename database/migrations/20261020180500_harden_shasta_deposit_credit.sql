@@ -49,6 +49,7 @@ DECLARE
   v_rules JSONB := '{}'::jsonb;
   v_mode JSONB := '{}'::jsonb;
   v_production JSONB := '{}'::jsonb;
+  v_mainnet_rules JSONB := '{}'::jsonb;
   v_ref_rules JSONB := '{}'::jsonb;
   v_network TEXT;
   v_contract TEXT;
@@ -112,6 +113,16 @@ BEGIN
        OR v_contract <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
       RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Shasta requires the separate pinned testnet configuration';
     END IF;
+
+    SELECT COALESCE(value_json,'{}'::jsonb) INTO v_mainnet_rules
+      FROM public.platform_settings WHERE key = 'deposit_rules';
+    IF upper(btrim(COALESCE(v_mainnet_rules ->> 'network',''))) <> 'TRON MAINNET'
+       OR btrim(COALESCE(v_mainnet_rules ->> 'token_contract','')) <> 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+       OR btrim(COALESCE(v_mainnet_rules ->> 'receiving_address','')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
+       OR btrim(COALESCE(v_mainnet_rules ->> 'receiving_address','')) = btrim(COALESCE(v_rules ->> 'receiving_address','')) THEN
+      RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Shasta test treasury must be distinct from a valid Mainnet treasury';
+    END IF;
+
     IF NOT EXISTS (
       SELECT 1 FROM public.shasta_test_users test_user
        WHERE test_user.user_id = d.user_id AND test_user.enabled = true
@@ -265,6 +276,7 @@ SET search_path TO ''
 AS $function$
 DECLARE
   v_rules jsonb := '{}'::jsonb;
+  v_mainnet_rules jsonb := '{}'::jsonb;
   v_wallet public.deposit_wallets%ROWTYPE;
   v_raw text := btrim(COALESCE(NEW.raw_amount, ''));
 BEGIN
@@ -291,6 +303,18 @@ BEGIN
      OR btrim(COALESCE(NEW.token_contract, '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
     RAISE EXCEPTION USING ERRCODE = '22023',
       MESSAGE = 'Shasta deposit credit requires the pinned Shasta USDT contract and network';
+  END IF;
+
+  SELECT COALESCE(value_json, '{}'::jsonb)
+    INTO v_mainnet_rules
+    FROM public.platform_settings
+   WHERE key = 'deposit_rules';
+  IF upper(btrim(COALESCE(v_mainnet_rules ->> 'network',''))) <> 'TRON MAINNET'
+     OR btrim(COALESCE(v_mainnet_rules ->> 'token_contract','')) <> 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+     OR btrim(COALESCE(v_mainnet_rules ->> 'receiving_address','')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
+     OR btrim(COALESCE(v_mainnet_rules ->> 'receiving_address','')) = btrim(COALESCE(v_rules ->> 'receiving_address','')) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta treasury must remain distinct from the valid Mainnet treasury';
   END IF;
 
   IF NEW.deposit_wallet_id IS NULL
