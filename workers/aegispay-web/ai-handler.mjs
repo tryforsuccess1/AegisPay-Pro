@@ -244,10 +244,18 @@ export async function handleAegisAI(request, env = {}, deps = {}) {
       temperature: 0.25,
       top_p: 0.85
     });
-    const result = await Promise.race([
-      completion,
-      new Promise((_, reject) => setTimeout(() => reject(new Error("AI request timeout")), MODEL_TIMEOUT_MS))
-    ]);
+    let timeoutHandle;
+    let result;
+    try {
+      result = await Promise.race([
+        completion,
+        new Promise((_, reject) => {
+          timeoutHandle = setTimeout(() => reject(new Error("AI request timeout")), MODEL_TIMEOUT_MS);
+        })
+      ]);
+    } finally {
+      if (timeoutHandle !== undefined) clearTimeout(timeoutHandle);
+    }
     const answer = safeString(result?.response, 2400);
     if (!answer) return json(request, 502, { error: "AI service returned an empty response." });
     return json(request, 200, { ok: true, provider: "cloudflare-workers-ai", model, answer });
