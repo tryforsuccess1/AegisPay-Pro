@@ -474,6 +474,24 @@ Deno.serve(async (req: Request) => {
     return { ...data, telegramNotified: notified, telegramDeferred: deferTelegram };
   }
 
+  async function deliverToActiveLiveRepresentative(admin: ReturnType<typeof createClient<any>>, profile: any, message: string) {
+    const { data: liveCase, error: findError } = await admin.from("ai_support_cases")
+      .select("id,user_id,category,subject,status,representative_requested,representative_joined_at,representative_user_id,updated_at")
+      .eq("user_id", profile.id).eq("representative_requested", true).eq("status", "IN_PROGRESS")
+      .not("representative_joined_at", "is", null)
+      .order("updated_at", { ascending: false }).limit(1).maybeSingle();
+    if (findError) throw new Error("Unable to find the active representative conversation.");
+    if (!liveCase) return null;
+    const cleanMessage = String(message || "").trim().slice(0, 2000);
+    if (!cleanMessage) return null;
+    const { data: sent, error: sendError } = await admin.from("ai_support_messages").insert({
+      case_id: liveCase.id, sender_user_id: profile.id, sender_role: "CLIENT", message_text: cleanMessage, attachments: []
+    }).select("id,case_id,sender_user_id,sender_role,message_text,created_at,attachments").single();
+    if (sendError || !sent) throw new Error("Could not add your message to the active representative conversation.");
+    await admin.from("ai_support_cases").update({ updated_at: sent.created_at }).eq("id", liveCase.id);
+    return { case: liveCase, message: sent };
+  }
+
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     const profile = await actor(req, admin);
@@ -618,6 +636,7 @@ Deno.serve(async (req: Request) => {
           .select("id,user_id,category,subject,status,resolution,representative_requested,representative_joined_at,representative_user_id,conversation_seeded_at,created_at,updated_at")
           .eq("user_id", profile.id).eq("representative_requested", true)
           .in("status", ["OPEN", "IN_PROGRESS"])
+          .order("representative_joined_at", { ascending: false, nullsFirst: false })
           .order("updated_at", { ascending: false }).limit(1).maybeSingle();
         if (error) return json({ error: "Unable to check for an active support conversation." }, 500);
         liveCase = data;
@@ -649,8 +668,20 @@ Deno.serve(async (req: Request) => {
         let chatMessage = String(body?.message || "").trim().slice(0, 2000);
         if (!chatMessage && attachmentInput) chatMessage = "Shared an attachment: " + attachmentInput.name;
         if (!chatMessage) return json({ error: "Enter a message or attach a file before sending." }, 400);
+        if (chatMessage.length > 250 && /^Your request has been received\.\s*A representative may contact you soon\./i.test(chatMessage)) {
+          return json({ error: "This looks like the previous mixed chat transcript, not a new message. Please type only your new message; the Admin transcript is preserved." }, 400);
+        }
         if (!["OPEN", "IN_PROGRESS"].includes(String(liveCase.status).toUpperCase())) {
           return json({ error: "This support conversation is already resolved or closed." }, 409);
+        }
+        if (chatMessage.length > 200) {
+          const recentCutoff = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+          const { data: duplicateMessage, error: duplicateError } = await admin.from("ai_support_messages")
+            .select("id").eq("case_id", liveCase.id).eq("sender_user_id", profile.id)
+            .eq("sender_role", "CLIENT").eq("message_text", chatMessage)
+            .gte("created_at", recentCutoff).order("created_at", { ascending: false }).limit(1).maybeSingle();
+          if (duplicateError) return json({ error: "Unable to verify whether this message was already sent." }, 500);
+          if (duplicateMessage) return json({ error: "This long message was already sent recently. Please send only your new message or wait for the representative." }, 409);
         }
         let stored: SupportAttachmentMeta | null = null;
         if (attachmentInput) stored = await saveSupportAttachment(admin, liveCase.id, profile.auth_user_id || "", attachmentInput);
@@ -815,6 +846,17 @@ Deno.serve(async (req: Request) => {
       const needsRepresentative = profile.role === "USER" && (op.needsEscalation || withdrawalRequest || isSupportIssueIntent(message));
       if (needsRepresentative) {
         try {
+          const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
+          if (activeDelivery) return json({
+            configured: false, provider: "aegispay-guidance",
+            answer: "Your message has been added to the representative conversation already open in your Client chat.",
+            degraded: false, role: profile.role, supportCase: activeDelivery.case,
+            message: activeDelivery.message, routedToRepresentative: true
+          });
+        } catch (_) {
+          return json({ error: "Your message could not be added to the active representative conversation." }, 503);
+        }
+        try {
           supportCase = await openSupportCase(
             admin, { id: profile.auth_user_id }, profile, message,
             withdrawalRequest
@@ -841,6 +883,17 @@ Deno.serve(async (req: Request) => {
     const needsEscalation = profile.role === "USER" &&
       (withdrawalRequest || isSupportIssueIntent(message) || shouldEscalate(message, answer, false, false));
     if (needsEscalation) {
+      try {
+        const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
+        if (activeDelivery) return json({
+          configured: false, provider: "aegispay-guidance",
+          answer: "Your message has been added to the representative conversation already open in your Client chat.",
+          degraded: false, role: profile.role, supportCase: activeDelivery.case,
+          message: activeDelivery.message, routedToRepresentative: true
+        });
+      } catch (_) {
+        return json({ error: "Your message could not be added to the active representative conversation." }, 503);
+      }
       try {
         supportCase = await openSupportCase(
           admin, { id: profile.auth_user_id }, profile, message,

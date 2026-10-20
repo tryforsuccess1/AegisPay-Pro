@@ -272,7 +272,7 @@ const server = http.createServer((req, res) => {
     assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
     assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.longWidth, 'Chat bubbles must use content-fit widths instead of a fixed full row width: ' + JSON.stringify(aiTemplate.bubbleSizing));
     assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.messageAreaWidth * 0.35, 'A short message bubble must stay compact relative to the chat panel: ' + JSON.stringify(aiTemplate.bubbleSizing));
-    assert.ok(aiTemplate.bubbleSizing.longWidth <= aiTemplate.bubbleSizing.messageAreaWidth * 0.8, 'A longer message bubble must wrap within the Telegram-style chat width cap: ' + JSON.stringify(aiTemplate.bubbleSizing));
+    assert.ok(aiTemplate.bubbleSizing.longWidth <= aiTemplate.bubbleSizing.messageAreaWidth * 0.45 + 2, 'A longer message bubble must wrap within the requested 45% Telegram-style chat width cap: ' + JSON.stringify(aiTemplate.bubbleSizing));
     assert.equal(aiTemplate.bubbleSizing.display, 'flex', 'Browser blockifies inline-flex children of the vertical messages flex container while preserving intrinsic bubble width.');
     assert.equal(aiTemplate.bubbleSizing.fontSize, '12px', 'Chat bubble font must be compact but readable.');
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');

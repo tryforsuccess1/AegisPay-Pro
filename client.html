@@ -235,7 +235,7 @@ html[data-mode=dark] .notif-card .ntext,html[data-mode=dark] .notif-card .ntime{
 #toast{position:fixed;z-index:260;left:50%;top:16px;transform:translate(-50%,-90px);background:var(--hd);color:#fff;font-weight:700;font-size:13px;padding:11px 18px;border-radius:24px;transition:.35s;max-width:90%;text-align:center}
 #toast.on{transform:translate(-50%,0)}
 
-.msgs .ai-msg{display:inline-flex;flex-direction:column;align-items:flex-start;width:max-content;max-width:min(78%,34rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:7px 10px;border-radius:15px;font-size:12px;line-height:1.42;overflow-wrap:anywhere}
+.msgs .ai-msg{display:inline-flex;flex-direction:column;align-items:flex-start;width:max-content;max-width:min(45%,34rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:7px 10px;border-radius:15px;font-size:12px;line-height:1.42;overflow-wrap:anywhere}
 .msgs .ai-msg>div,.msgs .ai-msg>.ai-attachment-link{max-width:100%;min-width:0;overflow-wrap:anywhere}
 .msgs .ai-msg.m1{background:var(--s1);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;color:var(--tx)}
 .msgs .ai-msg.m2{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
@@ -1953,6 +1953,37 @@ function restoreAiLivePrefs(){
     liveSupportSeedCount=Math.max(0,Number(sessionStorage.getItem(aiLiveStorageKey('seed_count'))||0));
   }catch(_){liveSupportCaseId=null;liveSupportSeedCount=0;}
 }
+function aiLiveViewCutoffKey(caseId){
+  return 'aegispay_ai_live_view_after:'+String(profile?.id||'guest')+':'+String(caseId||'none');
+}
+function clientVisibleSupportMessages(caseId,items){
+  const messages=Array.isArray(items)?items:[];
+  const key=aiLiveViewCutoffKey(caseId);
+  let cutoff=0;
+  try{cutoff=Number(localStorage.getItem(key)||0)||0;}catch(_){}
+  const legacyMergedTranscript=messages.some(function(m){
+    const text=String(m?.message_text||'');
+    return String(m?.sender_role||'').toUpperCase()==='CLIENT' &&
+      text.length>250 &&
+      /^Your request has been received\.\s*A representative may contact you soon\./i.test(text.trim());
+  });
+  if(!cutoff&&legacyMergedTranscript){
+    cutoff=Date.now();
+    try{
+      localStorage.setItem(key,String(cutoff));
+      sessionStorage.removeItem(AI_HISTORY_KEY+':'+String(profile?.id||'guest'));
+      sessionStorage.removeItem(aiLiveStorageKey('seed_count'));
+    }catch(_){}
+    // Clear only the Client's local stale AI/history copy. Server messages remain intact for Admin.
+    aiHistory=[];
+    liveSupportSeedCount=0;
+  }
+  if(!cutoff)return messages;
+  return messages.filter(function(m){
+    const created=Date.parse(String(m?.created_at||''));
+    return !Number.isFinite(created)||created>=cutoff;
+  });
+}
 function clearClientSupportConversation(){
   const historyKey=AI_HISTORY_KEY+':'+String(profile?.id||'guest');
   liveSupportCaseId=null;
@@ -1978,6 +2009,7 @@ function updateAiLiveSupportUI(){
   const title=button?.querySelector('strong');
   const subtitle=button?.querySelector('small');
   const input=document.getElementById('aiInput');
+  const chips=document.querySelector('.ai-assistant-screen > .chips');
   const joined=Boolean(liveSupportCase?.representative_joined_at && String(liveSupportCase.status).toUpperCase()==='IN_PROGRESS');
   const waiting=Boolean(liveSupportCaseId && liveSupportCase?.representative_requested && ['OPEN','IN_PROGRESS'].includes(String(liveSupportCase?.status||'').toUpperCase()) && !joined);
   if(status){
@@ -1992,6 +2024,7 @@ function updateAiLiveSupportUI(){
     else if(liveSupportCaseId && ['RESOLVED','CLOSED'].includes(String(liveSupportCase?.status||'').toUpperCase())){notice.hidden=false;notice.textContent=String(liveSupportCase.status).toUpperCase()==='RESOLVED'?'This support conversation has been marked resolved.':'This support conversation has been closed.';}
     else notice.hidden=true;
   }
+  if(chips)chips.style.display=(joined||waiting)?'none':'';
   if(title)title.textContent=joined?'Representative is live in this chat':waiting?'Representative requested':'Talk to a Customer Representative';
   if(subtitle)subtitle.textContent=joined?'Send your messages here and the representative will reply in this chat.':waiting?'Your request is received. You can add more details while you wait.':'Need more help? Our support team can review your issue.';
   if(button){button.disabled=representativeRequestInFlight||liveSupportSendInFlight||waiting;button.setAttribute('aria-disabled',button.disabled?'true':'false');button.title=joined?'Open the live conversation':waiting?'A representative request is already pending':'Request a customer representative';}
@@ -2042,7 +2075,7 @@ async function refreshAiLiveSupportState(){
         try{sessionStorage.setItem(aiLiveStorageKey('seed_count'),String(liveSupportSeedCount));}catch(_){}
       }
       liveSupportCase=incoming;
-      liveSupportMessages=Array.isArray(data.messages)?data.messages:[];
+      liveSupportMessages=clientVisibleSupportMessages(incoming.id,data.messages);
       liveSupportStateLoaded=true;
       aiRender();
     }else if(liveSupportCaseId){
@@ -2079,13 +2112,18 @@ async function sendLiveSupportMessage(raw,attachmentFile=aiSelectedAttachment){
   try{
     const attachment=attachmentFile?await aiSerializeAttachment(attachmentFile):null;
     const result=await db.functions.invoke('ai-support',{body:{action:'client_send_chat_message',caseId:liveSupportCaseId,message,attachment}});
-    if(result.error||!result.data?.ok||!result.data?.message)throw new Error('send_failed');
+    if(result.error){
+      let detail='';
+      try{if(result.error.context&&typeof result.error.context.clone==='function'){const body=await result.error.context.clone().json();detail=body?.error?String(body.error):'';}}catch(_){}
+      throw new Error(detail||result.error.message||'Your message could not be sent. Please try again.');
+    }
+    if(!result.data?.ok||!result.data?.message)throw new Error(result.data?.error||'Your message could not be sent. Please try again.');
     liveSupportMessages.push(result.data.message);
-    liveSupportMessages=liveSupportMessages.slice(-250);
+    liveSupportMessages=clientVisibleSupportMessages(liveSupportCaseId,liveSupportMessages).slice(-250);
     if(attachmentFile&&attachmentFile===aiSelectedAttachment)aiClearAttachment();
     aiRender();
-  }catch(_){
-    if(notice){notice.hidden=false;notice.textContent='Your message or attachment could not be sent. Please try again.';}
+  }catch(error){
+    if(notice){notice.hidden=false;notice.textContent=String(error?.message||'Your message or attachment could not be sent. Please try again.');}
     if(input)input.value=message;
   }finally{
     liveSupportSendInFlight=false;
