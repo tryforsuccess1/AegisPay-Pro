@@ -272,9 +272,9 @@ const server = http.createServer((req, res) => {
     assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
     assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.longWidth, 'Chat bubbles must use content-fit widths instead of a fixed full row width: ' + JSON.stringify(aiTemplate.bubbleSizing));
     assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.messageAreaWidth * 0.35, 'A short message bubble must stay compact relative to the chat panel: ' + JSON.stringify(aiTemplate.bubbleSizing));
-    assert.ok(aiTemplate.bubbleSizing.longWidth <= aiTemplate.bubbleSizing.messageAreaWidth * 0.45 + 2, 'A longer message bubble must wrap within the requested 45% Telegram-style chat width cap: ' + JSON.stringify(aiTemplate.bubbleSizing));
+    assert.ok(aiTemplate.bubbleSizing.longWidth <= aiTemplate.bubbleSizing.messageAreaWidth * 0.84 + 2, 'A longer message bubble must use the wider Telegram-style 84% chat width cap: ' + JSON.stringify(aiTemplate.bubbleSizing));
     assert.equal(aiTemplate.bubbleSizing.display, 'flex', 'Browser blockifies inline-flex children of the vertical messages flex container while preserving intrinsic bubble width.');
-    assert.equal(aiTemplate.bubbleSizing.fontSize, '12px', 'Chat bubble font must be compact but readable.');
+    assert.equal(aiTemplate.bubbleSizing.fontSize, '15px', 'Chat bubble font must be comfortably readable at Telegram-like size.');
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
     assert.ok(aiTemplate.navLinks === 4, 'AI Assistant template must render all four primary navigation items.');
     assert.ok(aiTemplate.hasRepresentative, 'AI Assistant must offer Talk to a Customer Representative.');
@@ -310,10 +310,10 @@ const server = http.createServer((req, res) => {
         shell: {left:shellRect.left,right:shellRect.right,top:shellRect.top,bottom:shellRect.bottom},
         input: {left:inputRect.left,right:inputRect.right,top:inputRect.top,bottom:inputRect.bottom},
         send: {left:sendRect.left,right:sendRect.right,top:sendRect.top,bottom:sendRect.bottom},
-        nav: {top:navRect.top,bottom:navRect.bottom,height:navRect.height},
+        nav: {top:navRect.top,bottom:navRect.bottom,height:navRect.height,display:getComputedStyle(nav).display},
         viewportHeight: window.innerHeight,
         composerBottom: Math.max(shellRect.bottom,sendRect.bottom),
-        support: (() => { const el=root.querySelector('.ai-support-cta'); const r=el.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,position:getComputedStyle(el).position}; })(),
+        support: (() => { const el=root.querySelector('.ai-support-cta'); const r=el.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,height:r.height,position:getComputedStyle(el).position}; })(),
         composerPosition:getComputedStyle(root.querySelector('.ai-composer')).position,
         messages: (() => { const el=root.querySelector('#aiMessages'); const r=el.getBoundingClientRect(); const st=getComputedStyle(el); return {top:r.top,bottom:r.bottom,height:r.height,marginBottom:st.marginBottom,maxHeight:st.maxHeight,overflowY:st.overflowY}; })(),
         screenOverflow:getComputedStyle(screen).overflow,
@@ -325,7 +325,11 @@ const server = http.createServer((req, res) => {
     assert.deepEqual(composerLayout.borderWidths, ['2px','2px','2px','2px'], 'Pink focus frame must have equal border thickness on all four sides.');
     assert.match(composerLayout.backgroundImage, /linear-gradient/i, 'The input shell must render the visible pink gradient border.');
     assert.ok(composerLayout.input.left > composerLayout.shell.left && composerLayout.input.right < composerLayout.shell.right, 'The input border must sit evenly inside the pink shell.');
-    assert.ok(composerLayout.composerBottom < composerLayout.nav.top, 'The message composer must remain above the fixed bottom navigation: ' + JSON.stringify(composerLayout));
+    assert.equal(composerLayout.nav.display, 'none', 'Telegram-style AI conversation must hide the app-wide bottom tab bar to reclaim chat space.');
+    assert.ok(composerLayout.viewportHeight - composerLayout.composerBottom <= 18, 'Compact composer must sit close to the bottom safe area instead of leaving a blank gap: ' + JSON.stringify(composerLayout));
+    assert.ok(composerLayout.shell.bottom - composerLayout.shell.top <= 52, 'Telegram-style composer input should be compact, not an oversized framed panel: ' + JSON.stringify(composerLayout));
+    assert.ok(composerLayout.send.bottom - composerLayout.send.top <= 44, 'Send control should fit the compact composer row.');
+    assert.ok(composerLayout.support.bottom - composerLayout.support.top <= 48, 'Representative escalation must be a compact single row instead of a large banner: ' + JSON.stringify(composerLayout));
     assert.equal(composerLayout.support.position, 'static', 'Support CTA must live in the chat layout instead of floating over/away from the message pane.');
     assert.equal(composerLayout.composerPosition, 'static', 'Composer must participate in the chat layout and stay attached above bottom navigation.');
     assert.equal(composerLayout.screenOverflow, 'hidden', 'AI screen must not scroll the whole page; only its message panel should scroll.');
