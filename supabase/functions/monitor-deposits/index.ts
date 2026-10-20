@@ -84,6 +84,13 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
     );
   }
   if (!match) return { id: deposit.id, status: "PENDING" };
+  if (network === "TRON TESTNET") {
+    const blockTimestamp = Number(match.block_timestamp);
+    const createdAt = new Date(deposit.created_at || Date.now()).getTime();
+    if (!Number.isFinite(blockTimestamp) || blockTimestamp < createdAt - 24 * 60 * 60 * 1000 || blockTimestamp > Date.now() + 5 * 60 * 1000) {
+      return { id: deposit.id, status: "SHASTA_TRANSFER_OUTSIDE_MATCH_WINDOW" };
+    }
+  }
 
   const raw = String(match.value || "0");
   let amount: number;
