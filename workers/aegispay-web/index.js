@@ -161,12 +161,16 @@ async function fetchProductImage(request, incoming) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
+    const incoming = new URL(request.url);
+    if (incoming.pathname === "/api/ai") {
+      const { handleAegisAI } = await import("./ai-handler.mjs");
+      return handleAegisAI(request, env);
+    }
     if (request.method !== "GET" && request.method !== "HEAD") {
       return errorResponse(405, "Method Not Allowed", request.method, { "Allow": "GET, HEAD" });
     }
 
-    const incoming = new URL(request.url);
     if (incoming.pathname === "/product-image") {
       return fetchProductImage(request, incoming);
     }

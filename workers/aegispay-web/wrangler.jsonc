@@ -3,6 +3,14 @@
   "main": "index.js",
   "compatibility_date": "2026-10-18",
   "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "vars": {
+    "SUPABASE_URL": "https://wtcspnrmsoisroavojop.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_pDg6Ef_P6fZnNvrKkuBm0Q_uEQMItB2",
+    "AI_MODEL": "@cf/meta/llama-3.1-8b-instruct-fp8"
+  },
   "observability": {
     "enabled": true
   }

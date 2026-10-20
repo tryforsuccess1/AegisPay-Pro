@@ -24,6 +24,8 @@ jobs:
           node-version: 24
       - name: Repository checks
         run: npm run check
+      - name: Test authenticated Cloudflare Workers AI handler
+        run: node --test workers/aegispay-web/ai-handler.test.mjs
       - name: Syntax-check live production browser smoke test
         run: node --check scripts/client-live-smoke.cjs
       - name: Install browser smoke-test dependencies
@@ -52,9 +54,13 @@ jobs:
         run: deno test supabase/functions/_shared/password-policy_test.ts
       - name: Test login auth error classification
         run: deno test supabase/functions/_shared/auth-login-error_test.ts
+      - name: Test Workers AI request authentication and fallback contract
+        run: deno test supabase/functions/_shared/aegis-ai-client_test.ts
       - name: Test TRON HD address derivation
         run: deno test --node-modules-dir=auto --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE supabase/functions/_shared/tron-hd-wallet_test.ts
       - name: Test HD sweep idempotency and transaction recovery state machine
         run: deno test --node-modules-dir=auto supabase/functions/_shared/tron-sweep_test.ts
+      - name: Bundle authenticated AI Worker without deploying
+        run: npx --yes wrangler@4 deploy --config workers/aegispay-web/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-web-ai-bundle
       - name: Bundle Shop Worker without deploying
         run: npx --yes wrangler@4 deploy --config workers/aegispay-shopping/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-shopping-bundle
