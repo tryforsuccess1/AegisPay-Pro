@@ -42,7 +42,12 @@ export function shouldEscalateUnresolvedIssue(input: AiEscalationInput): boolean
   const answerCannotResolve =
     /\b(?:please contact (?:the )?(?:support|support team|customer support)|contact support for (?:a )?(?:manual )?(?:review|investigation)|i (?:cannot|can't|could not|couldn't) (?:verify|confirm|resolve|check|access|find|determine)|unable to (?:verify|confirm|resolve|check|access|find|determine)|not able to (?:verify|confirm|resolve|check)|manual investigation is required|requires? (?:a )?(?:manual|human) review|needs? (?:a )?(?:manual|human) review|i do not have enough information to resolve|i don't have enough information to resolve|i cannot resolve this issue|i can't resolve this issue)\b/i.test(a);
 
-  // A temporary AI/provider failure should only notify Admin for an actual
-  // issue, not for routine questions or a request that merely contains "nahi".
-  return concreteIssue && (input.degraded || answerCannotResolve || repeatedUnresolved);
+  const accountSpecificQuestion =
+    /\b(?:my|my account|mera|meri|mere|latest|actual|exact|txid|transaction|deposit|withdrawal|balance|kyc|referral|referrals|reward|fee|net amount|pending task|account status)\b/i.test(q);
+
+  // A temporary provider failure alone is not enough for routine chat. But if
+  // an account-specific question cannot be verified from the available data,
+  // open a case so Admin can investigate instead of pretending it was resolved.
+  return (concreteIssue && (input.degraded || answerCannotResolve || repeatedUnresolved)) ||
+    (accountSpecificQuestion && answerCannotResolve);
 }
