@@ -428,7 +428,7 @@ const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
 assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
 const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
 const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
-const optionalTxidMigration=fs.readFileSync('database/migrations/20261022100000_allow_shasta_deposit_txid_fallback.sql','utf8');
+const optionalTxidMigration=fs.readFileSync('database/migrations/20261021120000_allow_shasta_deposit_txid_fallback.sql','utf8');
 assert(optionalTxidMigration.includes('ALTER COLUMN txid DROP NOT NULL')&&optionalTxidMigration.includes('ADD COLUMN IF NOT EXISTS submitted_txid')&&optionalTxidMigration.includes('Canonical transaction ID confirmed by server-side on-chain verification'),"Shasta screenshot-first migration must make canonical TXID nullable only as an on-chain pending state and preserve user input for audit.");
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
