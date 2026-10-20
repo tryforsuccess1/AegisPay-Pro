@@ -2076,6 +2076,27 @@ function updateAiLiveSupportUI(){
     input.setAttribute('aria-label',representativeComposer?(joined?'Message your customer representative':'Add a message for your representative'):'Ask AegisPay AI');
   }
 }
+function renderAiRows(box,rows,forceBottom=false){
+  const previousScrollTop=box.scrollTop;
+  const previousDistanceToBottom=box.scrollHeight-box.scrollTop-box.clientHeight;
+  if(box.innerHTML!==rows){
+    // Live-support polling runs every 2.5 seconds. Avoid replacing identical DOM; that resets
+    // native scroll position on some browsers while the user is reading a long reply.
+    box.innerHTML=rows;
+    if(forceBottom || previousDistanceToBottom<=56){
+      box.scrollTop=box.scrollHeight;
+    }else{
+      // Keep the reader's viewport stable when a new message arrives away from the bottom.
+      box.scrollTop=Math.min(previousScrollTop,Math.max(0,box.scrollHeight-box.clientHeight));
+    }
+  }else if(forceBottom){
+    box.scrollTop=box.scrollHeight;
+  }
+}
+if(location.hostname==='localhost'||location.hostname==='127.0.0.1'){
+  // Local-only hook lets Chromium regression tests exercise the same scroll helper.
+  window.__aegisTestRenderAiRows=renderAiRows;
+}
 function aiRender(options={}){
   const box=document.getElementById('aiMessages');
   if(!box)return;
@@ -2083,22 +2104,7 @@ function aiRender(options={}){
   const rows=aiConversationMode==='representative' && hasServerTranscript
     ? aiLiveMessageRows()
     : aiHistoryRows(aiHistory);
-  const previousScrollTop=box.scrollTop;
-  const previousDistanceToBottom=box.scrollHeight-box.scrollTop-box.clientHeight;
-  const contentChanged=box.innerHTML!==rows;
-  if(contentChanged){
-    // Live-support polling runs every 2.5 seconds. Avoid replacing identical DOM; that resets
-    // native scroll position on some browsers while the user is reading a long reply.
-    box.innerHTML=rows;
-    if(options.forceBottom===true || previousDistanceToBottom<=56){
-      box.scrollTop=box.scrollHeight;
-    }else{
-      // Keep the reader's viewport stable when a new message arrives away from the bottom.
-      box.scrollTop=Math.min(previousScrollTop,Math.max(0,box.scrollHeight-box.clientHeight));
-    }
-  }else if(options.forceBottom===true){
-    box.scrollTop=box.scrollHeight;
-  }
+  renderAiRows(box,rows,options.forceBottom===true);
   updateAiLiveSupportUI();
 }
 async function refreshAiLiveSupportState(){
