@@ -1,0 +1,60 @@
+name: AegisPay Shasta UI Preview
+
+on:
+  push:
+    branches:
+      - feat/step2-shasta-deposit-e2e
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aegispay-shasta-preview
+  cancel-in-progress: true
+
+jobs:
+  deploy-shasta-preview:
+    if: github.ref == 'refs/heads/feat/step2-shasta-deposit-e2e'
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_ACCOUNT_ID: "6a31dfe877fe64e588b9415265302af4"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Cloudflare deployment credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_ACCOUNT_ID}"
+          test -n "${CLOUDFLARE_API_TOKEN}"
+
+      - name: Assemble Shasta-aware portal preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf site/app
+          mkdir -p site/app
+          cp client.html site/client.html
+          cp master-admin.html site/master-admin.html
+          cp admin-auth.js site/admin-auth.js
+          cp client.html site/app/index.html
+          cp client.html site/app/home.html
+          cp _redirects site/_redirects
+          cp _headers site/_headers
+          cp shop-catalog.js supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js aegis-turnstile.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/
+          cp supabase-sdk.js supabase-client.js supabase-service.js aegis-auth-redirect.js aegis-turnstile.js app-update.js service-worker.js manifest.webmanifest aegispay-logo.svg aegispay-logo-light.svg site/app/
+          test -s site/index.html
+          test -s site/app/index.html
+          test -s site/app/home.html
+          grep -q "TRON SHASTA TESTNET" site/app/index.html
+          grep -q "USDT contract" site/app/index.html
+          grep -q "aegispay-shell-v36-shasta-network-aware" site/app/service-worker.js
+
+      - name: Deploy only the Shasta UI preview to Cloudflare Pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4 pages deploy site --project-name=aegispay-pro --branch=shasta-test-ui --commit-hash="${GITHUB_SHA}" --commit-message="AegisPay Shasta-aware deposit UI preview" --commit-dirty=false
