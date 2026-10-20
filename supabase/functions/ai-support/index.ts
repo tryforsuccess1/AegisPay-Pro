@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requestAegisAI } from "../_shared/aegis-ai-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -495,8 +496,10 @@ Deno.serve(async (req: Request) => {
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     const profile = await actor(req, admin);
+    const authorizationToken = (req.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "message").toLowerCase();
+    const assistantMode = body?.mode === "assistant";
     const attachmentInput = parseSupportAttachment(body?.attachment);
 
     if (action === "admin_list_cases" || action === "admin_update_case" || action === "admin_join_live_chat" || action === "admin_live_chat_state" || action === "admin_send_chat_message") {
@@ -844,7 +847,7 @@ Deno.serve(async (req: Request) => {
       const opAnswer = String(op.answer || fallback(message, context, history));
       const withdrawalRequest = profile.role === "USER" && isWithdrawalRequestIntent(message);
       const needsRepresentative = profile.role === "USER" && (op.needsEscalation || withdrawalRequest || isSupportIssueIntent(message));
-      if (needsRepresentative) {
+      if (needsRepresentative && !assistantMode) {
         try {
           const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
           if (activeDelivery) return json({
@@ -875,24 +878,56 @@ Deno.serve(async (req: Request) => {
     }
 
     let answer = fallback(message, context, history);
-    const configured = false;
-    const degraded = false;
+    let configured = false;
+    let provider = "aegispay-guidance";
+    let degraded = false;
 
     let supportCase = null;
     const withdrawalRequest = profile.role === "USER" && isWithdrawalRequestIntent(message);
-    const needsEscalation = profile.role === "USER" &&
-      (withdrawalRequest || isSupportIssueIntent(message) || shouldEscalate(message, answer, false, false));
-    if (needsEscalation) {
+
+    // Financial approval/payment paths stay deterministic and manual-review-only.
+    // General authenticated support questions use Cloudflare Workers AI; provider
+    // failures fall back to the established local guidance without exposing errors.
+    if (!withdrawalRequest) {
       try {
-        const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
-        if (activeDelivery) return json({
-          configured: false, provider: "aegispay-guidance",
-          answer: "Your message has been added to the representative conversation already open in your Client chat.",
-          degraded: false, role: profile.role, supportCase: activeDelivery.case,
-          message: activeDelivery.message, routedToRepresentative: true
+        const generated = await requestAegisAI({
+          authorizationToken,
+          message,
+          history,
+          context,
         });
+        const safeGenerated = sanitizeClientAnswer(generated);
+        if (safeGenerated) {
+          answer = safeGenerated;
+          configured = true;
+          provider = "cloudflare-workers-ai";
+        } else {
+          degraded = true;
+        }
       } catch (_) {
-        return json({ error: "Your message could not be added to the active representative conversation." }, 503);
+        degraded = true;
+      }
+    } else {
+      answer = "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon.";
+    }
+
+    const needsEscalation = profile.role === "USER" &&
+      (withdrawalRequest || isSupportIssueIntent(message) || shouldEscalate(message, answer, degraded, false));
+    if (needsEscalation) {
+      // In Assistant mode, answer the question in the AI transcript. Do not silently
+      // route every new message into the human chat just because a case is active.
+      if (!assistantMode) {
+        try {
+          const activeDelivery = await deliverToActiveLiveRepresentative(admin, profile, message);
+          if (activeDelivery) return json({
+            configured, provider,
+            answer: "Your message has been added to the representative conversation already open in your Client chat.",
+            degraded, role: profile.role, supportCase: activeDelivery.case,
+            message: activeDelivery.message, routedToRepresentative: true
+          });
+        } catch (_) {
+          return json({ error: "Your message could not be added to the active representative conversation." }, 503);
+        }
       }
       try {
         supportCase = await openSupportCase(
@@ -902,14 +937,16 @@ Deno.serve(async (req: Request) => {
             : answer,
           "CUSTOMER_REPRESENTATIVE"
         );
-        answer = withdrawalRequest
-          ? "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon."
-          : answer + "\n\nA representative may contact you soon.";
+        if (withdrawalRequest) {
+          answer = "Withdrawal requests are handled through the secure Withdrawals workflow and reviewed by the support team. This assistant does not approve or pay withdrawals. A representative may contact you soon.";
+        } else {
+          answer += "\n\nA representative may contact you soon.";
+        }
       } catch (_) {
         answer += "\n\nI could not notify the support team automatically. Please tap Talk to a Customer Representative and retry.";
       }
     }
-    return json({ configured, provider: "aegispay-guidance", answer: sanitizeClientAnswer(answer), degraded, role: profile.role, supportCase });
+    return json({ configured, provider, answer: sanitizeClientAnswer(answer), degraded, role: profile.role, supportCase });
   } catch (error) {
     if (error instanceof Response) return json({ error: await error.text() }, error.status);
     return json({ error: "AI support is temporarily unavailable." }, 503);
