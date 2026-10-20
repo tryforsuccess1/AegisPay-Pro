@@ -1,5 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  exactUsdtRawAmountMatches,
+  findExactShastaUsdtTransfer,
+  TRON_SHASTA_USDT_CONTRACT,
+} from "../_shared/tron-deposit-validation.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -10,13 +15,30 @@ const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
 const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
-const SHASTA_TEST_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
+const SHASTA_TEST_USDT = TRON_SHASTA_USDT_CONTRACT;
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
-async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: string, contract: string) {
+async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: string, contract: string, network: string) {
   if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)) return { id: deposit.id, status: "MISSING_RECEIVING_ADDRESS" };
+  if (network === "TRON TESTNET") {
+    if (String(deposit.network || "").toUpperCase() !== "TRON TESTNET"
+      || String(deposit.token_contract || "") !== SHASTA_TEST_USDT
+      || contract !== SHASTA_TEST_USDT
+      || !deposit.deposit_wallet_id
+      || String(deposit.receiving_address || "") !== receiving) {
+      return { id: deposit.id, status: "TESTNET_WALLET_OR_TOKEN_MISMATCH" };
+    }
+    const { data: assigned, error: assignedError } = await admin.from("deposit_wallets")
+      .select("id,address,network,token_contract").eq("id", deposit.deposit_wallet_id)
+      .eq("user_id", deposit.user_id).maybeSingle();
+    if (assignedError || !assigned || assigned.address !== receiving
+      || String(assigned.network || "").toUpperCase() !== "TRON TESTNET"
+      || String(assigned.token_contract || "") !== SHASTA_TEST_USDT) {
+      return { id: deposit.id, status: "TESTNET_WALLET_ASSIGNMENT_MISMATCH" };
+    }
+  }
   const url = new URL(baseUrl + "/v1/accounts/" + encodeURIComponent(receiving) + "/transactions/trc20");
   url.searchParams.set("only_confirmed", "true");
   url.searchParams.set("only_to", "true");
@@ -28,19 +50,29 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
   if (!response.ok) throw new Error("TronGrid " + response.status);
   const payload = await response.json();
   const rows = Array.isArray(payload.data) ? payload.data : [];
-  const match = rows.find((x: any) =>
-    String(x.transaction_id).toLowerCase() === String(deposit.txid).toLowerCase()
-    && String(x.to) === receiving
-    && String(x.token_info?.address || contract) === contract
-    && x.success !== false
-  );
+  const match = network === "TRON TESTNET"
+    ? findExactShastaUsdtTransfer(rows, String(deposit.txid || ""), receiving)
+    : rows.find((x: any) =>
+      String(x.transaction_id).toLowerCase() === String(deposit.txid).toLowerCase()
+      && String(x.to) === receiving
+      && String(x.token_info?.address || contract) === contract
+      && x.success !== false
+    );
   if (!match) return { id: deposit.id, status: "PENDING" };
 
-  const decimals = Number(match.token_info?.decimals ?? 6);
   const raw = String(match.value || "0");
-  const amount = Number(raw) / Math.pow(10, decimals);
-  if (Math.abs(amount - Number(deposit.gross_amount)) > 0.000001) {
-    return { id: deposit.id, status: "AMOUNT_MISMATCH" };
+  let amount: number;
+  if (network === "TRON TESTNET") {
+    if (!exactUsdtRawAmountMatches(match, deposit.gross_amount)) {
+      return { id: deposit.id, status: "AMOUNT_MISMATCH" };
+    }
+    amount = Number(raw) / 1_000_000;
+  } else {
+    const decimals = Number(match.token_info?.decimals ?? 6);
+    amount = Number(raw) / Math.pow(10, decimals);
+    if (!Number.isFinite(amount) || Math.abs(amount - Number(deposit.gross_amount)) > 0.000001) {
+      return { id: deposit.id, status: "AMOUNT_MISMATCH" };
+    }
   }
   const { error } = await admin.rpc("apply_verified_deposit", {
     p_deposit_id: deposit.id,
@@ -121,8 +153,11 @@ Deno.serve(async (req: Request) => {
     let baseUrl = "";
     let contract = "";
     if (network === "TRON TESTNET") {
+      if (String(rules.token_contract || "").trim() !== SHASTA_TEST_USDT) {
+        return json({ error: "Shasta monitoring requires the pinned testnet USDT contract.", code: "UNSUPPORTED_TESTNET_TOKEN_CONTRACT" }, 403);
+      }
       baseUrl = "https://api.shasta.trongrid.io";
-      contract = String(rules.token_contract || SHASTA_TEST_USDT).trim();
+      contract = SHASTA_TEST_USDT;
     } else if (network === "TRON MAINNET") {
       baseUrl = "https://api.trongrid.io";
       contract = String(rules.token_contract || MAINNET_USDT).trim();
@@ -134,8 +169,10 @@ Deno.serve(async (req: Request) => {
     const results = [];
     for (const deposit of pending || []) {
       try {
-        const perDepositReceiver = String(deposit.receiving_address || (deposit.deposit_wallet_id ? "" : receiving)).trim();
-        results.push(await verifyOne(admin, deposit, perDepositReceiver, baseUrl, contract));
+        const perDepositReceiver = network === "TRON TESTNET"
+          ? String(deposit.receiving_address || "").trim()
+          : String(deposit.receiving_address || (deposit.deposit_wallet_id ? "" : receiving)).trim();
+        results.push(await verifyOne(admin, deposit, perDepositReceiver, baseUrl, contract, network));
       } catch {
         results.push({ id: deposit.id, status: "ERROR" });
       }
