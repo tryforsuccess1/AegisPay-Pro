@@ -68,3 +68,44 @@ export function exactUsdtRawAmountMatches(transfer: TronGridUsdtTransfer, expect
     return false;
   }
 }
+/**
+ * Finds confirmed Shasta USDT transfers for a user address when the submitted TXID
+ * is missing or mistyped. Credit is safe only when the caller gets exactly one
+ * unclaimed candidate after applying address, token, exact amount and time checks.
+ */
+export function findShastaTransfersByAmount(
+  rows: unknown,
+  recipient: string,
+  expectedGrossAmount: unknown,
+  notBeforeTimestamp: number,
+  nowTimestamp = Date.now(),
+): TronGridUsdtTransfer[] {
+  if (!TRON_ADDRESS_RE.test(String(recipient || "")) || !Array.isArray(rows)
+    || !Number.isFinite(notBeforeTimestamp) || notBeforeTimestamp <= 0) return [];
+  const expectedRaw = usdtAmountToRaw(expectedGrossAmount);
+  if (!expectedRaw) return [];
+  const candidates = new Map<string, TronGridUsdtTransfer>();
+  for (const value of rows) {
+    if (!value || typeof value !== "object") continue;
+    const row = value as TronGridUsdtTransfer;
+    const txid = String(row.transaction_id || "");
+    const sender = String(row.from || "");
+    const receiver = String(row.to || "");
+    const raw = String(row.value ?? "");
+    const timestamp = Number(row.block_timestamp);
+    if (!TXID_RE.test(txid) || !TRON_ADDRESS_RE.test(sender) || receiver !== recipient) continue;
+    if (String(row.token_info?.address || "") !== TRON_SHASTA_USDT_CONTRACT
+      || Number(row.token_info?.decimals) !== 6
+      || String(row.type || "").toLowerCase() !== "transfer"
+      || row.success === false) continue;
+    if (!/^[1-9][0-9]*$/.test(raw) || raw.length > 78 || raw !== expectedRaw) continue;
+    if (!Number.isFinite(timestamp) || timestamp < notBeforeTimestamp || timestamp > nowTimestamp + 5 * 60 * 1000) continue;
+    candidates.set(txid.toLowerCase(), row);
+  }
+  return [...candidates.values()];
+}
+
+export function isValidTronTxid(value: unknown): value is string {
+  return typeof value === "string" && TXID_RE.test(value);
+}
+
