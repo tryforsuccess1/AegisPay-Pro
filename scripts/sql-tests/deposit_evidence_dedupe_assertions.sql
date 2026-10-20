@@ -31,6 +31,14 @@ BEGIN
      WHERE schemaname='public' AND tablename='deposit_submissions'
        AND indexname='deposit_submissions_shasta_submitted_txid_uq'
        AND indexdef ILIKE 'CREATE UNIQUE INDEX%'
+       AND indexdef ILIKE '%a-f0-9%'
+  ) THEN RAISE EXCEPTION 'submitted TXID uniqueness must apply only to valid 64-character hex hints'; END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_indexes
+     WHERE schemaname='public' AND tablename='deposit_submissions'
+       AND indexname='deposit_submissions_shasta_submitted_txid_uq'
+       AND indexdef ILIKE 'CREATE UNIQUE INDEX%'
   ) THEN RAISE EXCEPTION 'duplicate Shasta submitted TXID hint index is missing'; END IF;
 
   IF NOT EXISTS (
