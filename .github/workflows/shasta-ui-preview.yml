@@ -71,3 +71,19 @@ jobs:
         run: |
           set -euo pipefail
           npx --yes wrangler@4 pages deploy site --project-name=aegispay-pro --branch=shasta-test-ui --commit-hash="${GITHUB_SHA}" --commit-message="AegisPay Shasta-aware deposit UI preview" --commit-dirty=false
+
+      - name: Smoke-test the published Shasta UI preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://shasta-test-ui.aegispay-pro.pages.dev/app/"
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error --location --max-time 20 "$url" -o /tmp/shasta-ui-preview.html; then
+              break
+            fi
+            sleep 5
+          done
+          test -s /tmp/shasta-ui-preview.html
+          grep -q "TRON SHASTA TESTNET" /tmp/shasta-ui-preview.html
+          grep -q "result.data.tokenContract" /tmp/shasta-ui-preview.html
+          grep -q "aegispay-shell-v36-shasta-network-aware" /tmp/shasta-ui-preview.html
