@@ -17,18 +17,20 @@ Supabase project: `wtcspnrmsoisroavojop`
 - Supabase Security Advisor still reports native leaked-password protection disabled, nine authenticated SECURITY DEFINER warnings, three RLS-enabled service-role-only wallet tables with no client policies (intentional design; review rather than blindly adding policies), and 20 unused-index INFO findings.
 - One withdrawal request is in FAILED status and must be investigated/reconciled before any payout enablement.
 
-## Active work
+## Last completed milestone — Step 1
 
-Current task: integrate the secure deposit flow into the Client UI without enabling Mainnet deposit/payout gates.
+**Secure deposit UI integration completed and deployed.**
 
-- PR: https://github.com/tryforsuccess1/AegisPay-Pro/pull/88
-- Branch: `feat/deposit-ui-integration`
-- Branch includes UI routing to authenticated `get-deposit-address`, safe pre-production/address-unavailable messaging, explicit do-not-send-funds warning, retry/history controls, separate deposit-request and verified-credit history, full 64-character hexadecimal TRON TXID validation, and removal of fake/demo payment choices from legacy fallback screens.
-- Android debug APK build passed for the current UI branch.
-- Deposit and withdrawal SQL migration tests passed.
-- Static CI first failed due a quote in a new assertion; that assertion has been fixed in commit `7ba88ac88c70840a8347b6fe0c79280b5dfbe00c`. Recheck CI, responsive Chromium browser tests and migration checks against the newest PR head.
-- Do not merge or deploy PR #88 until the latest CI and both SQL migration checks pass. After merge, confirm Cloudflare deployment and live read-only smoke check. Do not enable production payment flags.
+- PR #88 merged: https://github.com/tryforsuccess1/AegisPay-Pro/pull/88
+- Feature branch: `feat/deposit-ui-integration`
+- Merge commit: `4db87aaeacbe699d786b6a7809b38aaa24ed4171`
+- UI now uses the authenticated address endpoint; displays a safe pre-production/unavailable message and explicit warning not to send funds, includes retry/history, separates deposit requests from verified credits, validates 64-character hexadecimal TRON TXIDs, and removes fake/demo payment methods.
+- CI, responsive Chromium tests, deployed landing/Client/Master Admin smoke, deposit SQL test, withdrawal migration, Android APK build/release, and Web Portal deployment all passed.
+- No authenticated customer deposit or on-chain transaction was performed; live payment gates remain closed.
 
+## Next active work
+
+Step 2: complete the isolated TRON Shasta testnet deposit end-to-end. Do not enable live Mainnet payment gates.
 ## Seven-step remaining-work plan
 
 1. **Finish secure deposit UI integration.** Get PR #88 main CI, Chromium/browser tests and SQL/withdrawal migration checks green; merge, deploy, and verify the authenticated deposit screen clearly shows the pre-production pause and history without issuing a public/treasury address.
