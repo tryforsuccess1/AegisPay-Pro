@@ -89,6 +89,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql
       - name: Apply Shasta deposit credit guard migration
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020180500_harden_shasta_deposit_credit.sql
+      - name: Isolate Shasta test credits from Mainnet account side effects
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021100000_isolate_shasta_test_credit_side_effects.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
