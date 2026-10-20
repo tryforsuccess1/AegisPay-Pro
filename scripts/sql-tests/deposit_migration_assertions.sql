@@ -344,6 +344,12 @@ BEGIN
     'dddddd0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
     'TRON TESTNET'
   );
+  UPDATE public.deposit_submissions
+     SET token_contract='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
+         deposit_wallet_id=(SELECT id FROM public.deposit_wallets
+           WHERE user_id='11111111-1111-4111-8111-111111111111' AND network='TRON TESTNET'),
+         receiving_address='T'||repeat('4',33)
+   WHERE id='66666666-6666-4666-8666-666666666666';
   PERFORM public.apply_verified_deposit(
     '66666666-6666-4666-8666-666666666666',
     'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','10000000',
@@ -355,6 +361,72 @@ BEGIN
   IF v_balance <> 110 OR v_principal <> 110 THEN
     RAISE EXCEPTION 'Testnet deposit should continue to work while Mainnet deposits are paused';
   END IF;
+
+  -- The database trigger independently pins the Shasta token contract. A caller
+  -- cannot credit a testnet transfer merely by changing platform_settings.
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network,
+    token_contract,deposit_wallet_id,receiving_address
+  ) VALUES (
+    'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',15.00,0.00,15.00,'PENDING_VERIFICATION','APPROVED',repeat('e',64),'TRON TESTNET',
+    'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
+    (SELECT id FROM public.deposit_wallets WHERE user_id='11111111-1111-4111-8111-111111111111' AND network='TRON TESTNET'),
+    'T'||repeat('4',33)
+  );
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"token_contract":"TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn"}'::jsonb
+   WHERE key='deposit_rules';
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','15000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Shasta deposit accepted a non-Shasta token contract'; END IF;
+  IF (SELECT status FROM public.deposit_submissions WHERE id='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'Rejected non-Shasta contract changed deposit status'; END IF;
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"token_contract":"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"}'::jsonb
+   WHERE key='deposit_rules';
+
+  -- An on-chain match is not creditable if the receiver snapshot does not equal
+  -- the authenticated user's assigned HD wallet.
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network,
+    token_contract,deposit_wallet_id,receiving_address
+  ) VALUES (
+    'ffffffff-ffff-4fff-8fff-ffffffffffff',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',16.00,0.00,16.00,'PENDING_VERIFICATION','APPROVED',repeat('f',64),'TRON TESTNET',
+    'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
+    (SELECT id FROM public.deposit_wallets WHERE user_id='11111111-1111-4111-8111-111111111111' AND network='TRON TESTNET'),
+    'T'||repeat('5',33)
+  );
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      'ffffffff-ffff-4fff-8fff-ffffffffffff',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','16000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Shasta deposit with a mismatched HD receiver was credited'; END IF;
+  IF (SELECT status FROM public.deposit_submissions WHERE id='ffffffff-ffff-4fff-8fff-ffffffffffff') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'Rejected HD receiver mismatch changed deposit status'; END IF;
+
+  -- These rejected attempts must not write any extra balance or USER_DEPOSIT entry.
+  SELECT current_platform_balance,principal_balance
+    INTO v_balance,v_principal
+    FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
+  SELECT count(*) INTO v_user_deposits FROM public.account_ledger WHERE entry_type='USER_DEPOSIT';
+  IF v_balance <> 110 OR v_principal <> 110 OR v_user_deposits <> 2 THEN
+    RAISE EXCEPTION 'Rejected Shasta deposits created a partial or duplicate ledger credit'; END IF;
 
   RAISE NOTICE 'Deposit migration integration assertions passed';
 END;
