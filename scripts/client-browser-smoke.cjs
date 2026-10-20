@@ -338,25 +338,22 @@ const server = http.createServer((req, res) => {
 
     const scrollStability = await page.evaluate(() => {
       const box=document.querySelector('#aiMessages');
-      aiConversationMode='assistant';
-      liveSupportStateLoaded=true;
-      liveSupportMessages=[];
-      aiHistory=Array.from({length:32},(_,i)=>({
-        role:i%2===0?'user':'assistant',
-        content:(i%2===0?'Question ':'Answer ')+(i+1)+': this is a realistic multi-line chat message used to verify stable scrolling and natural wrapping.'
-      }));
-      aiRender({forceBottom:true});
+      const apply=window.__aegisTestRenderAiRows;
+      if(typeof apply!=='function')throw new Error('Local AI scroll regression hook is not available.');
+      const row=(i)=>'<div class="'+(i%2===0?'m2':'m1')+' ai-msg">Message '+i+': realistic multi-line support text for stable scrolling checks.</div>';
+      let rows=Array.from({length:32},(_,i)=>row(i)).join('');
+      apply(box,rows,true);
       const maxScroll=Math.max(0,box.scrollHeight-box.clientHeight);
       box.scrollTop=Math.min(140,maxScroll/3);
       const before=box.scrollTop;
-      aiRender(); // Same-content polling must not reset scrollTop.
+      apply(box,rows,false); // Same-content polling must not reset scrollTop.
       const afterSameContent=box.scrollTop;
-      aiHistory.push({role:'assistant',content:'A new representative/status update arrived while the user was reading this earlier message.'});
-      aiRender(); // Changed content must preserve the reader's position away from bottom.
+      rows+=row(32);
+      apply(box,rows,false); // New content must preserve the reader's position away from bottom.
       const afterNewContent=box.scrollTop;
       box.scrollTop=box.scrollHeight;
-      aiHistory.push({role:'assistant',content:'The newest answer should stay visible when the reader was already at the bottom.'});
-      aiRender();
+      rows+=row(33);
+      apply(box,rows,false);
       const bottomDistance=box.scrollHeight-box.scrollTop-box.clientHeight;
       return {before,afterSameContent,afterNewContent,bottomDistance,maxScroll,clientHeight:box.clientHeight,documentHeight:document.scrollingElement.scrollHeight,viewportHeight:window.innerHeight};
     });
