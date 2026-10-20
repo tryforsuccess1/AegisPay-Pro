@@ -113,6 +113,39 @@ Deno.serve(async (req: Request) => {
     if (enteredTxid.length > 128) return json({ error: "Transaction ID input is too long. Clear it or paste the TXID." }, 400);
     if (!screenshotPath.startsWith(auth.user.id + "/deposits/")) return json({ error: "Upload the deposit screenshot first." }, 400);
 
+    // Load and hash the evidence before inserting a request. The digest is an
+    // anti-replay signal only; a screenshot never proves a blockchain transfer.
+    let image;
+    try {
+      image = await loadPrivateImage(admin.storage, screenshotPath);
+    } catch {
+      return json({ error: "The uploaded screenshot could not be read or failed file validation." }, 400);
+    }
+    const digest = await crypto.subtle.digest("SHA-256", image.bytes);
+    const evidenceSha256 = Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
+    const { data: duplicateEvidence, error: evidenceLookupError } = await admin.from("deposit_submissions")
+      .select("id,status").eq("network", depositNetwork).eq("evidence_sha256", evidenceSha256)
+      .neq("status", "REJECTED").limit(1).maybeSingle();
+    if (evidenceLookupError) return json({ error: "Unable to check whether this screenshot was already used. Please retry shortly." }, 503);
+    if (duplicateEvidence) return json({
+      error: "This exact screenshot has already been submitted for a deposit. Open the existing request instead of submitting it again.",
+      code: "DUPLICATE_DEPOSIT_EVIDENCE",
+      depositId: duplicateEvidence.id,
+      status: duplicateEvidence.status,
+    }, 409);
+
+    if (isShastaTestUser && validEnteredTxid) {
+      const [canonicalClaim, submittedClaim] = await Promise.all([
+        admin.from("deposit_submissions").select("id,status").eq("network", depositNetwork).eq("txid", enteredTxid).limit(1).maybeSingle(),
+        admin.from("deposit_submissions").select("id,status").eq("network", depositNetwork).eq("submitted_txid", enteredTxid).neq("status", "REJECTED").limit(1).maybeSingle(),
+      ]);
+      if (canonicalClaim.error || submittedClaim.error) return json({ error: "Unable to check whether this TXID is already claimed. Please retry shortly." }, 503);
+      if (canonicalClaim.data || submittedClaim.data) return json({
+        error: "This transaction ID is already linked to another deposit request. Reuse is blocked to prevent duplicate credit.",
+        code: "DUPLICATE_DEPOSIT_TXID",
+      }, 409);
+    }
+
     const tierQuery = await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).lte("deposit_amount", amount).order("deposit_amount", { ascending: false }).limit(1).maybeSingle();
     const fallbackTier = !tierQuery.data ? await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).order("deposit_amount", { ascending: true }).limit(1).maybeSingle() : { data: tierQuery.data, error: null };
     const tier = fallbackTier.data;
@@ -120,7 +153,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
-      credited_amount: Math.max(0, amount), txid, submitted_txid: submittedTxid, network: depositNetwork, screenshot_path: screenshotPath,
+      credited_amount: Math.max(0, amount), txid, submitted_txid: submittedTxid, evidence_sha256: evidenceSha256, network: depositNetwork, screenshot_path: screenshotPath,
       deposit_wallet_id: depositWallet.id, receiving_address: receivingAddress, token_contract: depositWallet.token_contract,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
@@ -133,7 +166,6 @@ Deno.serve(async (req: Request) => {
     let review: { configured: boolean; result?: Record<string, unknown> } = { configured: false, result: {} };
     if (aiEnabled) {
       try {
-        const image = await loadPrivateImage(admin.storage, screenshotPath);
         review = await runVisionReview([
           "Perform an AI evidence precheck for a claimed USDT deposit screenshot.",
           "User-entered transaction ID (unverified; may be blank or mistyped): " + (submittedTxid || "not provided; discover the transfer from confirmed Shasta chain data") + ".",
