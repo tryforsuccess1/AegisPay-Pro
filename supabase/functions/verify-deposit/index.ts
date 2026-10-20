@@ -173,6 +173,12 @@ Deno.serve(async (req: Request) => {
     url.searchParams.set("only_to", "true");
     url.searchParams.set("limit", "200");
     url.searchParams.set("contract_address", contract);
+    if (network === "TRON TESTNET") {
+      const createdAt = new Date(deposit.created_at || Date.now()).getTime();
+      // Narrow the provider query to the same safe lookback used by fallback matching.
+      url.searchParams.set("min_block_timestamp", String(Math.max(0, createdAt - 24 * 60 * 60 * 1000)));
+      url.searchParams.set("order_by", "block_timestamp,desc");
+    }
     const headers: Record<string, string> = { accept: "application/json" };
     if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
     const chainRes = await fetch(url, { headers });
