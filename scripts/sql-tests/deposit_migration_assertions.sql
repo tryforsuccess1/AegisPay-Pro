@@ -349,7 +349,7 @@ BEGIN
     VALUES ('shasta_testnet_rules', jsonb_build_object(
       'network','TRON TESTNET',
       'token_contract','TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
-      'receiving_address','T'||repeat('4',33)
+      'receiving_address','T'||repeat('5',33)
     ))
     ON CONFLICT (key) DO UPDATE SET value_json=EXCLUDED.value_json;
   INSERT INTO public.deposit_submissions(
@@ -378,6 +378,48 @@ BEGIN
   IF v_balance <> 110 OR v_principal <> 110 THEN
     RAISE EXCEPTION 'Testnet deposit should continue to work while Mainnet deposits are paused';
   END IF;
+  IF (SELECT value_json->>'network' FROM public.platform_settings WHERE key='deposit_rules') <> 'TRON MAINNET'
+     OR (SELECT value_json->>'token_contract' FROM public.platform_settings WHERE key='deposit_rules') <> 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+     OR (SELECT value_json->>'receiving_address' FROM public.platform_settings WHERE key='deposit_rules') <> 'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn' THEN
+    RAISE EXCEPTION 'Shasta test credit modified the global Mainnet deposit rules';
+  END IF;
+
+  -- A Shasta config that reuses the Mainnet treasury must not credit any balance.
+  INSERT INTO public.deposit_submissions(
+    id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network,
+    token_contract,deposit_wallet_id,receiving_address
+  ) VALUES (
+    'abababab-abab-4bab-8bab-abababababab',
+    '11111111-1111-4111-8111-111111111111',
+    'tier-a',17.00,0.00,17.00,'PENDING_VERIFICATION','APPROVED',repeat('a',64),'TRON TESTNET',
+    'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
+    (SELECT id FROM public.deposit_wallets WHERE user_id='11111111-1111-4111-8111-111111111111' AND network='TRON TESTNET'),
+    'T'||repeat('4',33)
+  );
+  UPDATE public.platform_settings
+     SET value_json = value_json || jsonb_build_object('receiving_address',
+       (SELECT value_json->>'receiving_address' FROM public.platform_settings WHERE key='deposit_rules'))
+   WHERE key='shasta_testnet_rules';
+  v_failed := false;
+  BEGIN
+    PERFORM public.apply_verified_deposit(
+      'abababab-abab-4bab-8bab-abababababab',
+      'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','17000000',
+      '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
+    );
+  EXCEPTION WHEN SQLSTATE '22023' THEN v_failed := true;
+  END;
+  IF NOT v_failed THEN RAISE EXCEPTION 'Shasta credit accepted a reused Mainnet treasury address'; END IF;
+  IF (SELECT status FROM public.deposit_submissions WHERE id='abababab-abab-4bab-8bab-abababababab') <> 'PENDING_VERIFICATION' THEN
+    RAISE EXCEPTION 'Rejected reused treasury changed Shasta deposit status'; END IF;
+  UPDATE public.platform_settings
+     SET value_json = value_json || jsonb_build_object('receiving_address','T'||repeat('5',33))
+   WHERE key='shasta_testnet_rules';
+  SELECT current_platform_balance,principal_balance
+    INTO v_balance,v_principal FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
+  SELECT count(*) INTO v_user_deposits FROM public.account_ledger WHERE entry_type='USER_DEPOSIT';
+  IF v_balance <> 110 OR v_principal <> 110 OR v_user_deposits <> 2 THEN
+    RAISE EXCEPTION 'Reused-treasury rejection caused a financial side effect'; END IF;
 
   -- The database trigger independently pins the Shasta token contract. A caller
   -- cannot credit a testnet transfer merely by changing platform_settings.
