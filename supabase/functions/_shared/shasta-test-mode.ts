@@ -13,6 +13,22 @@ export type ShastaTestRules = {
 const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 const TRON_MAINNET_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 
+export function shastaSecretsAreDistinct(
+  testHdMnemonic: string,
+  mainnetHdMnemonic: string,
+  testPayoutPrivateKey: string,
+  mainnetPayoutPrivateKey: string,
+): boolean {
+  const normalizeMnemonic = (value: string) => value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+  const testSeed = normalizeMnemonic(testHdMnemonic);
+  const mainnetSeed = normalizeMnemonic(mainnetHdMnemonic);
+  const testKey = testPayoutPrivateKey.trim().toLowerCase();
+  const mainnetKey = mainnetPayoutPrivateKey.trim().toLowerCase();
+  const reusedSeed = Boolean(testSeed && mainnetSeed && testSeed === mainnetSeed);
+  const reusedSigner = Boolean(testKey && mainnetKey && testKey === mainnetKey);
+  return !reusedSeed && !reusedSigner;
+}
+
 export function validShastaTestRules(value: unknown): value is ShastaTestRules {
   if (!value || typeof value !== "object") return false;
   const rules = value as Record<string, unknown>;
