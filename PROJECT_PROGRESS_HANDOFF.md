@@ -33,8 +33,8 @@ Supabase project: `wtcspnrmsoisroavojop`
 Step 2: complete the isolated TRON Shasta testnet deposit end-to-end. Do not enable live Mainnet payment gates.
 ## Seven-step remaining-work plan
 
-1. **Finish secure deposit UI integration.** Get PR #88 main CI, Chromium/browser tests and SQL/withdrawal migration checks green; merge, deploy, and verify the authenticated deposit screen clearly shows the pre-production pause and history without issuing a public/treasury address.
-2. **Complete isolated TRON Shasta testnet deposit E2E.** In a dedicated isolated test environment only: configure a dedicated test seed/signer and test assets, issue per-user address, verify transaction monitoring, sweep idempotency/recovery, confirmation thresholds, exact token/amount/network validation, credit exactly once, and reconcile ledger/history. Never reuse a personal/mainnet seed; never open live payment gates as a shortcut.
+1. **DONE — Secure deposit UI integration.** PR #88 merged and production deployment/live read-only smoke passed. No customer deposit was submitted; live payment gates remain closed.
+2. **NEXT — Complete isolated TRON Shasta testnet deposit E2E.** In a dedicated isolated test environment only: configure a dedicated test seed/signer and test assets, issue per-user address, verify transaction monitoring, sweep idempotency/recovery, confirmation thresholds, exact token/amount/network validation, credit exactly once, and reconcile ledger/history. Never reuse a personal/mainnet seed; never open live payment gates as a shortcut.
 3. **Finish Auth security prerequisites.** Enable native Supabase Auth Turnstile CAPTCHA after verifying updated web and Android flows; set minimum password length to 12; revisit native leaked-password protection or document approved mitigation and residual limitation; verify redirect allowlists and live sign-in/signup/reset/update flow.
 4. **Investigate the existing FAILED withdrawal.** Determine the safe failure reason using non-sensitive metadata/logs, verify no funds were transferred or double-posted, reconcile status/ledger/chain records, document resolution. Keep payout gate closed until reconciled.
 5. **End-to-end business workflows.** With dedicated test accounts, verify Shop task purchase/completion, rewards and referral calculations, cycle settlement, KYC submission/review, account-scoped histories, and withdrawal dual approval/reconciliation.
@@ -43,4 +43,4 @@ Step 2: complete the isolated TRON Shasta testnet deposit end-to-end. Do not ena
 
 ## Resume instructions for a new ChatGPT conversation
 
-Read this file first and then inspect the current PR #88 head/check status and latest `main`. Resume at Step 1; do not assume this file's PR/commit/check statuses remain current. Ask before any Mainnet gate changes. Keep a short status update and update this file as milestones finish.
+Read this file first and check the latest `main` and current workflow status. Step 1 is complete; resume at Step 2. Verify statuses before acting. Ask before any Mainnet gate changes. Keep a short status update and update this file as milestones finish.
