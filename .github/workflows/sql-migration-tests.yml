@@ -5,6 +5,7 @@ on:
     paths:
       - 'database/migrations/**'
       - 'scripts/sql-tests/deposit_txid_optional_assertions.sql'
+      - 'scripts/sql-tests/deposit_evidence_dedupe_assertions.sql'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'supabase/functions/get-deposit-address/index.ts'
@@ -27,6 +28,7 @@ on:
     paths:
       - 'database/migrations/**'
       - 'scripts/sql-tests/deposit_txid_optional_assertions.sql'
+      - 'scripts/sql-tests/deposit_evidence_dedupe_assertions.sql'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'supabase/functions/get-deposit-address/index.ts'
@@ -97,6 +99,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021120000_allow_shasta_deposit_txid_fallback.sql
       - name: Verify nullable TXID and uniqueness schema
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_txid_optional_assertions.sql
+      - name: Prevent reuse of the same deposit screenshot
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021140000_dedupe_shasta_deposit_screenshots.sql
+      - name: Verify duplicate screenshot protection
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_evidence_dedupe_assertions.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
