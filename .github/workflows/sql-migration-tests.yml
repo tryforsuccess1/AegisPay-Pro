@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'database/migrations/**'
+      - 'scripts/sql-tests/deposit_txid_optional_assertions.sql'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'supabase/functions/get-deposit-address/index.ts'
@@ -25,6 +26,7 @@ on:
     branches: [main]
     paths:
       - 'database/migrations/**'
+      - 'scripts/sql-tests/deposit_txid_optional_assertions.sql'
       - 'supabase/functions/monitor-deposits/index.ts'
       - 'supabase/functions/submit-deposit/index.ts'
       - 'supabase/functions/get-deposit-address/index.ts'
@@ -91,6 +93,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020180500_harden_shasta_deposit_credit.sql
       - name: Isolate Shasta test credits from Mainnet account side effects
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021100000_isolate_shasta_test_credit_side_effects.sql
+      - name: Allow Shasta screenshot-first deposits with canonical TXID fallback
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022100000_allow_shasta_deposit_txid_fallback.sql
+      - name: Verify nullable TXID and uniqueness schema
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_txid_optional_assertions.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
