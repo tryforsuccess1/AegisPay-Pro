@@ -259,10 +259,10 @@ function reviewCard(kind,item){
   const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET';
   if(kind==='deposits'){
     return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge aa-badge-cyan">DEPOSIT</span><h3>'+money(item.grossAmount)+' USDT</h3><p>'+esc(user)+'</p></div><span class="aa-status">'+esc(item.status||'PENDING')+'</span></div>'+
-      '<div class="aa-detail-grid"><span>Tier<b>'+esc(item.tierId||'—')+'</b></span><span>TXID<b class="aa-mono">'+esc(item.txid||'—')+'</b></span><span>AI Review<b>'+esc(item.aiReviewStatus||'—')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'n/a':item.aiConfidence)+'</b></span><span>AI Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span><span>Policy<b>'+esc(item.aiPolicyVersion||'—')+'</b></span><span>Submitted<b>'+esc(date(item.createdAt||item.submittedAt))+'</b></span></div>'+
+      '<div class="aa-detail-grid"><span>Tier<b>'+esc(item.tierId||'—')+'</b></span><span>Network<b>'+esc(item.network||'—')+'</b></span><span>Canonical TXID<b class="aa-mono">'+esc(item.txid||'—')+'</b></span><span>User TXID hint<b class="aa-mono">'+esc(item.submittedTxid||'—')+'</b></span><span>Receiving address<b class="aa-mono">'+esc(item.receivingAddress||'—')+'</b></span><span>Token contract<b class="aa-mono">'+esc(item.tokenContract||'—')+'</b></span><span>AI Review<b>'+esc(item.aiReviewStatus||'—')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'n/a':item.aiConfidence)+'</b></span><span>AI Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span><span>Policy<b>'+esc(item.aiPolicyVersion||'—')+'</b></span><span>Submitted<b>'+esc(date(item.createdAt||item.submittedAt))+'</b></span></div>'+
       '<div class="aa-review-actions">'+
         (item.screenshotUrl?'<a class="aa-secondary" href="'+esc(item.screenshotUrl)+'" target="_blank" rel="noopener">'+ico('eye',15)+' Open Evidence</a>':'<span class="aa-muted">Evidence unavailable</span>')+
-        (item.status==='PENDING_VERIFICATION'?'<button class="aa-primary" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="approve">Approve &amp; Verify</button><button class="aa-danger" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>':'<span class="aa-muted">Historical record · review only</span>')+
+        (item.status==='PENDING_VERIFICATION'?'<button class="aa-primary" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="approve">Approve &amp; Verify</button><button class="aa-danger" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>'+(String(item.network||'').toUpperCase()==='TRON TESTNET'?'<button class="aa-primary" style="background:#6d3a72" data-action="manual-shasta-credit" data-id="'+esc(item.id)+'" data-amount="'+esc(item.grossAmount||0)+'" data-recipient="'+esc(item.receivingAddress||'')+'" data-contract="'+esc(item.tokenContract||'')+'">Master Admin Manual Verify + Credit (Shasta)</button>':''):'<span class="aa-muted">Historical record · review only</span>')+
       '</div></article>';
   }
   if(kind==='kyc'){
@@ -612,6 +612,36 @@ async function runtime(){
   if(!next&&!window.confirm('Pause all client access and operations now?'))return;
   await setBusy(async function(){
     await service.setAppRuntimeEnabled(next);state.enabled=next;await refreshData();
+  });
+}
+
+async function manualShastaCredit(el){
+  const id=el.dataset.id,amount=Number(el.dataset.amount||0),recipient=String(el.dataset.recipient||''),contract=String(el.dataset.contract||'');
+  if(!id||!Number.isFinite(amount)||amount<=0)return;
+  const txid=window.prompt('Paste the full 64-character TXID you personally checked in the official TRON SHASTA explorer:');
+  if(txid===null)return;
+  const senderAddress=window.prompt('Paste the exact sender address displayed by the explorer:');
+  if(senderAddress===null)return;
+  const blockTimestamp=window.prompt('Paste the confirmed block timestamp in UTC ISO format (example: 2026-10-20T21:12:33Z):');
+  if(blockTimestamp===null)return;
+  const confirmationBlocks=Number(window.prompt('Enter confirmed block count from the explorer (minimum 19):','19'));
+  const reason=window.prompt('Required audit reason (at least 20 characters):');
+  if(reason===null)return;
+  if(contract!=='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'){
+    state.error='Manual override blocked: deposit is not using the pinned Shasta USDT contract.';render();return;
+  }
+  if(!window.confirm('MASTER ADMIN MANUAL SHASTA TEST CREDIT\n\nAmount: '+amount.toFixed(2)+' test USDT\nRecipient: '+recipient+'\nTXID: '+txid+'\n\nConfirm you opened the official Shasta explorer and checked SUCCESSFUL + CONFIRMED (19+ blocks), the exact amount, exact recipient, sender and pinned contract. This bypasses automated explorer matching and is recorded against your Master Admin account. Never do this based on a screenshot alone. Continue?'))return;
+  await setBusy(async function(){
+    const result=await service.invokeFunction('admin-review',{body:{
+      action:'deposit_manual_shasta',decision:'approve',id:id,txid:String(txid).trim(),
+      senderAddress:String(senderAddress).trim(),blockTimestamp:String(blockTimestamp).trim(),
+      confirmationBlocks:confirmationBlocks,reason:String(reason).trim(),
+      explorerVerified:true,amountVerified:true,recipientVerified:true,tokenVerified:true
+    }});
+    if(result.error)throw result.error;
+    if(result.data?.status!=='VERIFIED')throw new Error(result.data?.error||'Manual Shasta review did not complete; no credit was confirmed.');
+    state.error='';
+    await refreshData();
   });
 }
 
@@ -978,6 +1008,7 @@ root.addEventListener('click',function(e){
   if(action==='support-chat-open'){openSupportChat(el);return;}
   if(action==='support-chat-send'){sendSupportChatMessage(el);return;}
   if(action==='review'){review(el);return;}
+  if(action==='manual-shasta-credit'){manualShastaCredit(el);return;}
   if(action==='payout'){payout(el);return;}
   if(action==='invalid-withdrawal-refund'){reconcileInvalidWithdrawal(el);return;}
   if(action==='telegram-check'){telegramCheck();return;}
