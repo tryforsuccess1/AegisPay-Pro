@@ -26,9 +26,10 @@ BEGIN
     SELECT 1 FROM pg_indexes
      WHERE schemaname='public'
        AND tablename='deposit_submissions'
-       AND indexname='uq_deposit_txid'
+       AND indexdef ILIKE 'CREATE UNIQUE INDEX%'
+       AND indexdef ILIKE '%txid%'
   ) THEN
-    RAISE EXCEPTION 'Canonical transaction uniqueness index must remain enabled';
+    RAISE EXCEPTION 'A database-enforced unique TXID index must remain enabled';
   END IF;
 END $$;
 
