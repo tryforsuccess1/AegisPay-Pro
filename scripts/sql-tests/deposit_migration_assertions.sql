@@ -336,6 +336,15 @@ BEGIN
   INSERT INTO public.shasta_test_users(user_id, enabled, purpose)
     VALUES ('11111111-1111-4111-8111-111111111111', true, 'Disposable SQL test fixture')
     ON CONFLICT (user_id) DO UPDATE SET enabled=true;
+  UPDATE public.platform_settings
+     SET value_json = value_json || '{"mode":"MAINNET","live_deposits":false,"real_payouts":false,"production_go_live_approved":false}'::jsonb
+   WHERE key='system_mode';
+  INSERT INTO public.platform_settings(key, value_json)
+    VALUES ('production_config', jsonb_build_object(
+      'environment','PRE_PRODUCTION','live_deposits_enabled',false,
+      'real_payouts_enabled',false,'go_live_approved',false,'payouts_locked',true
+    ))
+    ON CONFLICT (key) DO UPDATE SET value_json=EXCLUDED.value_json;
   INSERT INTO public.platform_settings(key, value_json)
     VALUES ('shasta_testnet_rules', jsonb_build_object(
       'network','TRON TESTNET',
