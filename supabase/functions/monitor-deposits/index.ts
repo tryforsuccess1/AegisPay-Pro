@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   exactUsdtRawAmountMatches,
   findExactShastaUsdtTransfer,
+  findShastaTransfersByAmount,
+  isValidTronTxid,
   TRON_SHASTA_USDT_CONTRACT,
 } from "../_shared/tron-deposit-validation.ts";
 import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
@@ -52,14 +54,35 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
   if (!response.ok) throw new Error("TronGrid " + response.status);
   const payload = await response.json();
   const rows = Array.isArray(payload.data) ? payload.data : [];
-  const match = network === "TRON TESTNET"
-    ? findExactShastaUsdtTransfer(rows, String(deposit.txid || ""), receiving)
-    : rows.find((x: any) =>
+  let match: any = null;
+  if (network === "TRON TESTNET") {
+    const claimedTxid = isValidTronTxid(String(deposit.submitted_txid || "")) ? String(deposit.submitted_txid) : "";
+    const canonicalTxid = isValidTronTxid(String(deposit.txid || "")) ? String(deposit.txid) : "";
+    const preferredTxid = canonicalTxid || claimedTxid;
+    match = preferredTxid ? findExactShastaUsdtTransfer(rows, preferredTxid, receiving) : null;
+    if (!match) {
+      const createdAt = new Date(deposit.created_at || Date.now()).getTime();
+      const candidates = findShastaTransfersByAmount(rows, receiving, deposit.gross_amount, Math.max(1, createdAt - 24 * 60 * 60 * 1000));
+      if (!candidates.length) return { id: deposit.id, status: "PENDING_NO_CHAIN_MATCH" };
+      const candidateTxids = candidates.map((x) => String(x.transaction_id));
+      const { data: previouslyClaimed, error: claimLookupError } = await admin.from("deposit_submissions")
+        .select("id,txid").eq("network", "TRON TESTNET").in("txid", candidateTxids).neq("id", deposit.id);
+      if (claimLookupError) return { id: deposit.id, status: "SHASTA_CLAIM_LOOKUP_FAILED" };
+      const claimedIds = new Set((previouslyClaimed || []).map((x: any) => String(x.txid || "").toLowerCase()));
+      const unclaimed = candidates.filter((x) => !claimedIds.has(String(x.transaction_id || "").toLowerCase()));
+      if (unclaimed.length !== 1) {
+        return { id: deposit.id, status: unclaimed.length > 1 ? "SHASTA_MATCH_AMBIGUOUS" : "SHASTA_MATCH_ALREADY_LINKED" };
+      }
+      match = unclaimed[0];
+    }
+  } else {
+    match = rows.find((x: any) =>
       String(x.transaction_id).toLowerCase() === String(deposit.txid).toLowerCase()
       && String(x.to) === receiving
       && String(x.token_info?.address || contract) === contract
       && x.success !== false
     );
+  }
   if (!match) return { id: deposit.id, status: "PENDING" };
 
   const raw = String(match.value || "0");
@@ -76,6 +99,21 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
       return { id: deposit.id, status: "AMOUNT_MISMATCH" };
     }
   }
+  if (network === "TRON TESTNET" && String(deposit.txid || "").toLowerCase() !== String(match.transaction_id).toLowerCase()) {
+    const priorHint = String(deposit.submitted_txid || deposit.txid || "").trim().slice(0, 128);
+    const { data: linked, error: linkError } = await admin.from("deposit_submissions")
+      .update({
+        txid: String(match.transaction_id),
+        submitted_txid: priorHint || null,
+        verification_note: "Canonical TXID discovered from a unique confirmed Shasta USDT transfer matching exact amount and recipient.",
+      })
+      .eq("id", deposit.id)
+      .eq("status", "PENDING_VERIFICATION")
+      .select("id")
+      .maybeSingle();
+    if (linkError || !linked) return { id: deposit.id, status: "SHASTA_TXID_LINK_FAILED" };
+  }
+
   if (network === "TRON TESTNET" && deposit.ai_review_status === "MANUAL_REVIEW") {
     if (!deposit.screenshot_path) return { id: deposit.id, status: "MISSING_EVIDENCE" };
     const existingChecks = deposit.ai_checks && typeof deposit.ai_checks === "object" && !Array.isArray(deposit.ai_checks)
