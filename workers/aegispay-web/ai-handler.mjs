@@ -140,11 +140,11 @@ export async function handleAegisAI(request, env = {}, deps = {}) {
   const declaredLength = Number(request.headers.get("Content-Length") || 0);
   if (declaredLength > MAX_BODY_BYTES) return json(request, 413, { error: "AI request is too large." });
 
+  const supabaseUrl = String(env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, "");
+  const publishableKey = String(env.SUPABASE_PUBLISHABLE_KEY || DEFAULT_PUBLISHABLE_KEY);
   let authResponse;
   let authUser;
   try {
-    const supabaseUrl = String(env.SUPABASE_URL || DEFAULT_SUPABASE_URL).replace(/\/$/, "");
-    const publishableKey = String(env.SUPABASE_PUBLISHABLE_KEY || DEFAULT_PUBLISHABLE_KEY);
     authResponse = await fetcher(supabaseUrl + "/auth/v1/user", {
       method: "GET",
       headers: {
@@ -164,6 +164,31 @@ export async function handleAegisAI(request, env = {}, deps = {}) {
   }
   const userId = safeString(authUser?.id, 100);
   if (!userId) return json(request, 401, { error: "Authentication required." });
+
+  // Auth users without an eligible AegisPay profile must not access the paid/free-tier model endpoint.
+  try {
+    const profileUrl = supabaseUrl + "/rest/v1/users?select=id,role,status,auth_user_id&auth_user_id=eq." +
+      encodeURIComponent(userId) + "&limit=1";
+    const profileResponse = await fetcher(profileUrl, {
+      method: "GET",
+      headers: {
+        "apikey": publishableKey,
+        "Authorization": "Bearer " + bearer[1],
+        "Accept": "application/json"
+      },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS)
+    });
+    if (!profileResponse.ok) return json(request, 503, { error: "Account authorization is temporarily unavailable." });
+    const rows = await profileResponse.json();
+    const profile = Array.isArray(rows) ? rows[0] : null;
+    const role = safeString(profile?.role, 40).toUpperCase();
+    const status = safeString(profile?.status, 40).toUpperCase();
+    if (!profile || !["USER", "MASTER ADMIN"].includes(role) || ["BLOCKED", "SUSPENDED", "DELETED"].includes(status)) {
+      return json(request, 403, { error: "This AegisPay account is not eligible for AI support." });
+    }
+  } catch (_) {
+    return json(request, 503, { error: "Account authorization is temporarily unavailable." });
+  }
 
   if (!allowRequest(userId, now(), store)) {
     return json(request, 429, { error: "You are sending AI messages too quickly. Please wait a minute and try again." });
