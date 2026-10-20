@@ -1,5 +1,3 @@
-import { handleAegisAI } from "./ai-handler.mjs";
-
 const CANONICAL_ORIGIN = "https://aegispay-pro.pages.dev";
 const CLIENT_ENTRY_PATHS = new Set(["/", "/index.html", "/client", "/client/", "/client.html", "/app"]);
 const ADMIN_ENTRY_PATHS = new Set(["/admin", "/admin/", "/master-admin.html"]);
@@ -166,6 +164,7 @@ export default {
   async fetch(request, env) {
     const incoming = new URL(request.url);
     if (incoming.pathname === "/api/ai") {
+      const { handleAegisAI } = await import("./ai-handler.mjs");
       return handleAegisAI(request, env);
     }
     if (request.method !== "GET" && request.method !== "HEAD") {
