@@ -331,10 +331,18 @@ BEGIN
     RAISE EXCEPTION 'Rejected deposits changed the balance or ledger';
   END IF;
 
-  -- Testnet remains usable even when the Mainnet live-deposit flag is off.
-  UPDATE public.platform_settings
-    SET value_json = value_json || '{"network":"TRON TESTNET","token_contract":"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"}'::jsonb
-    WHERE key='deposit_rules';
+  -- Shasta uses a dedicated config and explicitly allowlisted synthetic user;
+  -- the application's live deposit_rules stay on Mainnet and are never toggled.
+  INSERT INTO public.shasta_test_users(user_id, enabled, purpose)
+    VALUES ('11111111-1111-4111-8111-111111111111', true, 'Disposable SQL test fixture')
+    ON CONFLICT (user_id) DO UPDATE SET enabled=true;
+  INSERT INTO public.platform_settings(key, value_json)
+    VALUES ('shasta_testnet_rules', jsonb_build_object(
+      'network','TRON TESTNET',
+      'token_contract','TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
+      'receiving_address','T'||repeat('4',33)
+    ))
+    ON CONFLICT (key) DO UPDATE SET value_json=EXCLUDED.value_json;
   INSERT INTO public.deposit_submissions(
     id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network
   ) VALUES (
@@ -377,7 +385,7 @@ BEGIN
   );
   UPDATE public.platform_settings
      SET value_json = value_json || '{"token_contract":"TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn"}'::jsonb
-   WHERE key='deposit_rules';
+   WHERE key='shasta_testnet_rules';
   v_failed := false;
   BEGIN
     PERFORM public.apply_verified_deposit(
@@ -392,7 +400,7 @@ BEGIN
     RAISE EXCEPTION 'Rejected non-Shasta contract changed deposit status'; END IF;
   UPDATE public.platform_settings
      SET value_json = value_json || '{"token_contract":"TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs"}'::jsonb
-   WHERE key='deposit_rules';
+   WHERE key='shasta_testnet_rules';
 
   -- An on-chain match is not creditable if the receiver snapshot does not equal
   -- the authenticated user's assigned HD wallet.
