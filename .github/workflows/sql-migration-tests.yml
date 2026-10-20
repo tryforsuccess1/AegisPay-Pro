@@ -11,6 +11,8 @@ on:
       - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
       - 'supabase/functions/_shared/tron-sweep.ts'
       - 'supabase/functions/_shared/tron-sweep_test.ts'
+      - 'supabase/functions/_shared/tron-deposit-validation.ts'
+      - 'supabase/functions/_shared/tron-deposit-validation_test.ts'
       - 'supabase/functions/sweep-deposit-wallets/index.ts'
       - 'supabase/functions/verify-deposit/index.ts'
       - 'supabase/functions/execute-payout/index.ts'
@@ -28,6 +30,8 @@ on:
       - 'supabase/functions/_shared/tron-hd-wallet_test.ts'
       - 'supabase/functions/_shared/tron-sweep.ts'
       - 'supabase/functions/_shared/tron-sweep_test.ts'
+      - 'supabase/functions/_shared/tron-deposit-validation.ts'
+      - 'supabase/functions/_shared/tron-deposit-validation_test.ts'
       - 'supabase/functions/sweep-deposit-wallets/index.ts'
       - 'supabase/functions/verify-deposit/index.ts'
       - 'supabase/functions/execute-payout/index.ts'
@@ -79,6 +83,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
       - name: Apply HD sweep journal migration
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql
+      - name: Apply Shasta deposit credit guard migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020180500_harden_shasta_deposit_credit.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
