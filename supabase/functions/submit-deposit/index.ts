@@ -98,13 +98,19 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
     const amount = Number(amountInput);
-    const txid = typeof body?.txid === "string" ? body.txid.trim() : "";
+    const enteredTxid = typeof body?.txid === "string" ? body.txid.trim() : "";
+    const validEnteredTxid = /^[a-f\d]{64}$/i.test(enteredTxid);
+    // Store user input as an untrusted hint. For Shasta, the canonical txid is
+    // discovered from a unique confirmed transfer and remains NULL until then.
+    const submittedTxid = enteredTxid ? enteredTxid.slice(0, 128) : null;
+    const txid = isShastaTestUser ? null : (validEnteredTxid ? enteredTxid : "");
     const screenshotPath = typeof body?.screenshotPath === "string" ? body.screenshotPath : "";
     if (!/^\d+(?:\.\d{1,2})?$/.test(amountInput) || !Number.isFinite(amount) || amount < 10
       || !Number.isSafeInteger(Math.round(amount * 100))) {
       return json({ error: "Deposit amount must be at least 10 USDT, use at most two decimal places, and be within the supported precision." }, 400);
     }
-    if (!/^[a-f\d]{64}$/i.test(txid)) return json({ error: "Enter the 64-character TRON transaction ID." }, 400);
+    if (!isShastaTestUser && !validEnteredTxid) return json({ error: "Enter the 64-character TRON transaction ID." }, 400);
+    if (enteredTxid.length > 128) return json({ error: "Transaction ID input is too long. Clear it or paste the TXID." }, 400);
     if (!screenshotPath.startsWith(auth.user.id + "/deposits/")) return json({ error: "Upload the deposit screenshot first." }, 400);
 
     const tierQuery = await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).lte("deposit_amount", amount).order("deposit_amount", { ascending: false }).limit(1).maybeSingle();
@@ -114,7 +120,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
-      credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path: screenshotPath,
+      credited_amount: Math.max(0, amount), txid, submitted_txid: submittedTxid, network: depositNetwork, screenshot_path: screenshotPath,
       deposit_wallet_id: depositWallet.id, receiving_address: receivingAddress, token_contract: depositWallet.token_contract,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
@@ -130,7 +136,7 @@ Deno.serve(async (req: Request) => {
         const image = await loadPrivateImage(admin.storage, screenshotPath);
         review = await runVisionReview([
           "Perform an AI evidence precheck for a claimed USDT deposit screenshot.",
-          "Claimed TRON transaction ID: " + txid + ".",
+          "User-entered transaction ID (unverified; may be blank or mistyped): " + (submittedTxid || "not provided; discover the transfer from confirmed Shasta chain data") + ".",
           "Claimed gross amount: " + amount.toFixed(2) + " USDT.",
           "Expected receiving address: " + receivingAddress + ".",
           "Check only visible screenshot evidence: receipt visibility, transaction ID consistency, amount consistency, recipient consistency, legibility, blur, and obvious editing/tampering indicators.",
@@ -148,7 +154,7 @@ Deno.serve(async (req: Request) => {
     const validConfidence = Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
     const normalizedConfidence = validConfidence ? Math.round(confidence * 1000) / 1000 : null;
     const hardFailure = validConfidence && confidence >= 0.85 && (
-      result.blurry === true || result.legible === false || result.txid_matches === false ||
+      result.blurry === true || result.legible === false || (!isShastaTestUser && result.txid_matches === false) ||
       result.amount_matches === false || result.recipient_matches === false || result.receipt_visible === false
     );
     const tampering = Array.isArray(result.tamper_indicators) && result.tamper_indicators.length > 0;
@@ -195,7 +201,9 @@ Deno.serve(async (req: Request) => {
     return json({
       depositId: deposit.id, status: depositStatus, aiReviewStatus: aiStatus,
       aiConfidence: normalizedConfidence, reviewReason: reason,
-      message: aiStatus === "MANUAL_REVIEW" && reason === "AI_BOT_DISABLED" ? "AI approval bot is currently OFF. Your deposit proof has been sent to Master Admin for manual review." : aiStatus === "APPROVED"
+      message: isShastaTestUser && !validEnteredTxid
+        ? "Screenshot received. You may leave TXID blank or enter it incorrectly; the server will search confirmed Shasta USDT transfers to your assigned address and credit only a unique exact match."
+        : aiStatus === "MANUAL_REVIEW" && reason === "AI_BOT_DISABLED" ? "AI approval bot is currently OFF. Your deposit proof has been sent to Master Admin for manual review." : aiStatus === "APPROVED"
         ? "Screenshot check passed. A confirmed matching TRON transfer is still required before your balance is credited."
         : aiStatus === "REJECTED"
         ? "The screenshot is blurry or does not match the submitted transaction. Submit a clear, correct proof."
