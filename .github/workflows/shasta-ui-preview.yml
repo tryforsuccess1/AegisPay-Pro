@@ -86,4 +86,5 @@ jobs:
           test -s /tmp/shasta-ui-preview.html
           grep -q "TRON SHASTA TESTNET" /tmp/shasta-ui-preview.html
           grep -q "result.data.tokenContract" /tmp/shasta-ui-preview.html
-          grep -q "aegispay-shell-v36-shasta-network-aware" /tmp/shasta-ui-preview.html
+          curl --fail --silent --show-error --location --max-time 20 "https://shasta-test-ui.aegispay-pro.pages.dev/app/service-worker.js" -o /tmp/shasta-preview-service-worker.js
+          grep -q "aegispay-shell-v36-shasta-network-aware" /tmp/shasta-preview-service-worker.js
