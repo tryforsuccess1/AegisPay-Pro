@@ -496,7 +496,7 @@ Deno.serve(async (req: Request) => {
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     const profile = await actor(req, admin);
-    const authorizationToken = (req.headers.get("Authorization") || "").replace(/^Bearer\\s+/i, "").trim();
+    const authorizationToken = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
     const body = await req.json().catch(() => ({}));
     const action = String(body?.action || "message").toLowerCase();
     const assistantMode = body?.mode === "assistant";
