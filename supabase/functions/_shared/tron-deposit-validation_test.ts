@@ -60,7 +60,7 @@ Deno.test("TXID may be absent or mistyped while Shasta transfer matching stays e
   assertEquals(isValidTronTxid(txid), true);
   assertEquals(isValidTronTxid("mistyped-txid"), false);
   assertEquals(isValidTronTxid(""), false);
-  const since = validTransfer.block_timestamp as number - 60_000;
+  const since = (validTransfer.block_timestamp as number) - 60_000;
   assertEquals(findShastaTransfersByAmount([validTransfer], recipient, "12.34", since), [validTransfer]);
   assertEquals(findShastaTransfersByAmount([validTransfer], recipient, "12.35", since), []);
   assertEquals(findShastaTransfersByAmount([{...validTransfer, to: sender}], recipient, "12.34", since), []);
