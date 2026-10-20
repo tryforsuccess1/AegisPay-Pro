@@ -233,6 +233,19 @@ const server = http.createServer((req, res) => {
       document.body.appendChild(scratch);
       const result = {
         hasMessages: !!scratch.querySelector('#aiMessages'),
+        bubbleSizing: (() => {
+          const messages=scratch.querySelector('#aiMessages');
+          const shortBubble=document.createElement('div');
+          shortBubble.className='m2 ai-msg';
+          shortBubble.textContent='OK';
+          const longBubble=document.createElement('div');
+          longBubble.className='m2 ai-msg';
+          longBubble.textContent='This is a longer support message that should wrap naturally while remaining easy to read.';
+          messages.append(shortBubble,longBubble);
+          const shortRect=shortBubble.getBoundingClientRect();
+          const longRect=longBubble.getBoundingClientRect();
+          return {shortWidth:shortRect.width,longWidth:longRect.width,fontSize:getComputedStyle(shortBubble).fontSize,lineHeight:getComputedStyle(shortBubble).lineHeight};
+        })(),
         hasInput: !!scratch.querySelector('#aiInput'),
         hasSend: !!scratch.querySelector('#aiSend'),
         hasRepresentative: !!scratch.querySelector('#aiRepresentative'),
@@ -257,6 +270,8 @@ const server = http.createServer((req, res) => {
       return result;
     });
     assert.ok(aiTemplate.hasMessages, 'AI Assistant template must render its message panel.');
+    assert.ok(aiTemplate.bubbleSizing.shortWidth < aiTemplate.bubbleSizing.longWidth, 'Chat bubbles must use content-fit widths instead of a fixed full row width: ' + JSON.stringify(aiTemplate.bubbleSizing));
+    assert.equal(aiTemplate.bubbleSizing.fontSize, '12px', 'Chat bubble font must be compact but readable.');
     assert.ok(aiTemplate.hasInput && aiTemplate.hasSend, 'AI Assistant template must render its input and send button.');
     assert.ok(aiTemplate.navLinks === 4, 'AI Assistant template must render all four primary navigation items.');
     assert.ok(aiTemplate.hasRepresentative, 'AI Assistant must offer Talk to a Customer Representative.');

@@ -623,6 +623,15 @@ Deno.serve(async (req: Request) => {
         liveCase = data;
       }
       if (!liveCase || !liveCase.representative_requested) return json({ case: null, messages: [] });
+      const caseClosed = ["RESOLVED", "CLOSED"].includes(String(liveCase.status || "").toUpperCase());
+      if (action === "client_live_support_state" && caseClosed) {
+        // Deliberately return no Client transcript after Admin resolution. Messages remain stored
+        // under the case_id, so Master Admin can still review the entire conversation.
+        return json({ case: liveCase, messages: [], clientChatCleared: true });
+      }
+      if (action === "client_send_chat_message" && caseClosed) {
+        return json({ error: "This support conversation is already resolved or closed." }, 409);
+      }
 
       if (!liveCase.conversation_seeded_at) {
         const firstClientMessage = String(liveCase.user_message || "").trim().slice(0, 2000);

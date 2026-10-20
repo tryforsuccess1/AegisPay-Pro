@@ -235,7 +235,7 @@ html[data-mode=dark] .notif-card .ntext,html[data-mode=dark] .notif-card .ntime{
 #toast{position:fixed;z-index:260;left:50%;top:16px;transform:translate(-50%,-90px);background:var(--hd);color:#fff;font-weight:700;font-size:13px;padding:11px 18px;border-radius:24px;transition:.35s;max-width:90%;text-align:center}
 #toast.on{transform:translate(-50%,0)}
 
-.msgs .ai-msg{max-width:84%;padding:10px 13px;border-radius:16px;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
+.msgs .ai-msg{width:fit-content;max-width:min(82%,34rem);min-width:0;flex:0 1 auto;box-sizing:border-box;padding:7px 10px;border-radius:15px;font-size:12px;line-height:1.42;overflow-wrap:anywhere}
 .msgs .ai-msg.m1{background:var(--s1);border:1px solid var(--line);align-self:flex-start;border-bottom-left-radius:4px;color:var(--tx)}
 .msgs .ai-msg.m2{background:linear-gradient(135deg,var(--p1),var(--p2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
 html[data-mode="dark"] .msgs .ai-msg.m1{background:var(--s1)!important;color:var(--tx)!important}
@@ -350,7 +350,7 @@ nav.aegis-bottom-nav a.on {
   color: var(--hd); background: linear-gradient(115deg,rgba(240,106,77,.12),rgba(217,96,156,.10));
   text-align: left; cursor: pointer; font-family: var(--ff); box-shadow: var(--cs);
 }
-.ai-support-button:disabled { opacity: .58; cursor: wait; }
+.ai-support-button:disabled { opacity: .58; cursor: default; }
 .ai-support-icon { width: 34px; height: 34px; flex: 0 0 34px; display: grid; place-items: center;
   border-radius: 11px; color: #fff; background: linear-gradient(135deg,var(--p1),var(--p2)); font: 800 16px var(--ff); }
 .ai-support-copy { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -1922,7 +1922,10 @@ function aiLiveMessageRows(){
   return liveSupportMessages.map(function(m){
     const role=String(m.sender_role||'SYSTEM').toUpperCase();
     const text=role==='AI'?safeAiDisplayText(m.message_text):String(m.message_text||'');
-    if(role==='SYSTEM')return '<div class="ai-live-system" role="status">'+esc(safeAiDisplayText(text))+'</div>';
+    if(role==='SYSTEM'){
+      if(/^A representative is now live in this chat\.?$/i.test(text.trim()))return '';
+      return '<div class="ai-live-system" role="status">'+esc(safeAiDisplayText(text))+'</div>';
+    }
     const mine=role==='CLIENT';
     const label=mine?'You':role==='REPRESENTATIVE'?'Customer Representative':'Aegis AI';
     return '<div class="'+(mine?'m2':'m1')+' ai-msg '+(role==='REPRESENTATIVE'?'ai-live-representative':'')+'"><small class="ai-live-message-label">'+esc(label)+'</small><div>'+esc(text)+'</div>'+aiSupportAttachmentMarkup(m.attachments)+'</div>';
@@ -1949,17 +1952,23 @@ function restoreAiLivePrefs(){
     liveSupportSeedCount=Math.max(0,Number(sessionStorage.getItem(aiLiveStorageKey('seed_count'))||0));
   }catch(_){liveSupportCaseId=null;liveSupportSeedCount=0;}
 }
-function forgetAiLiveCaseReference(){
-  const hadTranscript=liveSupportMessages.length>0;
+function clearClientSupportConversation(){
+  const historyKey=AI_HISTORY_KEY+':'+String(profile?.id||'guest');
   liveSupportCaseId=null;
   liveSupportCase=null;
-  liveSupportStateLoaded=hadTranscript;
-  try{sessionStorage.removeItem(aiLiveStorageKey('case'));}catch(_){}
-  if(!hadTranscript){
-    liveSupportMessages=[];
-    liveSupportSeedCount=0;
-    try{sessionStorage.removeItem(aiLiveStorageKey('seed_count'));}catch(_){}
-  }
+  liveSupportMessages=[];
+  liveSupportStateLoaded=true;
+  liveSupportSeedCount=0;
+  awaitingRepresentativeIssue=false;
+  aiHistory=[];
+  try{
+    sessionStorage.removeItem(aiLiveStorageKey('case'));
+    sessionStorage.removeItem(aiLiveStorageKey('seed_count'));
+    sessionStorage.removeItem(historyKey);
+  }catch(_){}
+  aiClearAttachment();
+  const notice=document.getElementById('aiRepresentativeStatus');
+  if(notice){notice.hidden=true;notice.textContent='';}
 }
 function updateAiLiveSupportUI(){
   const status=document.getElementById('aiOnline');
@@ -1984,7 +1993,7 @@ function updateAiLiveSupportUI(){
   }
   if(title)title.textContent=joined?'Representative is live in this chat':waiting?'Representative requested':'Talk to a Customer Representative';
   if(subtitle)subtitle.textContent=joined?'Send your messages here and the representative will reply in this chat.':waiting?'Your request is received. You can add more details while you wait.':'Need more help? Our support team can review your issue.';
-  if(button)button.disabled=representativeRequestInFlight||liveSupportSendInFlight||joined||waiting;
+  if(button){button.disabled=representativeRequestInFlight||liveSupportSendInFlight||waiting;button.setAttribute('aria-disabled',button.disabled?'true':'false');button.title=joined?'Open the live conversation':waiting?'A representative request is already pending':'Request a customer representative';}
   if(input){
     input.placeholder=joined?'Message your representative...':waiting?'Add a message for the representative...':'Type your question...';
     input.setAttribute('aria-label',joined?'Message your customer representative':waiting?'Add a message for your representative':'Ask AegisPay AI');
@@ -2013,6 +2022,14 @@ async function refreshAiLiveSupportState(){
     const result=await db.functions.invoke('ai-support',{body});
     if(result.error)return;
     const data=result.data||{};
+    const returnedStatus=String(data.case?.status||'').toUpperCase();
+    if(data.clientChatCleared || (data.case && ['RESOLVED','CLOSED'].includes(returnedStatus))){
+      // Admin resolution clears the Client's chat/session only. The database transcript stays
+      // available to Master Admin in AI Support Cases for audit and review.
+      clearClientSupportConversation();
+      aiRender();
+      return;
+    }
     if(data.case){
       const incoming=data.case;
       if(!liveSupportCaseId || liveSupportCaseId!==incoming.id){
@@ -2028,10 +2045,9 @@ async function refreshAiLiveSupportState(){
       liveSupportStateLoaded=true;
       aiRender();
     }else if(liveSupportCaseId){
-      // The saved case may have been resolved/closed (or no longer be representative-owned).
-      // Drop the stale pointer so a future user question returns to AI routing instead of silently
-      // attempting to post to an old live-chat case. Keep its last transcript visible in this view.
-      forgetAiLiveCaseReference();
+      // If the stored case no longer exists or is no longer owned by this Client, clear the
+      // stale pointer and local transcript so future messages use normal AI/support routing.
+      clearClientSupportConversation();
       aiRender();
     }else if(!liveSupportMessages.length){
       liveSupportCase=null;liveSupportStateLoaded=true;updateAiLiveSupportUI();
@@ -2281,7 +2297,20 @@ function bindAiBot(){
   }
   if(representative&&!representative.dataset.bound){
     representative.dataset.bound='1';
-    representative.onclick=()=>talkToRepresentative();
+    representative.onclick=()=>{
+      const joined=Boolean(liveSupportCase?.representative_joined_at&&String(liveSupportCase.status||'').toUpperCase()==='IN_PROGRESS');
+      if(joined){
+        const box=document.getElementById('aiMessages');
+        if(box)box.scrollTo({top:box.scrollHeight,behavior:'smooth'});
+        if(input)input.focus({preventScroll:true});
+        return;
+      }
+      if(liveSupportCaseId&&liveSupportCase?.representative_requested&&['OPEN','IN_PROGRESS'].includes(String(liveSupportCase.status||'').toUpperCase())){
+        if(input)input.focus({preventScroll:true});
+        return;
+      }
+      talkToRepresentative();
+    };
   }
 }
 document.addEventListener('click',function(e){const q=e.target.closest('[data-q]');if(q&&document.getElementById('aiMessages'))aiAsk(q.getAttribute('data-q')||'')});

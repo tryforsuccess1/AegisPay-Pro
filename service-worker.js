@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v32-compact-support-chat';
+const CACHE='aegispay-shell-v33-bubbles-resolved-chat';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
