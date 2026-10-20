@@ -94,7 +94,7 @@ jobs:
       - name: Isolate Shasta test credits from Mainnet account side effects
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021100000_isolate_shasta_test_credit_side_effects.sql
       - name: Allow Shasta screenshot-first deposits with canonical TXID fallback
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022100000_allow_shasta_deposit_txid_fallback.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021120000_allow_shasta_deposit_txid_fallback.sql
       - name: Verify nullable TXID and uniqueness schema
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_txid_optional_assertions.sql
       - name: Verify HD sweep idempotency and restricted access
