@@ -378,6 +378,15 @@ BEGIN
   IF v_balance <> 110 OR v_principal <> 110 THEN
     RAISE EXCEPTION 'Testnet deposit should continue to work while Mainnet deposits are paused';
   END IF;
+  IF (SELECT first_deposit_done FROM public.users WHERE id='11111111-1111-4111-8111-111111111111') IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'Shasta credit consumed the account Mainnet first-deposit entitlement';
+  END IF;
+  IF (SELECT selected_tier_id FROM public.users WHERE id='11111111-1111-4111-8111-111111111111') IS NOT NULL THEN
+    RAISE EXCEPTION 'Shasta credit changed the account Mainnet tier selection';
+  END IF;
+  IF (SELECT count(*) FROM public.referrals WHERE referred_user_id='11111111-1111-4111-8111-111111111111') <> 0 THEN
+    RAISE EXCEPTION 'Shasta test credit issued production referral rewards';
+  END IF;
   IF (SELECT value_json->>'network' FROM public.platform_settings WHERE key='deposit_rules') <> 'TRON MAINNET'
      OR (SELECT value_json->>'token_contract' FROM public.platform_settings WHERE key='deposit_rules') <> 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
      OR (SELECT value_json->>'receiving_address' FROM public.platform_settings WHERE key='deposit_rules') <> 'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn' THEN
