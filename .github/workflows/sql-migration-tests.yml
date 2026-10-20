@@ -101,11 +101,9 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_txid_optional_assertions.sql
       - name: Prevent reuse of the same deposit screenshot
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021140000_dedupe_shasta_deposit_screenshots.sql
-      - name: Verify duplicate screenshot protection
-        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_evidence_dedupe_assertions.sql
       - name: Restrict submitted-TXID deduplication to valid Shasta hashes
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021150000_limit_shasta_txid_hint_index.sql
-      - name: Re-verify submitted-TXID deduplication index
+      - name: Verify duplicate screenshot and submitted-TXID protection
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_evidence_dedupe_assertions.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
