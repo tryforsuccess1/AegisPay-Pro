@@ -1,6 +1,7 @@
 import { assertEquals } from "jsr:@std/assert@1";
 import {
   validShastaTestRules,
+  shastaSecretsAreDistinct,
   isAllowlistedShastaTestUser,
   loadShastaTestRules,
 } from "./shasta-test-mode.ts";
@@ -102,4 +103,11 @@ Deno.test("Shasta config fails closed if Mainnet config cannot be verified", asy
   const missingMainnet = settings();
   delete (missingMainnet as Record<string, unknown>).deposit_rules;
   assertEquals(await loadShastaTestRules(mockAdmin(missingMainnet) as any, true), null);
+});
+
+Deno.test("Shasta secrets reject Mainnet HD mnemonic or payout signer reuse", () => {
+  assertEquals(shastaSecretsAreDistinct("apple beta gamma", "Apple   beta gamma", "test-key", "main-key"), false);
+  assertEquals(shastaSecretsAreDistinct("test seed", "mainnet seed", "ABCD", "abcd"), false);
+  assertEquals(shastaSecretsAreDistinct("test seed", "mainnet seed", "test-key", "main-key"), true);
+  assertEquals(shastaSecretsAreDistinct("", "mainnet seed", "", "main-key"), true);
 });
