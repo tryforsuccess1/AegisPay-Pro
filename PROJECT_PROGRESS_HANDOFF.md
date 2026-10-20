@@ -9,7 +9,7 @@ Supabase project: `wtcspnrmsoisroavojop`
 
 - Owner-reported overall development progress: approximately 92%.
 - Audit distinction: this is a feature/code-completion estimate, not a measured application metric. Production/payment readiness is materially lower while real-money flows remain pre-production gated.
-- Latest canonical main commit at this checkpoint: `92597d114b9cc666564dd38c85b0bd79c1c42d9b`.
+- Latest canonical main commit at this checkpoint: `4db87aaeacbe699d786b6a7809b38aaa24ed4171` (deposit UI PR #88 merged; production deployment and smoke tests passed).
 - Latest main CI, Web Portal deployment, Android APK build, and Client/Master Admin release workflows passed at the time of this audit.
 - AI Admin-notification policy fix is deployed to Supabase `ai-support` v38 ACTIVE. User verified: normal referral question caused no Telegram notification; unresolved deposit-status question did cause an expected Telegram notification.
 - Payment safety gates remain CLOSED: `environment=PRE_PRODUCTION`, live deposits disabled, real payouts disabled, go-live approval false, payout lock true.
