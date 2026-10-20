@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     if (!validAddress(treasury) || !payoutKey || String(TronWeb.address.fromPrivateKey(payoutKey) || "") !== treasury) {
       return json({ error: "The configured treasury address does not match the authorized payout signer. No deposit address was issued.", code: "TREASURY_SIGNER_MISMATCH" }, 409);
     }
-    if (!HD_MNEMONIC.trim()) return json({ error: "The dedicated TRON HD wallet secret is not configured. No deposit address was issued.", code: "HD_WALLET_NOT_CONFIGURED" }, 503);
+    if (!hdMnemonic.trim()) return json({ error: "The dedicated TRON HD wallet secret is not configured. No deposit address was issued.", code: "HD_WALLET_NOT_CONFIGURED" }, 503);
 
     const rootIdentity = await deriveTronHdIdentity(hdMnemonic, hdPassphrase, 0);
     const rootFingerprint = rootIdentity.rootFingerprint;
