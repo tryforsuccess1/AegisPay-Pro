@@ -59,172 +59,8 @@ BEGIN
   IF p_deposit_id IS NULL THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='A deposit reference is required';
   END IF;
-  IF COALESCE(btrim(p_sender_address),'') !~ '^T[1-9A-HJ-NP-Za-km-z]{33}
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path TO ''
-AS $function$
-DECLARE
-  v_rules jsonb := '{}'::jsonb;
-  v_wallet public.deposit_wallets%ROWTYPE;
-  v_raw text := btrim(COALESCE(NEW.raw_amount, ''));
-BEGIN
-  IF upper(btrim(COALESCE(NEW.status, ''))) <> 'VERIFIED'
-     OR upper(btrim(COALESCE(NEW.network, ''))) <> 'TRON TESTNET' THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT COALESCE(value_json, '{}'::jsonb)
-    INTO v_rules
-    FROM public.platform_settings
-   WHERE key = 'shasta_testnet_rules';
-
-  IF NOT EXISTS (
-       SELECT 1 FROM public.shasta_test_users t
-        WHERE t.user_id = NEW.user_id AND t.enabled = true
-     ) THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit is restricted to the explicitly allowlisted test account';
-  END IF;
-
-  IF upper(btrim(COALESCE(v_rules ->> 'network', ''))) <> 'TRON TESTNET'
-     OR btrim(COALESCE(v_rules ->> 'token_contract', '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'
-     OR btrim(COALESCE(NEW.token_contract, '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit requires the pinned Shasta USDT contract and network';
-  END IF;
-
-  IF NEW.deposit_wallet_id IS NULL
-     OR btrim(COALESCE(NEW.receiving_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
-     OR btrim(COALESCE(NEW.txid, '')) !~ '^[A-Fa-f0-9]{64}$'
-     OR btrim(COALESCE(NEW.sender_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
-     OR NEW.block_timestamp IS NULL
-     OR btrim(COALESCE(NEW.verification_source, '')) = ''
-     OR COALESCE(NEW.ai_review_status, '') NOT IN ('APPROVED', 'MANUAL_APPROVED') THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit is missing verified chain or review evidence';
-  END IF;
-
-  IF v_raw !~ '^[1-9][0-9]*$' OR length(v_raw) > 78
-     OR NEW.gross_amount IS NULL OR NEW.gross_amount <= 0
-     OR NEW.deposit_fee IS NULL OR NEW.deposit_fee < 0
-     OR NEW.deposit_fee > NEW.gross_amount
-     OR v_raw::numeric / 1000000 <> NEW.gross_amount THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta raw token amount does not exactly match the deposit request';
-  END IF;
-
-  SELECT * INTO v_wallet
-    FROM public.deposit_wallets
-   WHERE id = NEW.deposit_wallet_id
-     AND user_id = NEW.user_id;
-
-  IF NOT FOUND
-     OR upper(btrim(COALESCE(v_wallet.network, ''))) <> 'TRON TESTNET'
-     OR v_wallet.address IS DISTINCT FROM btrim(NEW.receiving_address)
-     OR v_wallet.token_contract IS DISTINCT FROM 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit must match the receiving address assigned to this user';
-  END IF;
-
-  RETURN NEW;
-END;
-$function$;
-
-DROP TRIGGER IF EXISTS guard_shasta_deposit_verification ON public.deposit_submissions;
-CREATE TRIGGER guard_shasta_deposit_verification
-BEFORE INSERT OR UPDATE ON public.deposit_submissions
-FOR EACH ROW
-EXECUTE FUNCTION public.guard_shasta_deposit_verification();
-
-REVOKE ALL ON FUNCTION public.guard_shasta_deposit_verification() FROM PUBLIC;
-
-COMMIT;
-
-     OR COALESCE(btrim(p_raw_amount),'') !~ '^[1-9][0-9]*
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path TO ''
-AS $function$
-DECLARE
-  v_rules jsonb := '{}'::jsonb;
-  v_wallet public.deposit_wallets%ROWTYPE;
-  v_raw text := btrim(COALESCE(NEW.raw_amount, ''));
-BEGIN
-  IF upper(btrim(COALESCE(NEW.status, ''))) <> 'VERIFIED'
-     OR upper(btrim(COALESCE(NEW.network, ''))) <> 'TRON TESTNET' THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT COALESCE(value_json, '{}'::jsonb)
-    INTO v_rules
-    FROM public.platform_settings
-   WHERE key = 'shasta_testnet_rules';
-
-  IF NOT EXISTS (
-       SELECT 1 FROM public.shasta_test_users t
-        WHERE t.user_id = NEW.user_id AND t.enabled = true
-     ) THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit is restricted to the explicitly allowlisted test account';
-  END IF;
-
-  IF upper(btrim(COALESCE(v_rules ->> 'network', ''))) <> 'TRON TESTNET'
-     OR btrim(COALESCE(v_rules ->> 'token_contract', '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'
-     OR btrim(COALESCE(NEW.token_contract, '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit requires the pinned Shasta USDT contract and network';
-  END IF;
-
-  IF NEW.deposit_wallet_id IS NULL
-     OR btrim(COALESCE(NEW.receiving_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
-     OR btrim(COALESCE(NEW.txid, '')) !~ '^[A-Fa-f0-9]{64}$'
-     OR btrim(COALESCE(NEW.sender_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
-     OR NEW.block_timestamp IS NULL
-     OR btrim(COALESCE(NEW.verification_source, '')) = ''
-     OR COALESCE(NEW.ai_review_status, '') NOT IN ('APPROVED', 'MANUAL_APPROVED') THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit is missing verified chain or review evidence';
-  END IF;
-
-  IF v_raw !~ '^[1-9][0-9]*$' OR length(v_raw) > 78
-     OR NEW.gross_amount IS NULL OR NEW.gross_amount <= 0
-     OR NEW.deposit_fee IS NULL OR NEW.deposit_fee < 0
-     OR NEW.deposit_fee > NEW.gross_amount
-     OR v_raw::numeric / 1000000 <> NEW.gross_amount THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta raw token amount does not exactly match the deposit request';
-  END IF;
-
-  SELECT * INTO v_wallet
-    FROM public.deposit_wallets
-   WHERE id = NEW.deposit_wallet_id
-     AND user_id = NEW.user_id;
-
-  IF NOT FOUND
-     OR upper(btrim(COALESCE(v_wallet.network, ''))) <> 'TRON TESTNET'
-     OR v_wallet.address IS DISTINCT FROM btrim(NEW.receiving_address)
-     OR v_wallet.token_contract IS DISTINCT FROM 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit must match the receiving address assigned to this user';
-  END IF;
-
-  RETURN NEW;
-END;
-$function$;
-
-DROP TRIGGER IF EXISTS guard_shasta_deposit_verification ON public.deposit_submissions;
-CREATE TRIGGER guard_shasta_deposit_verification
-BEFORE INSERT OR UPDATE ON public.deposit_submissions
-FOR EACH ROW
-EXECUTE FUNCTION public.guard_shasta_deposit_verification();
-
-REVOKE ALL ON FUNCTION public.guard_shasta_deposit_verification() FROM PUBLIC;
-
-COMMIT;
-
+  IF COALESCE(btrim(p_sender_address),'') !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
+     OR COALESCE(btrim(p_raw_amount),'') !~ '^[1-9][0-9]*$'
      OR p_block_timestamp IS NULL
      OR COALESCE(btrim(p_verification_source),'') = '' THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Verified chain transfer evidence is incomplete';
@@ -248,89 +84,7 @@ COMMIT;
     RAISE EXCEPTION 'Deposit evidence must be approved before credit';
   END IF;
   IF length(COALESCE(btrim(d.txid),'')) <> 64
-     OR COALESCE(btrim(d.txid),'') !~ '^[A-Fa-f0-9]+
-RETURNS trigger
-LANGUAGE plpgsql
-SECURITY INVOKER
-SET search_path TO ''
-AS $function$
-DECLARE
-  v_rules jsonb := '{}'::jsonb;
-  v_wallet public.deposit_wallets%ROWTYPE;
-  v_raw text := btrim(COALESCE(NEW.raw_amount, ''));
-BEGIN
-  IF upper(btrim(COALESCE(NEW.status, ''))) <> 'VERIFIED'
-     OR upper(btrim(COALESCE(NEW.network, ''))) <> 'TRON TESTNET' THEN
-    RETURN NEW;
-  END IF;
-
-  SELECT COALESCE(value_json, '{}'::jsonb)
-    INTO v_rules
-    FROM public.platform_settings
-   WHERE key = 'shasta_testnet_rules';
-
-  IF NOT EXISTS (
-       SELECT 1 FROM public.shasta_test_users t
-        WHERE t.user_id = NEW.user_id AND t.enabled = true
-     ) THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit is restricted to the explicitly allowlisted test account';
-  END IF;
-
-  IF upper(btrim(COALESCE(v_rules ->> 'network', ''))) <> 'TRON TESTNET'
-     OR btrim(COALESCE(v_rules ->> 'token_contract', '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'
-     OR btrim(COALESCE(NEW.token_contract, '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit requires the pinned Shasta USDT contract and network';
-  END IF;
-
-  IF NEW.deposit_wallet_id IS NULL
-     OR btrim(COALESCE(NEW.receiving_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
-     OR btrim(COALESCE(NEW.txid, '')) !~ '^[A-Fa-f0-9]{64}$'
-     OR btrim(COALESCE(NEW.sender_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'
-     OR NEW.block_timestamp IS NULL
-     OR btrim(COALESCE(NEW.verification_source, '')) = ''
-     OR COALESCE(NEW.ai_review_status, '') NOT IN ('APPROVED', 'MANUAL_APPROVED') THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit credit is missing verified chain or review evidence';
-  END IF;
-
-  IF v_raw !~ '^[1-9][0-9]*$' OR length(v_raw) > 78
-     OR NEW.gross_amount IS NULL OR NEW.gross_amount <= 0
-     OR NEW.deposit_fee IS NULL OR NEW.deposit_fee < 0
-     OR NEW.deposit_fee > NEW.gross_amount
-     OR v_raw::numeric / 1000000 <> NEW.gross_amount THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta raw token amount does not exactly match the deposit request';
-  END IF;
-
-  SELECT * INTO v_wallet
-    FROM public.deposit_wallets
-   WHERE id = NEW.deposit_wallet_id
-     AND user_id = NEW.user_id;
-
-  IF NOT FOUND
-     OR upper(btrim(COALESCE(v_wallet.network, ''))) <> 'TRON TESTNET'
-     OR v_wallet.address IS DISTINCT FROM btrim(NEW.receiving_address)
-     OR v_wallet.token_contract IS DISTINCT FROM 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
-    RAISE EXCEPTION USING ERRCODE = '22023',
-      MESSAGE = 'Shasta deposit must match the receiving address assigned to this user';
-  END IF;
-
-  RETURN NEW;
-END;
-$function$;
-
-DROP TRIGGER IF EXISTS guard_shasta_deposit_verification ON public.deposit_submissions;
-CREATE TRIGGER guard_shasta_deposit_verification
-BEFORE INSERT OR UPDATE ON public.deposit_submissions
-FOR EACH ROW
-EXECUTE FUNCTION public.guard_shasta_deposit_verification();
-
-REVOKE ALL ON FUNCTION public.guard_shasta_deposit_verification() FROM PUBLIC;
-
-COMMIT;
- THEN
+     OR COALESCE(btrim(d.txid),'') !~ '^[A-Fa-f0-9]+$' THEN
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='A valid 64-character chain transaction ID is required before deposit credit';
   END IF;
   IF d.gross_amount IS NULL OR d.gross_amount <= 0
@@ -346,11 +100,11 @@ COMMIT;
     RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='On-chain raw amount does not match the submitted deposit amount';
   END IF;
 
-  -- Shasta is a separate, explicitly allowlisted test path. Its configuration
-  -- never changes the application's global Mainnet deposit_rules.
+  -- Shasta is a separate, explicitly allowlisted test path. Global Mainnet rules
+  -- remain untouched, even while a designated test account uses the test network.
   IF upper(btrim(COALESCE(d.network,''))) = 'TRON TESTNET' THEN
     SELECT COALESCE(value_json,'{}'::jsonb) INTO v_rules
-    FROM public.platform_settings WHERE key = 'shasta_testnet_rules';
+      FROM public.platform_settings WHERE key = 'shasta_testnet_rules';
     v_network := upper(btrim(COALESCE(v_rules ->> 'network','')));
     v_contract := btrim(COALESCE(v_rules ->> 'token_contract',''));
 
@@ -366,9 +120,9 @@ COMMIT;
     END IF;
 
     SELECT COALESCE(value_json,'{}'::jsonb) INTO v_mode
-    FROM public.platform_settings WHERE key = 'system_mode';
+      FROM public.platform_settings WHERE key = 'system_mode';
     SELECT COALESCE(value_json,'{}'::jsonb) INTO v_production
-    FROM public.platform_settings WHERE key = 'production_config';
+      FROM public.platform_settings WHERE key = 'production_config';
     IF COALESCE(v_mode ->> 'mode','') <> 'MAINNET'
        OR COALESCE(v_mode ->> 'live_deposits','true') <> 'false'
        OR COALESCE(v_mode ->> 'real_payouts','true') <> 'false'
@@ -382,12 +136,11 @@ COMMIT;
     END IF;
   ELSE
     SELECT COALESCE(value_json,'{}'::jsonb) INTO v_rules
-    FROM public.platform_settings WHERE key = 'deposit_rules';
+      FROM public.platform_settings WHERE key = 'deposit_rules';
     v_network := upper(btrim(COALESCE(v_rules ->> 'network','')));
     v_contract := btrim(COALESCE(v_rules ->> 'token_contract',''));
 
     -- The configured chain may not be changed underneath a submitted transaction.
-    -- A missing/mismatched network must be reconciled manually, never guessed.
     IF NULLIF(btrim(d.network),'') IS NULL THEN
       RAISE EXCEPTION USING ERRCODE='22023', MESSAGE='Deposit submission has no recorded network; manual reconciliation is required';
     END IF;
