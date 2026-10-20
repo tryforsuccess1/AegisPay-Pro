@@ -389,7 +389,7 @@ BEGIN
     id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,txid,network,
     token_contract,deposit_wallet_id,receiving_address
   ) VALUES (
-    'abababab-abab-4bab-8bab-abababababab',
+    'cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd',
     '11111111-1111-4111-8111-111111111111',
     'tier-a',17.00,0.00,17.00,'PENDING_VERIFICATION','APPROVED',repeat('a',64),'TRON TESTNET',
     'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
@@ -403,14 +403,14 @@ BEGIN
   v_failed := false;
   BEGIN
     PERFORM public.apply_verified_deposit(
-      'abababab-abab-4bab-8bab-abababababab',
+      'cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd',
       'TSvB9Y8S7b4Nw72Grvw1P6fJbfs6jP3ZKn','17000000',
       '2026-10-13T00:00:00Z'::timestamptz,'TronGrid'
     );
   EXCEPTION WHEN SQLSTATE '22023' THEN v_failed := true;
   END;
   IF NOT v_failed THEN RAISE EXCEPTION 'Shasta credit accepted a reused Mainnet treasury address'; END IF;
-  IF (SELECT status FROM public.deposit_submissions WHERE id='abababab-abab-4bab-8bab-abababababab') <> 'PENDING_VERIFICATION' THEN
+  IF (SELECT status FROM public.deposit_submissions WHERE id='cdcdcdcd-cdcd-4cdc-8cdc-cdcdcdcdcdcd') <> 'PENDING_VERIFICATION' THEN
     RAISE EXCEPTION 'Rejected reused treasury changed Shasta deposit status'; END IF;
   UPDATE public.platform_settings
      SET value_json = value_json || jsonb_build_object('receiving_address','T'||repeat('5',33))
