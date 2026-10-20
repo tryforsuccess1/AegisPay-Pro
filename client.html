@@ -752,19 +752,8 @@ home:()=>`<div class="tb" style="padding-top:22px"><div class="av">A</div><div s
  <div class="promo" onclick="go('referral')"><div style="flex:1"><b>Invite friends, earn USDT</b><p>5 USDT per direct invite, 2 USDT per indirect.</p><span class="pill">Code: AP10023 ${ic('copy')}</span></div><div class="gb">${ic('gift')}</div></div>
  <div class="sh">Recent Activity</div><div class="card" style="padding:4px 16px">${tx('dl','#1a9a6e','Deposit · USDT','Today, 10:24','+100.00','up')}${tx('up','#d98a1a','Withdraw · USDT','Yesterday','−25.00','dn')}${tx('gift','#f06a4d','Referral reward','12 Sep','+5.00','up')}</div>${NV('home')}`,
 
-topup:()=>`${T('Top Up','home')}<div class="sh">Payment Method</div>
- <div class="opt s">${bub('▽','#d63a4a')}<div>USDT (TRC20)<small>Fast · Low fees</small></div><span class="chip">Best</span></div>
- <div class="opt">${bub('₮','#8a7a68')}<div>USDT (ERC20)<small>Higher network fees</small></div>${ic('chev')}</div>
- <div class="opt">${bub('₿','#d98a1a')}<div>Bitcoin (BTC)<small>Secure &amp; global</small></div>${ic('chev')}</div>
- <div class="opt">${bub(ic('card'),'#c94b8a')}<div>Bank Transfer<small>Local deposit</small></div>${ic('chev')}</div>
- <div class="card amt"><small>Amount (USDT)</small><h2>100<span class="mu" style="font-size:18px"> USDT</span></h2><div class="fl" style="justify-content:center;margin:12px 0 0"><span>50</span><span class="on">100</span><span>500</span><span>1,000</span></div></div>
- <div class="card"><div class="row" style="padding-top:0"><div class="mu">Network fee</div><em>1.00 USDT</em></div><div class="row" style="border:0;padding-bottom:0"><div>You receive</div><em class="up">99.00 USDT</em></div></div>
- <button class="btn" onclick="go('deposit')">Generate Deposit Link ${ic('arrow')}</button>`,
-
-deposit:()=>`${T('Deposit USDT','topup')}<div style="text-align:center"><span class="chip">Network: TRC20</span>${qr('')}<p class="mu" style="font-size:12px">Scan to deposit USDT (TRC20)</p></div>
- <div class="sh" style="margin-top:16px">Deposit Address</div><div class="in f">Open the secure deposit page to view the configured receiving address.<span style="color:var(--c)">${ic('copy')}</span></div>
- <div class="warn">${ic('alert')}<span>Send only USDT (TRC20) to this address. Other networks may cause permanent loss of funds.</span></div>
- <div class="two"><button class="btn o">${ic('link')} Save Link</button><button class="btn">${ic('share')} Share</button></div>`,
+topup:()=>`${T('Top Up','home')}<div class="info b">${ic('info')}<div><b>Secure USDT deposit</b><p>Your authenticated receiving address, QR code and deposit verification form load in the secure deposit workflow.</p></div></div><button class="btn" type="button" onclick="go('topup')">Open secure deposit flow ${ic('arrow')}</button>`,
+ deposit:()=>`${T('Deposit USDT','topup')}<div class="info b">${ic('info')}<div>Use only the unique address issued inside your authenticated AegisPay account. If deposits are paused, do not send funds.</div></div><button class="btn" type="button" onclick="go('topup')">Open secure deposit flow ${ic('arrow')}</button>`,
 
 withdraw:()=>`${T('Withdraw','home')}<div class="card" style="text-align:center"><small class="mu">Available balance</small><h2 style="font-size:32px;margin:4px 0">2,480.50 <span class="mu" style="font-size:15px">USDT</span></h2></div>
  <div class="sh">Wallet Address (TRC20)</div><div class="in" style="padding:0;overflow:hidden"><span style="padding-left:14px;color:var(--mu)">${ic('link')}</span><input id="withdrawWallet" type="text" placeholder="Enter wallet address" autocomplete="off" style="flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--t);font:500 13px Sora;padding:14px 4px"><button type="button" style="border:0;background:transparent;color:var(--c);font:600 12px Sora;padding:14px 12px">Scan</button></div>
