@@ -146,6 +146,19 @@ assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+
+// A manually approved legacy deposit without a TXID can be recovered only by a
+// Master Admin; actual credit still has to pass the existing chain verifier.
+const depositReviewFrontendSource=fs.readFileSync('admin-auth.js','utf8');
+const depositReviewBackendSource=fs.readFileSync('supabase/functions/admin-review/index.ts','utf8');
+assert(depositReviewFrontendSource.includes("data-action=\"attach-deposit-txid\"")&&depositReviewFrontendSource.includes("data-deposit-txid=\"true\""),'Master Admin must expose a TXID entry for manually approved pending deposits that lack a TXID.');
+assert(depositReviewFrontendSource.includes("async function attachDepositTxid(el)")&&depositReviewFrontendSource.includes("service.invokeFunction('verify-deposit'"),'TXID recovery must immediately attempt the existing chain verifier.');
+assert(depositReviewBackendSource.includes('if (action === "deposit_txid")')&&depositReviewBackendSource.includes('/^[0-9a-f]{64}$/i.test(txid)'), 'TXID recovery endpoint must validate a 64-character hexadecimal hash.');
+assert(depositReviewBackendSource.includes('["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || "").toUpperCase())')&&depositReviewBackendSource.includes('.is("txid", null)'), 'Only reviewed, pending deposits with no existing TXID may be linked; a previous TXID cannot be overwritten.');
+assert(depositReviewBackendSource.includes('requiresChainVerification: true')&&!depositReviewBackendSource.includes('apply_verified_deposit'), 'Attaching a TXID must not credit a balance; the verified-deposit RPC remains the only credit path.');
+assert(masterAdmin.includes('admin-auth.js?v=20261021-missing-deposit-txid-recovery'),'Master Admin must request the latest TXID recovery client code.');
+const serviceWorkerForTxidRecovery=fs.readFileSync('service-worker.js','utf8');
+assert(serviceWorkerForTxidRecovery.includes("const CACHE='aegispay-shell-v38-missing-deposit-txid-recovery'"),'Service worker cache must be bumped for TXID recovery assets.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
@@ -187,7 +200,7 @@ assert(shopWorkerPage.includes("index<4?'eager':'lazy'")&&shopWorkerPage.include
 const startupSource=client.slice(client.indexOf('async function initData(){'),client.indexOf('\nfunction top(',client.indexOf('async function initData(){')));
 assert(startupSource.includes('const [userResult,s,t]=await Promise.all([')&&startupSource.includes('void refreshNotificationCount();'),'Authenticated startup must load profile-related data concurrently and refresh the notification count without blocking page rendering.');
 assert(client.includes('async function refreshClientProfile()')&&client.includes('await refreshClientProfile(); await liveShop();')&&client.includes("await refreshClientProfile();\n   await liveShop();"),'Shop tier/task/cycle actions must refresh only the changed profile before reloading Shop data.');
-assert(serviceWorker.includes("const CACHE='aegispay-shell-v37-admin-session-isolation'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
+assert(serviceWorker.includes("const CACHE='aegispay-shell-v38-missing-deposit-txid-recovery'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
 assert(serviceWorker.includes('const update=fetch(event.request,{cache:\'no-store\'})')&&serviceWorker.includes('caches.match(cacheKey).then(cached=>cached||update.catch')&&serviceWorker.includes('cacheUrl.search=\'\';'),'Static shell requests must be served from cache first, refresh in the background, and avoid caching URL query tokens.');
 assert(serviceWorker.includes("['code','access_token','refresh_token','token_hash','error','error_description']")&&serviceWorker.includes('const shouldStore=!authSensitive&&!isAuthCallback'),'OAuth and recovery URLs must never be stored as distinct cached requests.');
 assert(client.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})")&&masterAdmin.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})"),'Web client and Master Admin must register the non-blocking app-shell cache after page load.');

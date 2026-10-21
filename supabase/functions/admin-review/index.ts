@@ -39,6 +39,43 @@ Deno.serve(async (req: Request) => {
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
       return json({ error: "A valid review item is required." }, 400);
     }
+
+    // A manually approved pending deposit may need its missing TXID attached
+    // to the existing request. This action is Master-Admin-only and never
+    // credits the ledger itself; verify-deposit remains the sole chain verifier.
+    if (action === "deposit_txid") {
+      const txid = String(body?.txid || "").trim();
+      if (!/^[0-9a-f]{64}$/i.test(txid)) {
+        return json({ error: "Enter the full 64-character transaction hash." }, 400);
+      }
+      const { data: deposit, error: lookupError } = await admin.from("deposit_submissions")
+        .select("id,status,txid,screenshot_path,ai_review_status")
+        .eq("id", id).maybeSingle();
+      if (lookupError) return json({ error: "Unable to load the pending deposit." }, 500);
+      if (!deposit || deposit.status !== "PENDING_VERIFICATION") {
+        return json({ error: "Deposit is no longer awaiting on-chain verification." }, 409);
+      }
+      if (!deposit.screenshot_path || !["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || "").toUpperCase())) {
+        return json({ error: "Manually approve the deposit evidence before attaching a TXID." }, 409);
+      }
+      if (String(deposit.txid || "").trim()) {
+        return json({ error: "This deposit already has a TXID. Existing transaction references cannot be replaced here." }, 409);
+      }
+      const { data: saved, error: saveError } = await admin.from("deposit_submissions")
+        .update({
+          txid,
+          verification_note: "TXID linked by Master Admin; awaiting confirmed on-chain verification.",
+        })
+        .eq("id", id)
+        .eq("status", "PENDING_VERIFICATION")
+        .is("txid", null)
+        .select("id")
+        .maybeSingle();
+      if (saveError) return json({ error: "TXID could not be saved to the pending deposit." }, 500);
+      if (!saved) return json({ error: "Deposit changed while saving. Refresh the queue and try again." }, 409);
+      return json({ status: "TXID_LINKED", requiresChainVerification: true });
+    }
+
     if (!["approve","reject"].includes(decision)) return json({ error: "Choose approve or reject." }, 400);
 
     if (action === "deposit") {
