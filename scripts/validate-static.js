@@ -414,7 +414,7 @@ assert(client.includes("walletNetwork!=='TRON TESTNET'&&!/^[A-Fa-f0-9]{64}$/.tes
 
 
 
-assert(client.includes("data-shasta-verify")&&client.includes("db.functions.invoke('verify-deposit',{body:{depositId:id}})")&&client.includes("Checking Shasta"),"Pending Shasta deposit requests must expose an authenticated on-chain recheck action.");
+assert(client.includes("data-shasta-verify")&&client.includes("db.functions.invoke('verify-deposit',{body:{depositId:id}})")&&client.includes("Checking TronGrid")&&client.includes("Verify from TronGrid"),"Pending Shasta deposit requests must expose an authenticated TronGrid verification action.");
 
 assert(!client.includes('Generate Deposit Link')&&!client.includes('Bitcoin (BTC)')&&!client.includes('Network fee</div><em>1.00 USDT</em>'),'Legacy demo deposit/payment values must not be presented as real receiving options.');
 assert(client.includes('liveWithdraw'),'Client Withdrawal runtime is missing');
