@@ -437,13 +437,22 @@ const server = http.createServer((req, res) => {
       adminViewportResults.push(width);
     }
     await adminPage.setViewportSize({ width: 1280, height: 738 });
-    const adminFooterFit = await adminPage.evaluate(() => ({
-      documentHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
-      viewportHeight: window.innerHeight,
-      footerBottom: Math.round(document.querySelector('.aa-auth-footer')?.getBoundingClientRect().bottom || 0)
-    }));
+    const adminFooterFit = await adminPage.evaluate(() => {
+      const card = document.querySelector('.aa-auth-card')?.getBoundingClientRect();
+      const footer = document.querySelector('.aa-auth-footer')?.getBoundingClientRect();
+      return {
+        documentHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+        viewportHeight: window.innerHeight,
+        cardBottom: Math.round(card?.bottom || 0),
+        footerTop: Math.round(footer?.top || 0),
+        footerBottom: Math.round(footer?.bottom || 0),
+        gap: Math.round((footer?.top || 0) - (card?.bottom || 0))
+      };
+    });
     assert.ok(adminFooterFit.documentHeight <= adminFooterFit.viewportHeight + 1, 'Master Admin login should fit the reference-height viewport without vertical scrolling: ' + JSON.stringify(adminFooterFit));
     assert.ok(adminFooterFit.footerBottom <= adminFooterFit.viewportHeight + 1, 'Master Admin security footer should be visible without scrolling: ' + JSON.stringify(adminFooterFit));
+    assert.ok(adminFooterFit.gap >= 0 && adminFooterFit.gap <= 24, 'Master Admin security footer must be positioned directly below the login card, not at the viewport bottom: ' + JSON.stringify(adminFooterFit));
+    assert.ok(adminFooterFit.viewportHeight - adminFooterFit.footerBottom >= 40, 'Master Admin security footer must be lifted well above the viewport bottom: ' + JSON.stringify(adminFooterFit));
     assert.deepEqual(adminErrors, [], 'Master Admin uncaught browser JavaScript errors: ' + adminErrors.join(' | '));
     console.log('Client browser smoke passed at ' + viewportResults.join(', ') + 'px (primary contrast ' + clientContrast.toFixed(2) + ':1); Master Admin login/theme smoke passed at ' + adminViewportResults.join(', ') + 'px (primary contrast ' + adminContrast.toFixed(2) + ':1).');
     await context.close();
