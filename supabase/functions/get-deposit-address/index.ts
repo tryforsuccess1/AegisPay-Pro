@@ -2,11 +2,15 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
 const HD_PASSPHRASE = Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
+const TESTNET_HD_MNEMONIC = Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
+const TESTNET_HD_PASSPHRASE = Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
@@ -36,20 +40,29 @@ Deno.serve(async (req) => {
     if (profile.role !== "USER" || !["ACTIVE","NORMAL"].includes(String(profile.status || "").toUpperCase())) return json({ error: "This account cannot create a deposit address." }, 403);
     if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "This account is temporarily frozen for security." }, 423);
 
+    const isShastaTestUser = await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED);
+    const testnetRules = isShastaTestUser
+      ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED)
+      : null;
+    if (isShastaTestUser && !testnetRules) return json({ error: "Shasta test mode is unavailable while live-money gates are open or its test configuration is invalid.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
+
     const [{ data: runtimeEnabled, error: runtimeError }, { data: rulesRow, error: rulesError },
       { data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
       admin.rpc("app_runtime_enabled"),
-      admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", isShastaTestUser ? "shasta_testnet_rules" : "deposit_rules").maybeSingle(),
       admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
       admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
     ]);
     if (runtimeError || rulesError || modeError || productionError || !rulesRow?.value_json || !modeRow?.value_json || !productionRow?.value_json) return json({ error: "Unable to confirm deposit-network readiness." }, 503);
     if (runtimeEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
 
-    const rules = rulesRow.value_json, mode = modeRow.value_json, production = productionRow.value_json;
+    const rules = isShastaTestUser ? testnetRules! : rulesRow.value_json;
+    const mode = modeRow.value_json, production = productionRow.value_json;
     const network = String(rules.network || "").toUpperCase();
     const tokenContract = String(rules.token_contract || "").trim();
     const treasury = String(rules.receiving_address || "").trim();
+    const hdMnemonic = isShastaTestUser ? TESTNET_HD_MNEMONIC : HD_MNEMONIC;
+    const hdPassphrase = isShastaTestUser ? TESTNET_HD_PASSPHRASE : HD_PASSPHRASE;
     let ready = false, payoutKey = "";
     if (network === "TRON MAINNET") {
       payoutKey = MAINNET_PAYOUT_KEY;
@@ -64,16 +77,26 @@ Deno.serve(async (req) => {
         && credentialsReady && (unresolved || []).length === 0;
     } else if (network === "TRON TESTNET") {
       payoutKey = TESTNET_PAYOUT_KEY;
-      ready = mode.mode === "TESTNET_DEMO" && mode.testnet_payouts === true && tokenContract === SHASTA_USDT;
+      ready = isShastaTestUser && Boolean(testnetRules) && tokenContract === SHASTA_USDT
+        && mode.mode === "MAINNET" && mode.live_deposits === false && mode.real_payouts === false
+        && mode.production_go_live_approved === false
+        && String(production.environment || "").toUpperCase() === "PRE_PRODUCTION"
+        && production.live_deposits_enabled === false && production.real_payouts_enabled === false
+        && production.go_live_approved === false && production.payouts_locked === true;
     } else return json({ error: "Unsupported deposit network." }, 503);
 
     if (!ready) return json({ error: "Deposit addresses are unavailable until the selected network and payout-readiness checks pass.", code: "DEPOSIT_ADDRESS_NETWORK_PAUSED" }, 423);
+    if (network === "TRON TESTNET" && !shastaSecretsAreDistinct(
+      TESTNET_HD_MNEMONIC, HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY,
+    )) {
+      return json({ error: "Shasta test secrets must not reuse the Mainnet payout key or HD mnemonic.", code: "TESTNET_SECRET_REUSE_BLOCKED" }, 423);
+    }
     if (!validAddress(treasury) || !payoutKey || String(TronWeb.address.fromPrivateKey(payoutKey) || "") !== treasury) {
       return json({ error: "The configured treasury address does not match the authorized payout signer. No deposit address was issued.", code: "TREASURY_SIGNER_MISMATCH" }, 409);
     }
-    if (!HD_MNEMONIC.trim()) return json({ error: "The dedicated TRON HD wallet secret is not configured. No deposit address was issued.", code: "HD_WALLET_NOT_CONFIGURED" }, 503);
+    if (!hdMnemonic.trim()) return json({ error: "The dedicated TRON HD wallet secret is not configured. No deposit address was issued.", code: "HD_WALLET_NOT_CONFIGURED" }, 503);
 
-    const rootIdentity = await deriveTronHdIdentity(HD_MNEMONIC, HD_PASSPHRASE, 0);
+    const rootIdentity = await deriveTronHdIdentity(hdMnemonic, hdPassphrase, 0);
     const rootFingerprint = rootIdentity.rootFingerprint;
     const { data: current, error: currentError } = await admin.from("deposit_wallets").select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,status")
       .eq("user_id", profile.id).eq("network", network).eq("status", "ACTIVE").maybeSingle();
@@ -86,7 +109,7 @@ Deno.serve(async (req) => {
     const { data: nextIndex, error: indexError } = await admin.rpc("next_tron_deposit_address_index");
     const index = Number(nextIndex);
     if (indexError || !Number.isSafeInteger(index) || index < 1 || index >= 2147483648) return json({ error: "Unable to allocate a secure deposit-address index." }, 503);
-    const identity = await deriveTronHdIdentity(HD_MNEMONIC, HD_PASSPHRASE, index);
+    const identity = await deriveTronHdIdentity(hdMnemonic, hdPassphrase, index);
     if (identity.rootFingerprint !== rootFingerprint || !validAddress(identity.address)) return json({ error: "HD wallet derivation validation failed." }, 503);
 
     const { data: inserted, error: insertError } = await admin.from("deposit_wallets").insert({

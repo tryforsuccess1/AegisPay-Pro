@@ -1,11 +1,15 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadPrivateImage, runVisionReview } from "./ai-review.ts";
+import { loadPrivateImage, runVisionReview } from "../_shared/deposit-image-ai.ts";
+import { sha256Hex } from "../_shared/deposit-txid.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const SHASTA_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -19,6 +23,26 @@ const cors = {
   "Content-Type": "application/json",
 };
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors }); }
+async function registerDuplicateTxidAttempt(admin: any, userId: string, txid: string) {
+  const fingerprint = await sha256Hex(txid.toLowerCase());
+  const { data, error } = await admin.rpc("register_duplicate_deposit_txid_attempt", {
+    p_user_id: userId,
+    p_txid_sha256: fingerprint,
+  });
+  if (error) return { attemptCount: null as number | null, blocked: false, counted: false, logged: false };
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    attemptCount: Number(row?.attempt_count || 0) || 0,
+    blocked: row?.blocked === true,
+    counted: row?.counted === true,
+    logged: true,
+  };
+}
+function duplicateTxidWarning(attemptCount: number | null, blocked: boolean) {
+  if (blocked) return "Your account has been blocked after repeated attempts to reuse transaction IDs. Contact support to request a review.";
+  if (attemptCount !== null && attemptCount >= 2) return "Final warning: this TXID is already linked to another deposit. One more duplicate-TXID attempt within 30 days will block your account.";
+  return "Warning: this TXID is already linked to another deposit and has been rejected. One more duplicate-TXID attempt within 30 days will block your account.";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -37,17 +61,30 @@ Deno.serve(async (req: Request) => {
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
 
+    const { data: profile, error: profileError } = await admin.from("users")
+      .select("id,auth_user_id,role,status,first_deposit_done,frozen_until").eq("auth_user_id", auth.user.id).maybeSingle();
+    if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
+    if (profile.role !== "USER") return json({ error: "A client account is required to submit deposits." }, 403);
+    const profileStatus = String(profile.status || "").toUpperCase();
+    if (profileStatus === "BLOCKED") return json({ error: "This account is blocked after repeated duplicate-TXID attempts. Contact support to request a review.", code: "ACCOUNT_BLOCKED_DUPLICATE_TXID" }, 423);
+    if (["SUSPENDED", "DELETED"].includes(profileStatus)) return json({ error: "This account cannot submit deposits." }, 403);
+    if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
+
+    const isShastaTestUser = await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED);
+    const shastaRules = isShastaTestUser ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED) : null;
+    if (isShastaTestUser && !shastaRules) return json({ error: "Shasta test mode is unavailable while live-money gates are open or test configuration is invalid.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
+
     const [{ data: modeRow, error: modeError }, { data: productionRow, error: productionError }, { data: depositRulesRow, error: depositRulesError }] = await Promise.all([
       admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
       admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
-      admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", isShastaTestUser ? "shasta_testnet_rules" : "deposit_rules").maybeSingle(),
     ]);
     if (modeError || productionError || depositRulesError || !modeRow?.value_json || !productionRow?.value_json || !depositRulesRow?.value_json) {
-      return json({ error: "Unable to confirm Mainnet deposit readiness.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
+      return json({ error: "Unable to confirm deposit readiness.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
     }
     const mode = modeRow.value_json;
     const production = productionRow.value_json;
-    const rules = depositRulesRow.value_json;
+    const rules = isShastaTestUser ? shastaRules! : depositRulesRow.value_json;
     const depositNetwork = String(rules.network || "").toUpperCase();
     if (depositNetwork === "TRON MAINNET") {
       const mainnetTokenContract = String(rules.token_contract || "").trim();
@@ -66,15 +103,13 @@ Deno.serve(async (req: Request) => {
         production.go_live_approved === true && production.payouts_locked === false &&
         payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
       if (!mainnetDepositsOpen) return json({ error: "New Mainnet deposits are paused until production payouts are fully configured, approved, reconciled, and unlocked.", code: "MAINNET_DEPOSITS_PAUSED" }, 423);
-    } else if (depositNetwork !== "TRON TESTNET") {
+    } else if (depositNetwork === "TRON TESTNET") {
+      if (!isShastaTestUser || !shastaRules || String(rules.token_contract || "").trim() !== SHASTA_USDT) {
+        return json({ error: "Shasta deposits are available only to the explicitly allowlisted test account.", code: "SHASTA_TEST_ACCOUNT_REQUIRED" }, 403);
+      }
+    } else {
       return json({ error: "Unsupported deposit network." }, 503);
     }
-
-    const { data: profile, error: profileError } = await admin.from("users")
-      .select("id,auth_user_id,role,status,first_deposit_done,frozen_until").eq("auth_user_id", auth.user.id).maybeSingle();
-    if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
-    if (profile.role !== "USER" || ["BLOCKED", "SUSPENDED", "DELETED"].includes(String(profile.status).toUpperCase())) return json({ error: "This account cannot submit deposits." }, 403);
-    if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
     const { data: depositWallet, error: depositWalletError } = await admin.from("deposit_wallets")
       .select("id,address,network,token_contract,status").eq("user_id", profile.id).eq("network", depositNetwork).eq("status", "ACTIVE").maybeSingle();
@@ -87,14 +122,66 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => null);
     const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
     const amount = Number(amountInput);
-    const txid = typeof body?.txid === "string" ? body.txid.trim() : "";
+    const enteredTxid = typeof body?.txid === "string" ? body.txid.trim() : "";
+    const validEnteredTxid = /^[a-f\d]{64}$/i.test(enteredTxid);
+    // Store user input as an untrusted hint. For Shasta, the canonical txid is
+    // discovered from a unique confirmed transfer and remains NULL until then.
+    const submittedTxid = enteredTxid ? enteredTxid.slice(0, 128) : null;
+    const txid = isShastaTestUser ? null : (validEnteredTxid ? enteredTxid : "");
     const screenshotPath = typeof body?.screenshotPath === "string" ? body.screenshotPath : "";
     if (!/^\d+(?:\.\d{1,2})?$/.test(amountInput) || !Number.isFinite(amount) || amount < 10
       || !Number.isSafeInteger(Math.round(amount * 100))) {
       return json({ error: "Deposit amount must be at least 10 USDT, use at most two decimal places, and be within the supported precision." }, 400);
     }
-    if (!/^[a-f\d]{64}$/i.test(txid)) return json({ error: "Enter the 64-character TRON transaction ID." }, 400);
+    if (!isShastaTestUser && !validEnteredTxid) return json({ error: "Enter the 64-character TRON transaction ID." }, 400);
+    if (enteredTxid.length > 128) return json({ error: "Transaction ID input is too long. Clear it or paste the TXID." }, 400);
     if (!screenshotPath.startsWith(auth.user.id + "/deposits/")) return json({ error: "Upload the deposit screenshot first." }, 400);
+
+    // Load and hash the evidence before inserting a request. The digest is an
+    // anti-replay signal only; a screenshot never proves a blockchain transfer.
+    let image;
+    try {
+      image = await loadPrivateImage(admin.storage, screenshotPath);
+    } catch {
+      return json({ error: "The uploaded screenshot could not be read or failed file validation." }, 400);
+    }
+    const digest = await crypto.subtle.digest("SHA-256", image.bytes.slice().buffer as ArrayBuffer);
+    const evidenceSha256 = Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
+    if (validEnteredTxid) {
+      // Reject reused TXIDs before creating a new request. SQL uniqueness remains
+      // the final race-safe guard; this precheck enables a clear warning now.
+      const [canonicalClaim, submittedClaim] = await Promise.all([
+        admin.from("deposit_submissions").select("id,status")
+          .eq("network", depositNetwork).ilike("txid", enteredTxid).limit(1).maybeSingle(),
+        admin.from("deposit_submissions").select("id,status")
+          .eq("network", depositNetwork).ilike("submitted_txid", enteredTxid)
+          .neq("status", "REJECTED").limit(1).maybeSingle(),
+      ]);
+      if (canonicalClaim.error || submittedClaim.error) return json({ error: "Unable to check whether this TXID is already claimed. Please retry shortly." }, 503);
+      if (canonicalClaim.data || submittedClaim.data) {
+        const recorded = await registerDuplicateTxidAttempt(admin, profile.id, enteredTxid);
+        const warning = duplicateTxidWarning(recorded.attemptCount, recorded.blocked);
+        return json({
+          error: warning,
+          warning,
+          code: recorded.blocked ? "ACCOUNT_BLOCKED_DUPLICATE_TXID" : "DUPLICATE_DEPOSIT_TXID",
+          attemptCount: recorded.attemptCount,
+          blocked: recorded.blocked,
+        }, recorded.blocked ? 423 : 409);
+      }
+    }
+
+
+    const { data: duplicateEvidence, error: evidenceLookupError } = await admin.from("deposit_submissions")
+      .select("id,status").eq("network", depositNetwork).eq("evidence_sha256", evidenceSha256)
+      .neq("status", "REJECTED").limit(1).maybeSingle();
+    if (evidenceLookupError) return json({ error: "Unable to check whether this screenshot was already used. Please retry shortly." }, 503);
+    if (duplicateEvidence) return json({
+      error: "This exact screenshot has already been submitted for a deposit. Open the existing request instead of submitting it again.",
+      code: "DUPLICATE_DEPOSIT_EVIDENCE",
+      depositId: duplicateEvidence.id,
+      status: duplicateEvidence.status,
+    }, 409);
 
     const tierQuery = await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).lte("deposit_amount", amount).order("deposit_amount", { ascending: false }).limit(1).maybeSingle();
     const fallbackTier = !tierQuery.data ? await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).order("deposit_amount", { ascending: true }).limit(1).maybeSingle() : { data: tierQuery.data, error: null };
@@ -103,23 +190,40 @@ Deno.serve(async (req: Request) => {
 
     const { data: deposit, error: insertError } = await admin.from("deposit_submissions").insert({
       user_id: profile.id, tier_id: tier.id, gross_amount: amount, deposit_fee: 0,
-      credited_amount: Math.max(0, amount), txid, network: depositNetwork, screenshot_path: screenshotPath,
+      credited_amount: Math.max(0, amount), txid, submitted_txid: submittedTxid, evidence_sha256: evidenceSha256, network: depositNetwork, screenshot_path: screenshotPath,
       deposit_wallet_id: depositWallet.id, receiving_address: receivingAddress, token_contract: depositWallet.token_contract,
       status: "PENDING_VERIFICATION", ai_review_status: "PENDING_REVIEW",
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
     }).select("id,status,ai_review_status,gross_amount,created_at").single();
     if (insertError || !deposit) {
-      const duplicate = /duplicate|unique/i.test(insertError?.message || "");
-      return json({ error: duplicate ? "This transaction ID has already been submitted." : "Unable to create deposit submission." }, duplicate ? 409 : 400);
+      const errorMessage = String(insertError?.message || "");
+      const duplicateTxid = /duplicate|unique/i.test(errorMessage) && /txid/i.test(errorMessage);
+      if (duplicateTxid && validEnteredTxid) {
+        const recorded = await registerDuplicateTxidAttempt(admin, profile.id, enteredTxid);
+        const warning = duplicateTxidWarning(recorded.attemptCount, recorded.blocked);
+        return json({
+          error: warning,
+          warning,
+          code: recorded.blocked ? "ACCOUNT_BLOCKED_DUPLICATE_TXID" : "DUPLICATE_DEPOSIT_TXID",
+          attemptCount: recorded.attemptCount,
+          blocked: recorded.blocked,
+        }, recorded.blocked ? 423 : 409);
+      }
+      const duplicate = /duplicate|unique/i.test(errorMessage);
+      return json({
+        error: duplicate
+          ? "This deposit screenshot or transaction ID has already been submitted. No duplicate credit was created."
+          : "Unable to create deposit submission.",
+        code: duplicate ? "DUPLICATE_DEPOSIT_EVIDENCE_OR_TXID" : "DEPOSIT_SUBMISSION_FAILED",
+      }, duplicate ? 409 : 400);
     }
 
     let review: { configured: boolean; result?: Record<string, unknown> } = { configured: false, result: {} };
     if (aiEnabled) {
       try {
-        const image = await loadPrivateImage(admin.storage, screenshotPath);
         review = await runVisionReview([
           "Perform an AI evidence precheck for a claimed USDT deposit screenshot.",
-          "Claimed TRON transaction ID: " + txid + ".",
+          "User-entered transaction ID (unverified; may be blank or mistyped): " + (submittedTxid || "not provided; discover the transfer from confirmed Shasta chain data") + ".",
           "Claimed gross amount: " + amount.toFixed(2) + " USDT.",
           "Expected receiving address: " + receivingAddress + ".",
           "Check only visible screenshot evidence: receipt visibility, transaction ID consistency, amount consistency, recipient consistency, legibility, blur, and obvious editing/tampering indicators.",
@@ -137,14 +241,18 @@ Deno.serve(async (req: Request) => {
     const validConfidence = Number.isFinite(confidence) && confidence >= 0 && confidence <= 1;
     const normalizedConfidence = validConfidence ? Math.round(confidence * 1000) / 1000 : null;
     const hardFailure = validConfidence && confidence >= 0.85 && (
-      result.blurry === true || result.legible === false || result.txid_matches === false ||
+      result.blurry === true || result.legible === false || (!isShastaTestUser && result.txid_matches === false) ||
       result.amount_matches === false || result.recipient_matches === false || result.receipt_visible === false
     );
     const tampering = Array.isArray(result.tamper_indicators) && result.tamper_indicators.length > 0;
     const aiApproved = aiEnabled && review.configured && validConfidence && confidence >= 0.95
       && result.receipt_visible === true && result.txid_matches === true && result.amount_matches === true
       && result.recipient_matches === true && result.legible === true && result.blurry === false && !tampering;
-    const aiStatus = !aiEnabled ? "MANUAL_REVIEW" : !review.configured ? "UNAVAILABLE" : hardFailure ? "REJECTED" : aiApproved ? "APPROVED" : "MANUAL_REVIEW";
+    // Shasta always remains eligible for a confirmed-chain review even when the AI
+    // provider is unavailable or the user-entered TXID is missing/mistyped.
+    const aiStatus = isShastaTestUser
+      ? (aiApproved ? "APPROVED" : "MANUAL_REVIEW")
+      : (!aiEnabled ? "MANUAL_REVIEW" : !review.configured ? "UNAVAILABLE" : hardFailure ? "REJECTED" : aiApproved ? "APPROVED" : "MANUAL_REVIEW");
     const reason = !aiEnabled ? "AI_BOT_DISABLED" : !review.configured ? "AI_REVIEW_UNAVAILABLE"
       : hardFailure ? "SCREENSHOT_UNCLEAR_OR_MISMATCHED"
       : tampering ? "POTENTIAL_TAMPERING"
@@ -184,7 +292,9 @@ Deno.serve(async (req: Request) => {
     return json({
       depositId: deposit.id, status: depositStatus, aiReviewStatus: aiStatus,
       aiConfidence: normalizedConfidence, reviewReason: reason,
-      message: aiStatus === "MANUAL_REVIEW" && reason === "AI_BOT_DISABLED" ? "AI approval bot is currently OFF. Your deposit proof has been sent to Master Admin for manual review." : aiStatus === "APPROVED"
+      message: isShastaTestUser && !validEnteredTxid
+        ? "Screenshot received. You may leave TXID blank or enter it incorrectly; the server will search confirmed Shasta USDT transfers to your assigned address and credit only a unique exact match."
+        : aiStatus === "MANUAL_REVIEW" && reason === "AI_BOT_DISABLED" ? "AI approval bot is currently OFF. Your deposit proof has been sent to Master Admin for manual review." : aiStatus === "APPROVED"
         ? "Screenshot check passed. A confirmed matching TRON transfer is still required before your balance is credited."
         : aiStatus === "REJECTED"
         ? "The screenshot is blurry or does not match the submitted transaction. Submit a clear, correct proof."
