@@ -2,6 +2,12 @@
 -- This is a test-only manual credit path. Mainnet always requires confirmed TXID verification.
 BEGIN;
 
+ALTER TABLE public.deposit_submissions
+  ADD COLUMN IF NOT EXISTS manual_approved_by uuid REFERENCES public.users(id) ON DELETE SET NULL;
+COMMENT ON COLUMN public.deposit_submissions.manual_approved_by
+  IS 'Master Admin actor for an explicitly audited, allowlisted TESTNET-only manual deposit credit; never used for Mainnet verification.';
+
+
 CREATE OR REPLACE FUNCTION public.apply_manual_testnet_deposit_approval(
   p_deposit_id uuid,
   p_actor_user_id uuid
@@ -164,6 +170,7 @@ BEGIN
       sender_address = NULL,
       block_timestamp = NULL,
       verification_source = 'MASTER_ADMIN_TESTNET_MANUAL',
+      manual_approved_by = v_actor.id,
       verification_note = 'Manually approved by Master Admin as an allowlisted TRON TESTNET test credit. No TXID was supplied; this path cannot credit Mainnet funds.'
   WHERE id = d.id
     AND status = 'PENDING_VERIFICATION'
@@ -205,6 +212,219 @@ BEGIN
   RETURN d;
 END;
 $function$;
+
+-- Preserve strict chain evidence checks while explicitly allowing the audited,
+-- admin-confirmed test credit path for an allowlisted Shasta account only.
+CREATE OR REPLACE FUNCTION public.guard_shasta_deposit_verification()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path TO ''
+AS $function$
+DECLARE
+  v_rules jsonb := '{}'::jsonb;
+  v_mainnet_rules jsonb := '{}'::jsonb;
+  v_mode jsonb := '{}'::jsonb;
+  v_production jsonb := '{}'::jsonb;
+  v_wallet public.deposit_wallets%ROWTYPE;
+  v_actor public.users%ROWTYPE;
+  v_owner public.users%ROWTYPE;
+  v_raw text := btrim(COALESCE(NEW.raw_amount, ''));
+BEGIN
+  IF upper(btrim(COALESCE(NEW.status, ''))) <> 'VERIFIED'
+     OR upper(btrim(COALESCE(NEW.network, ''))) <> 'TRON TESTNET' THEN
+    RETURN NEW;
+  END IF;
+
+  SELECT COALESCE(value_json, '{}'::jsonb)
+    INTO v_rules
+    FROM public.platform_settings
+   WHERE key = 'shasta_testnet_rules';
+
+  IF NOT EXISTS (
+       SELECT 1 FROM public.shasta_test_users t
+        WHERE t.user_id = NEW.user_id AND t.enabled = true
+     ) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta deposit credit is restricted to the explicitly allowlisted test account';
+  END IF;
+
+  IF upper(btrim(COALESCE(v_rules ->> 'network', ''))) <> 'TRON TESTNET'
+     OR btrim(COALESCE(v_rules ->> 'token_contract', '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'
+     OR btrim(COALESCE(NEW.token_contract, '')) <> 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta deposit credit requires the pinned Shasta USDT contract and network';
+  END IF;
+
+  SELECT COALESCE(value_json, '{}'::jsonb)
+    INTO v_mainnet_rules
+    FROM public.platform_settings
+   WHERE key = 'deposit_rules';
+  IF upper(btrim(COALESCE(v_mainnet_rules ->> 'network',''))) <> 'TRON MAINNET'
+     OR btrim(COALESCE(v_mainnet_rules ->> 'token_contract','')) <> 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+     OR btrim(COALESCE(v_mainnet_rules ->> 'receiving_address','')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}
+IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
+
+REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
+
+COMMIT;
+
+     OR btrim(COALESCE(v_mainnet_rules ->> 'receiving_address','')) = btrim(COALESCE(v_rules ->> 'receiving_address','')) THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta treasury must remain distinct from the valid Mainnet treasury';
+  END IF;
+
+  -- This narrowly defined exception does not accept or invent a transaction ID.
+  -- It is available only when an active Master Admin explicitly approved an
+  -- allowlisted user's evidence, the assigned wallet matches, and all live-money
+  -- gates are closed. The SQL credit routine separately locks/credits atomically.
+  IF NEW.verification_source = 'MASTER_ADMIN_TESTNET_MANUAL' THEN
+    SELECT * INTO v_actor
+      FROM public.users
+     WHERE id = NEW.manual_approved_by;
+    SELECT * INTO v_owner
+      FROM public.users
+     WHERE id = NEW.user_id;
+
+    IF NEW.manual_approved_by IS NULL
+       OR v_actor.id IS NULL
+       OR upper(btrim(COALESCE(v_actor.role,''))) <> 'MASTER ADMIN'
+       OR upper(btrim(COALESCE(v_actor.status,''))) IN ('BLOCKED','SUSPENDED','DELETED')
+       OR v_owner.id IS NULL
+       OR upper(btrim(COALESCE(v_owner.role,''))) <> 'USER'
+       OR upper(btrim(COALESCE(v_owner.status,''))) IN ('BLOCKED','SUSPENDED','DELETED')
+       OR NEW.ai_review_status <> 'MANUAL_APPROVED'
+       OR NEW.ai_review_reason <> 'MASTER_ADMIN_APPROVED_TESTNET'
+       OR NULLIF(btrim(COALESCE(NEW.screenshot_path,'')),'') IS NULL
+       OR NULLIF(btrim(COALESCE(NEW.txid,'')),'') IS NOT NULL
+       OR NULLIF(btrim(COALESCE(NEW.submitted_txid,'')),'') IS NOT NULL
+       OR NEW.raw_amount IS NOT NULL
+       OR NEW.sender_address IS NOT NULL
+       OR NEW.block_timestamp IS NOT NULL
+       OR NEW.gross_amount IS NULL OR NEW.gross_amount <= 0
+       OR NEW.deposit_fee IS NULL OR NEW.deposit_fee < 0
+       OR NEW.deposit_fee > NEW.gross_amount
+       OR NEW.credited_amount IS DISTINCT FROM round(NEW.gross_amount - NEW.deposit_fee, 2)
+       OR NEW.deposit_wallet_id IS NULL
+       OR btrim(COALESCE(NEW.receiving_address,'')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}
+IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
+
+REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
+
+COMMIT;
+ THEN
+      RAISE EXCEPTION USING ERRCODE = '22023',
+        MESSAGE = 'Manual Shasta approval is missing its Master Admin, evidence, wallet, or amount safeguards';
+    END IF;
+
+    SELECT * INTO v_wallet
+      FROM public.deposit_wallets
+     WHERE id = NEW.deposit_wallet_id
+       AND user_id = NEW.user_id;
+
+    IF NOT FOUND
+       OR v_wallet.status <> 'ACTIVE'
+       OR upper(btrim(COALESCE(v_wallet.network,''))) <> 'TRON TESTNET'
+       OR v_wallet.address IS DISTINCT FROM btrim(NEW.receiving_address)
+       OR v_wallet.token_contract IS DISTINCT FROM 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
+      RAISE EXCEPTION USING ERRCODE = '22023',
+        MESSAGE = 'Manual Shasta approval must match the user’s active assigned test wallet';
+    END IF;
+
+    SELECT COALESCE(value_json, '{}'::jsonb)
+      INTO v_mode
+      FROM public.platform_settings WHERE key = 'system_mode';
+    SELECT COALESCE(value_json, '{}'::jsonb)
+      INTO v_production
+      FROM public.platform_settings WHERE key = 'production_config';
+
+    IF upper(COALESCE(v_mode ->> 'mode','')) <> 'MAINNET'
+       OR COALESCE(v_mode ->> 'live_deposits','true') <> 'false'
+       OR COALESCE(v_mode ->> 'real_payouts','true') <> 'false'
+       OR COALESCE(v_mode ->> 'production_go_live_approved','true') <> 'false'
+       OR upper(COALESCE(v_production ->> 'environment','')) <> 'PRE_PRODUCTION'
+       OR COALESCE(v_production ->> 'live_deposits_enabled','true') <> 'false'
+       OR COALESCE(v_production ->> 'real_payouts_enabled','true') <> 'false'
+       OR COALESCE(v_production ->> 'go_live_approved','true') <> 'false'
+       OR COALESCE(v_production ->> 'payouts_locked','false') <> 'true' THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'Manual Shasta credits require all live-money gates to remain closed';
+    END IF;
+
+    RETURN NEW;
+  END IF;
+
+  -- Every non-manual testnet credit still requires a complete confirmed transfer.
+  IF NEW.deposit_wallet_id IS NULL
+     OR btrim(COALESCE(NEW.receiving_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}
+IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
+
+REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
+
+COMMIT;
+
+     OR btrim(COALESCE(NEW.txid, '')) !~ '^[A-Fa-f0-9]{64}
+IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
+
+REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
+
+COMMIT;
+
+     OR btrim(COALESCE(NEW.sender_address, '')) !~ '^T[1-9A-HJ-NP-Za-km-z]{33}
+IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
+
+REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
+
+COMMIT;
+
+     OR NEW.block_timestamp IS NULL
+     OR btrim(COALESCE(NEW.verification_source, '')) = ''
+     OR COALESCE(NEW.ai_review_status, '') NOT IN ('APPROVED', 'MANUAL_APPROVED') THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta deposit credit is missing verified chain or review evidence';
+  END IF;
+
+  IF v_raw !~ '^[1-9][0-9]*
+IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
+
+REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
+
+COMMIT;
+ OR length(v_raw) > 78
+     OR NEW.gross_amount IS NULL OR NEW.gross_amount <= 0
+     OR NEW.deposit_fee IS NULL OR NEW.deposit_fee < 0
+     OR NEW.deposit_fee > NEW.gross_amount
+     OR v_raw::numeric / 1000000 <> NEW.gross_amount THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta raw token amount does not exactly match the deposit request';
+  END IF;
+
+  SELECT * INTO v_wallet
+    FROM public.deposit_wallets
+   WHERE id = NEW.deposit_wallet_id
+     AND user_id = NEW.user_id;
+
+  IF NOT FOUND
+     OR upper(btrim(COALESCE(v_wallet.network, ''))) <> 'TRON TESTNET'
+     OR v_wallet.address IS DISTINCT FROM btrim(NEW.receiving_address)
+     OR v_wallet.token_contract IS DISTINCT FROM 'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs' THEN
+    RAISE EXCEPTION USING ERRCODE = '22023',
+      MESSAGE = 'Shasta deposit must match the receiving address assigned to this user';
+  END IF;
+
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS guard_shasta_deposit_verification ON public.deposit_submissions;
+CREATE TRIGGER guard_shasta_deposit_verification
+BEFORE INSERT OR UPDATE ON public.deposit_submissions
+FOR EACH ROW EXECUTE FUNCTION public.guard_shasta_deposit_verification();
 
 COMMENT ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid)
 IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
