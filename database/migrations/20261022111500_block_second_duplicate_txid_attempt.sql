@@ -70,7 +70,7 @@ BEGIN
     v_blocked := true;
     INSERT INTO public.audit_events(actor_user_id,target_user_id,event_type,description,reference_id)
     VALUES(NULL,p_user_id,'USER_BLOCKED_DUPLICATE_TXID',
-      'Account blocked after three distinct duplicate-TXID attempts within 30 days. No source TXID was stored in this security event.',
+      'Account blocked after two distinct duplicate-TXID attempts within 30 days. No source TXID was stored in this security event.',
       NULL);
   ELSE
     v_blocked := upper(coalesce(v_status,''))='BLOCKED';
