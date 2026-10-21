@@ -1304,7 +1304,7 @@ async function liveTopup(){
      const st=statusView(x.status),tx=String(x.txid||'');
      const shortTx=tx.length>18?tx.slice(0,10)+'…'+tx.slice(-6):tx;
      const canCheckShasta=String(x.network||'').toUpperCase()==='TRON TESTNET'&&x.status==='PENDING_VERIFICATION';
-     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small>'+(canCheckShasta?'<button class="btn sm o" type="button" style="margin-top:8px" data-shasta-verify="'+esc(x.id)+'">Verify on Shasta</button>':'')+'</div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
+     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small>'+(canCheckShasta?'<button class="btn sm o" type="button" style="margin-top:8px" data-shasta-verify="'+esc(x.id)+'">Verify from TronGrid</button>':'')+'</div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
     }).join('')
    :'<div class="empty">No deposit requests have been submitted yet.</div>';
  const creditRows=ledgerResult.error
@@ -1329,6 +1329,7 @@ async function liveTopup(){
    '<div class="card" style="padding:12px"><div class="qr-live"><img src="https://api.qrserver.com/v1/create-qr-code/?size=312x312&margin=8&data='+encodeURIComponent(wallet)+'" alt="Unique TRON deposit wallet QR code" loading="lazy" referrerpolicy="no-referrer"></div><div class="addr"><span style="flex:1;overflow-wrap:anywhere" id="depositAddress">'+esc(wallet)+'</span><button class="btn sm o" type="button" id="copyDepositAddress">Copy</button></div><div class="note">Check the full address, network and token contract before transferring. Only send the supported USDT token on '+esc(walletNetwork==='TRON TESTNET'?'TRON SHASTA TESTNET':walletNetwork)+' to this address.</div><div class="note" style="overflow-wrap:anywhere">USDT contract: '+esc(walletTokenContract)+'</div></div>'+
    '<div class="fl">3. Transaction screenshot <span style="color:var(--mut);font-weight:700">Image · max 10 MB</span></div>'+
    '<label class="up" for="proof">'+apIcon('upl')+'<div id="proofName">Choose screenshot<small>Stored privately and scoped to your account</small></div><input type="file" id="proof" accept="image/jpeg,image/png,image/webp" hidden></label>'+
+   '<button class="btn sm o" type="button" id="scanProofTxid" style="display:none;margin-top:8px;width:100%">Scan screenshot for TXID</button><div id="txidScanStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--mut);margin-top:6px;line-height:1.5"></div>'+
    '<div class="fl">4. Transaction ID (TXID)'+(walletNetwork==='TRON TESTNET'?' <span style="color:var(--mut);font-weight:700">Optional for Shasta</span>':'')+'</div><input id="txid" autocomplete="off" placeholder="'+(walletNetwork==='TRON TESTNET'?'Optional — leave blank if unknown':'Paste the 64-character transaction hash')+'">'+
    '<div style="height:12px"></div><button class="btn" type="button" id="submitDep">Submit for verification</button>'
   :'<div class="info b">'+apIcon('info')+'<div><b>'+esc(pausedTitle)+'</b><p>'+esc(pausedMessage)+'</p></div></div>'+
@@ -1340,7 +1341,7 @@ async function liveTopup(){
   button.onclick=async()=>{
    const id=button.getAttribute('data-shasta-verify');
    if(!id)return;
-   button.disabled=true;button.textContent='Checking Shasta…';
+   button.disabled=true;button.textContent='Checking TronGrid…';
    try{
     const result=await db.functions.invoke('verify-deposit',{body:{depositId:id}});
     if(result.error)throw result.error;
@@ -1353,7 +1354,7 @@ async function liveTopup(){
     await liveTopup();
    }catch(e){
     uiNotice(e.message||'Shasta verification could not run. No funds were moved.','error');
-    button.disabled=false;button.textContent='Verify on Shasta';
+    button.disabled=false;button.textContent='Verify from TronGrid';
    }
   };
  });
@@ -1362,11 +1363,72 @@ async function liveTopup(){
  const viewActivity=document.getElementById('depositViewActivity');if(viewActivity)viewActivity.onclick=()=>window.go('activity');
  const copy=document.getElementById('copyDepositAddress');if(copy)copy.onclick=()=>copyTextToClipboard(wallet,'Deposit address copied.');
  const amount=document.getElementById('depAmount'),txid=document.getElementById('txid'),proof=document.getElementById('proof'),submit=document.getElementById('submitDep');
+ const scanButton=document.getElementById('scanProofTxid'),scanStatus=document.getElementById('txidScanStatus');
+ let uploadedProofPath='',uploadedProofFile=null,duplicateTxidDetected=false;
+ async function ensureProofUploaded(file){
+  if(uploadedProofPath&&uploadedProofFile===file)return uploadedProofPath;
+  const extension=(file.name.split('.').pop()||'jpg').toLowerCase();
+  const safeExtension=['jpg','jpeg','png','webp'].includes(extension)?extension:'jpg';
+  const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+safeExtension;
+  const upload=await db.storage.from('private-verification').upload(path,file,{contentType:file.type||'image/jpeg'});
+  if(upload.error)throw upload.error;
+  uploadedProofPath=path;uploadedProofFile=file;
+  return path;
+ }
+ async function edgeErrorDetails(error){
+  let payload=null;
+  try{if(error&&error.context&&typeof error.context.json==='function')payload=await error.context.json()}catch(_){}
+  return {payload,message:payload&&typeof payload.error==='string'?payload.error:(error&&error.message||'Request failed.')};
+ }
+ async function scanSelectedScreenshot(){
+  const file=proof&&proof.files&&proof.files[0];
+  if(!file){uiNotice('Choose your deposit screenshot first.','error');return}
+  scanButton.disabled=true;scanButton.textContent='Scanning screenshot…';
+  scanStatus.textContent='AI is reading the visible transaction hash. This does not verify or credit a deposit.';
+  try{
+   const screenshotPath=await ensureProofUploaded(file);
+   const scanned=await db.functions.invoke('scan-deposit-txid',{body:{screenshotPath}});
+   if(scanned.error){
+    const details=await edgeErrorDetails(scanned.error);
+    if(details.payload&&details.payload.code==='DUPLICATE_DEPOSIT_TXID'){
+     duplicateTxidDetected=true;txid.value='';
+     scanStatus.textContent=details.message;
+    }else if(details.payload&&details.payload.code==='ACCOUNT_BLOCKED_DUPLICATE_TXID'){
+     duplicateTxidDetected=true;txid.value='';
+     scanStatus.textContent=details.message;
+    }else{
+     scanStatus.textContent=details.message;
+    }
+    throw new Error(details.message);
+   }
+   const candidate=String(scanned.data&&scanned.data.candidateTxid||'');
+   if(scanned.data&&scanned.data.found&&/^[a-f0-9]{64}$/i.test(candidate)){
+    txid.value=candidate;duplicateTxidDetected=false;
+    scanStatus.textContent='TXID candidate found and added. Please check it carefully. It is not verified yet—submit the request, then press Verify from TronGrid.';
+   }else{
+    scanStatus.textContent=scanned.data&&scanned.data.message||'No clear TXID found. You can type it manually.';
+   }
+  }catch(e){
+   const message=e&&e.message||'Screenshot scan failed. You can enter the TXID manually.';
+   if(!scanStatus.textContent||!scanStatus.textContent.includes(message))scanStatus.textContent=message;
+   uiNotice(message,'error');
+  }finally{
+   scanButton.disabled=false;scanButton.textContent='Scan screenshot for TXID';
+  }
+ }
+ if(scanButton)scanButton.onclick=scanSelectedScreenshot;
+ if(txid)txid.oninput=()=>{duplicateTxidDetected=false};
  if(proof)proof.onchange=()=>{
-  const f=proof.files&&proof.files[0];if(!f)return;
-  if(!['image/jpeg','image/png','image/webp'].includes(f.type)){proof.value='';uiNotice('JPEG, PNG or WebP images only.','error');return}
-  if(f.size>10*1024*1024){proof.value='';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
-  document.getElementById('proofName').innerHTML=esc(f.name)+'<small>'+(f.size/1024).toFixed(0)+' KB · Private upload</small>';
+  const file=proof.files&&proof.files[0];
+  uploadedProofPath='';uploadedProofFile=null;duplicateTxidDetected=false;
+  if(scanStatus)scanStatus.textContent='';
+  if(scanButton){scanButton.style.display=file?'block':'none';scanButton.disabled=!file}
+  if(!file)return;
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){proof.value='';if(scanButton)scanButton.style.display='none';uiNotice('JPEG, PNG or WebP images only.','error');return}
+  if(file.size>10*1024*1024){proof.value='';if(scanButton)scanButton.style.display='none';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
+  document.getElementById('proofName').innerHTML=esc(file.name)+'<small>'+(file.size/1024).toFixed(0)+' KB · Private upload</small>';
+  // Start scan automatically after the user selects a screenshot; a retry button remains available.
+  scanSelectedScreenshot();
  };
  if(submit)submit.onclick=async()=>{
   try{
@@ -1376,11 +1438,10 @@ async function liveTopup(){
    if(walletNetwork!=='TRON TESTNET'&&!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format for Mainnet.');if(tx.length>128)throw Error('TXID input is too long. Clear it or paste the transaction hash.');
    if(!f)throw Error('Please attach the transaction screenshot.');
    submit.disabled=true;submit.textContent='Submitting…';
-   const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase());
-   const up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});
-   if(up.error)throw up.error;
+   if(duplicateTxidDetected)throw Error('This TXID was already rejected as a duplicate. Enter a different valid transaction ID or choose the correct screenshot.');
+   const path=await ensureProofUploaded(f);
    const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path}});
-   if(result.error)throw result.error;
+   if(result.error){const details=await edgeErrorDetails(result.error);throw Error(details.message)}
    uiNotice(result.data&&result.data.message||'Deposit submitted for verification.','success');
    await liveTopup();
   }catch(e){uiNotice(e.message||'Deposit could not be submitted.','error')}
