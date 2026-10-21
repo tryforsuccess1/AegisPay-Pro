@@ -172,6 +172,20 @@ assert(shastaValidationSource.includes('export function selectUniqueUnclaimedSha
 assert(shastaVerifySource.includes('selectUniqueUnclaimedShastaTransfer')&&shastaMonitorSource.includes('selectUniqueUnclaimedShastaTransfer'),'Verifier and monitor must use the shared transfer selector.');
 assert(shastaValidationTestSource.includes('repeated API rows for the same Shasta transfer')&&shastaValidationTestSource.includes('transfer selection retries only when there is one unique unclaimed TXID'),'Shasta selector unit tests must cover duplicates, claims and ambiguity.');
 assert(depositEvidenceDedupeTests.includes('Duplicate evidence was accepted for a second active deposit request')&&depositEvidenceDedupeTests.includes('Canonical Shasta TXID was accepted for two different deposit requests')&&depositEvidenceDedupeTests.includes('Duplicate active Shasta submitted TXID hint was accepted'),'SQL tests must exercise duplicate evidence, submitted TXID and canonical TXID rejection.');
+// OCR only suggests a TXID; the server-side TronGrid verifier remains the sole credit authority.
+const depositTxidScanSource=fs.readFileSync('supabase/functions/scan-deposit-txid/index.ts','utf8');
+const depositTxidHelperSource=fs.readFileSync('supabase/functions/_shared/deposit-txid.ts','utf8');
+const depositTxidHelperTests=fs.readFileSync('supabase/functions/_shared/deposit-txid_test.ts','utf8');
+const duplicateTxidSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
+const duplicateTxidGuardMigration=fs.readFileSync('database/migrations/20261022103000_deposit_duplicate_txid_abuse_guard.sql','utf8');
+const duplicateTxidBehaviorTests=fs.readFileSync('scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql','utf8');
+const depositClientUi=fs.readFileSync('client.html','utf8');
+assert(depositClientUi.includes('Scan screenshot for TXID')&&depositClientUi.includes('scanSelectedScreenshot()')&&depositClientUi.includes('Verify from TronGrid'),'Client must scan screenshots, show the candidate and provide a TronGrid verification action.');
+assert(depositTxidScanSource.includes('runVisionReview')&&depositTxidScanSource.includes('verified: false')&&depositTxidScanSource.includes('register_duplicate_deposit_txid_attempt'),'Screenshot AI must only extract an unverified candidate and must reject duplicate TXIDs.');
+assert(depositTxidHelperSource.includes('extractUniqueTxidCandidate')&&depositTxidHelperSource.includes('EMBEDDED_TXID_RE.lastIndex = 0')&&depositTxidHelperTests.includes('candidate extraction remains stable across repeated screenshot scans'),'TXID extraction must be strict, unambiguous and repeatable.');
+assert(duplicateTxidSubmitSource.includes('register_duplicate_deposit_txid_attempt')&&duplicateTxidSubmitSource.includes('DUPLICATE_DEPOSIT_TXID')&&duplicateTxidSubmitSource.includes('ACCOUNT_BLOCKED_DUPLICATE_TXID'),'Deposit submission must reject reused TXIDs and apply the audited abuse policy.');
+assert(duplicateTxidGuardMigration.includes('interval \'30 days\'')&&duplicateTxidGuardMigration.includes('interval \'5 minutes\'')&&duplicateTxidGuardMigration.includes('status=\'BLOCKED\'')&&duplicateTxidGuardMigration.includes('REVOKE ALL ON FUNCTION'),'Duplicate TXID tracking must rate-limit retries, block after repeated attempts and remain server-only.');
+assert(duplicateTxidBehaviorTests.includes('First duplicate TXID attempt should warn only')&&duplicateTxidBehaviorTests.includes('Third distinct duplicate TXID attempt must block the account')&&duplicateTxidBehaviorTests.includes('Client roles must not be able to read'),'SQL tests must verify warnings, blocking, retry dedupe and internal-event access.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
