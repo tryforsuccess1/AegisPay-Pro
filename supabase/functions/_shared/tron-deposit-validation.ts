@@ -105,6 +105,54 @@ export function findShastaTransfersByAmount(
   return [...candidates.values()];
 }
 
+export type ShastaTransferSelection =
+  | { status: "MATCH"; transfer: TronGridUsdtTransfer }
+  | { status: "AMBIGUOUS" }
+  | { status: "ALREADY_LINKED" }
+  | { status: "NO_CANDIDATES" };
+
+/**
+ * Select exactly one unique, unclaimed transfer. Inputs are treated as untrusted:
+ * TXIDs are validated and compared case-insensitively, and repeated API rows for
+ * the same TXID are deduplicated. Multiple unclaimed transactions fail closed.
+ */
+export function selectUniqueUnclaimedShastaTransfer(
+  candidates: unknown,
+  claimedTxids: unknown,
+): ShastaTransferSelection {
+  if (!Array.isArray(candidates) || candidates.length === 0) {
+    return { status: "NO_CANDIDATES" };
+  }
+
+  const uniqueCandidates = new Map<string, TronGridUsdtTransfer>();
+  for (const value of candidates) {
+    if (!value || typeof value !== "object") continue;
+    const row = value as TronGridUsdtTransfer;
+    const txid = String(row.transaction_id || "");
+    if (!TXID_RE.test(txid)) continue;
+    uniqueCandidates.set(txid.toLowerCase(), row);
+  }
+  if (uniqueCandidates.size === 0) return { status: "NO_CANDIDATES" };
+
+  const claimed = new Set<string>();
+  if (Array.isArray(claimedTxids)) {
+    for (const value of claimedTxids) {
+      const txid = String(value || "").trim();
+      if (TXID_RE.test(txid)) claimed.add(txid.toLowerCase());
+    }
+  }
+
+  const unclaimed = [...uniqueCandidates.entries()]
+    .filter(([txid]) => !claimed.has(txid))
+    .map(([, transfer]) => transfer);
+
+  if (unclaimed.length === 1) {
+    return { status: "MATCH", transfer: unclaimed[0] };
+  }
+  if (unclaimed.length > 1) return { status: "AMBIGUOUS" };
+  return { status: "ALREADY_LINKED" };
+}
+
 export function isValidTronTxid(value: unknown): value is string {
   return typeof value === "string" && TXID_RE.test(value);
 }
