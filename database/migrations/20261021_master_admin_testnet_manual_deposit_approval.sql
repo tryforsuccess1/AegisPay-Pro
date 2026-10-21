@@ -1,5 +1,6 @@
 -- Master-Admin one-click approval for allowlisted Shasta TESTNET deposits.
 -- Simple approve/reject UI; no custom TXID entry or linking endpoint.
+-- Manual credit is limited to the allowlisted Shasta test account; Mainnet still needs on-chain verification.
 -- This is a test-only manual credit path. Mainnet always requires confirmed TXID verification.
 BEGIN;
 
