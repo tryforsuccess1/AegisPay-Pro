@@ -107,6 +107,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_evidence_dedupe_assertions.sql
       - name: Apply duplicate-TXID abuse guard migration
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022103000_deposit_duplicate_txid_abuse_guard.sql
+      - name: Apply second-strike duplicate-TXID block migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022111500_block_second_duplicate_txid_attempt.sql
       - name: Verify duplicate-TXID warning and block threshold
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql
       - name: Verify HD sweep idempotency and restricted access
