@@ -147,6 +147,31 @@ assertInlineScriptsParse('master-admin.html');
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
 const landingPage=fs.readFileSync('site/index.html','utf8');
+
+// Client and Master Admin share the origin but must never share a persisted auth session.
+const supabaseClientSource=fs.readFileSync('supabase-client.js','utf8');
+function captureAuthOptions(adminPortal){
+  let captured=null;
+  const window={
+    AEGIS_ADMIN_PORTAL:adminPortal,
+    AegisSupabaseClient:null,
+    supabase:{createClient:function(_url,_key,options){captured=options;return {created:true};}}
+  };
+  const document={readyState:'complete',addEventListener:function(){}};
+  vm.runInNewContext(supabaseClientSource,{window,document});
+  assert(window.AegisSupabaseClient&&window.AegisSupabaseClient.created===true,'Supabase client must initialize in the '+(adminPortal?'Master Admin':'Client')+' portal.');
+  assert(captured&&captured.auth,'Supabase client must pass explicit auth options.');
+  return captured.auth;
+}
+const clientAuthOptions=captureAuthOptions(false);
+const masterAdminAuthOptions=captureAuthOptions(true);
+assert(!clientAuthOptions.storageKey,'Client must retain its independent default Supabase auth storage key.');
+assert(masterAdminAuthOptions.storageKey==='aegispay-master-admin-auth-v1','Master Admin must use a dedicated Supabase auth storage key, separate from Client sessions.');
+assert(masterAdminAuthOptions.storageKey!==clientAuthOptions.storageKey,'Client and Master Admin must never share the same Supabase auth storage key.');
+const adminAuthFlagIndex=masterAdmin.indexOf('window.AEGIS_ADMIN_PORTAL=true;');
+const adminAuthClientScriptIndex=masterAdmin.indexOf('<script src="./supabase-client.js?v=20261021-admin-session-isolation"></script>');
+assert(adminAuthFlagIndex>=0&&adminAuthClientScriptIndex>adminAuthFlagIndex,'Master Admin role flag must be set before initializing the isolated Supabase client.');
+
 const stablePortal='https://aegispay-web.aegispay.workers.dev';
 assert((landingPage.match(/href="https:\/\/aegispay-web\.aegispay\.workers\.dev\/app\//g)||[]).length>=3&&!landingPage.includes('href="/app/"'),
   'All public Client Portal CTAs must use the stable workers.dev front door instead of the canonical Pages or per-deployment preview host.');
@@ -162,7 +187,7 @@ assert(shopWorkerPage.includes("index<4?'eager':'lazy'")&&shopWorkerPage.include
 const startupSource=client.slice(client.indexOf('async function initData(){'),client.indexOf('\nfunction top(',client.indexOf('async function initData(){')));
 assert(startupSource.includes('const [userResult,s,t]=await Promise.all([')&&startupSource.includes('void refreshNotificationCount();'),'Authenticated startup must load profile-related data concurrently and refresh the notification count without blocking page rendering.');
 assert(client.includes('async function refreshClientProfile()')&&client.includes('await refreshClientProfile(); await liveShop();')&&client.includes("await refreshClientProfile();\n   await liveShop();"),'Shop tier/task/cycle actions must refresh only the changed profile before reloading Shop data.');
-assert(serviceWorker.includes("const CACHE='aegispay-shell-v36-turnstile-timeout-stability'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
+assert(serviceWorker.includes("const CACHE='aegispay-shell-v37-admin-session-isolation'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
 assert(serviceWorker.includes('const update=fetch(event.request,{cache:\'no-store\'})')&&serviceWorker.includes('caches.match(cacheKey).then(cached=>cached||update.catch')&&serviceWorker.includes('cacheUrl.search=\'\';'),'Static shell requests must be served from cache first, refresh in the background, and avoid caching URL query tokens.');
 assert(serviceWorker.includes("['code','access_token','refresh_token','token_hash','error','error_description']")&&serviceWorker.includes('const shouldStore=!authSensitive&&!isAuthCallback'),'OAuth and recovery URLs must never be stored as distinct cached requests.');
 assert(client.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})")&&masterAdmin.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})"),'Web client and Master Admin must register the non-blocking app-shell cache after page load.');
