@@ -65,4 +65,4 @@ $tests$;
 
 ROLLBACK;
 
-SELECT 'Duplicate-TXID warnings, retry dedupe, third-strike block, audit log, and RLS assertions passed' AS result;
+SELECT 'Duplicate-TXID warning, retry dedupe, second-strike block, audit log, and RLS assertions passed' AS result;
