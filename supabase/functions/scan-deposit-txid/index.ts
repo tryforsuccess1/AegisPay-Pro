@@ -2,9 +2,19 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { loadPrivateImage, runVisionReview } from "../_shared/deposit-image-ai.ts";
 import { extractUniqueTxidCandidate, sha256Hex } from "../_shared/deposit-txid.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
+const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const SHASTA_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
+const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET");
+const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY");
+const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN");
+const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID");
+const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -62,12 +72,49 @@ Deno.serve(async (req: Request) => {
     }
 
     const { data: wallet, error: walletError } = await admin.from("deposit_wallets")
-      .select("network,address,status").eq("user_id", profile.id).eq("status", "ACTIVE")
+      .select("network,address,status,token_contract").eq("user_id", profile.id).eq("status", "ACTIVE")
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (walletError) return json({ error: "Unable to confirm the network for your deposit screenshot." }, 503);
     const network = String(wallet?.network || "").trim().toUpperCase();
-    if (!wallet || !["TRON MAINNET", "TRON TESTNET"].includes(network)) {
+    if (!wallet || !["TRON MAINNET", "TRON TESTNET"].includes(network)
+      || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(wallet.address || ""))) {
       return json({ error: "A supported active deposit wallet is required before scanning a TXID." }, 409);
+    }
+
+    const [{ data: modeRow, error: modeError }, { data: productionRow, error: productionError }, { data: rulesRow, error: rulesError }] = await Promise.all([
+      admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", network === "TRON TESTNET" ? "shasta_testnet_rules" : "deposit_rules").maybeSingle(),
+    ]);
+    if (modeError || productionError || rulesError || !modeRow?.value_json || !productionRow?.value_json || !rulesRow?.value_json) {
+      return json({ error: "Unable to confirm deposit-readiness settings.", code: "DEPOSIT_READINESS_UNAVAILABLE" }, 503);
+    }
+    const mode = modeRow.value_json;
+    const production = productionRow.value_json;
+    if (network === "TRON TESTNET") {
+      const allowlisted = await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED);
+      const testRules = allowlisted ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED) : null;
+      if (!allowlisted || !testRules || String(wallet.token_contract || "") !== SHASTA_USDT) {
+        return json({ error: "Shasta screenshot scanning is limited to the allowlisted test account and its pinned test wallet.", code: "SHASTA_TEST_ACCOUNT_REQUIRED" }, 403);
+      }
+    } else {
+      const rules = rulesRow.value_json;
+      const tokenContract = String(rules.token_contract || "").trim();
+      if (tokenContract !== MAINNET_USDT || String(wallet.token_contract || "") !== MAINNET_USDT) {
+        return json({ error: "Mainnet screenshot scanning requires the official TRON USDT contract.", code: "UNSUPPORTED_MAINNET_TOKEN_CONTRACT" }, 423);
+      }
+      const { data: unresolvedPayouts, error: unresolvedPayoutError } = await admin
+        .from("withdrawal_requests").select("id").in("status", ["APPROVED", "PROCESSING"])
+        .is("payout_txid", null).limit(1);
+      if (unresolvedPayoutError) return json({ error: "Unable to confirm payout reconciliation status." }, 503);
+      const payoutCredentialsReady = Boolean(TRONGRID_KEY && CRON_SECRET && MAINNET_PAYOUT_KEY && TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_APPROVER_IDS.length > 0);
+      const mainnetDepositsOpen = mode.mode === "MAINNET" && mode.live_deposits === true
+        && mode.real_payouts === true && mode.production_go_live_approved === true
+        && String(production.environment || "").toUpperCase() === "PRODUCTION"
+        && production.live_deposits_enabled === true && production.real_payouts_enabled === true
+        && production.go_live_approved === true && production.payouts_locked === false
+        && payoutCredentialsReady && (unresolvedPayouts || []).length === 0;
+      if (!mainnetDepositsOpen) return json({ error: "New Mainnet deposit scanning is paused until production payouts are fully configured, approved, reconciled and unlocked.", code: "MAINNET_DEPOSITS_PAUSED" }, 423);
     }
 
     const { data: aiSetting, error: aiSettingError } = await admin.from("platform_settings")
