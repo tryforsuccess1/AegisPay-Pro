@@ -3,7 +3,7 @@ name: AegisPay CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feat/step2-shasta-deposit-e2e]
 
 concurrency:
   group: aegispay-ci-${{ github.ref }}
