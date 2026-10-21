@@ -105,6 +105,10 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021150000_limit_shasta_txid_hint_index.sql
       - name: Verify duplicate screenshot and submitted-TXID protection
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_evidence_dedupe_assertions.sql
+      - name: Apply duplicate-TXID abuse guard migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022103000_deposit_duplicate_txid_abuse_guard.sql
+      - name: Verify duplicate-TXID warning and block threshold
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
