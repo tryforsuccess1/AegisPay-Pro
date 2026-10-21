@@ -1435,8 +1435,8 @@ async function liveTopup(){
   if(scanButton){scanButton.style.display=file?'block':'none';scanButton.disabled=!file}
   if(submit)submit.disabled=!!file;
   if(!file){if(submit)submit.disabled=false;return}
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){proof.value='';if(scanButton)scanButton.style.display='none';uiNotice('JPEG, PNG or WebP images only.','error');return}
-  if(file.size>10*1024*1024){proof.value='';if(scanButton)scanButton.style.display='none';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){proof.value='';if(submit)submit.disabled=false;if(scanButton)scanButton.style.display='none';uiNotice('JPEG, PNG or WebP images only.','error');return}
+  if(file.size>10*1024*1024){proof.value='';if(submit)submit.disabled=false;if(scanButton)scanButton.style.display='none';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
   document.getElementById('proofName').innerHTML=esc(file.name)+'<small>'+(file.size/1024).toFixed(0)+' KB · Private upload</small>';
   // Start scan automatically after the user selects a screenshot; a retry button remains available.
   scanSelectedScreenshot();
