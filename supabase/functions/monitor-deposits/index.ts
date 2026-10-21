@@ -5,6 +5,7 @@ import {
   findExactShastaUsdtTransfer,
   findShastaTransfersByAmount,
   isValidTronTxid,
+  selectUniqueUnclaimedShastaTransfer,
   TRON_SHASTA_USDT_CONTRACT,
 } from "../_shared/tron-deposit-validation.ts";
 import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
@@ -73,12 +74,19 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
       const { data: previouslyClaimed, error: claimLookupError } = await admin.from("deposit_submissions")
         .select("id,txid").eq("network", "TRON TESTNET").in("txid", candidateTxids).neq("id", deposit.id);
       if (claimLookupError) return { id: deposit.id, status: "SHASTA_CLAIM_LOOKUP_FAILED" };
-      const claimedIds = new Set((previouslyClaimed || []).map((x: any) => String(x.txid || "").toLowerCase()));
-      const unclaimed = candidates.filter((x) => !claimedIds.has(String(x.transaction_id || "").toLowerCase()));
-      if (unclaimed.length !== 1) {
-        return { id: deposit.id, status: unclaimed.length > 1 ? "SHASTA_MATCH_AMBIGUOUS" : "SHASTA_MATCH_ALREADY_LINKED" };
+      const selection = selectUniqueUnclaimedShastaTransfer(
+        candidates,
+        (previouslyClaimed || []).map((x: any) => String(x.txid || "")),
+      );
+      if (selection.status !== "MATCH") {
+        return {
+          id: deposit.id,
+          status: selection.status === "AMBIGUOUS"
+            ? "SHASTA_MATCH_AMBIGUOUS"
+            : "SHASTA_MATCH_ALREADY_LINKED",
+        };
       }
-      match = unclaimed[0];
+      match = selection.transfer;
     }
   } else {
     match = rows.find((x: any) =>
