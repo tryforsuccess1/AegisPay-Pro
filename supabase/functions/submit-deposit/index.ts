@@ -147,17 +147,6 @@ Deno.serve(async (req: Request) => {
     }
     const digest = await crypto.subtle.digest("SHA-256", image.bytes.slice().buffer as ArrayBuffer);
     const evidenceSha256 = Array.from(new Uint8Array(digest)).map((x) => x.toString(16).padStart(2, "0")).join("");
-    const { data: duplicateEvidence, error: evidenceLookupError } = await admin.from("deposit_submissions")
-      .select("id,status").eq("network", depositNetwork).eq("evidence_sha256", evidenceSha256)
-      .neq("status", "REJECTED").limit(1).maybeSingle();
-    if (evidenceLookupError) return json({ error: "Unable to check whether this screenshot was already used. Please retry shortly." }, 503);
-    if (duplicateEvidence) return json({
-      error: "This exact screenshot has already been submitted for a deposit. Open the existing request instead of submitting it again.",
-      code: "DUPLICATE_DEPOSIT_EVIDENCE",
-      depositId: duplicateEvidence.id,
-      status: duplicateEvidence.status,
-    }, 409);
-
     if (validEnteredTxid) {
       // Reject reused TXIDs before creating a new request. SQL uniqueness remains
       // the final race-safe guard; this precheck enables a clear warning now.
@@ -181,6 +170,18 @@ Deno.serve(async (req: Request) => {
         }, recorded.blocked ? 423 : 409);
       }
     }
+
+
+    const { data: duplicateEvidence, error: evidenceLookupError } = await admin.from("deposit_submissions")
+      .select("id,status").eq("network", depositNetwork).eq("evidence_sha256", evidenceSha256)
+      .neq("status", "REJECTED").limit(1).maybeSingle();
+    if (evidenceLookupError) return json({ error: "Unable to check whether this screenshot was already used. Please retry shortly." }, 503);
+    if (duplicateEvidence) return json({
+      error: "This exact screenshot has already been submitted for a deposit. Open the existing request instead of submitting it again.",
+      code: "DUPLICATE_DEPOSIT_EVIDENCE",
+      depositId: duplicateEvidence.id,
+      status: duplicateEvidence.status,
+    }, 409);
 
     const tierQuery = await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).lte("deposit_amount", amount).order("deposit_amount", { ascending: false }).limit(1).maybeSingle();
     const fallbackTier = !tierQuery.data ? await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).order("deposit_amount", { ascending: true }).limit(1).maybeSingle() : { data: tierQuery.data, error: null };
