@@ -536,7 +536,15 @@ async function login(e){
     await service.signOut().catch(function(){});
     state.profile=null;
     const signInMessage=String(err&&err.message||'Sign-in failed.');
-    state.error=/captcha|turnstile|security verification/i.test(signInMessage)?'Security verification could not be completed automatically. Please try signing in again in a moment.':signInMessage;
+    state.error=/captcha|turnstile|security verification/i.test(signInMessage)
+      ? (/110200/.test(signInMessage)
+        ? 'Cloudflare does not authorize this website hostname (110200). The administrator must add the current hostname to the Turnstile widget.'
+        : /110100|110110|200100|400020|400021|400070/.test(signInMessage)
+        ? 'Cloudflare security configuration error: '+signInMessage
+        : /timed out|timeout/i.test(signInMessage)
+        ? 'Cloudflare verification timed out after one automatic retry. Refresh once; if it happens again, the administrator must check the Turnstile allowed hostnames and access to challenges.cloudflare.com.'
+        : 'Cloudflare security verification did not finish. '+signInMessage)
+      : signInMessage;
     state.busy=false;
     render();
   }finally{
