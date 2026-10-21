@@ -151,14 +151,16 @@ const masterAdmin=fs.readFileSync('master-admin.html','utf8');
 // Master Admin; actual credit still has to pass the existing chain verifier.
 const depositReviewFrontendSource=fs.readFileSync('admin-auth.js','utf8');
 const depositReviewBackendSource=fs.readFileSync('supabase/functions/admin-review/index.ts','utf8');
-assert(depositReviewFrontendSource.includes("data-action=\"attach-deposit-txid\"")&&depositReviewFrontendSource.includes("data-deposit-txid=\"true\""),'Master Admin must expose a TXID entry for manually approved pending deposits that lack a TXID.');
-assert(depositReviewFrontendSource.includes("async function attachDepositTxid(el)")&&depositReviewFrontendSource.includes("service.invokeFunction('verify-deposit'"),'TXID recovery must immediately attempt the existing chain verifier.');
-assert(depositReviewBackendSource.includes('if (action === "deposit_txid")')&&depositReviewBackendSource.includes('/^[0-9a-f]{64}$/i.test(txid)'), 'TXID recovery endpoint must validate a 64-character hexadecimal hash.');
-assert(depositReviewBackendSource.includes('["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || "").toUpperCase())')&&depositReviewBackendSource.includes('.is("txid", null)'), 'Only reviewed, pending deposits with no existing TXID may be linked; a previous TXID cannot be overwritten.');
-assert(depositReviewBackendSource.includes('requiresChainVerification: true')&&!depositReviewBackendSource.includes('apply_verified_deposit'), 'Attaching a TXID must not credit a balance; the verified-deposit RPC remains the only credit path.');
-assert(masterAdmin.includes('admin-auth.js?v=20261021-missing-deposit-txid-recovery'),'Master Admin must request the latest TXID recovery client code.');
-const serviceWorkerForTxidRecovery=fs.readFileSync('service-worker.js','utf8');
-assert(serviceWorkerForTxidRecovery.includes("const CACHE='aegispay-shell-v38-missing-deposit-txid-recovery'"),'Service worker cache must be bumped for TXID recovery assets.');
+const manualTestnetApprovalSql=fs.readFileSync('database/migrations/20261021_master_admin_testnet_manual_deposit_approval.sql','utf8');
+assert(depositReviewFrontendSource.includes('data-decision="approve">Approve</button>')&&depositReviewFrontendSource.includes('data-decision="reject">Reject</button>'),'Master Admin deposit review must expose only simple Approve and Reject actions.');
+assert(!depositReviewFrontendSource.includes('aa-txid-entry')&&!depositReviewFrontendSource.includes('attachDepositTxid')&&!depositReviewFrontendSource.includes('data-deposit-txid'),'Master Admin deposit review must not include the custom TXID-recovery field or action.');
+assert(depositReviewFrontendSource.includes("r.data?.requiresChainVerification===true")&&depositReviewBackendSource.includes('apply_manual_testnet_deposit_approval'),'Approved testnet deposits without a TXID use the guarded manual test-credit flow; mainnet remains chain-verified.');
+assert(depositReviewBackendSource.includes('TRON TESTNET')&&depositReviewBackendSource.includes('requiresChainVerification: true')&&!depositReviewBackendSource.includes('action === "deposit_txid"'),'Admin review must retain mainnet chain-verification requirements and remove the TXID-linking API.');
+assert(manualTestnetApprovalSql.includes("d.network"))&&manualTestnetApprovalSql.includes("'TRON TESTNET'")&&manualTestnetApprovalSql.includes("'MASTER_ADMIN_TESTNET_MANUAL'")&&manualTestnetApprovalSql.includes('public.shasta_test_users')&&manualTestnetApprovalSql.includes('p_actor_user_id'),'Manual credit SQL must be restricted to the allowlisted test network and record the Master Admin actor.');
+assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApprovalSql.includes("real_payouts")&&manualTestnetApprovalSql.includes("payouts_locked")&&manualTestnetApprovalSql.includes('REVOKE ALL ON FUNCTION'),'Manual test credits must require closed live-money gates and service-role-only execution.');
+assert(masterAdmin.includes('admin-auth.js?v=20261021-simple-admin-deposit-approval'),'Master Admin must request the simple approve/reject client code.');
+const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
+assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v39-simple-admin-deposit-approval'"),'Service worker cache must be bumped for simple admin approval assets.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
