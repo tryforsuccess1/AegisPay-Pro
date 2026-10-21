@@ -44,6 +44,9 @@ jobs:
           test -n "${CLOUDFLARE_ACCOUNT_ID}"
           test -n "${CLOUDFLARE_API_TOKEN}"
 
+      - name: Run AegisPay repository checks
+        run: npm run check
+
       - name: Diagnose the configured Turnstile widget hostname allowlist
         shell: bash
         env:
