@@ -178,6 +178,15 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
   .aa-auth-shell .aa-auth-input,.aa-auth-shell .aa-auth-card .aa-primary{height:46px;min-height:46px}
   .aa-auth-shell .aa-auth-footer{padding-top:6px;gap:3px}
 }
+
+/* Keep auth trust labels directly below the credentials card, not pinned to the viewport bottom. */
+.aa-auth-shell .aa-login.aa-login-auth{justify-content:flex-start}
+.aa-auth-shell .aa-auth-main{flex:0 0 auto;padding:clamp(20px,calc(46dvh - 230px),110px) 0 0}
+.aa-auth-shell .aa-auth-footer{margin-top:12px;padding-top:0;flex:0 0 auto}
+@media(max-height:760px){
+  .aa-auth-shell .aa-auth-main{padding:clamp(20px,calc(46dvh - 230px),90px) 0 0}
+  .aa-auth-shell .aa-auth-footer{margin-top:10px;padding-top:0}
+}
 </style>
 </head>
 <body>
