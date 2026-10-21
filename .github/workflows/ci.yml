@@ -64,6 +64,8 @@ jobs:
         run: deno test --node-modules-dir=auto supabase/functions/_shared/tron-sweep_test.ts
       - name: Test exact Shasta deposit transfer and amount validation
         run: deno test --node-modules-dir=auto supabase/functions/_shared/tron-deposit-validation_test.ts
+      - name: Test screenshot TXID extraction helper
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/deposit-txid_test.ts
       - name: Test fail-closed same-project Shasta test mode
         run: deno test --node-modules-dir=auto supabase/functions/_shared/shasta-test-mode_test.ts
       - name: Bundle authenticated AI Worker without deploying
