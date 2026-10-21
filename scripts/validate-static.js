@@ -147,6 +147,31 @@ assertInlineScriptsParse('master-admin.html');
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
 const landingPage=fs.readFileSync('site/index.html','utf8');
+
+// Client and Master Admin share the origin but must never share a persisted auth session.
+const supabaseClientSource=fs.readFileSync('supabase-client.js','utf8');
+function captureAuthOptions(adminPortal){
+  let captured=null;
+  const window={
+    AEGIS_ADMIN_PORTAL:adminPortal,
+    AegisSupabaseClient:null,
+    supabase:{createClient:function(_url,_key,options){captured=options;return {created:true};}}
+  };
+  const document={readyState:'complete',addEventListener:function(){}};
+  vm.runInNewContext(supabaseClientSource,{window,document});
+  assert(window.AegisSupabaseClient&&window.AegisSupabaseClient.created===true,'Supabase client must initialize in the '+(adminPortal?'Master Admin':'Client')+' portal.');
+  assert(captured&&captured.auth,'Supabase client must pass explicit auth options.');
+  return captured.auth;
+}
+const clientAuthOptions=captureAuthOptions(false);
+const masterAdminAuthOptions=captureAuthOptions(true);
+assert(!clientAuthOptions.storageKey,'Client must retain its independent default Supabase auth storage key.');
+assert(masterAdminAuthOptions.storageKey==='aegispay-master-admin-auth-v1','Master Admin must use a dedicated Supabase auth storage key, separate from Client sessions.');
+assert(masterAdminAuthOptions.storageKey!==clientAuthOptions.storageKey,'Client and Master Admin must never share the same Supabase auth storage key.');
+const adminAuthFlagIndex=masterAdmin.indexOf('window.AEGIS_ADMIN_PORTAL=true;');
+const adminAuthClientScriptIndex=masterAdmin.indexOf('<script src="./supabase-client.js?v=20261021-admin-session-isolation"></script>');
+assert(adminAuthFlagIndex>=0&&adminAuthClientScriptIndex>adminAuthFlagIndex,'Master Admin role flag must be set before initializing the isolated Supabase client.');
+
 const stablePortal='https://aegispay-web.aegispay.workers.dev';
 assert((landingPage.match(/href="https:\/\/aegispay-web\.aegispay\.workers\.dev\/app\//g)||[]).length>=3&&!landingPage.includes('href="/app/"'),
   'All public Client Portal CTAs must use the stable workers.dev front door instead of the canonical Pages or per-deployment preview host.');
