@@ -89,3 +89,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222625_deposit_monitor_skip_when_gates_closed.sql
       - name: Verify cron skips requests while gates are closed and dispatches only when gates are open
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_assertions.sql
+      - name: Apply Master Admin testnet manual approval migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021_master_admin_testnet_manual_deposit_approval.sql
+      - name: Verify simple Master Admin approve/reject credit flow
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/manual_testnet_deposit_approval_assertions.sql
