@@ -98,7 +98,7 @@ BEGIN
     id,user_id,tier_id,gross_amount,deposit_fee,credited_amount,status,ai_review_status,
     txid,submitted_txid,network,token_contract
   ) VALUES (
-    '99999999-9999-4999-8999-999999999999',
+    'edddeddd-eddd-4ddd-8ddd-edddedddeddd',
     '11111111-1111-4111-8111-111111111111',
     'tier-a',10.00,0.00,10.00,'PENDING_VERIFICATION','APPROVED',
     repeat('b',64),NULL,'TRON MAINNET','TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
@@ -108,14 +108,14 @@ BEGIN
   v_failed := false;
   BEGIN
     PERFORM public.apply_manual_testnet_deposit_approval(
-      '99999999-9999-4999-8999-999999999999',
+      'edddeddd-eddd-4ddd-8ddd-edddedddeddd',
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
     );
   EXCEPTION WHEN OTHERS THEN
     v_failed := true;
   END;
   SELECT status INTO v_status FROM public.deposit_submissions
-    WHERE id='99999999-9999-4999-8999-999999999999';
+    WHERE id='edddeddd-eddd-4ddd-8ddd-edddedddeddd';
   IF NOT v_failed OR v_status <> 'PENDING_VERIFICATION' THEN
     RAISE EXCEPTION 'Mainnet deposit must be denied by the manual testnet-only approval path';
   END IF;
