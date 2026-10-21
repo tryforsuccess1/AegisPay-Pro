@@ -64,12 +64,15 @@ function initials(name){return String(name||'A').trim().slice(0,1).toUpperCase()
 function aegisLogo(size){
   const w=Number(size||188);
   const mark=Math.max(52,Math.round(w*.30));
+  const markH=Math.round(mark*56/48);
   const gradId='aaG'+String(w).replace(/\\W/g,'');
   return '<div class="aa-logo-lockup" style="--aa-logo-width:'+w+'px">'+
-    '<svg class="aa-logo-mark" width="'+mark+'" height="'+mark+'" viewBox="0 0 48 48" role="img" aria-label="AegisPay" xmlns="http://www.w3.org/2000/svg">'+
-      '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f06a4d"/><stop offset="1" stop-color="#c94b8a"/></linearGradient></defs>'+
-      '<path d="M24 3 6 11v12c0 11 8 19 18 22 10-3 18-11 18-22V11z" fill="url(#'+gradId+')"/>'+
-      '<path d="M24 14 33 34h-6l-3-7-3 7h-6z" fill="var(--logo-ink,#2b1d12)" opacity=".9"/>'+
+    '<svg class="aa-logo-mark" width="'+mark+'" height="'+markH+'" viewBox="0 0 48 56" role="img" aria-label="AegisPay" xmlns="http://www.w3.org/2000/svg">'+
+      '<defs><linearGradient id="'+gradId+'" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9a76"/><stop offset=".55" stop-color="#f06a4d"/><stop offset="1" stop-color="#c94b8a"/></linearGradient></defs>'+
+      '<path d="M24 2.500 42.500 9.300V26c0 12.200-8 21.300-18.500 27.500C13.500 47.300 5.500 38.200 5.500 26V9.300z" fill="url(#'+gradId+')"/>'+
+      '<path d="M24 7 38.500 12.300V26c0 9.800-6.200 17.400-14.500 22.600C15.700 43.400 9.500 35.800 9.500 26V12.300z" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="1.2"/>'+
+      '<path d="M16 38.500 24 17l8 21.500M19.500 31.500h9" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>'+
+      '<circle cx="24" cy="11.800" r="2.300" fill="#fff1d0"/>'+
     '</svg>'+
     '<div class="aa-logo-copy"><div>Aegis<span>Pay</span></div><small>Your Payments, Your Way</small></div>'+
   '</div>';

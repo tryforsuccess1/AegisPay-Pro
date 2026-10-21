@@ -157,6 +157,27 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
 .aa-auth-shell .aa-auth-years b{font-weight:800;color:var(--mute)}
 @media(max-height:690px){.aa-auth-shell .aa-login.aa-login-auth{padding-top:12px;padding-bottom:12px}.aa-auth-shell .aa-auth-main{padding-top:35px;padding-bottom:10px}.aa-auth-shell .aa-auth-brand{margin-bottom:14px}.aa-auth-shell .aa-auth-brand .aa-logo-mark{width:52px!important;height:52px!important}.aa-auth-shell .aa-auth-brand .aa-logo-copy>div{font-size:29px}.aa-auth-shell .aa-auth-card{padding:16px 15px 14px}.aa-auth-shell .aa-auth-input,.aa-auth-shell .aa-auth-card .aa-primary{height:48px;min-height:48px}}
 @media(max-width:360px){.aa-auth-shell .aa-login.aa-login-auth{padding-left:15px;padding-right:15px}.aa-auth-shell .aa-auth-card{padding:18px 14px 15px}.aa-auth-shell .aa-auth-trust{gap:6px 9px;padding:7px 9px;font-size:9px}}
+
+/* Shared brand mark and compact footer alignment on Master Admin login. */
+.aa-auth-shell .aa-auth-brand .aa-logo-mark{width:64px!important;height:72px!important;filter:drop-shadow(0 8px 22px rgba(240,80,110,.38))}
+.aa-auth-shell .aa-login.aa-login-auth{padding:10px 22px 10px}
+.aa-auth-shell .aa-auth-main{padding:24px 0 8px}
+.aa-auth-shell .aa-auth-brand{margin-bottom:14px}
+.aa-auth-shell .aa-auth-card{padding:18px 18px 16px}
+.aa-auth-shell .aa-auth-card form{gap:10px}
+.aa-auth-shell .aa-auth-input,.aa-auth-shell .aa-auth-card .aa-primary{height:50px;min-height:50px}
+.aa-auth-shell .aa-auth-footer{padding-top:8px;gap:4px}
+@media(max-height:760px){
+  .aa-auth-shell .aa-login.aa-login-auth{padding-top:8px;padding-bottom:8px}
+  .aa-auth-shell .aa-auth-main{padding:16px 0 6px}
+  .aa-auth-shell .aa-auth-brand{margin-bottom:10px}
+  .aa-auth-shell .aa-auth-brand .aa-logo-mark{width:56px!important;height:65px!important}
+  .aa-auth-shell .aa-auth-brand .aa-logo-copy>div{font-size:30px}
+  .aa-auth-shell .aa-auth-card{padding:16px 16px 14px}
+  .aa-auth-shell .aa-auth-card form{gap:8px}
+  .aa-auth-shell .aa-auth-input,.aa-auth-shell .aa-auth-card .aa-primary{height:46px;min-height:46px}
+  .aa-auth-shell .aa-auth-footer{padding-top:6px;gap:3px}
+}
 </style>
 </head>
 <body>
@@ -178,7 +199,7 @@ if(!window.AEGIS_ANDROID_APP){
 <script src="./aegis-auth-redirect.js"></script>
 <script src="./app-update.js"></script>
 <script src="./shop-catalog.js"></script>
-<script src="./admin-auth.js?v=20261021-auth-reference-replica"></script>
+<script src="./admin-auth.js?v=20261021-google-logo-footer-fit"></script>
 <script src="./aegis-turnstile.js?v=20261021-turnstile-timeout-stability"></script>
 <script>
 (function(){

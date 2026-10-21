@@ -269,6 +269,10 @@ assert(client.includes("db.functions.invoke('public-signup'")&&client.includes("
 assert(!/auth[.]signUp\s*\(/i.test(client),'Client must not bypass server-side password screening with direct Supabase signUp calls.');
 assert(!/auth[.]updateUser\s*\(/i.test(client),'Client must not bypass server-side password screening with direct Supabase password updates.');
 assert(client.includes('socialProviders')&&client.includes("['google','facebook']")&&client.includes('data-social-auth'),'Optional social login must support both providers and remain config-gated');
+assert(client.includes('google-brand-mark')&&client.includes('fill="#EA4335"')&&client.includes('fill="#4285F4"')&&client.includes('fill="#FBBC05"')&&client.includes('fill="#34A853"'),'Google sign-in must use the official multicolour SVG mark, not a plain text G.');
+const adminAuthSourceForBrand=fs.readFileSync('admin-auth.js','utf8');
+assert(adminAuthSourceForBrand.includes('M24 2.500 42.500 9.300V26c0 12.200-8 21.300-18.500 27.500')&&adminAuthSourceForBrand.includes('M16 38.500 24 17l8 21.500M19.500 31.500h9')&&adminAuthSourceForBrand.includes('stroke-opacity=".4"'),'Master Admin must reuse the same shield outline and white A mark as Client.');
+assert(masterAdmin.includes('.aa-auth-shell .aa-auth-footer{padding-top:8px;gap:4px}')&&masterAdmin.includes('@media(max-height:760px)')&&masterAdmin.includes('padding-top:6px;gap:3px'),'Master Admin trust footer must be compact and move up on shorter screens.');
 assert(fs.readFileSync('supabase/functions/username-login/index.ts','utf8').includes('options: { captchaToken: captchaToken || undefined }'),'Username authentication must forward CAPTCHA token to Supabase Auth');
 assert(authUsernameLoginSource.includes('classifyAuthLoginError(authError)'),'Username login must distinguish CAPTCHA/rate-limit failures from invalid credentials');
 assert(authLoginErrorSource.includes('CAPTCHA_VERIFICATION_FAILED')&&authLoginErrorSource.includes('AUTH_RATE_LIMITED')&&authLoginErrorSource.includes('INVALID_CREDENTIALS'),'Login error classifier must map CAPTCHA, rate-limit, and credential errors explicitly');
