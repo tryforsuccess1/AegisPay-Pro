@@ -15,18 +15,22 @@ BEGIN
     ('production_config','{"environment":"PRE_PRODUCTION","live_deposits_enabled":false,"real_payouts_enabled":false,"go_live_approved":false,"payouts_locked":true}'::jsonb)
   ON CONFLICT(key) DO UPDATE SET value_json=EXCLUDED.value_json;
 
+  INSERT INTO public.users(id,referred_by)
+  VALUES('88888888-8888-4888-8888-888888888888',NULL)
+  ON CONFLICT(id) DO NOTHING;
+
   INSERT INTO public.shasta_test_users(user_id,enabled,purpose)
-  VALUES('11111111-1111-4111-8111-111111111111',true,'manual approval test fixture')
+  VALUES('88888888-8888-4888-8888-888888888888',true,'manual approval test fixture')
   ON CONFLICT(user_id) DO UPDATE SET enabled=true,purpose=EXCLUDED.purpose,updated_at=now();
 
   INSERT INTO public.deposit_wallets(
     id,user_id,network,address,derivation_index,wallet_root_fingerprint,token_contract,status
   ) VALUES (
     '44444444-4444-4444-8444-444444444444',
-    '11111111-1111-4111-8111-111111111111',
+    '88888888-8888-4888-8888-888888888888',
     'TRON TESTNET',
-    'TPXkczErK2Bo66MMU9HxYvnPFqB6mGYTTJ',
-    1,repeat('a',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs','ACTIVE'
+    ('T' || repeat('A',33)),
+    56,repeat('b',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs','ACTIVE'
   )
   ON CONFLICT(id) DO NOTHING;
 
@@ -36,12 +40,12 @@ BEGIN
     deposit_wallet_id,receiving_address,screenshot_path
   ) VALUES (
     '33333333-3333-4333-8333-333333333333',
-    '11111111-1111-4111-8111-111111111111',
+    '88888888-8888-4888-8888-888888888888',
     'tier-a',10.00,0.00,10.00,'PENDING_VERIFICATION','MANUAL_APPROVED',
     'MASTER_ADMIN_APPROVED',now(),NULL,NULL,'TRON TESTNET',
     'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs',
     '44444444-4444-4444-8444-444444444444',
-    'TPXkczErK2Bo66MMU9HxYvnPFqB6mGYTTJ',
+    ('T' || repeat('A',33)),
     'test-evidence/manual-testnet.png'
   );
 
@@ -65,7 +69,7 @@ BEGIN
 
   SELECT current_platform_balance, principal_balance
     INTO v_balance, v_principal
-    FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
+    FROM public.users WHERE id='88888888-8888-4888-8888-888888888888';
   SELECT count(*) INTO v_ledger_count
     FROM public.account_ledger
     WHERE reference_id='33333333-3333-4333-8333-333333333333'
@@ -80,7 +84,7 @@ BEGIN
   BEGIN
     PERFORM public.apply_manual_testnet_deposit_approval(
       '33333333-3333-4333-8333-333333333333',
-      '11111111-1111-4111-8111-111111111111'
+      '88888888-8888-4888-8888-888888888888'
     );
   EXCEPTION WHEN OTHERS THEN
     v_failed := true;
