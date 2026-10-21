@@ -19,6 +19,12 @@ Deno.test("returns null for missing, malformed or ambiguous screenshot extractio
   assertEquals(extractUniqueTxidCandidate("TXID " + a + " repeated " + a), a);
 });
 
+Deno.test("candidate extraction remains stable across repeated screenshot scans", () => {
+  assertEquals(extractUniqueTxidCandidate("TXID " + a), a);
+  assertEquals(extractUniqueTxidCandidate("TXID " + b), b);
+  assertEquals(extractUniqueTxidCandidate("No hash present"), null);
+});
+
 Deno.test("hashes duplicate TXID fingerprints without storing the source TXID", async () => {
   const left = await sha256Hex(a.toLowerCase());
   const right = await sha256Hex(a.toUpperCase().toLowerCase());
