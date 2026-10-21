@@ -65,7 +65,7 @@ BEGIN
      AND e.event_type = 'DUPLICATE_TXID_ATTEMPT'
      AND e.created_at >= now() - interval '30 days';
 
-  IF v_count >= 3 AND upper(coalesce(v_status,'')) NOT IN ('BLOCKED','SUSPENDED','DELETED') THEN
+  IF v_count >= 2 AND upper(coalesce(v_status,'')) NOT IN ('BLOCKED','SUSPENDED','DELETED') THEN
     UPDATE public.users SET status='BLOCKED' WHERE id=p_user_id;
     v_blocked := true;
     INSERT INTO public.audit_events(actor_user_id,target_user_id,event_type,description,reference_id)
