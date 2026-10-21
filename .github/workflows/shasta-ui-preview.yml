@@ -47,26 +47,36 @@ jobs:
       - name: Run AegisPay repository checks
         run: npm run check
 
-      - name: Diagnose the configured Turnstile widget hostname allowlist
+      - name: Ensure exact Shasta preview hostname is authorized in Turnstile
         shell: bash
         env:
           TURNSTILE_SITEKEY: "0x4AAAAAAFZaOeTke8FQpVNS"
+          TURNSTILE_PREVIEW_HOST: "shasta-test-ui.aegispay-pro.pages.dev"
         run: |
           set -euo pipefail
-          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/challenges/widgets?per_page=100&page=1"
-          if ! curl --fail --silent --show-error --max-time 20 -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o /tmp/turnstile-widgets.json; then
-            echo "::warning::Turnstile widget configuration could not be read by this token; no security settings were changed."
-            exit 0
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/challenges/widgets/${TURNSTILE_SITEKEY}"
+          auth=(-H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}")
+          if ! curl --fail --silent --show-error --max-time 20 "${auth[@]}" "$api" -o /tmp/turnstile-widget.json; then
+            echo "::error::Unable to read the configured Turnstile widget. No sign-in security setting was bypassed."
+            exit 1
           fi
-          jq --arg key "$TURNSTILE_SITEKEY" '[.result[]? | select(.sitekey == $key) | {id: (.id // .sitekey), name, domains}]' /tmp/turnstile-widgets.json > /tmp/turnstile-target.json
-          jq '{matchingWidgetCount:length, widgets:map({id, name, domains})}' /tmp/turnstile-target.json
-          count="$(jq 'length' /tmp/turnstile-target.json)"
-          if [ "$count" -eq 0 ]; then
-            echo "::warning::Configured sitekey was not found in this Cloudflare account. Check that the page sitekey matches its Turnstile widget."
-            exit 0
+          jq -e --arg key "$TURNSTILE_SITEKEY" '.success == true and .result.sitekey == $key and (.result.domains|type == "array") and (.result.mode|type == "string") and (.result.name|type == "string")' /tmp/turnstile-widget.json >/dev/null
+          if ! jq -e --arg host "$TURNSTILE_PREVIEW_HOST" '.result.domains | index($host) != null' /tmp/turnstile-widget.json >/dev/null; then
+            jq --arg host "$TURNSTILE_PREVIEW_HOST" '
+              .result as $r |
+              {name:$r.name, mode:$r.mode, domains: (($r.domains // []) + [$host] | unique)}
+              + (if $r.bot_fight_mode != null then {bot_fight_mode:$r.bot_fight_mode} else {} end)
+              + (if $r.clearance_level != null then {clearance_level:$r.clearance_level} else {} end)
+              + (if $r.ephemeral_id != null then {ephemeral_id:$r.ephemeral_id} else {} end)
+              + (if $r.offlabel != null then {offlabel:$r.offlabel} else {} end)
+            ' /tmp/turnstile-widget.json > /tmp/turnstile-update.json
+            curl --fail --silent --show-error --max-time 20 "${auth[@]}" -H "Content-Type: application/json" -X PUT --data-binary @/tmp/turnstile-update.json "$api" -o /tmp/turnstile-updated.json
+            jq -e '.success == true' /tmp/turnstile-updated.json >/dev/null
           fi
-          jq -e '.[0].domains | any(. == "aegispay-pro.pages.dev" or . == "shasta-test-ui.aegispay-pro.pages.dev")' /tmp/turnstile-target.json >/dev/null || echo "::warning::The current AegisPay Shasta preview hostname is not explicitly covered by this widget's configured domains."
-      
+          curl --fail --silent --show-error --max-time 20 "${auth[@]}" "$api" -o /tmp/turnstile-verify.json
+          jq -e --arg host "$TURNSTILE_PREVIEW_HOST" '.success == true and (.result.domains | index($host) != null)' /tmp/turnstile-verify.json >/dev/null
+          jq '{name:.result.name, mode:.result.mode, domains:.result.domains}' /tmp/turnstile-verify.json
+
       - name: Assemble Shasta-aware portal preview
         shell: bash
         run: |
