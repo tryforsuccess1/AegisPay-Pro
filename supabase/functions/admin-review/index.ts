@@ -75,7 +75,8 @@ Deno.serve(async (req: Request) => {
         if (creditError) {
           return json({ error: creditError.message || "Testnet deposit could not be approved." }, 409);
         }
-        if (!credited || credited.status !== "VERIFIED") {
+        const creditedRow = Array.isArray(credited) ? credited[0] : credited;
+        if (!creditedRow || creditedRow.status !== "VERIFIED") {
           return json({ error: "Testnet approval did not reach the verified state." }, 409);
         }
         return json({ status: "VERIFIED", manualTestnetApproval: true, requiresChainVerification: false });
