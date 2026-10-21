@@ -1364,7 +1364,7 @@ async function liveTopup(){
  const copy=document.getElementById('copyDepositAddress');if(copy)copy.onclick=()=>copyTextToClipboard(wallet,'Deposit address copied.');
  const amount=document.getElementById('depAmount'),txid=document.getElementById('txid'),proof=document.getElementById('proof'),submit=document.getElementById('submitDep');
  const scanButton=document.getElementById('scanProofTxid'),scanStatus=document.getElementById('txidScanStatus');
- let uploadedProofPath='',uploadedProofFile=null,uploadInFlight=null,uploadInFlightFile=null,proofScanToken=0,duplicateTxidDetected=false;
+ let uploadedProofPath='',uploadedProofFile=null,uploadInFlight=null,uploadInFlightFile=null,proofScanToken=0,duplicateTxidDetected=false,duplicateEvidenceDetected=false;
  async function ensureProofUploaded(file){
   if(uploadedProofPath&&uploadedProofFile===file)return uploadedProofPath;
   if(uploadInFlight&&uploadInFlightFile===file)return await uploadInFlight;
@@ -1403,6 +1403,9 @@ async function liveTopup(){
     if(details.payload&&['DUPLICATE_DEPOSIT_TXID','ACCOUNT_BLOCKED_DUPLICATE_TXID'].includes(details.payload.code)){
      duplicateTxidDetected=true;txid.value='';
      scanStatus.textContent=details.message;
+    }else if(details.payload&&details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'){
+     duplicateEvidenceDetected=true;
+     scanStatus.textContent=details.message;
     }else{
      scanStatus.textContent=details.message;
     }
@@ -1430,7 +1433,7 @@ async function liveTopup(){
  if(txid)txid.oninput=()=>{duplicateTxidDetected=false};
  if(proof)proof.onchange=()=>{
   const file=proof.files&&proof.files[0];
-  uploadedProofPath='';uploadedProofFile=null;uploadInFlight=null;uploadInFlightFile=null;proofScanToken++;duplicateTxidDetected=false;
+  uploadedProofPath='';uploadedProofFile=null;uploadInFlight=null;uploadInFlightFile=null;proofScanToken++;duplicateTxidDetected=false;duplicateEvidenceDetected=false;
   if(scanStatus)scanStatus.textContent='';
   if(scanButton){scanButton.style.display=file?'block':'none';scanButton.disabled=!file}
   if(submit)submit.disabled=!!file;
@@ -1449,6 +1452,7 @@ async function liveTopup(){
    if(walletNetwork!=='TRON TESTNET'&&!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format for Mainnet.');if(tx.length>128)throw Error('TXID input is too long. Clear it or paste the transaction hash.');
    if(!f)throw Error('Please attach the transaction screenshot.');
    submit.disabled=true;submit.textContent='Submitting…';
+   if(duplicateEvidenceDetected)throw Error('This exact screenshot has already been submitted. Choose the correct new screenshot or open the existing deposit request.');
    if(duplicateTxidDetected)throw Error('This TXID was already rejected as a duplicate. Enter a different valid transaction ID or choose the correct screenshot.');
    const path=await ensureProofUploaded(f);
    const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path}});
