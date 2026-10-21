@@ -85,46 +85,51 @@ function toggleAdminTheme(button){
 }
 
 function shell(body){
-  return '<div class="aa-shell">'+
-    '<header class="aa-top">'+
-      '<div class="aa-brand">'+
-        aegisLogo(188)+
-      '</div>'+
+  const authOnly=!state.profile;
+  return '<div class="aa-shell'+(authOnly?' aa-auth-shell':'')+'">'+
+    (authOnly?'':'<header class="aa-top">'+
+      '<div class="aa-brand">'+aegisLogo(188)+'</div>'+
       '<div class="aa-top-actions">'+
         '<button class="aa-icon-button aa-theme-toggle" type="button" data-action="theme" title="Switch to '+(document.documentElement.getAttribute('data-mode')==='dark'?'light':'dark')+' mode" aria-label="Switch to '+(document.documentElement.getAttribute('data-mode')==='dark'?'light':'dark')+' mode">'+ico(document.documentElement.getAttribute('data-mode')==='dark'?'sun':'moon',17)+'</button>'+
         (state.profile?'<span class="aa-session">'+ico('shield',14)+' Secure Session</span>':'')+
         (state.profile?'<button class="aa-icon-button" data-action="refresh" title="Refresh">'+ico('refresh',17)+'</button>':'')+
       '</div>'+
-    '</header>'+
+    '</header>')+
     body+
-    '<footer class="aa-footer"><span>© 2023–2026 AegisPay</span><span>Secure &amp; Verified · Protected Operations</span></footer>'+
+    (authOnly?'':'<footer class="aa-footer"><span>© 2023–2026 AegisPay</span><span>Secure &amp; Verified · Protected Operations</span></footer>')+
   '</div>';
 }
 
 function loginView(){
   const loading=state.busy;
-  return shell('<main class="aa-login">'+
+  const isDark=document.documentElement.getAttribute('data-mode')==='dark';
+  return shell('<main class="aa-login aa-login-auth">'+
     '<div class="aa-login-glow"></div>'+
-    '<section class="aa-auth-card">'+
-      '<div class="aa-auth-logo">'+aegisLogo(270)+'</div>'+
-      '<div class="aa-eyebrow">MASTER ADMIN</div>'+
-      '<h1>Welcome back</h1>'+
-      '<p class="aa-auth-sub">Secure AegisPay control center for platform operations.</p>'+
-      (state.error?'<div class="aa-alert aa-alert-error">'+ico('x',15)+'<span>'+esc(state.error)+'</span></div>':'')+
-      (loading?
-        '<div class="aa-loading"><span class="aa-spinner"></span><strong>Signing in securely</strong><small>Verifying protected admin access…</small></div>':
-        '<form id="aaLoginForm">'+
-          '<label class="aa-field"><span>Username</span><input id="aaUsername" type="text" inputmode="text" autocomplete="username" placeholder="Admin username or email" required></label>'+
-          '<label class="aa-field"><span>Password</span><input id="aaPassword" type="password" autocomplete="current-password" placeholder="Enter password" required></label>'+
-          '<button class="aa-primary aa-wide" type="submit">'+ico('shield',17)+' Sign in securely <span class="aa-arrow">→</span></button>'+
-        '</form>')+
-      '<div class="aa-security-box">'+
-        '<div class="aa-security-icon">'+ico('shield',17)+'</div>'+
-        '<div><strong>Secure &amp; Verified</strong><small>256-bit encrypted · Master Admin role protected</small></div>'+
-      '</div>'+
-    '</section>'+
+    '<div class="aa-auth-bar">'+
+      '<button class="aa-icon-button aa-theme-toggle" type="button" data-action="theme" title="Switch to '+(isDark?'light':'dark')+' mode" aria-label="Switch to '+(isDark?'light':'dark')+' mode">'+ico(isDark?'sun':'moon',17)+'</button>'+
+      '<span class="aa-auth-language" aria-label="Language: English"><svg class="aa-icon" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"></path></svg> EN</span>'+
+    '</div>'+
+    '<div class="aa-auth-main">'+
+      '<div class="aa-auth-brand">'+aegisLogo(64)+'</div>'+
+      '<section class="aa-auth-card">'+
+        (state.error?'<div class="aa-alert aa-alert-error">'+ico('x',15)+'<span>'+esc(state.error)+'</span></div>':'')+
+        (loading?
+          '<div class="aa-loading"><span class="aa-spinner"></span><strong>Signing in securely</strong><small>Verifying protected admin access…</small></div>':
+          '<form id="aaLoginForm">'+
+            '<label class="aa-field aa-auth-field"><span>Username / Admin ID</span><div class="aa-auth-input"><span class="aa-auth-input-icon">'+ico('users',18)+'</span><input id="aaUsername" type="text" inputmode="text" autocomplete="username" placeholder="Enter your Admin ID" required></div></label>'+
+            '<label class="aa-field aa-auth-field"><span>Password</span><div class="aa-auth-input"><span class="aa-auth-input-icon">'+ico('shield',18)+'</span><input id="aaPassword" type="password" autocomplete="current-password" placeholder="Enter your password" required></div></label>'+
+            '<button class="aa-primary aa-wide" type="submit">Login <span class="aa-arrow">→</span></button>'+
+          '</form>')+
+      '</section>'+
+    '</div>'+
+    '<footer class="aa-auth-footer">'+
+      '<div class="aa-auth-trust"><span class="aa-auth-trust-item verified">'+ico('check',12)+' Secure &amp; Verified</span><span class="aa-auth-trust-item cloudflare">'+ico('shield',12)+' Cloudflare Turnstile Protected</span></div>'+
+      '<div class="aa-auth-role">MASTER ADMIN</div>'+
+      '<div class="aa-auth-years">Since 2023 — 2026 · <b>AegisPay</b></div>'+
+    '</footer>'+
   '</main>');
 }
+
 
 const tabs=[
   ['dashboard','Dashboard','grid'],
