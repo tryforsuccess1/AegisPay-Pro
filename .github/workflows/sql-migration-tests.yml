@@ -24,7 +24,7 @@ on:
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
   push:
-    branches: [main]
+    branches: [main, feat/step2-shasta-deposit-e2e]
     paths:
       - 'database/migrations/**'
       - 'scripts/sql-tests/deposit_txid_optional_assertions.sql'
