@@ -270,13 +270,9 @@ function reviewCard(kind,item){
       '<div class="aa-detail-grid"><span>Tier<b>'+esc(item.tierId||'—')+'</b></span><span>TXID<b class="aa-mono">'+esc(item.txid||'—')+'</b></span><span>AI Review<b>'+esc(item.aiReviewStatus||'—')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'n/a':item.aiConfidence)+'</b></span><span>AI Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span><span>Policy<b>'+esc(item.aiPolicyVersion||'—')+'</b></span><span>Submitted<b>'+esc(date(item.createdAt||item.submittedAt))+'</b></span></div>'+
       '<div class="aa-review-actions">'+
         (item.screenshotUrl?'<a class="aa-secondary" href="'+esc(item.screenshotUrl)+'" target="_blank" rel="noopener">'+ico('eye',15)+' Open Evidence</a>':'<span class="aa-muted">Evidence unavailable</span>')+
-        (item.status==='PENDING_VERIFICATION'&&item.aiReviewStatus==='MANUAL_APPROVED'&&!String(item.txid||'').trim()
-          ?'<div class="aa-txid-entry"><label for="aaTxid-'+esc(item.id)+'">Transaction ID (TXID)<input id="aaTxid-'+esc(item.id)+'" data-deposit-txid="true" type="text" inputmode="text" autocomplete="off" maxlength="64" placeholder="Paste the 64-character transaction hash"></label><button class="aa-primary" data-action="attach-deposit-txid" data-id="'+esc(item.id)+'">Save TXID &amp; Verify</button><small>Manual review is saved. No balance is credited until the transaction is confirmed on-chain.</small></div>'
-          :item.status==='PENDING_VERIFICATION'&&String(item.txid||'').trim()
-            ?'<button class="aa-primary" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="approve">Verify Transfer</button>'
-            :item.status==='PENDING_VERIFICATION'
-              ?'<button class="aa-primary" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="approve">Approve &amp; Verify</button><button class="aa-danger" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>'
-              :'<span class="aa-muted">Historical record · review only</span>')+
+        (item.status==='PENDING_VERIFICATION'
+          ?'<button class="aa-primary" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="approve">Approve</button><button class="aa-danger" data-action="review" data-kind="deposit" data-id="'+esc(item.id)+'" data-decision="reject">Reject</button>'
+          :'<span class="aa-muted">Historical record · review only</span>')+
       '</div></article>';
   }
   if(kind==='kyc'){
@@ -637,41 +633,15 @@ async function runtime(){
   });
 }
 
-async function attachDepositTxid(el){
-  const id=String(el.dataset.id||'');
-  const card=el.closest('.aa-review-card');
-  const input=card&&card.querySelector('[data-deposit-txid]');
-  const txid=String(input&&input.value||'').trim();
-  if(!/^[0-9a-f]{64}$/i.test(txid)){
-    state.error='Enter the full 64-character transaction hash from the TRON testnet transaction details.';
-    render();
-    return;
-  }
-  let verification=null;
-  await setBusy(async function(){
-    const linked=await service.invokeFunction('admin-review',{body:{action:'deposit_txid',id,txid}});
-    if(linked.error)throw linked.error;
-    verification=await service.invokeFunction('verify-deposit',{body:{depositId:id}});
-    if(verification.error)throw verification.error;
-    await refreshData();
-    if(verification.data?.status!=='VERIFIED'){
-      state.error=verification.data?.message||'TXID saved, but no matching confirmed transfer was found. Deposit remains pending and no balance was credited.';
-    }
-  });
-  if(verification&&verification.data?.status==='VERIFIED'){
-    window.alert('Confirmed transfer verified successfully. The deposit ledger has been updated by the verified-deposit procedure.');
-  }
-}
-
 async function review(el){
   await setBusy(async function(){
     const kind=el.dataset.kind,id=el.dataset.id,decision=el.dataset.decision;
     const r=await service.invokeFunction('admin-review',{body:{action:kind,id,decision}});
     if(r.error)throw r.error;
-    if(kind==='deposit'&&decision==='approve'){
+    if(kind==='deposit'&&decision==='approve'&&r.data?.requiresChainVerification===true){
       const check=await service.invokeFunction('verify-deposit',{body:{depositId:id}});
       if(check.error)throw check.error;
-      if(check.data?.status==='PENDING_VERIFICATION')state.error=check.data.message||'On-chain transfer is not confirmed yet.';
+      if(check.data?.status==='PENDING_VERIFICATION')state.error=check.data.message||'Evidence approved. A confirmed on-chain transfer is still required before balance credit.';
     }
     if(kind==='withdrawal'&&decision==='approve'&&r.data?.status==='APPROVED'){
       const mode=state.settings.system_mode||{};
@@ -1025,7 +995,6 @@ root.addEventListener('click',function(e){
   if(action==='support-case-status'){updateSupportCase(el);return;}
   if(action==='support-chat-open'){openSupportChat(el);return;}
   if(action==='support-chat-send'){sendSupportChatMessage(el);return;}
-  if(action==='attach-deposit-txid'){attachDepositTxid(el);return;}
   if(action==='review'){review(el);return;}
   if(action==='payout'){payout(el);return;}
   if(action==='invalid-withdrawal-refund'){reconcileInvalidWithdrawal(el);return;}
