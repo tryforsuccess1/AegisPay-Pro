@@ -426,9 +426,6 @@ CREATE TRIGGER guard_shasta_deposit_verification
 BEFORE INSERT OR UPDATE ON public.deposit_submissions
 FOR EACH ROW EXECUTE FUNCTION public.guard_shasta_deposit_verification();
 
-COMMENT ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid)
-IS 'One-click Master Admin testnet-only manual deposit credit. Requires evidence, an allowlisted Shasta test account, its active assigned wallet, a separate pinned test treasury, and all production/live-money gates closed. Never credits Mainnet and is idempotent.';
-
 REVOKE ALL ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.apply_manual_testnet_deposit_approval(uuid,uuid) TO service_role;
 
