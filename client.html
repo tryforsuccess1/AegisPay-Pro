@@ -2856,8 +2856,8 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         if(scanResult.error){
           const details=await readDepositFunctionError(scanResult.error,'The screenshot could not be scanned.');
           if(details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'&&details.payload.depositId){
-            depositPendingId=String(details.payload.depositId);
             if(String(details.payload.status||'')==='PENDING_VERIFICATION'){
+              depositPendingId=String(details.payload.depositId);
               setDepositScanStatus('This screenshot already belongs to a pending request. Use “Retry TronGrid verification” to check that existing request; a second request was not created.','pending');
               if(submitDep){submitDep.disabled=false;submitDep.textContent='Retry TronGrid verification';}
             }else{
@@ -2896,7 +2896,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
       if(depositBusy)return;
       try{
         const amount=Number(depAmount.value);
-        if(!Number.isFinite(amount)||amount<minDeposit)throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
+        if(!depositPendingId&&(!Number.isFinite(amount)||amount<minDeposit))throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
         if(!wallet)throw Error('No unique receiving address is available. Do not send funds.');
         if(!depositScreenshotPath||(!depositScannedTxid&&!depositPendingId))throw Error('Choose a deposit screenshot and wait for the AI scan to finish.');
         depositBusy=true;
@@ -2921,6 +2921,8 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         if(result.status==='VERIFIED'){
           setDepositScanStatus('Deposit verified on-chain. The server has applied the verified credit. Refreshing your account…','success');
           uiNotice('Deposit verified by TronGrid. Account balance updated.','success');
+          const refreshedProfile=await db.from('users').select('current_platform_balance,principal_balance,profit_balance,selected_tier_id').eq('id',profile.id).maybeSingle();
+          if(!refreshedProfile.error&&refreshedProfile.data)Object.assign(profile,refreshedProfile.data);
           await liveTopup();
           return;
         }
