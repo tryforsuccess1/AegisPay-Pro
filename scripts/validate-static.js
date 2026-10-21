@@ -167,11 +167,12 @@ const shastaValidationSource=fs.readFileSync('supabase/functions/_shared/tron-de
 const shastaValidationTestSource=fs.readFileSync('supabase/functions/_shared/tron-deposit-validation_test.ts','utf8');
 const shastaVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const shastaMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
-const depositEvidenceDedupeTests=fs.readFileSync('scripts/sql-tests/deposit_evidence_dedupe_assertions.sql','utf8');
+const step2DepositEvidenceDedupeTests=fs.readFileSync('scripts/sql-tests/deposit_evidence_dedupe_assertions.sql','utf8');
 assert(shastaValidationSource.includes('export function selectUniqueUnclaimedShastaTransfer')&&shastaValidationSource.includes('status: "AMBIGUOUS"')&&shastaValidationSource.includes('status: "ALREADY_LINKED"'),'Shasta matching must fail closed on ambiguity and already-claimed transfers.');
 assert(shastaVerifySource.includes('selectUniqueUnclaimedShastaTransfer')&&shastaMonitorSource.includes('selectUniqueUnclaimedShastaTransfer'),'Verifier and monitor must use the shared transfer selector.');
 assert(shastaValidationTestSource.includes('repeated API rows for the same Shasta transfer')&&shastaValidationTestSource.includes('transfer selection retries only when there is one unique unclaimed TXID'),'Shasta selector unit tests must cover duplicates, claims and ambiguity.');
-assert(depositEvidenceDedupeTests.includes('Duplicate evidence was accepted for a second active deposit request')&&depositEvidenceDedupeTests.includes('Canonical Shasta TXID was accepted for two different deposit requests')&&depositEvidenceDedupeTests.includes('Duplicate active Shasta submitted TXID hint was accepted'),'SQL tests must exercise duplicate evidence, submitted TXID and canonical TXID rejection.');
+assert(step2DepositEvidenceDedupeTests.includes('Duplicate evidence was accepted for a second active deposit request')&&step2DepositEvidenceDedupeTests.includes('Canonical Shasta TXID was accepted for two different deposit requests')&&step2DepositEvidenceDedupeTests.includes('Duplicate active Shasta submitted TXID hint was accepted'),'SQL tests must exercise duplicate evidence, submitted TXID and canonical TXID rejection.');
+const scanFlowDepositEvidenceDedupeTests=fs.readFileSync('scripts/sql-tests/deposit_evidence_dedupe_assertions.sql','utf8');
 // OCR only suggests a TXID; the server-side TronGrid verifier remains the sole credit authority.
 const depositTxidScanSource=fs.readFileSync('supabase/functions/scan-deposit-txid/index.ts','utf8');
 const depositTxidHelperSource=fs.readFileSync('supabase/functions/_shared/deposit-txid.ts','utf8');
