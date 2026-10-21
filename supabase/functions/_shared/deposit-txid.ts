@@ -7,6 +7,7 @@ export function extractUniqueTxidCandidate(value: unknown): string | null {
   const input = value.trim();
   if (TXID_RE.test(input)) return input;
   const found = new Map<string, string>();
+  EMBEDDED_TXID_RE.lastIndex = 0;
   for (const match of input.matchAll(EMBEDDED_TXID_RE)) {
     const txid = String(match[2] || "");
     if (TXID_RE.test(txid)) found.set(txid.toLowerCase(), txid);
