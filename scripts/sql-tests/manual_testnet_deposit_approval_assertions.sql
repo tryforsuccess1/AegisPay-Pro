@@ -52,6 +52,7 @@ BEGIN
   IF v_deposit.status <> 'VERIFIED'
      OR v_deposit.verification_source <> 'MASTER_ADMIN_TESTNET_MANUAL'
      OR v_deposit.txid IS NOT NULL
+     OR v_deposit.manual_approved_by IS DISTINCT FROM 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
      OR v_deposit.ai_review_status <> 'MANUAL_APPROVED' THEN
     RAISE EXCEPTION 'Manual testnet approval did not produce the expected verified test credit';
   END IF;
