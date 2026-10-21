@@ -9,11 +9,11 @@
   var states = new WeakMap();
   var apiPromise = null;
   var API_LOAD_TIMEOUT_MS = 15000;
-  var VERIFY_RETRY_LIMIT = 1;
+  var VERIFY_RETRY_LIMIT = 0;
   var VERIFY_RETRY_DELAY_MS = 1500;
   // Allow slow networks and interactive challenges time to finish. Eight seconds
   // was too short and caused false timeouts/repeated resets on real browsers.
-  var VERIFY_ATTEMPT_TIMEOUT_MS = 45000;
+  var VERIFY_ATTEMPT_TIMEOUT_MS = 60000;
 
   function preconnectCloudflare() {
     var head = document.head || document.documentElement;
@@ -187,7 +187,7 @@
     state.verificationTimer = window.setTimeout(function () {
       state.verificationTimer = null;
       if (!state.manual || !state.inProgress || !state.pendingPromise) return;
-      failOrRetryVerification(state, new Error('Cloudflare security verification timed out.'));
+      failOrRetryVerification(state, new Error('Cloudflare did not return a verification token within 60 seconds. No sign-in was attempted. Check that challenges.cloudflare.com is reachable, then click Sign in once to retry.'));
     }, timeoutMs);
   }
 
@@ -324,7 +324,7 @@
           sitekey: resolvedSitekey(),
           theme: 'auto',
           execution: manual ? 'execute' : 'render',
-          appearance: manual ? 'execute' : 'always',
+          appearance: 'always',
           retry: manual ? 'never' : 'auto',
           'retry-interval': 3000,
           'refresh-expired': 'auto',
@@ -398,7 +398,7 @@
             }
             state.inProgress = false;
             var message = manual
-              ? 'Security verification timed out. Click Login to try again.'
+              ? 'Cloudflare did not complete verification within 60 seconds. No sign-in was attempted. Check your connection or browser extensions, then click Login once to retry.'
               : 'Security verification timed out. Please submit again to retry.';
             status.textContent = message;
             settleVerification(state, null, new Error(message));
