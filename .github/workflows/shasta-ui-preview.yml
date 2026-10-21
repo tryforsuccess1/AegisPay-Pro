@@ -131,11 +131,13 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 "$base/admin-auth.js" -o /tmp/shasta-admin-auth.js
           test -s /tmp/shasta-master-admin.html
           grep -q "admin-auth.js" /tmp/shasta-master-admin.html
-          grep -q "aegis-turnstile.js?v=20261021-turnstile-timeout-fix" /tmp/shasta-master-admin.html
+          grep -q "aegis-turnstile.js?v=20261021-turnstile-visible-challenge-fix" /tmp/shasta-master-admin.html
           grep -q "manualShastaCredit" /tmp/shasta-admin-auth.js
           grep -q "Master Admin Manual Verify + Credit (Shasta)" /tmp/shasta-admin-auth.js
-          curl --fail --silent --show-error --location --max-time 20 "$base/aegis-turnstile.js?v=20261021-turnstile-timeout-fix" -o /tmp/shasta-turnstile.js
-          grep -q "var VERIFY_ATTEMPT_TIMEOUT_MS = 45000" /tmp/shasta-turnstile.js
+          curl --fail --silent --show-error --location --max-time 20 "$base/aegis-turnstile.js?v=20261021-turnstile-visible-challenge-fix" -o /tmp/shasta-turnstile.js
+          grep -q "var VERIFY_ATTEMPT_TIMEOUT_MS = 60000" /tmp/shasta-turnstile.js
+          grep -q "var VERIFY_RETRY_LIMIT = 0" /tmp/shasta-turnstile.js
+          grep -q "appearance: 'always'" /tmp/shasta-turnstile.js
           grep -q "Cloudflare does not authorize this hostname" /tmp/shasta-turnstile.js
           curl --fail --silent --show-error --location --max-time 20 -D /tmp/shasta-admin-headers.txt "$base/master-admin.html" -o /dev/null
           grep -qi "Cache-Control: no-store" /tmp/shasta-admin-headers.txt
