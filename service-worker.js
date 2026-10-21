@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v38-missing-deposit-txid-recovery';
+const CACHE='aegispay-shell-v39-simple-admin-deposit-approval';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
