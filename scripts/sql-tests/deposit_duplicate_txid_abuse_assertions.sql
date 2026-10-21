@@ -28,19 +28,20 @@ BEGIN
   SELECT * INTO r FROM public.register_duplicate_deposit_txid_attempt(
     '11111111-1111-4111-8111-111111111111',v_hash_b
   );
-  IF r.attempt_count <> 2 OR r.blocked OR NOT r.counted THEN
-    RAISE EXCEPTION 'Second distinct duplicate TXID attempt should be a final warning';
+  IF r.attempt_count <> 2 OR NOT r.blocked OR NOT r.counted THEN
+    RAISE EXCEPTION 'Second distinct duplicate TXID attempt must block the account';
   END IF;
 
+  -- Further attempts from a blocked account stay blocked but do not add more strikes.
   SELECT * INTO r FROM public.register_duplicate_deposit_txid_attempt(
     '11111111-1111-4111-8111-111111111111',v_hash_c
   );
-  IF r.attempt_count <> 3 OR NOT r.blocked OR NOT r.counted THEN
-    RAISE EXCEPTION 'Third distinct duplicate TXID attempt must block the account';
+  IF r.attempt_count <> 2 OR NOT r.blocked OR r.counted THEN
+    RAISE EXCEPTION 'A blocked account must remain blocked without extending the strike count';
   END IF;
 
   SELECT status INTO v_status FROM public.users WHERE id='11111111-1111-4111-8111-111111111111';
-  IF v_status <> 'BLOCKED' THEN RAISE EXCEPTION 'Third distinct duplicate attempt did not block the account'; END IF;
+  IF v_status <> 'BLOCKED' THEN RAISE EXCEPTION 'Second distinct duplicate attempt did not block the account'; END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM public.audit_events
