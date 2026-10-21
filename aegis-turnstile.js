@@ -8,10 +8,12 @@
   var MANUAL_LOGIN_FORMS = new Set(['liveLogin', 'aaLoginForm']);
   var states = new WeakMap();
   var apiPromise = null;
-  var API_LOAD_TIMEOUT_MS = 10000;
-  var VERIFY_RETRY_LIMIT = 2;
-  var VERIFY_RETRY_DELAY_MS = 450;
-  var VERIFY_ATTEMPT_TIMEOUT_MS = 8000;
+  var API_LOAD_TIMEOUT_MS = 15000;
+  var VERIFY_RETRY_LIMIT = 1;
+  var VERIFY_RETRY_DELAY_MS = 1500;
+  // Allow slow networks and interactive challenges time to finish. Eight seconds
+  // was too short and caused false timeouts/repeated resets on real browsers.
+  var VERIFY_ATTEMPT_TIMEOUT_MS = 45000;
 
   function preconnectCloudflare() {
     var head = document.head || document.documentElement;
@@ -91,6 +93,43 @@
     return String(config.turnstileSiteKey || SITEKEY);
   }
 
+  function turnstileErrorDetails(errorCode) {
+    var code = String(errorCode || '').trim();
+    if (code === '110200' || code === '400021') {
+      return {
+        code: code,
+        retryable: false,
+        message: 'Cloudflare does not authorize this hostname for the configured security widget (' + code + '). The Cloudflare administrator must add this hostname in Turnstile Hostname Management.'
+      };
+    }
+    if (code === '110100' || code === '110110' || code === '400020' || code === '400070') {
+      return {
+        code: code,
+        retryable: false,
+        message: 'The Cloudflare security widget key is invalid, missing, or disabled (' + code + '). Please contact the Cloudflare administrator; repeating the challenge will not fix this configuration.'
+      };
+    }
+    if (code === '200500') {
+      return {
+        code: code,
+        retryable: true,
+        message: 'Cloudflare could not load its challenge frame (200500). Check the connection, VPN, or browser extensions blocking challenges.cloudflare.com.'
+      };
+    }
+    if (code === '110600' || code === '110620') {
+      return {
+        code: code,
+        retryable: true,
+        message: 'The Cloudflare security challenge timed out (' + code + '). Click Login once to retry.'
+      };
+    }
+    return {
+      code: code || 'unknown',
+      retryable: true,
+      message: 'Cloudflare security verification failed (' + (code || 'unknown') + '). Click Login once to retry; if it happens again, provide this error code to the administrator.'
+    };
+  }
+
   function credentialInputs(form) {
     if (!form) return [];
     if (form.id === 'liveLogin') {
@@ -156,7 +195,8 @@
     state.token = '';
     state.issuedAt = 0;
     state.error = error instanceof Error ? error : new Error(String(error || 'Cloudflare security verification failed.'));
-    if (state.manual && state.inProgress && state.pendingPromise &&
+    if (state.error.retryable !== false &&
+        state.manual && state.inProgress && state.pendingPromise &&
         state.retryCount < VERIFY_RETRY_LIMIT && window.turnstile &&
         state.widgetId !== null && state.form.isConnected) {
       state.retryCount += 1;
@@ -328,18 +368,26 @@
             settleVerification(state, null, new Error(message));
             syncManualControls(state);
           },
-          'error-callback': function () {
+          'error-callback': function (errorCode) {
+            // Cloudflare supplies actionable codes for invalid keys/hostnames and
+            // blocked iframes. Surface configuration failures instead of retry-looping.
+            var details = turnstileErrorDetails(errorCode);
+            var error = new Error(details.message);
+            error.retryable = details.retryable;
+            error.turnstileCode = details.code;
+            console.warn('[AegisPay Turnstile] Challenge error code:', details.code);
             state.token = '';
             state.issuedAt = 0;
             if (manual && state.inProgress && state.pendingPromise) {
-              failOrRetryVerification(state, new Error('Cloudflare security verification failed.'));
-              return;
+              failOrRetryVerification(state, error);
+              return true;
             }
             state.inProgress = false;
-            state.error = new Error('Cloudflare security verification failed. Please try again.');
+            state.error = error;
             status.textContent = state.error.message;
             settleVerification(state, null, state.error);
             syncManualControls(state);
+            return true;
           },
           'timeout-callback': function () {
             state.token = '';
