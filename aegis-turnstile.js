@@ -9,9 +9,9 @@
   var states = new WeakMap();
   var apiPromise = null;
   var API_LOAD_TIMEOUT_MS = 10000;
-  var VERIFY_RETRY_LIMIT = 2;
-  var VERIFY_RETRY_DELAY_MS = 450;
-  var VERIFY_ATTEMPT_TIMEOUT_MS = 8000;
+  var VERIFY_RETRY_LIMIT = 1;
+  var VERIFY_RETRY_DELAY_MS = 1000;
+  var VERIFY_ATTEMPT_TIMEOUT_MS = 30000;
 
   function preconnectCloudflare() {
     var head = document.head || document.documentElement;
@@ -144,11 +144,12 @@
 
   function armVerificationWatchdog(state) {
     if (state.verificationTimer) window.clearTimeout(state.verificationTimer);
-    var timeoutMs = Math.max(5000, VERIFY_ATTEMPT_TIMEOUT_MS - (state.retryCount * 1500));
+    // Do not shrink the challenge timeout on retries: slow browsers or networks need time to complete Cloudflare's challenge.
+    var timeoutMs = VERIFY_ATTEMPT_TIMEOUT_MS;
     state.verificationTimer = window.setTimeout(function () {
       state.verificationTimer = null;
       if (!state.manual || !state.inProgress || !state.pendingPromise) return;
-      failOrRetryVerification(state, new Error('Cloudflare security verification timed out.'));
+      failOrRetryVerification(state, new Error('Cloudflare verification did not return a token within 30 seconds. One automatic retry has been attempted; refresh once, and if it repeats ask the administrator to check the Turnstile hostname and challenge connectivity.'));
     }, timeoutMs);
   }
 
@@ -328,15 +329,24 @@
             settleVerification(state, null, new Error(message));
             syncManualControls(state);
           },
-          'error-callback': function () {
+          'error-callback': function (errorCode) {
             state.token = '';
             state.issuedAt = 0;
+            var code = String(errorCode || 'unknown').slice(0, 24);
+            var permanentConfigError = /^(110100|110110|110200|200100|400020|400021|400070)$/.test(code);
+            var message = code === '110200'
+              ? 'Cloudflare Turnstile does not authorize this website hostname (110200). The administrator must add the exact hostname to the widget allowlist.'
+              : permanentConfigError
+              ? 'Cloudflare Turnstile configuration error (' + code + '). The administrator must check the widget/sitekey configuration.'
+              : 'Cloudflare security verification failed (code ' + code + '). Check the network or browser extensions and try again.';
             if (manual && state.inProgress && state.pendingPromise) {
-              failOrRetryVerification(state, new Error('Cloudflare security verification failed.'));
+              // Configuration errors will not be fixed by retrying the same key.
+              if (permanentConfigError) state.retryCount = VERIFY_RETRY_LIMIT;
+              failOrRetryVerification(state, new Error(message));
               return;
             }
             state.inProgress = false;
-            state.error = new Error('Cloudflare security verification failed. Please try again.');
+            state.error = new Error(message);
             status.textContent = state.error.message;
             settleVerification(state, null, state.error);
             syncManualControls(state);
