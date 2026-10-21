@@ -4,6 +4,7 @@ import {
   findExactShastaUsdtTransfer,
   findShastaTransfersByAmount,
   isValidTronTxid,
+  selectUniqueUnclaimedShastaTransfer,
   TRON_SHASTA_USDT_CONTRACT,
   usdtAmountToRaw,
 } from "./tron-deposit-validation.ts";
@@ -67,4 +68,50 @@ Deno.test("TXID may be absent or mistyped while Shasta transfer matching stays e
   assertEquals(findShastaTransfersByAmount([{...validTransfer, token_info: {address: recipient, decimals: 6}}], recipient, "12.34", since), []);
   assertEquals(findShastaTransfersByAmount([{...validTransfer, block_timestamp: since - 1}], recipient, "12.34", since), []);
   assertEquals(findShastaTransfersByAmount([validTransfer, {...validTransfer, transaction_id: "b".repeat(64)}], recipient, "12.34", since).length, 2);
+});
+
+
+Deno.test("repeated API rows for the same Shasta transfer do not become ambiguous", () => {
+  const since = (validTransfer.block_timestamp as number) - 60_000;
+  const candidates = findShastaTransfersByAmount(
+    [validTransfer, { ...validTransfer }, { ...validTransfer }],
+    recipient,
+    "12.34",
+    since,
+  );
+  assertEquals(candidates.length, 1);
+  assertEquals(candidates[0].transaction_id, txid);
+});
+
+Deno.test("transfer selection retries only when there is one unique unclaimed TXID", () => {
+  const secondTransfer = {
+    ...validTransfer,
+    transaction_id: "b".repeat(64),
+    block_timestamp: (validTransfer.block_timestamp as number) + 1_000,
+  };
+  assertEquals(selectUniqueUnclaimedShastaTransfer([], []), { status: "NO_CANDIDATES" });
+  assertEquals(
+    selectUniqueUnclaimedShastaTransfer([validTransfer], []),
+    { status: "MATCH", transfer: validTransfer },
+  );
+  assertEquals(
+    selectUniqueUnclaimedShastaTransfer([validTransfer, { ...validTransfer }], []),
+    { status: "MATCH", transfer: validTransfer },
+  );
+  assertEquals(
+    selectUniqueUnclaimedShastaTransfer([validTransfer], [txid.toUpperCase()]),
+    { status: "ALREADY_LINKED" },
+  );
+  assertEquals(
+    selectUniqueUnclaimedShastaTransfer([validTransfer, secondTransfer], []),
+    { status: "AMBIGUOUS" },
+  );
+  assertEquals(
+    selectUniqueUnclaimedShastaTransfer([validTransfer, secondTransfer], [txid]),
+    { status: "MATCH", transfer: secondTransfer },
+  );
+  assertEquals(
+    selectUniqueUnclaimedShastaTransfer([validTransfer, secondTransfer], [txid, secondTransfer.transaction_id]),
+    { status: "ALREADY_LINKED" },
+  );
 });
