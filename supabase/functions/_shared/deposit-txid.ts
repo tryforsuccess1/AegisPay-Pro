@@ -10,6 +10,8 @@ export function extractUniqueTxidCandidate(value: unknown): string | null {
   EMBEDDED_TXID_RE.lastIndex = 0;
   for (const match of input.matchAll(EMBEDDED_TXID_RE)) {
     const txid = String(match[2] || "");
+    // Reject EVM-style 0x prefixes; this scanner only accepts TRON transaction IDs.
+    if (String(match[1] || "").toLowerCase() === "x" && match.index !== undefined && input[match.index - 1] === "0") continue;
     if (TXID_RE.test(txid)) found.set(txid.toLowerCase(), txid);
     if (found.size > 1) return null;
   }
