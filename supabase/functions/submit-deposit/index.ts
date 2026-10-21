@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadPrivateImage, runVisionReview } from "./ai-review.ts";
+import { loadPrivateImage, runVisionReview } from "../_shared/deposit-image-ai.ts";
+import { sha256Hex } from "../_shared/deposit-txid.ts";
 import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
@@ -22,6 +23,26 @@ const cors = {
   "Content-Type": "application/json",
 };
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors }); }
+async function registerDuplicateTxidAttempt(admin: any, userId: string, txid: string) {
+  const fingerprint = await sha256Hex(txid.toLowerCase());
+  const { data, error } = await admin.rpc("register_duplicate_deposit_txid_attempt", {
+    p_user_id: userId,
+    p_txid_sha256: fingerprint,
+  });
+  if (error) return { attemptCount: null as number | null, blocked: false, counted: false, logged: false };
+  const row = Array.isArray(data) ? data[0] : data;
+  return {
+    attemptCount: Number(row?.attempt_count || 0) || 0,
+    blocked: row?.blocked === true,
+    counted: row?.counted === true,
+    logged: true,
+  };
+}
+function duplicateTxidWarning(attemptCount: number | null, blocked: boolean) {
+  if (blocked) return "Your account has been blocked after repeated attempts to reuse transaction IDs. Contact support to request a review.";
+  if (attemptCount !== null && attemptCount >= 2) return "Final warning: this TXID is already linked to another deposit. One more distinct duplicate-TXID attempt within 30 days will block your account.";
+  return "This TXID is already linked to another deposit and has been rejected. Reusing transaction IDs repeatedly can block your account.";
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -43,7 +64,10 @@ Deno.serve(async (req: Request) => {
     const { data: profile, error: profileError } = await admin.from("users")
       .select("id,auth_user_id,role,status,first_deposit_done,frozen_until").eq("auth_user_id", auth.user.id).maybeSingle();
     if (profileError || !profile) return json({ error: "AegisPay profile not found." }, 404);
-    if (profile.role !== "USER" || ["BLOCKED", "SUSPENDED", "DELETED"].includes(String(profile.status).toUpperCase())) return json({ error: "This account cannot submit deposits." }, 403);
+    if (profile.role !== "USER") return json({ error: "A client account is required to submit deposits." }, 403);
+    const profileStatus = String(profile.status || "").toUpperCase();
+    if (profileStatus === "BLOCKED") return json({ error: "This account is blocked after repeated duplicate-TXID attempts. Contact support to request a review.", code: "ACCOUNT_BLOCKED_DUPLICATE_TXID" }, 423);
+    if (["SUSPENDED", "DELETED"].includes(profileStatus)) return json({ error: "This account cannot submit deposits." }, 403);
     if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
     const isShastaTestUser = await isAllowlistedShastaTestUser(admin, profile.id, SHASTA_TEST_MODE_ENABLED);
@@ -134,16 +158,28 @@ Deno.serve(async (req: Request) => {
       status: duplicateEvidence.status,
     }, 409);
 
-    if (isShastaTestUser && validEnteredTxid) {
+    if (validEnteredTxid) {
+      // Reject reused TXIDs before creating a new request. SQL uniqueness remains
+      // the final race-safe guard; this precheck enables a clear warning now.
       const [canonicalClaim, submittedClaim] = await Promise.all([
-        admin.from("deposit_submissions").select("id,status").eq("network", depositNetwork).eq("txid", enteredTxid).limit(1).maybeSingle(),
-        admin.from("deposit_submissions").select("id,status").eq("network", depositNetwork).eq("submitted_txid", enteredTxid).neq("status", "REJECTED").limit(1).maybeSingle(),
+        admin.from("deposit_submissions").select("id,status")
+          .eq("network", depositNetwork).ilike("txid", enteredTxid).limit(1).maybeSingle(),
+        admin.from("deposit_submissions").select("id,status")
+          .eq("network", depositNetwork).ilike("submitted_txid", enteredTxid)
+          .neq("status", "REJECTED").limit(1).maybeSingle(),
       ]);
       if (canonicalClaim.error || submittedClaim.error) return json({ error: "Unable to check whether this TXID is already claimed. Please retry shortly." }, 503);
-      if (canonicalClaim.data || submittedClaim.data) return json({
-        error: "This transaction ID is already linked to another deposit request. Reuse is blocked to prevent duplicate credit.",
-        code: "DUPLICATE_DEPOSIT_TXID",
-      }, 409);
+      if (canonicalClaim.data || submittedClaim.data) {
+        const recorded = await registerDuplicateTxidAttempt(admin, profile.id, enteredTxid);
+        const warning = duplicateTxidWarning(recorded.attemptCount, recorded.blocked);
+        return json({
+          error: warning,
+          warning,
+          code: recorded.blocked ? "ACCOUNT_BLOCKED_DUPLICATE_TXID" : "DUPLICATE_DEPOSIT_TXID",
+          attemptCount: recorded.attemptCount,
+          blocked: recorded.blocked,
+        }, recorded.blocked ? 423 : 409);
+      }
     }
 
     const tierQuery = await admin.from("vip_tiers").select("id,name,deposit_amount,enabled").eq("enabled", true).lte("deposit_amount", amount).order("deposit_amount", { ascending: false }).limit(1).maybeSingle();
@@ -159,8 +195,26 @@ Deno.serve(async (req: Request) => {
       ai_policy_version: POLICY_VERSION, verification_note: "Awaiting AI evidence precheck and confirmed on-chain transfer.",
     }).select("id,status,ai_review_status,gross_amount,created_at").single();
     if (insertError || !deposit) {
-      const duplicate = /duplicate|unique/i.test(insertError?.message || "");
-      return json({ error: duplicate ? "This transaction ID has already been submitted." : "Unable to create deposit submission." }, duplicate ? 409 : 400);
+      const errorMessage = String(insertError?.message || "");
+      const duplicateTxid = /duplicate|unique/i.test(errorMessage) && /txid/i.test(errorMessage);
+      if (duplicateTxid && validEnteredTxid) {
+        const recorded = await registerDuplicateTxidAttempt(admin, profile.id, enteredTxid);
+        const warning = duplicateTxidWarning(recorded.attemptCount, recorded.blocked);
+        return json({
+          error: warning,
+          warning,
+          code: recorded.blocked ? "ACCOUNT_BLOCKED_DUPLICATE_TXID" : "DUPLICATE_DEPOSIT_TXID",
+          attemptCount: recorded.attemptCount,
+          blocked: recorded.blocked,
+        }, recorded.blocked ? 423 : 409);
+      }
+      const duplicate = /duplicate|unique/i.test(errorMessage);
+      return json({
+        error: duplicate
+          ? "This deposit screenshot or transaction ID has already been submitted. No duplicate credit was created."
+          : "Unable to create deposit submission.",
+        code: duplicate ? "DUPLICATE_DEPOSIT_EVIDENCE_OR_TXID" : "DEPOSIT_SUBMISSION_FAILED",
+      }, duplicate ? 409 : 400);
     }
 
     let review: { configured: boolean; result?: Record<string, unknown> } = { configured: false, result: {} };
