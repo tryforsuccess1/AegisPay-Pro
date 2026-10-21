@@ -1364,16 +1364,22 @@ async function liveTopup(){
  const copy=document.getElementById('copyDepositAddress');if(copy)copy.onclick=()=>copyTextToClipboard(wallet,'Deposit address copied.');
  const amount=document.getElementById('depAmount'),txid=document.getElementById('txid'),proof=document.getElementById('proof'),submit=document.getElementById('submitDep');
  const scanButton=document.getElementById('scanProofTxid'),scanStatus=document.getElementById('txidScanStatus');
- let uploadedProofPath='',uploadedProofFile=null,duplicateTxidDetected=false;
+ let uploadedProofPath='',uploadedProofFile=null,uploadInFlight=null,uploadInFlightFile=null,proofScanToken=0,duplicateTxidDetected=false;
  async function ensureProofUploaded(file){
   if(uploadedProofPath&&uploadedProofFile===file)return uploadedProofPath;
-  const extension=(file.name.split('.').pop()||'jpg').toLowerCase();
-  const safeExtension=['jpg','jpeg','png','webp'].includes(extension)?extension:'jpg';
-  const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+safeExtension;
-  const upload=await db.storage.from('private-verification').upload(path,file,{contentType:file.type||'image/jpeg'});
-  if(upload.error)throw upload.error;
-  uploadedProofPath=path;uploadedProofFile=file;
-  return path;
+  if(uploadInFlight&&uploadInFlightFile===file)return await uploadInFlight;
+  const operation=(async()=>{
+   const extension=(file.name.split('.').pop()||'jpg').toLowerCase();
+   const safeExtension=['jpg','jpeg','png','webp'].includes(extension)?extension:'jpg';
+   const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+safeExtension;
+   const upload=await db.storage.from('private-verification').upload(path,file,{contentType:file.type||'image/jpeg'});
+   if(upload.error)throw upload.error;
+   if(proof.files&&proof.files[0]===file){uploadedProofPath=path;uploadedProofFile=file}
+   return path;
+  })();
+  uploadInFlight=operation;uploadInFlightFile=file;
+  try{return await operation}
+  finally{if(uploadInFlight===operation){uploadInFlight=null;uploadInFlightFile=null}}
  }
  async function edgeErrorDetails(error){
   let payload=null;
@@ -1383,17 +1389,18 @@ async function liveTopup(){
  async function scanSelectedScreenshot(){
   const file=proof&&proof.files&&proof.files[0];
   if(!file){uiNotice('Choose your deposit screenshot first.','error');return}
+  const scanToken=++proofScanToken;
   scanButton.disabled=true;scanButton.textContent='Scanning screenshot…';
+  if(submit)submit.disabled=true;
   scanStatus.textContent='AI is reading the visible transaction hash. This does not verify or credit a deposit.';
   try{
    const screenshotPath=await ensureProofUploaded(file);
+   if(scanToken!==proofScanToken||!proof.files||proof.files[0]!==file)return;
    const scanned=await db.functions.invoke('scan-deposit-txid',{body:{screenshotPath}});
+   if(scanToken!==proofScanToken||!proof.files||proof.files[0]!==file)return;
    if(scanned.error){
     const details=await edgeErrorDetails(scanned.error);
-    if(details.payload&&details.payload.code==='DUPLICATE_DEPOSIT_TXID'){
-     duplicateTxidDetected=true;txid.value='';
-     scanStatus.textContent=details.message;
-    }else if(details.payload&&details.payload.code==='ACCOUNT_BLOCKED_DUPLICATE_TXID'){
+    if(details.payload&&['DUPLICATE_DEPOSIT_TXID','ACCOUNT_BLOCKED_DUPLICATE_TXID'].includes(details.payload.code)){
      duplicateTxidDetected=true;txid.value='';
      scanStatus.textContent=details.message;
     }else{
@@ -1413,17 +1420,21 @@ async function liveTopup(){
    if(!scanStatus.textContent||!scanStatus.textContent.includes(message))scanStatus.textContent=message;
    uiNotice(message,'error');
   }finally{
-   scanButton.disabled=false;scanButton.textContent='Scan screenshot for TXID';
+   if(scanToken===proofScanToken){
+    scanButton.disabled=false;scanButton.textContent='Scan screenshot for TXID';
+    if(submit)submit.disabled=false;
+   }
   }
  }
  if(scanButton)scanButton.onclick=scanSelectedScreenshot;
  if(txid)txid.oninput=()=>{duplicateTxidDetected=false};
  if(proof)proof.onchange=()=>{
   const file=proof.files&&proof.files[0];
-  uploadedProofPath='';uploadedProofFile=null;duplicateTxidDetected=false;
+  uploadedProofPath='';uploadedProofFile=null;uploadInFlight=null;uploadInFlightFile=null;proofScanToken++;duplicateTxidDetected=false;
   if(scanStatus)scanStatus.textContent='';
   if(scanButton){scanButton.style.display=file?'block':'none';scanButton.disabled=!file}
-  if(!file)return;
+  if(submit)submit.disabled=!!file;
+  if(!file){if(submit)submit.disabled=false;return}
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)){proof.value='';if(scanButton)scanButton.style.display='none';uiNotice('JPEG, PNG or WebP images only.','error');return}
   if(file.size>10*1024*1024){proof.value='';if(scanButton)scanButton.style.display='none';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
   document.getElementById('proofName').innerHTML=esc(file.name)+'<small>'+(file.size/1024).toFixed(0)+' KB · Private upload</small>';
