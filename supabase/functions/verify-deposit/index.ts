@@ -5,6 +5,7 @@ import {
   findExactShastaUsdtTransfer,
   findShastaTransfersByAmount,
   isValidTronTxid,
+  selectUniqueUnclaimedShastaTransfer,
   TRON_SHASTA_USDT_CONTRACT,
 } from "../_shared/tron-deposit-validation.ts";
 import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
@@ -205,18 +206,24 @@ Deno.serve(async (req: Request) => {
         const { data: previouslyClaimed, error: claimLookupError } = await admin.from("deposit_submissions")
           .select("id,txid").eq("network", "TRON TESTNET").in("txid", candidateTxids).neq("id", deposit.id);
         if (claimLookupError) return json({ error: "Unable to confirm whether a matching transfer is already linked to another deposit.", code: "SHASTA_CLAIM_LOOKUP_FAILED" }, 503);
-        const claimedIds = new Set((previouslyClaimed || []).map((x: any) => String(x.txid || "").toLowerCase()));
-        const unclaimed = candidates.filter((x) => !claimedIds.has(String(x.transaction_id || "").toLowerCase()));
-        if (unclaimed.length !== 1) {
+        const selection = selectUniqueUnclaimedShastaTransfer(
+          candidates,
+          (previouslyClaimed || []).map((x: any) => String(x.txid || "")),
+        );
+        if (selection.status !== "MATCH") {
+          const ambiguous = selection.status === "AMBIGUOUS";
+          const alreadyLinked = selection.status === "ALREADY_LINKED";
           return json({
             status: "PENDING_VERIFICATION",
-            code: unclaimed.length > 1 ? "SHASTA_MATCH_AMBIGUOUS" : "SHASTA_MATCH_ALREADY_LINKED",
-            message: unclaimed.length > 1
+            code: ambiguous ? "SHASTA_MATCH_AMBIGUOUS" : alreadyLinked ? "SHASTA_MATCH_ALREADY_LINKED" : "SHASTA_MATCH_NO_CANDIDATES",
+            message: ambiguous
               ? "More than one confirmed Shasta USDT transfer matches this amount and time window. No automatic credit was applied; manual review is required."
-              : "The matching Shasta transfer is already linked to another deposit request. No duplicate credit was applied.",
+              : alreadyLinked
+                ? "The matching Shasta transfer is already linked to another deposit request. No duplicate credit was applied."
+                : "No unique unclaimed Shasta transfer was available. No balance has been credited.",
           }, 202);
         }
-        match = unclaimed[0];
+        match = selection.transfer;
       }
     } else {
       match = transfers.find((x: any) =>
