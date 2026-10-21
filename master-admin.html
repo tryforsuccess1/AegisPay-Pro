@@ -119,6 +119,44 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
 .cats::-webkit-scrollbar,.cats::-webkit-scrollbar-button,.cats::-webkit-scrollbar-button:horizontal:decrement,.cats::-webkit-scrollbar-button:horizontal:increment,.cats::-webkit-scrollbar-thumb,.cats::-webkit-scrollbar-track,.cats::-webkit-scrollbar-track-piece,.cats::-webkit-scrollbar-corner,
 .pills::-webkit-scrollbar,.pills::-webkit-scrollbar-button,.pills::-webkit-scrollbar-button:horizontal:decrement,.pills::-webkit-scrollbar-button:horizontal:increment,.pills::-webkit-scrollbar-thumb,.pills::-webkit-scrollbar-track,.pills::-webkit-scrollbar-track-piece,.pills::-webkit-scrollbar-corner,
 .aa-mobile-tabs::-webkit-scrollbar,.aa-mobile-tabs::-webkit-scrollbar-button,.aa-mobile-tabs::-webkit-scrollbar-button:horizontal:decrement,.aa-mobile-tabs::-webkit-scrollbar-button:horizontal:increment,.aa-mobile-tabs::-webkit-scrollbar-thumb,.aa-mobile-tabs::-webkit-scrollbar-track,.aa-mobile-tabs::-webkit-scrollbar-track-piece,.aa-mobile-tabs::-webkit-scrollbar-corner{display:none!important;width:0!important;height:0!important;min-width:0!important;min-height:0!important;background:transparent!important;border:0!important;-webkit-appearance:none!important}
+/* Auth-only layout follows the supplied Client/Admin login reference. */
+.aa-auth-shell{min-height:100dvh;display:flex;flex-direction:column;background:radial-gradient(90% 45% at 50% 0,rgba(240,80,110,.12),transparent 70%),radial-gradient(70% 38% at 100% 100%,rgba(255,122,77,.08),transparent 70%),var(--bg)}
+.aa-auth-shell>.aa-top,.aa-auth-shell>.aa-footer{display:none!important}
+.aa-auth-shell .aa-login.aa-login-auth{min-height:100dvh;width:100%;max-width:430px;flex:1;margin:0 auto;display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;padding:16px 22px 18px;overflow:visible}
+.aa-auth-shell .aa-login-glow{width:520px;height:520px;top:-200px;left:50%;transform:translateX(-50%);pointer-events:none;z-index:0}
+.aa-auth-shell .aa-auth-bar{position:relative;z-index:1;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-height:40px}
+.aa-auth-shell .aa-auth-bar .aa-icon-button{width:40px;height:40px;min-width:40px;padding:0;display:grid;place-items:center;border-radius:50%;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);box-shadow:none}
+.aa-auth-shell .aa-auth-language{height:40px;display:inline-flex;align-items:center;gap:7px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.04);color:var(--text);font-size:11px;font-weight:800}
+.aa-auth-shell .aa-auth-main{position:relative;z-index:1;flex:1;display:flex;flex-direction:column;justify-content:center;padding:40px 0 16px}
+.aa-auth-shell .aa-auth-brand{display:flex;align-items:center;justify-content:center;margin:0 0 22px}
+.aa-auth-shell .aa-auth-brand .aa-logo-lockup{flex-direction:column;align-items:center;justify-content:center;width:auto;max-width:100%;gap:10px}
+.aa-auth-shell .aa-auth-brand .aa-logo-mark{width:64px!important;height:64px!important;filter:drop-shadow(0 8px 22px rgba(240,80,110,.4))}
+.aa-auth-shell .aa-auth-brand .aa-logo-copy{text-align:center}
+.aa-auth-shell .aa-auth-brand .aa-logo-copy>div{font-size:34px;line-height:1.1;font-weight:800;letter-spacing:-.6px}
+.aa-auth-shell .aa-auth-brand .aa-logo-copy small{display:none}
+.aa-auth-shell .aa-auth-card{width:100%;padding:22px 18px 18px;border:1px solid var(--line);border-radius:26px;background:linear-gradient(160deg,rgba(255,255,255,.045),rgba(255,255,255,.018));box-shadow:0 24px 60px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.04);backdrop-filter:blur(14px)}
+.aa-auth-shell .aa-auth-card form{display:flex;flex-direction:column;gap:14px}
+.aa-auth-shell .aa-auth-field{display:block;text-align:left;margin:0}
+.aa-auth-shell .aa-auth-field>span:first-child{display:block;margin:0 0 8px;font-size:13px;font-weight:700}
+.aa-auth-shell .aa-auth-input{position:relative;height:54px;border-radius:16px;background:var(--surf);border:1px solid var(--bd);transition:border-color .2s,box-shadow .2s}
+.aa-auth-shell .aa-auth-input:focus-within{border-color:var(--c1);box-shadow:0 0 0 4px rgba(255,122,77,.16)}
+.aa-auth-shell .aa-auth-input-icon{position:absolute;left:16px;top:50%;transform:translateY(-50%);display:flex;color:var(--faint);pointer-events:none}
+.aa-auth-shell .aa-auth-input input{width:100%;height:100%;margin:0;padding:0 15px 0 46px;border:0!important;border-radius:16px;background:transparent!important;outline:0;box-shadow:none!important;color:var(--text);font:500 14px var(--ff)}
+.aa-auth-shell .aa-auth-input input::placeholder{color:var(--faint)}
+.aa-auth-shell .aa-auth-card .aa-primary{height:54px;min-height:54px;margin-top:2px;border-radius:16px;font-size:15px;font-weight:800;gap:8px;box-shadow:0 12px 28px rgba(240,80,110,.25)}
+.aa-auth-shell .aa-auth-card .aa-arrow{font-size:17px}
+.aa-auth-shell .aa-alert{margin:0 0 2px;text-align:left}
+.aa-auth-shell .aa-auth-footer{position:relative;z-index:1;display:flex;flex-direction:column;align-items:center;gap:7px;width:100%;padding-top:15px;margin-top:auto}
+.aa-auth-shell .aa-auth-trust{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:6px 12px;padding:7px 14px;border-radius:999px;background:var(--surf);border:1px solid var(--bd);font-size:10px;font-weight:600;color:var(--faint)}
+.aa-auth-shell .aa-auth-trust-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.aa-auth-shell .aa-auth-trust-item .aa-icon{width:12px;height:12px}
+.aa-auth-shell .aa-auth-trust-item.verified .aa-icon{color:var(--ok)}
+.aa-auth-shell .aa-auth-trust-item.cloudflare .aa-icon{color:var(--c1)}
+.aa-auth-shell .aa-auth-role{font-size:9px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:var(--c1);margin-top:0}
+.aa-auth-shell .aa-auth-years{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);opacity:.75;font-weight:600}
+.aa-auth-shell .aa-auth-years b{font-weight:800;color:var(--mute)}
+@media(max-height:690px){.aa-auth-shell .aa-login.aa-login-auth{padding-top:12px;padding-bottom:12px}.aa-auth-shell .aa-auth-main{padding-top:35px;padding-bottom:10px}.aa-auth-shell .aa-auth-brand{margin-bottom:14px}.aa-auth-shell .aa-auth-brand .aa-logo-mark{width:52px!important;height:52px!important}.aa-auth-shell .aa-auth-brand .aa-logo-copy>div{font-size:29px}.aa-auth-shell .aa-auth-card{padding:16px 15px 14px}.aa-auth-shell .aa-auth-input,.aa-auth-shell .aa-auth-card .aa-primary{height:48px;min-height:48px}}
+@media(max-width:360px){.aa-auth-shell .aa-login.aa-login-auth{padding-left:15px;padding-right:15px}.aa-auth-shell .aa-auth-card{padding:18px 14px 15px}.aa-auth-shell .aa-auth-trust{gap:6px 9px;padding:7px 9px;font-size:9px}}
 </style>
 </head>
 <body>
