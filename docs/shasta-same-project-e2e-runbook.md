@@ -1,5 +1,19 @@
 # Same-Project TRON Shasta Deposit E2E Runbook
 
+## Latest verified snapshot — 2026-10-21
+
+- PR #89 remains a draft and needs synchronization with the current `main` branch before it can be merged. Do not force-merge the diverged branch.
+- The duplicate/retry regression work is on `feat/step2-shasta-deposit-e2e`. The exact-transfer, unclaimed-candidate selector, Shasta test-mode and HD sweep state-machine Deno tests passed in [AegisPay CI](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39656067779).
+- Disposable PostgreSQL tests passed in [AegisPay SQL Migration Tests](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39656067806). The run exercises duplicate evidence rejection, duplicate valid Shasta TXID-hint rejection, canonical TXID reuse rejection, malformed-hint coexistence, rejected-request resubmission and the existing idempotent deposit-credit assertions.
+- The Shasta-only Cloudflare preview and its smoke tests passed in [AegisPay Shasta UI Preview](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39656067840). These code changes are still on the feature branch; this test run did not redeploy the production Edge Functions.
+- A read-only check of the existing Supabase project confirmed: global network/contract remain TRON Mainnet, Shasta uses its pinned testnet contract and a different treasury address, one test user is allowlisted, one active Shasta child wallet is assigned, and all Mainnet/live-deposit/real-payout/go-live gates remain closed with the payout lock on.
+- The current project has two `VERIFIED` Shasta-labelled deposits and no pending Shasta deposit rows. One entry is a chain-verified 10 USDT transfer; the other is a separately audited Master Admin test credit with no TXID. **The manual test credit represents a ledger test credit, not proof of a second on-chain transfer; never treat it as a source balance for sweeping.**
+- Sweep/recovery has not been invoked; the sweep journal has zero rows. Before any manual sweep, an operator must confirm in Supabase Secrets that the Shasta-only mnemonic and treasury signer are present and distinct from Mainnet, and verify the child wallet’s live Shasta USDT/TRX/energy resources. The connected read-only checks do not expose secret presence or prove live chain resource balances, so the sweep preflight is not yet cleared.
+- The new unique-unclaimed transfer selector treats duplicate provider rows for one TXID as one candidate, and fails closed when all candidates are already claimed or more than one distinct unclaimed transfer matches. No fresh TXID-less on-chain deposit has been created for this validation.
+
+## Historical snapshot — 2026-10-20
+
+
 Status as of 2026-10-20:
 - Draft PR: https://github.com/tryforsuccess1/AegisPay-Pro/pull/89
 - Current branch: `feat/step2-shasta-deposit-e2e`
