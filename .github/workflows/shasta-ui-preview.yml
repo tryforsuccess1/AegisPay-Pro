@@ -44,6 +44,26 @@ jobs:
           test -n "${CLOUDFLARE_ACCOUNT_ID}"
           test -n "${CLOUDFLARE_API_TOKEN}"
 
+      - name: Diagnose the configured Turnstile widget hostname allowlist
+        shell: bash
+        env:
+          TURNSTILE_SITEKEY: "0x4AAAAAAFZaOeTke8FQpVNS"
+        run: |
+          set -euo pipefail
+          api="https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/challenges/widgets?per_page=100&page=1"
+          if ! curl --fail --silent --show-error --max-time 20 -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" "$api" -o /tmp/turnstile-widgets.json; then
+            echo "::warning::Turnstile widget configuration could not be read by this token; no security settings were changed."
+            exit 0
+          fi
+          jq --arg key "$TURNSTILE_SITEKEY" '[.result[]? | select(.sitekey == $key) | {id: (.id // .sitekey), name, domains}]' /tmp/turnstile-widgets.json > /tmp/turnstile-target.json
+          jq '{matchingWidgetCount:length, widgets:map({id, name, domains})}' /tmp/turnstile-target.json
+          count="$(jq 'length' /tmp/turnstile-target.json)"
+          if [ "$count" -eq 0 ]; then
+            echo "::warning::Configured sitekey was not found in this Cloudflare account. Check that the page sitekey matches its Turnstile widget."
+            exit 0
+          fi
+          jq -e '.[0].domains | any(. == "aegispay-pro.pages.dev" or . == "shasta-test-ui.aegispay-pro.pages.dev")' /tmp/turnstile-target.json >/dev/null || echo "::warning::The current AegisPay Shasta preview hostname is not explicitly covered by this widget's configured domains."
+      
       - name: Assemble Shasta-aware portal preview
         shell: bash
         run: |
@@ -98,5 +118,11 @@ jobs:
           curl --fail --silent --show-error --location --max-time 20 "$base/admin-auth.js" -o /tmp/shasta-admin-auth.js
           test -s /tmp/shasta-master-admin.html
           grep -q "admin-auth.js" /tmp/shasta-master-admin.html
+          grep -q "aegis-turnstile.js?v=20261021-turnstile-timeout-fix" /tmp/shasta-master-admin.html
           grep -q "manualShastaCredit" /tmp/shasta-admin-auth.js
           grep -q "Master Admin Manual Verify + Credit (Shasta)" /tmp/shasta-admin-auth.js
+          curl --fail --silent --show-error --location --max-time 20 "$base/aegis-turnstile.js?v=20261021-turnstile-timeout-fix" -o /tmp/shasta-turnstile.js
+          grep -q "var VERIFY_ATTEMPT_TIMEOUT_MS = 45000" /tmp/shasta-turnstile.js
+          grep -q "Cloudflare does not authorize this hostname" /tmp/shasta-turnstile.js
+          curl --fail --silent --show-error --location --max-time 20 -D /tmp/shasta-admin-headers.txt "$base/master-admin.html" -o /dev/null
+          grep -qi "Cache-Control: no-store" /tmp/shasta-admin-headers.txt
