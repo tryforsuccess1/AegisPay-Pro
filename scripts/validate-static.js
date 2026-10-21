@@ -157,7 +157,8 @@ assert(depositReviewBackendSource.includes('if (action === "deposit_txid")')&&de
 assert(depositReviewBackendSource.includes('["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || "").toUpperCase())')&&depositReviewBackendSource.includes('.is("txid", null)'), 'Only reviewed, pending deposits with no existing TXID may be linked; a previous TXID cannot be overwritten.');
 assert(depositReviewBackendSource.includes('requiresChainVerification: true')&&!depositReviewBackendSource.includes('apply_verified_deposit'), 'Attaching a TXID must not credit a balance; the verified-deposit RPC remains the only credit path.');
 assert(masterAdmin.includes('admin-auth.js?v=20261021-missing-deposit-txid-recovery'),'Master Admin must request the latest TXID recovery client code.');
-assert(serviceWorkerSource.includes("const CACHE='aegispay-shell-v38-missing-deposit-txid-recovery'"),'Service worker cache must be bumped for TXID recovery assets.');
+const serviceWorkerForTxidRecovery=fs.readFileSync('service-worker.js','utf8');
+assert(serviceWorkerForTxidRecovery.includes("const CACHE='aegispay-shell-v38-missing-deposit-txid-recovery'"),'Service worker cache must be bumped for TXID recovery assets.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
