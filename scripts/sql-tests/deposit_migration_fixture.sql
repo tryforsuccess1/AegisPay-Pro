@@ -39,6 +39,14 @@ CREATE TABLE public.users (
   profit_balance numeric(18,2) NOT NULL DEFAULT 0
 );
 
+CREATE TABLE public.shasta_test_users (
+  user_id uuid PRIMARY KEY REFERENCES public.users(id) ON DELETE RESTRICT,
+  enabled boolean NOT NULL DEFAULT true,
+  purpose text NOT NULL DEFAULT 'disposable fixture',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE public.vip_tiers (
   id text PRIMARY KEY,
   name text NOT NULL
