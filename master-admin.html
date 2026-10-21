@@ -188,14 +188,6 @@ html,body{background:#faf5ec!important;color:#4a3a2c!important}
   .aa-auth-shell .aa-auth-footer{margin-top:10px;padding-top:0}
 }
 
-/* Missing-TXID recovery for manually approved pending deposits. */
-.aa-txid-entry{display:flex;align-items:flex-end;flex-wrap:wrap;gap:10px;width:100%;margin-top:14px;padding:13px 14px;border:1px solid var(--bd);border-radius:14px;background:var(--surf)}
-.aa-txid-entry label{display:flex;flex:1 1 320px;flex-direction:column;gap:7px;color:var(--faint);font-size:11px;font-weight:700}
-.aa-txid-entry input{width:100%;height:44px;min-width:0;padding:0 12px;border:1px solid var(--bd);border-radius:11px;background:var(--bg);color:var(--text);font:600 12px var(--ff);letter-spacing:.02em}
-.aa-txid-entry input:focus{outline:0;border-color:var(--c1);box-shadow:0 0 0 3px rgba(240,106,77,.12)}
-.aa-txid-entry>button{min-height:44px;white-space:nowrap}
-.aa-txid-entry>small{flex-basis:100%;color:var(--faint);font-size:10px;line-height:1.45}
-@media(max-width:520px){.aa-txid-entry label{flex-basis:100%}.aa-txid-entry>button{width:100%}}
 </style>
 </head>
 <body>
@@ -217,7 +209,7 @@ if(!window.AEGIS_ANDROID_APP){
 <script src="./aegis-auth-redirect.js"></script>
 <script src="./app-update.js"></script>
 <script src="./shop-catalog.js"></script>
-<script src="./admin-auth.js?v=20261021-missing-deposit-txid-recovery"></script>
+<script src="./admin-auth.js?v=20261021-simple-admin-deposit-approval"></script>
 <script src="./aegis-turnstile.js?v=20261021-turnstile-timeout-stability"></script>
 <script>
 (function(){

@@ -40,65 +40,55 @@ Deno.serve(async (req: Request) => {
       return json({ error: "A valid review item is required." }, 400);
     }
 
-    // A manually approved pending deposit may need its missing TXID attached
-    // to the existing request. This action is Master-Admin-only and never
-    // credits the ledger itself; verify-deposit remains the sole chain verifier.
-    if (action === "deposit_txid") {
-      const txid = String(body?.txid || "").trim();
-      if (!/^[0-9a-f]{64}$/i.test(txid)) {
-        return json({ error: "Enter the full 64-character transaction hash." }, 400);
-      }
-      const { data: deposit, error: lookupError } = await admin.from("deposit_submissions")
-        .select("id,status,txid,screenshot_path,ai_review_status")
-        .eq("id", id).maybeSingle();
-      if (lookupError) return json({ error: "Unable to load the pending deposit." }, 500);
-      if (!deposit || deposit.status !== "PENDING_VERIFICATION") {
-        return json({ error: "Deposit is no longer awaiting on-chain verification." }, 409);
-      }
-      if (!deposit.screenshot_path || !["APPROVED","MANUAL_APPROVED"].includes(String(deposit.ai_review_status || "").toUpperCase())) {
-        return json({ error: "Manually approve the deposit evidence before attaching a TXID." }, 409);
-      }
-      if (String(deposit.txid || "").trim()) {
-        return json({ error: "This deposit already has a TXID. Existing transaction references cannot be replaced here." }, 409);
-      }
-      const { data: saved, error: saveError } = await admin.from("deposit_submissions")
-        .update({
-          txid,
-          verification_note: "TXID linked by Master Admin; awaiting confirmed on-chain verification.",
-        })
-        .eq("id", id)
-        .eq("status", "PENDING_VERIFICATION")
-        .is("txid", null)
-        .select("id")
-        .maybeSingle();
-      if (saveError) return json({ error: "TXID could not be saved to the pending deposit." }, 500);
-      if (!saved) return json({ error: "Deposit changed while saving. Refresh the queue and try again." }, 409);
-      return json({ status: "TXID_LINKED", requiresChainVerification: true });
-    }
-
     if (!["approve","reject"].includes(decision)) return json({ error: "Choose approve or reject." }, 400);
 
     if (action === "deposit") {
-      const { data: deposit } = await admin.from("deposit_submissions")
-        .select("id,status").eq("id", id).maybeSingle();
+      const { data: deposit, error: lookupError } = await admin.from("deposit_submissions")
+        .select("id,status,txid,submitted_txid,network,screenshot_path")
+        .eq("id", id).maybeSingle();
+      if (lookupError) return json({ error: "Unable to load the pending deposit." }, 500);
       if (!deposit || deposit.status !== "PENDING_VERIFICATION") return json({ error: "Deposit is no longer awaiting review." }, 409);
       if (decision === "reject") {
         const { error } = await admin.from("deposit_submissions").update({
           status: "REJECTED", ai_review_status: "REJECTED",
           ai_review_reason: "MASTER_ADMIN_REJECTED",
-          verification_note: note || "Evidence rejected during manual review.",
+          verification_note: note || "Deposit rejected by Master Admin.",
           ai_reviewed_at: new Date().toISOString(),
         }).eq("id", id);
-        if (error) return json({ error: "Deposit review could not be saved." }, 500);
+        if (error) return json({ error: "Deposit rejection could not be saved." }, 500);
         return json({ status: "REJECTED" });
       }
+
+      // Simple one-click Master Admin approval is supported for the allowlisted
+      // Shasta TESTNET path only when no transaction hash was supplied. The
+      // database routine locks the deposit and records a test-only credit with
+      // an audit trail, while enforcing all live-money gates remain closed.
+      // MAINNET credits still require confirmed on-chain verification.
+      const network = String(deposit.network || "").trim().toUpperCase();
+      const hasTxid = Boolean(String(deposit.txid || "").trim() || String(deposit.submitted_txid || "").trim());
+      if (network === "TRON TESTNET" && !hasTxid) {
+        if (!deposit.screenshot_path) return json({ error: "Deposit evidence is required before approval." }, 409);
+        const { data: credited, error: creditError } = await admin.rpc("apply_manual_testnet_deposit_approval", {
+          p_deposit_id: id,
+          p_actor_user_id: actor.id,
+        });
+        if (creditError) {
+          return json({ error: creditError.message || "Testnet deposit could not be approved." }, 409);
+        }
+        const creditedRow = Array.isArray(credited) ? credited[0] : credited;
+        if (!creditedRow || creditedRow.status !== "VERIFIED") {
+          return json({ error: "Testnet approval did not reach the verified state." }, 409);
+        }
+        return json({ status: "VERIFIED", manualTestnetApproval: true, requiresChainVerification: false });
+      }
+
       const { error } = await admin.from("deposit_submissions").update({
         ai_review_status: "MANUAL_APPROVED",
         ai_review_reason: "MASTER_ADMIN_APPROVED",
-        verification_note: note || "Evidence approved by Master Admin; on-chain confirmation is still required.",
+        verification_note: note || "Evidence approved by Master Admin; confirmed on-chain transfer verification is still required.",
         ai_reviewed_at: new Date().toISOString(),
       }).eq("id", id);
-      if (error) return json({ error: "Deposit review could not be saved." }, 500);
+      if (error) return json({ error: "Deposit approval could not be saved." }, 500);
       return json({ status: "PENDING_VERIFICATION", requiresChainVerification: true });
     }
 
