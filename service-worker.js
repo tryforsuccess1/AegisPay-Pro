@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v36-turnstile-timeout-stability';
+const CACHE='aegispay-shell-v37-admin-session-isolation';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
