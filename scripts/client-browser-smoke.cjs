@@ -129,12 +129,16 @@ const server = http.createServer((req, res) => {
       text: el.textContent,
       height: Math.round(el.getBoundingClientRect().height),
       disabled: el.disabled,
-      buttonType: el.type
+      buttonType: el.type,
+      googleLogoSvg: !!el.querySelector('svg.google-brand-mark'),
+      googleLogoColors: Array.from(el.querySelectorAll('svg.google-brand-mark path')).map(path => path.getAttribute('fill')).sort()
     }));
     assert.match(googleControl.text, /Continue with Google/i, 'Client login should present Google sign-in.');
     assert.equal(googleControl.buttonType, 'button', 'Google sign-in must not submit the password form.');
     assert.ok(googleControl.height >= 44, 'Google sign-in should provide a 44px minimum touch target.');
     assert.equal(googleControl.disabled, false, 'Google sign-in should be enabled before interaction.');
+    assert.equal(googleControl.googleLogoSvg, true, 'Google sign-in must display the multicolour SVG brand mark.');
+    assert.deepEqual(googleControl.googleLogoColors, ['#34A853','#4285F4','#EA4335','#FBBC05'], 'Google brand mark must retain all four official colours.');
 
     const loginFields = await page.evaluate(() => ({
       usernameType: document.querySelector('#le')?.type,
@@ -395,10 +399,15 @@ const server = http.createServer((req, res) => {
       submitHeight: Math.round(document.querySelector('#aaLoginForm button[type="submit"]')?.getBoundingClientRect().height || 0),
       themeHeight: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().height || 0),
       themeWidth: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().width || 0),
-      loginBackground: getComputedStyle(document.querySelector('#aaLoginForm button[type="submit"]')).backgroundImage
+      loginBackground: getComputedStyle(document.querySelector('#aaLoginForm button[type="submit"]')).backgroundImage,
+      brandMarkViewBox: document.querySelector('.aa-auth-brand .aa-logo-mark')?.getAttribute('viewBox'),
+      brandPaths: Array.from(document.querySelectorAll('.aa-auth-brand .aa-logo-mark path')).map(path => path.getAttribute('d'))
     }));
     assert.equal(adminControls.usernameType, 'text', 'Master Admin username must be readable.');
     assert.equal(adminControls.passwordType, 'password', 'Master Admin password must remain masked.');
+    assert.equal(adminControls.brandMarkViewBox, '0 0 48 56', 'Master Admin must use the same AegisPay shield proportions as Client.');
+    assert.ok(adminControls.brandPaths.some(path => path.startsWith('M24 2.500 42.500 9.300V26')), 'Master Admin shield outline must match the Client logo.');
+    assert.ok(adminControls.brandPaths.some(path => path.startsWith('M16 38.500 24 17l8 21.500')), 'Master Admin must use the white A mark from the Client logo.');
     assert.ok(adminControls.submitHeight >= 40, 'Master Admin primary button should have a 40px minimum touch target.');
     assert.ok(adminControls.themeHeight >= 40, 'Master Admin theme button should have a 40px minimum touch target.');
     assert.ok(Math.abs(adminControls.themeWidth - adminControls.themeHeight) <= 1, 'Master Admin icon control should be square: ' + JSON.stringify(adminControls));
@@ -427,6 +436,14 @@ const server = http.createServer((req, res) => {
       assert.ok(dims.documentWidth <= dims.width, 'Master Admin horizontal overflow at ' + width + 'px: ' + JSON.stringify(dims));
       adminViewportResults.push(width);
     }
+    await adminPage.setViewportSize({ width: 1280, height: 738 });
+    const adminFooterFit = await adminPage.evaluate(() => ({
+      documentHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+      viewportHeight: window.innerHeight,
+      footerBottom: Math.round(document.querySelector('.aa-auth-footer')?.getBoundingClientRect().bottom || 0)
+    }));
+    assert.ok(adminFooterFit.documentHeight <= adminFooterFit.viewportHeight + 1, 'Master Admin login should fit the reference-height viewport without vertical scrolling: ' + JSON.stringify(adminFooterFit));
+    assert.ok(adminFooterFit.footerBottom <= adminFooterFit.viewportHeight + 1, 'Master Admin security footer should be visible without scrolling: ' + JSON.stringify(adminFooterFit));
     assert.deepEqual(adminErrors, [], 'Master Admin uncaught browser JavaScript errors: ' + adminErrors.join(' | '));
     console.log('Client browser smoke passed at ' + viewportResults.join(', ') + 'px (primary contrast ' + clientContrast.toFixed(2) + ':1); Master Admin login/theme smoke passed at ' + adminViewportResults.join(', ') + 'px (primary contrast ' + adminContrast.toFixed(2) + ':1).');
     await context.close();
