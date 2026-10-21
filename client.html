@@ -2864,15 +2864,18 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
               setDepositScanStatus('This screenshot is already linked to a '+String(details.payload.status||'existing')+' deposit request. No duplicate request was created.','error');
             }
           }else{
-            setDepositScanStatus(details.message,'error');
-            uiNotice(details.message,'error');
+            const friendlyMessage=details.payload.code==='AI_SCAN_UNAVAILABLE'
+              ?'Automatic screenshot scanning is temporarily unavailable. Please retry later or contact support; no balance has been credited.'
+              :details.message;
+            setDepositScanStatus(friendlyMessage,'error');
+            uiNotice(friendlyMessage,'error');
           }
           return;
         }
         const scan=scanResult.data||{};
         const candidate=String(scan.candidateTxid||'').trim();
         if(scan.found!==true||! /^[a-f0-9]{64}$/i.test(candidate)){
-          setDepositScanStatus(scan.message||'AI could not read one clear transaction ID. Upload a clearer screenshot; nothing has been credited.','error');
+          setDepositScanStatus('AI could not identify one clear transaction ID. Upload a clearer screenshot or retry later; the TXID is not verified and no balance has been credited.','error');
           return;
         }
         depositScannedTxid=candidate.toLowerCase();
@@ -2905,7 +2908,13 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
           const submission=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:depositScannedTxid,screenshotPath:depositScreenshotPath}});
           if(submission.error){
             const details=await readDepositFunctionError(submission.error,'Deposit request could not be submitted.');
-            setDepositScanStatus(details.message,'error');uiNotice(details.message,'error');return;
+            if(details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'&&details.payload.depositId&&String(details.payload.status||'')==='PENDING_VERIFICATION'){
+              depositPendingId=String(details.payload.depositId);
+              setDepositScanStatus('This screenshot already belongs to a pending request. Use “Retry TronGrid verification” to check the existing request; a second request was not created.','pending');
+            }else{
+              setDepositScanStatus(details.message,'error');uiNotice(details.message,'error');
+            }
+            return;
           }
           const submitted=submission.data||{};
           if(!submitted.depositId)throw Error(submitted.message||'The server did not return a deposit request ID. No balance was credited.');
