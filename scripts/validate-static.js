@@ -161,7 +161,7 @@ assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApproval
 assert(manualTestnetApprovalSql.includes('manual_approved_by=v_actor.id')&&manualTestnetApprovalSql.includes('CREATE TRIGGER guard_shasta_deposit_verification')&&manualTestnetApprovalSql.includes('Manual test credits require all live-money gates to remain closed')&&manualTestnetApprovalSql.includes('MANUAL_APPROVED'),'Database trigger must independently validate and audit the only manual-approval exception.');
 assert(masterAdmin.includes('admin-auth.js?v=20261021-simple-admin-deposit-approval'),'Master Admin must request the simple approve/reject client code.');
 const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
-assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v45-native-mobile-tier-layout'"),'Service worker cache must be bumped for simple admin approval assets.');
+assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v46-high-contrast-deposit-address'"),'Service worker cache must be bumped for simple admin approval assets.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
@@ -203,7 +203,7 @@ assert(shopWorkerPage.includes("index<4?'eager':'lazy'")&&shopWorkerPage.include
 const startupSource=client.slice(client.indexOf('async function initData(){'),client.indexOf('\nfunction top(',client.indexOf('async function initData(){')));
 assert(startupSource.includes('const [userResult,s,t]=await Promise.all([')&&startupSource.includes('void refreshNotificationCount();'),'Authenticated startup must load profile-related data concurrently and refresh the notification count without blocking page rendering.');
 assert(client.includes('async function refreshClientProfile()')&&client.includes('await refreshClientProfile(); await liveShop();')&&client.includes("await refreshClientProfile();\n   await liveShop();"),'Shop tier/task/cycle actions must refresh only the changed profile before reloading Shop data.');
-assert(serviceWorker.includes("const CACHE='aegispay-shell-v45-native-mobile-tier-layout'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
+assert(serviceWorker.includes("const CACHE='aegispay-shell-v46-high-contrast-deposit-address'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
 assert(serviceWorker.includes('const update=fetch(event.request,{cache:\'no-store\'})')&&serviceWorker.includes('caches.match(cacheKey).then(cached=>cached||update.catch')&&serviceWorker.includes('cacheUrl.search=\'\';'),'Static shell requests must be served from cache first, refresh in the background, and avoid caching URL query tokens.');
 assert(serviceWorker.includes("['code','access_token','refresh_token','token_hash','error','error_description']")&&serviceWorker.includes('const shouldStore=!authSensitive&&!isAuthCallback'),'OAuth and recovery URLs must never be stored as distinct cached requests.');
 assert(client.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})")&&masterAdmin.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})"),'Web client and Master Admin must register the non-blocking app-shell cache after page load.');
@@ -609,6 +609,9 @@ for(const p of [
 
 
 assert(client.includes('const qr=(address)=>')&&client.includes('wallet?qr(wallet)'),'Deposit QR must be generated from the configured receiving address, not a hard-coded image');
+assert(client.includes('const walletContrastOverrides=')&&client.includes('.p2-wallet>span:first-child,.p2-wallet>.bub,.p2-wallet>i:first-child{display:none!important}'),'Deposit address row must hide the legacy leading plus/link icon.');
+assert(client.includes('background:linear-gradient(135deg,#fffefe 0%,#fff5f9 100%)!important')&&client.includes('color:#2b2430!important;font:650 12.5px/1.55')&&client.includes('overflow-wrap:anywhere!important;word-break:break-word!important'),'Deposit address must stay readable on dark mode using a light surface, larger high-contrast text and safe wrapping.');
+assert(client.includes("st.textContent=css+walletContrastOverrides+(nativeMobileLayout?nativeMobileOverrides:'')"),'Address contrast styles must apply consistently to web and native app layouts.');
 assert(client.includes('encodeURIComponent(wallet)'),'Active deposit flow must encode its configured wallet into the QR generator URL');
 assert(!client.includes('DEPOSIT_QR')&&!client.includes('TPr8f6Qx2J9mN4kR7vY8sZmU'),'Legacy deposit UI must not contain a hard-coded QR or receiving address');
 assert(client.includes('async function isPreProductionActivityTickerAllowed()')&&client.includes("db.functions.invoke('preproduction-activity-ticker',{body:{}})"),'The sample activity ticker must ask the server whether pre-production testing is permitted.');
