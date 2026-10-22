@@ -77,18 +77,23 @@ async function getConfirmedInboundTransfers() {
     let invalidRows = 0;
     for (const row of rows) {
       const txid = String(row?.transaction_id || '').toLowerCase();
+      const from = String(row?.from || '');
       const to = String(row?.to || '');
       const contract = String(row?.token_info?.address || row?.contract_address || '');
+      const decimals = Number(row?.token_info?.decimals);
+      const transferType = String(row?.type || 'Transfer').toLowerCase();
       const raw = String(row?.value || '0');
       const timestamp = Number(row?.block_timestamp || 0);
-      if (!/^[a-f0-9]{64}$/.test(txid) || to !== WALLET || contract !== SHASTA_USDT ||
-          row?.success === false || !Number.isSafeInteger(timestamp) || timestamp <= 0 || !/^\d+$/.test(raw) || BigInt(raw) <= 0n) {
+      if (!/^[a-f0-9]{64}$/.test(txid) || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(from) ||
+          to !== WALLET || contract !== SHASTA_USDT || decimals !== TOKEN_DECIMALS ||
+          transferType !== 'transfer' || row?.success === false ||
+          !Number.isSafeInteger(timestamp) || timestamp <= 0 || !/^\d+$/.test(raw) || BigInt(raw) <= 0n) {
         invalidRows++;
         continue;
       }
       if (seen.has(txid)) continue;
       seen.add(txid);
-      transfers.push({ txid, rawAmount: BigInt(raw).toString(), blockTimestamp: timestamp });
+      transfers.push({ txid, from, rawAmount: BigInt(raw).toString(), blockTimestamp: timestamp });
     }
     const totalRaw = transfers.reduce((sum, item) => sum + BigInt(item.rawAmount), 0n);
     const limitReached = rows.length >= 200;
@@ -129,7 +134,12 @@ async function main() {
     (trxSun >= MIN_TRX_WITH_ENERGY_SUN && availableEnergy >= MIN_ENERGY);
   const inboundHistoryReady = inbound.status === 'OK' && !inbound.limitReached &&
     inbound.transfers.length > 0 && inbound.totalRaw >= usdtRaw;
-  const ready = usdtRaw > 0n && resourcesSufficient && inboundHistoryReady;
+  // This script only checks live chain resources and inbound-history shape. It does
+  // not reconcile transfers to VERIFIED database submissions, inspect prior sweep
+  // journals, or prove the Shasta signer is distinct from Mainnet. It must never
+  // certify that a sweep is possible; those gates are enforced by the worker and
+  // must be independently checked before a manual sweep window.
+  const resourceAndHistoryReady = usdtRaw > 0n && resourcesSufficient && inboundHistoryReady;
 
   console.log('SHASTA_PREFLIGHT_NETWORK=TRON_TESTNET');
   console.log(`SHASTA_PREFLIGHT_WALLET=${WALLET}`);
@@ -142,13 +152,18 @@ async function main() {
   console.log(`SHASTA_PREFLIGHT_CONFIRMED_INBOUND_USDT=${formatRaw(inbound.totalRaw, TOKEN_DECIMALS)}`);
   console.log(`SHASTA_PREFLIGHT_INBOUND_HISTORY_LIMIT_REACHED=${inbound.limitReached ? 'YES' : 'NO'}`);
   for (const item of inbound.transfers.slice(0, 20)) {
-    console.log(`SHASTA_PREFLIGHT_INBOUND_TX=${item.txid}:${formatRaw(item.rawAmount, TOKEN_DECIMALS)}:block_ms_${item.blockTimestamp}`);
+    console.log(`SHASTA_PREFLIGHT_INBOUND_TX=${item.txid}:${formatRaw(item.rawAmount, TOKEN_DECIMALS)}:block_ms_${item.blockTimestamp}:from_${item.from}`);
   }
   console.log('SHASTA_PREFLIGHT_REQUIRED_USDT_RAW=>0');
   console.log(`SHASTA_PREFLIGHT_RESOURCE_POLICY=${resourcesSufficient ? 'READY' : 'NOT_READY'}`);
-  console.log(`SHASTA_PREFLIGHT_SWEEP_POSSIBLE=${ready ? 'YES' : 'NO'}`);
+  console.log(`SHASTA_PREFLIGHT_RESOURCE_AND_HISTORY_READY=${resourceAndHistoryReady ? 'YES' : 'NO'}`);
+  console.log('SHASTA_PREFLIGHT_SOURCE_RECONCILIATION=NOT_CHECKED_BY_THIS_SCRIPT');
+  console.log('SHASTA_PREFLIGHT_SECRET_SEPARATION=NOT_CHECKED_BY_THIS_SCRIPT');
+  // Be deliberately fail-closed: a resource-only script cannot prove sweep eligibility.
+  console.log('SHASTA_PREFLIGHT_SWEEP_POSSIBLE=NO');
+  console.log('SHASTA_PREFLIGHT_SWEEP_GATE=BLOCKED_UNTIL_SOURCE_RECONCILIATION_AND_SECRET_SEPARATION_ARE_VERIFIED');
   console.log('SHASTA_PREFLIGHT_EFFECT=READ_ONLY; NO TRANSACTION SIGNED OR BROADCAST');
-  console.log('Note: resource readiness alone does not authorize a sweep; fresh verified source evidence and independent secret-separation verification remain required.');
+  console.log('Note: this report is diagnostic only. Even when resource and inbound-history checks pass, it does not authorize or certify a sweep.');
 }
 
 main().catch((error) => {
