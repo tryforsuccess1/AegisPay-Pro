@@ -60,6 +60,47 @@ function formatRaw(value, decimals) {
   return `${raw / scale}.${(raw % scale).toString().padStart(decimals, '0')}`;
 }
 
+async function getConfirmedInboundTransfers() {
+  const url = new URL(`${API_BASE}/v1/accounts/${encodeURIComponent(WALLET)}/transactions/trc20`);
+  url.searchParams.set('only_confirmed', 'true');
+  url.searchParams.set('only_to', 'true');
+  url.searchParams.set('limit', '200');
+  url.searchParams.set('order_by', 'block_timestamp,desc');
+  url.searchParams.set('contract_address', SHASTA_USDT);
+  try {
+    const response = await fetch(url, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) return { status: 'INCONCLUSIVE', code: `HTTP_${response.status}`, transfers: [], totalRaw: 0n, limitReached: false };
+    const payload = await response.json();
+    const rows = Array.isArray(payload?.data) ? payload.data : [];
+    const seen = new Set();
+    const transfers = [];
+    let invalidRows = 0;
+    for (const row of rows) {
+      const txid = String(row?.transaction_id || '').toLowerCase();
+      const to = String(row?.to || '');
+      const contract = String(row?.token_info?.address || row?.contract_address || '');
+      const raw = String(row?.value || '0');
+      const timestamp = Number(row?.block_timestamp || 0);
+      if (!/^[a-f0-9]{64}$/.test(txid) || to !== WALLET || contract !== SHASTA_USDT ||
+          row?.success === false || !Number.isSafeInteger(timestamp) || timestamp <= 0 || !/^\\d+$/.test(raw) || BigInt(raw) <= 0n) {
+        invalidRows++;
+        continue;
+      }
+      if (seen.has(txid)) continue;
+      seen.add(txid);
+      transfers.push({ txid, rawAmount: BigInt(raw).toString(), blockTimestamp: timestamp });
+    }
+    const totalRaw = transfers.reduce((sum, item) => sum + BigInt(item.rawAmount), 0n);
+    const limitReached = rows.length >= 200;
+    const status = invalidRows ? 'INVALID_ROWS' : limitReached ? 'HISTORY_LIMIT_REACHED' : 'OK';
+    return { status, code: invalidRows ? `INVALID_ROWS_${invalidRows}` : limitReached ? 'QUERY_LIMIT_REACHED' : 'NONE',
+      transfers, totalRaw, limitReached, returnedRows: rows.length };
+  } catch (error) {
+    return { status: 'INCONCLUSIVE', code: String(error && error.message || error).replace(/[^A-Za-z0-9_. -]/g, '').slice(0, 120),
+      transfers: [], totalRaw: 0n, limitReached: false };
+  }
+}
+
 async function main() {
   if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(WALLET)) throw new Error('invalid Shasta test wallet format');
   const parameter = balanceOfParameter(WALLET);
@@ -80,6 +121,7 @@ async function main() {
   }
   const trxSun = BigInt(String(account.balance || '0'));
   const usdtRaw = BigInt(`0x${String(token.constant_result[0]).replace(/^0x/i, '')}`);
+  const inbound = await getConfirmedInboundTransfers();
   const energyLimit = Number(resources.EnergyLimit ?? resources.energy_limit ?? 0);
   const energyUsed = Number(resources.EnergyUsed ?? resources.energy_used ?? 0);
   const availableEnergy = Math.max(0, energyLimit - energyUsed);
@@ -92,6 +134,14 @@ async function main() {
   console.log(`SHASTA_PREFLIGHT_USDT=${formatRaw(usdtRaw, TOKEN_DECIMALS)}`);
   console.log(`SHASTA_PREFLIGHT_TRX=${formatRaw(trxSun, 6)}`);
   console.log(`SHASTA_PREFLIGHT_AVAILABLE_ENERGY=${availableEnergy}`);
+  console.log(`SHASTA_PREFLIGHT_INBOUND_HISTORY_STATUS=${inbound.status}`);
+  console.log(`SHASTA_PREFLIGHT_INBOUND_HISTORY_CODE=${inbound.code}`);
+  console.log(`SHASTA_PREFLIGHT_CONFIRMED_INBOUND_TRANSFER_COUNT=${inbound.transfers.length}`);
+  console.log(`SHASTA_PREFLIGHT_CONFIRMED_INBOUND_USDT=${formatRaw(inbound.totalRaw, TOKEN_DECIMALS)}`);
+  console.log(`SHASTA_PREFLIGHT_INBOUND_HISTORY_LIMIT_REACHED=${inbound.limitReached ? 'YES' : 'NO'}`);
+  for (const item of inbound.transfers.slice(0, 20)) {
+    console.log(`SHASTA_PREFLIGHT_INBOUND_TX=${item.txid}:${formatRaw(item.rawAmount, TOKEN_DECIMALS)}:block_ms_${item.blockTimestamp}`);
+  }
   console.log('SHASTA_PREFLIGHT_REQUIRED_USDT_RAW=>0');
   console.log(`SHASTA_PREFLIGHT_RESOURCE_POLICY=${resourcesSufficient ? 'PASS' : 'NOT_READY'}`);
   console.log(`SHASTA_PREFLIGHT_SWEEP_POSSIBLE=${ready ? 'YES_RESOURCE_CHECK_ONLY' : 'NO'}`);
