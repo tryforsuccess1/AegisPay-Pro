@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     if (network === "TRON TESTNET" && !shastaSecretsAreDistinct(
       TESTNET_HD_MNEMONIC, HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY,
     )) {
-      return json({ error: "Shasta test secrets must not reuse the Mainnet payout key or HD mnemonic.", code: "TESTNET_SECRET_REUSE_BLOCKED" }, 423);
+      return json({ error: "All four Shasta/Mainnet HD and payout secrets must be present and distinct.", code: "TESTNET_SECRET_REUSE_BLOCKED" }, 423);
     }
     if (!validAddress(treasury) || !payoutKey || String(TronWeb.address.fromPrivateKey(payoutKey) || "") !== treasury) {
       return json({ error: "The configured treasury address does not match the authorized payout signer. No deposit address was issued.", code: "TREASURY_SIGNER_MISMATCH" }, 409);
