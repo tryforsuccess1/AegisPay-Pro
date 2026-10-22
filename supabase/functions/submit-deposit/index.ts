@@ -41,7 +41,7 @@ async function registerDuplicateTxidAttempt(admin: any, userId: string, txid: st
 function duplicateTxidWarning(attemptCount: number | null, blocked: boolean) {
   if (blocked) return "Your account has been blocked after repeated attempts to reuse transaction IDs. Contact support to request a review.";
   if (attemptCount !== null && attemptCount >= 2) return "Final warning: this TXID is already linked to another deposit. One more duplicate-TXID attempt within 30 days will block your account.";
-  return "Warning: this TXID is already linked to another deposit and has been rejected. One more duplicate-TXID attempt within 30 days will block your account.";
+  return "This TXID is already linked to another deposit and has been rejected. Reusing transaction IDs repeatedly can block your account.";
 }
 
 Deno.serve(async (req: Request) => {
