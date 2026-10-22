@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v45-native-mobile-tier-layout';
+const CACHE='aegispay-shell-v46-high-contrast-deposit-address';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
