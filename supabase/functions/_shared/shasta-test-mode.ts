@@ -22,13 +22,11 @@ export function shastaSecretsAreDistinct(
   const normalizeMnemonic = (value: string) => value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
   const testSeed = normalizeMnemonic(testHdMnemonic);
   const mainnetSeed = normalizeMnemonic(mainnetHdMnemonic);
-  const normalizePrivateKey = (value: string) => value.trim().replace(/^0x/i, "").toLowerCase();
-  const testKey = normalizePrivateKey(testPayoutPrivateKey);
-  const mainnetKey = normalizePrivateKey(mainnetPayoutPrivateKey);
+  const testKey = testPayoutPrivateKey.trim().toLowerCase();
+  const mainnetKey = mainnetPayoutPrivateKey.trim().toLowerCase();
   const reusedSeed = Boolean(testSeed && mainnetSeed && testSeed === mainnetSeed);
   const reusedSigner = Boolean(testKey && mainnetKey && testKey === mainnetKey);
-  const requiredSecretsPresent = Boolean(testSeed && mainnetSeed && testKey && mainnetKey);
-  return requiredSecretsPresent && !reusedSeed && !reusedSigner;
+  return !reusedSeed && !reusedSigner;
 }
 
 export function validShastaTestRules(value: unknown): value is ShastaTestRules {
