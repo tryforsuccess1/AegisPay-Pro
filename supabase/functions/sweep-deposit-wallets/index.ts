@@ -15,7 +15,6 @@ const HD_MNEMONIC = Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
 const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
 const HD_PASSPHRASE = Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
 const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
-const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const NETWORK = "TRON TESTNET";
 const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
@@ -366,9 +365,9 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Testnet sweep is not configured." }, 503);
   }
   if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
-  if (!MAINNET_HD_MNEMONIC.trim() || !MAINNET_PAYOUT_KEY.trim() ||
-      !shastaSecretsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY)) {
-    return json({ error: "Shasta signing credentials are missing or not distinct from Mainnet.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
+  if (!MAINNET_HD_MNEMONIC.trim() ||
+      !shastaSecretsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC, "", "")) {
+    return json({ error: "Shasta HD mnemonic is missing or reused from Mainnet.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
   }
 
   try {
