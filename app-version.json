@@ -1,9 +1,10 @@
 {
-  "versionCode": 53,
-  "versionName": "2.6.14",
+  "versionCode": 54,
+  "versionName": "2.6.15",
   "releaseChannel": "test",
   "candidateBuiltAt": null,
   "notes": [
+    "Build 54 / 2.6.15 keeps the Deposit page in the original centered mobile-web single-column shape on web and native app, uses full-width Tier cards, and improves dark-mode receiving-address contrast.",
     "Build 53 / 2.6.14 restores the compact, stacked Deposit screen in the native Android app while keeping the desktop web layout wide; mobile Tier cards use the full available width.",
     "Build 52 / 2.6.13 caps chat bubbles at 45%, hides the known malformed legacy merged transcript from the Client only, preserves the complete Admin transcript, hides AI shortcuts while a representative is live, routes escalations into the joined representative case and prevents repeated legacy message blobs.",
     "Build 51 / 2.6.12 uses intrinsic Telegram-style message bubbles: bubble width follows content, long messages wrap within a 78% chat-width cap, and sender labels no longer widen short messages. Font size remains 12px.",
