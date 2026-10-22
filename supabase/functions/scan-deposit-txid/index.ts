@@ -192,7 +192,7 @@ Deno.serve(async (req: Request) => {
         ? "Your account has been blocked after repeated attempts to reuse transaction IDs. Contact support to request a review."
         : (recorded.attemptCount || 0) >= 2
           ? "Final warning: this TXID is already linked to another deposit. One more duplicate-TXID attempt within 30 days will block your account."
-          : "Warning: this TXID is already linked to another deposit and has been rejected. One more duplicate-TXID attempt within 30 days will block your account.";
+          : "This TXID is already linked to another deposit and has been rejected. Reusing transaction IDs repeatedly can block your account.";
       return json({
         found: false,
         candidateTxid: null,
