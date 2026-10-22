@@ -72,3 +72,7 @@ jobs:
         run: npx --yes wrangler@4 deploy --config workers/aegispay-web/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-web-ai-bundle
       - name: Bundle Shop Worker without deploying
         run: npx --yes wrangler@4 deploy --config workers/aegispay-shopping/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-shopping-bundle
+      - name: Read-only Shasta wallet balance/resource preflight
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'feat/shasta-step2-main-sync-20261022'
+        continue-on-error: true
+        run: node scripts/shasta-resource-preflight.cjs
