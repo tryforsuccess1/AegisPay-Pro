@@ -10,7 +10,7 @@
   var apiPromise = null;
   var API_LOAD_TIMEOUT_MS = 10000;
   var VERIFY_RETRY_LIMIT = 1;
-  var VERIFY_RETRY_DELAY_MS = 1000;
+  var VERIFY_RETRY_DELAY_MS = 500;
   var VERIFY_ATTEMPT_TIMEOUT_MS = 30000;
 
   function preconnectCloudflare() {
@@ -236,6 +236,15 @@
       retryTimer: null
     };
     states.set(form, state);
+
+    // Preload Cloudflare's Turnstile API when the login form appears, not only
+    // after the user presses Login. Token generation and server-side validation
+    // still run through the existing protected login flow.
+    if (manual) {
+      loadApi().catch(function () {
+        // requireToken() retries the load and reports a visible error if needed.
+      });
+    }
 
     function currentValues() {
       return credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000');
