@@ -2779,7 +2779,12 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     '.aegis-mobile-app-layout .tier-card .tier-amt{font-size:18px}'+
     '.aegis-mobile-app-layout .tier-card small{font-size:10px;line-height:1.4}'+
     '.aegis-mobile-app-layout .p2-tier-card .p2-head{margin-bottom:8px!important}';
-  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css+(nativeMobileLayout?nativeMobileOverrides:'');document.head.appendChild(st);
+  const walletContrastOverrides=
+    '.p2-wallet{background:linear-gradient(135deg,#fffefe 0%,#fff5f9 100%)!important;border:1px solid #ead7e1!important;box-shadow:0 4px 14px rgba(28,12,20,.08)!important}'+
+    '.p2-wallet>span:first-child,.p2-wallet>.bub,.p2-wallet>i:first-child{display:none!important}'+
+    '.p2-wallet code{display:block!important;min-width:0;flex:1;color:#2b2430!important;font:650 12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace!important;letter-spacing:0!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-shadow:none!important}'+
+    '.p2-wallet .btn{flex:0 0 auto;background:#fff!important;border-color:#e4b4ca!important;color:#b33f78!important;box-shadow:none!important}';
+  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css+walletContrastOverrides+(nativeMobileLayout?nativeMobileOverrides:'');document.head.appendChild(st);
 
   uiNotice=function(message,type){
     const root=document.getElementById('app');if(!root)return;const old=root.querySelector('.app-notice');if(old)old.remove();
