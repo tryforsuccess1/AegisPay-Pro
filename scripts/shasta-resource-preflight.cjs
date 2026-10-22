@@ -82,7 +82,7 @@ async function getConfirmedInboundTransfers() {
       const raw = String(row?.value || '0');
       const timestamp = Number(row?.block_timestamp || 0);
       if (!/^[a-f0-9]{64}$/.test(txid) || to !== WALLET || contract !== SHASTA_USDT ||
-          row?.success === false || !Number.isSafeInteger(timestamp) || timestamp <= 0 || !/^\\d+$/.test(raw) || BigInt(raw) <= 0n) {
+          row?.success === false || !Number.isSafeInteger(timestamp) || timestamp <= 0 || !/^\d+$/.test(raw) || BigInt(raw) <= 0n) {
         invalidRows++;
         continue;
       }
