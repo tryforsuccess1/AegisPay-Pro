@@ -13,20 +13,39 @@ export type ShastaTestRules = {
 const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 const TRON_MAINNET_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 
+function normalizeMnemonic(value: string): string {
+  return value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+}
+
+/**
+ * The sweep worker deliberately does not load Mainnet payout private-key
+ * material. It must, however, fail closed when either HD mnemonic is missing
+ * and reject reuse before it derives or signs a testnet transaction.
+ */
+export function shastaMnemonicsAreDistinct(
+  testHdMnemonic: string,
+  mainnetHdMnemonic: string,
+): boolean {
+  const testSeed = normalizeMnemonic(testHdMnemonic);
+  const mainnetSeed = normalizeMnemonic(mainnetHdMnemonic);
+  return Boolean(testSeed && mainnetSeed && testSeed !== mainnetSeed);
+}
+
+/**
+ * Address issuance has access to both network-specific payout signers and
+ * both HD seeds. Require all four values to be present before certifying
+ * separation; a missing secret is not evidence that two signers are distinct.
+ */
 export function shastaSecretsAreDistinct(
   testHdMnemonic: string,
   mainnetHdMnemonic: string,
   testPayoutPrivateKey: string,
   mainnetPayoutPrivateKey: string,
 ): boolean {
-  const normalizeMnemonic = (value: string) => value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
-  const testSeed = normalizeMnemonic(testHdMnemonic);
-  const mainnetSeed = normalizeMnemonic(mainnetHdMnemonic);
   const testKey = testPayoutPrivateKey.trim().toLowerCase();
   const mainnetKey = mainnetPayoutPrivateKey.trim().toLowerCase();
-  const reusedSeed = Boolean(testSeed && mainnetSeed && testSeed === mainnetSeed);
-  const reusedSigner = Boolean(testKey && mainnetKey && testKey === mainnetKey);
-  return !reusedSeed && !reusedSigner;
+  return shastaMnemonicsAreDistinct(testHdMnemonic, mainnetHdMnemonic)
+    && Boolean(testKey && mainnetKey && testKey !== mainnetKey);
 }
 
 export function validShastaTestRules(value: unknown): value is ShastaTestRules {
