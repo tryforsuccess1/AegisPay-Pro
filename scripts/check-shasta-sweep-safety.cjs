@@ -4,6 +4,14 @@ const fs = require('node:fs');
 const assert = require('node:assert/strict');
 
 const worker = fs.readFileSync('supabase/functions/sweep-deposit-wallets/index.ts', 'utf8');
+const secrets = fs.readFileSync('supabase/functions/_shared/shasta-test-mode.ts', 'utf8');
+
+assert.match(worker, /shastaMnemonicsAreDistinct\(HD_MNEMONIC, MAINNET_HD_MNEMONIC\)/,
+  'Sweep signing must verify both HD seeds exist and differ without reading Mainnet payout key material.');
+assert.match(secrets, /Boolean\(testSeed && mainnetSeed && testSeed !== mainnetSeed\)/,
+  'HD-seed separation must fail closed when either seed is missing.');
+assert.match(secrets, /Boolean\(testKey && mainnetKey && testKey !== mainnetKey\)/,
+  'Payout-signer separation must fail closed when either key is missing.');
 
 assert.match(worker, /\.select\("id,txid,raw_amount,verification_source"\)/,
   'Sweep source query must include the verification source.');
