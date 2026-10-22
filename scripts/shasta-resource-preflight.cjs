@@ -127,7 +127,9 @@ async function main() {
   const availableEnergy = Math.max(0, energyLimit - energyUsed);
   const resourcesSufficient = trxSun >= MIN_TRX_SUN ||
     (trxSun >= MIN_TRX_WITH_ENERGY_SUN && availableEnergy >= MIN_ENERGY);
-  const ready = usdtRaw > 0n && resourcesSufficient;
+  const inboundHistoryReady = inbound.status === 'OK' && !inbound.limitReached &&
+    inbound.transfers.length > 0 && inbound.totalRaw >= usdtRaw;
+  const ready = usdtRaw > 0n && resourcesSufficient && inboundHistoryReady;
 
   console.log('SHASTA_PREFLIGHT_NETWORK=TRON_TESTNET');
   console.log(`SHASTA_PREFLIGHT_WALLET=${WALLET}`);
@@ -143,8 +145,8 @@ async function main() {
     console.log(`SHASTA_PREFLIGHT_INBOUND_TX=${item.txid}:${formatRaw(item.rawAmount, TOKEN_DECIMALS)}:block_ms_${item.blockTimestamp}`);
   }
   console.log('SHASTA_PREFLIGHT_REQUIRED_USDT_RAW=>0');
-  console.log(`SHASTA_PREFLIGHT_RESOURCE_POLICY=${resourcesSufficient ? 'PASS' : 'NOT_READY'}`);
-  console.log(`SHASTA_PREFLIGHT_SWEEP_POSSIBLE=${ready ? 'YES_RESOURCE_CHECK_ONLY' : 'NO'}`);
+  console.log(`SHASTA_PREFLIGHT_RESOURCE_POLICY=${resourcesSufficient ? 'READY' : 'NOT_READY'}`);
+  console.log(`SHASTA_PREFLIGHT_SWEEP_POSSIBLE=${ready ? 'YES' : 'NO'}`);
   console.log('SHASTA_PREFLIGHT_EFFECT=READ_ONLY; NO TRANSACTION SIGNED OR BROADCAST');
   console.log('Note: resource readiness alone does not authorize a sweep; fresh verified source evidence and independent secret-separation verification remain required.');
 }
