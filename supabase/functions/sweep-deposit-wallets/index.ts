@@ -43,7 +43,7 @@ type SweepRow = {
   status: string; idempotency_key: string; failure_code?: string | null;
 };
 type IncomingTransfer = { txid: string; rawAmount: string; blockTimestamp: number };
-type VerifiedSource = { id: string; txid: string; raw_amount?: string | null };
+type VerifiedSource = { id: string; txid: string; raw_amount?: string | null; verification_source: string };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: cors });
@@ -127,12 +127,19 @@ async function getIncomingTransfers(address: string): Promise<IncomingTransfer[]
 }
 async function getVerifiedSources(admin: Admin, walletId: string): Promise<Map<string, VerifiedSource>> {
   const { data, error } = await admin.from("deposit_submissions")
-    .select("id,txid,raw_amount").eq("deposit_wallet_id", walletId).eq("status", "VERIFIED").limit(1000);
+    .select("id,txid,raw_amount,verification_source").eq("deposit_wallet_id", walletId).eq("status", "VERIFIED").eq("verification_source", "TronGrid").limit(1000);
   if (error) throw new Error("VERIFIED_DEPOSIT_LOOKUP_FAILED");
   const map = new Map<string, VerifiedSource>();
   for (const row of data || []) {
     const txid = String(row.txid || "").toLowerCase();
-    if (validTxid(txid)) map.set(txid, { id: String(row.id), txid, raw_amount: row.raw_amount == null ? null : String(row.raw_amount) });
+    if (validTxid(txid) && String(row.verification_source || "") === "TronGrid") {
+      map.set(txid, {
+        id: String(row.id),
+        txid,
+        raw_amount: row.raw_amount == null ? null : String(row.raw_amount),
+        verification_source: "TronGrid",
+      });
+    }
   }
   return map;
 }
