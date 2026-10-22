@@ -2,6 +2,7 @@ import { assertEquals } from "jsr:@std/assert@1";
 import {
   validShastaTestRules,
   shastaSecretsAreDistinct,
+  shastaMnemonicsAreDistinct,
   isAllowlistedShastaTestUser,
   loadShastaTestRules,
 } from "./shasta-test-mode.ts";
@@ -105,9 +106,19 @@ Deno.test("Shasta config fails closed if Mainnet config cannot be verified", asy
   assertEquals(await loadShastaTestRules(mockAdmin(missingMainnet) as any, true), null);
 });
 
-Deno.test("Shasta secrets reject Mainnet HD mnemonic or payout signer reuse", () => {
+Deno.test("Shasta mnemonic separation fails closed when either HD seed is missing or reused", () => {
+  assertEquals(shastaMnemonicsAreDistinct("apple beta gamma", "Apple   beta gamma"), false);
+  assertEquals(shastaMnemonicsAreDistinct("", "mainnet seed"), false);
+  assertEquals(shastaMnemonicsAreDistinct("test seed", ""), false);
+  assertEquals(shastaMnemonicsAreDistinct("test seed", "mainnet seed"), true);
+});
+
+Deno.test("Shasta payout and HD secrets must all be present and distinct", () => {
   assertEquals(shastaSecretsAreDistinct("apple beta gamma", "Apple   beta gamma", "test-key", "main-key"), false);
   assertEquals(shastaSecretsAreDistinct("test seed", "mainnet seed", "ABCD", "abcd"), false);
+  assertEquals(shastaSecretsAreDistinct("test seed", "mainnet seed", "", "main-key"), false);
+  assertEquals(shastaSecretsAreDistinct("test seed", "mainnet seed", "test-key", ""), false);
+  assertEquals(shastaSecretsAreDistinct("", "mainnet seed", "test-key", "main-key"), false);
+  assertEquals(shastaSecretsAreDistinct("test seed", "", "test-key", "main-key"), false);
   assertEquals(shastaSecretsAreDistinct("test seed", "mainnet seed", "test-key", "main-key"), true);
-  assertEquals(shastaSecretsAreDistinct("", "mainnet seed", "", "main-key"), true);
 });
