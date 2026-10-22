@@ -121,6 +121,14 @@ const server = http.createServer((req, res) => {
     await page.locator('#liveLogin').waitFor({ state: 'visible', timeout: 15000 });
     assert.equal(await page.evaluate(() => window.__aegisInitialLoginFlash), false,
       'Local Client must render the session-restoration state without flashing Login before auth bootstrap.');
+    const welcomeStart = page.locator('#apw-start');
+    await welcomeStart.waitFor({ state: 'visible', timeout: 5000 });
+    const welcomeThemes = page.locator('#ap-welcome-layer [data-ap-theme]');
+    assert.equal(await welcomeThemes.count(), 3, 'Welcome screen should expose exactly three icon-only display controls.');
+    assert.deepEqual(await welcomeThemes.evaluateAll(buttons => buttons.map(button => button.textContent.trim())), ['', '', ''],
+      'Welcome display controls must not render Dark/Light/Eye Protection label text.');
+    await welcomeStart.click();
+    await page.locator('#ap-welcome-layer').waitFor({ state: 'detached', timeout: 3000 });
     assert.equal(await page.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
       'Local Client must expose the shared Shop marketplace navigation handler to inline controls.');
     const googleButton = page.locator('#liveLogin [data-google-auth]');
@@ -219,13 +227,18 @@ const server = http.createServer((req, res) => {
     assert.equal(await page.evaluate(() => localStorage.getItem('ap-lang')), 'en', 'English choice should persist.');
 
     const modeBefore = await page.evaluate(() => document.documentElement.getAttribute('data-mode'));
-    await page.locator('.ap-auth [data-a="mode"]').first().click();
+    const desiredMode = modeBefore === 'dark' ? 'light' : 'dark';
+    await page.locator('.ap-auth [data-ap-theme="' + desiredMode + '"]').first().click();
     const modeAfter = await page.evaluate(() => ({
       attr: document.documentElement.getAttribute('data-mode'),
       pref: localStorage.getItem('ap-mode')
     }));
-    assert.ok(['light', 'dark'].includes(modeAfter.pref), 'Appearance button should persist an explicit theme.');
-    assert.notEqual(modeAfter.attr, modeBefore, 'Appearance button should change the current theme.');
+    assert.equal(modeAfter.pref, desiredMode, 'Icon-only theme button should persist the selected explicit theme.');
+    assert.equal(modeAfter.attr, desiredMode, 'Icon-only theme button should apply the selected theme.');
+    assert.equal(await page.locator('.ap-auth [data-ap-theme]').count(), 3, 'Login screen should show three icon-only theme buttons.');
+    await page.locator('.ap-auth [data-ap-theme="eye"]').first().click();
+    assert.equal(await page.evaluate(() => localStorage.getItem('ap-warm')), '1', 'Eye-protection button should persist warm mode.');
+    assert.equal(await page.evaluate(() => document.documentElement.getAttribute('data-warm')), '1', 'Eye-protection button should apply the warm tint.');
 
     // Render the real AI template without a live session so unresolved template-scope dependencies fail in CI.
     const aiTemplate = await page.evaluate(() => {
