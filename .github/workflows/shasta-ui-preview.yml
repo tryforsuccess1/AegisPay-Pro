@@ -119,8 +119,9 @@ jobs:
           done
           test -s /tmp/shasta-ui-preview.html
           grep -q "TRON SHASTA TESTNET" /tmp/shasta-ui-preview.html
-          grep -q "result.data.tokenContract" /tmp/shasta-ui-preview.html
-          grep -q "Scan screenshot for TXID" /tmp/shasta-ui-preview.html
+          grep -q "row.tokenContract" /tmp/shasta-ui-preview.html
+          grep -q "scan-deposit-txid" /tmp/shasta-ui-preview.html
+grep -q "allowShastaTxidless" /tmp/shasta-ui-preview.html
           grep -q "Verify from TronGrid" /tmp/shasta-ui-preview.html
           curl --fail --silent --show-error --location --max-time 20 "https://shasta-test-ui.aegispay-pro.pages.dev/app/service-worker.js" -o /tmp/shasta-preview-service-worker.js
           grep -q "aegispay-shell-v48-shasta-deposit-e2e" /tmp/shasta-preview-service-worker.js
