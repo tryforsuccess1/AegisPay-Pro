@@ -6,6 +6,9 @@ const source = fs.readFileSync("workers/aegispay-web-hotfix/index.js", "utf8");
 const config = JSON.parse(fs.readFileSync("workers/aegispay-web-hotfix/wrangler.jsonc", "utf8"));
 
 assert.equal(config.name, "aegispay-web-hotfix");
+assert.equal(config.observability?.enabled, true);
+assert.equal(config.observability?.redact_query_string, true,
+  "Legacy Worker request query strings must be redacted from persisted Cloudflare logs.");
 assert.equal(config.main, "index.js");
 assert.match(source, /https:\/\/aegispay-pro\.pages\.dev/);
 assert.doesNotMatch(source, /aegispay-pro-web\.aegispay\.workers\.dev/);
