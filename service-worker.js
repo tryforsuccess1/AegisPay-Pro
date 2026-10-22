@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v40-shasta-deposit-e2e';
+const CACHE='aegispay-shell-v48-shasta-deposit-e2e';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
