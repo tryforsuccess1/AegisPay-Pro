@@ -1312,11 +1312,18 @@ async function getMyDepositAddressDetails(){
   }catch(_){}
   const code=String(payload.code||'');
   const status=Number(result.error.context&&result.error.context.status||0);
-  const message=code==='DEPOSIT_ADDRESS_NETWORK_PAUSED'||status===423
-   ?'Deposits are paused while AegisPay completes its pre-production payment-readiness checks.'
-   :code==='HD_WALLET_NOT_CONFIGURED'
-    ?'The secure deposit wallet is not configured yet. No address has been issued.'
-    :'The secure deposit service could not issue a unique receiving address. No funds were moved.';
+  const diagnosticCodes=new Set([
+   'SHASTA_TEST_MODE_BLOCKED','DEPOSIT_ADDRESS_NETWORK_PAUSED','TESTNET_SECRET_REUSE_BLOCKED',
+   'TREASURY_SIGNER_MISMATCH','HD_WALLET_NOT_CONFIGURED','HD_WALLET_ROOT_MISMATCH'
+  ]);
+  const serverMessage=typeof payload.error==='string'?payload.error:'';
+  const message=diagnosticCodes.has(code)&&serverMessage
+   ?serverMessage
+   :status===423
+    ?'Deposits are paused while AegisPay completes its pre-production payment-readiness checks.'
+    :code==='HD_WALLET_NOT_CONFIGURED'
+     ?'The secure deposit wallet is not configured yet. No address has been issued.'
+     :'The secure deposit service could not issue a unique receiving address. No funds were moved.';
   throw Object.assign(new Error(message),{code,status});
  }
  const row=result.data;
@@ -2909,8 +2916,14 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
     const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
     const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
+    const addressFailureCode=String(addressError&&addressError.code||'');
+    const shastaDiagnosticCodes=new Set(['SHASTA_TEST_MODE_BLOCKED','TESTNET_SECRET_REUSE_BLOCKED']);
+    if(!walletDetails&&shastaDiagnosticCodes.has(addressFailureCode)){
+      app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Shasta test deposits unavailable</h2><span class="chip">Readiness check blocked</span></div><p class="mu" style="font-size:11px;line-height:1.6">'+esc(addressError&&addressError.message||'The Shasta test environment is not ready.')+'</p><p class="mu" style="font-size:10px;line-height:1.5;margin-top:12px">Diagnostic code: <b>'+esc(addressFailureCode)+'</b></p><p class="mu" style="font-size:10px;line-height:1.5">No address was issued. Do not send funds until the authenticated page displays the Shasta network and receiving address.</p></div>'+nav('hidden');return;
+    }
     if(!depositsAllowed&&!shastaTestnetAllowed){
-      app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposits temporarily paused</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">For your protection, new Mainnet deposits are paused while production payouts are not fully approved, configured, and unlocked. Do not send Mainnet funds until this page confirms deposits are open.</p></div>'+nav('hidden');return;
+      const diagnostic=addressFailureCode?'<p class="mu" style="font-size:10px;line-height:1.5;margin-top:12px">Deposit service diagnostic code: <b>'+esc(addressFailureCode)+'</b></p>':'';
+      app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposits temporarily paused</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">For your protection, new Mainnet deposits are paused while production payouts are not fully approved, configured, and unlocked. Do not send Mainnet funds until this page confirms deposits are open.</p>'+diagnostic+'</div>'+nav('hidden');return;
     }
     if(!walletDetails){
       app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposit address unavailable</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">'+esc(addressError&&addressError.message||'A unique receiving address could not be issued. No funds were moved.')+'</p></div>'+nav('hidden');return;
