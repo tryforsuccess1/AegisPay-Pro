@@ -13,6 +13,14 @@ async function visit(page, url, expectedSelector) {
   assert.ok(response, 'No document response for ' + url);
   assert.equal(response.status(), 200, 'Unexpected HTTP status for ' + url + ': ' + response.status());
   await page.locator(expectedSelector).waitFor({ state: 'visible', timeout: 20000 });
+  if (expectedSelector === '#liveLogin') {
+    const welcomeStart = page.locator('#apw-start');
+    if (await welcomeStart.count()) {
+      await welcomeStart.waitFor({ state: 'visible', timeout: 10000 });
+      await welcomeStart.click();
+      await page.locator('#ap-welcome-layer').waitFor({ state: 'detached', timeout: 5000 });
+    }
+  }
   return response;
 }
 
@@ -144,13 +152,18 @@ async function visit(page, url, expectedSelector) {
       'Live Client language selection should persist English.');
 
     const modeBefore = await page.evaluate(() => document.documentElement.getAttribute('data-mode'));
-    await page.locator('.ap-auth [data-a="mode"]').first().click();
+    const desiredMode = modeBefore === 'dark' ? 'light' : 'dark';
+    await page.locator('.ap-auth [data-ap-theme="' + desiredMode + '"]').first().click();
     const modeAfter = await page.evaluate(() => ({
       attr: document.documentElement.getAttribute('data-mode'),
       pref: localStorage.getItem('ap-mode')
     }));
-    assert.ok(['light', 'dark'].includes(modeAfter.pref), 'Live Client theme selection should persist.');
-    assert.notEqual(modeAfter.attr, modeBefore, 'Live Client theme button should change the visible theme.');
+    assert.equal(modeAfter.pref, desiredMode, 'Live icon-only theme button should persist the selected theme.');
+    assert.equal(modeAfter.attr, desiredMode, 'Live icon-only theme button should apply the selected theme.');
+    assert.equal(await page.locator('.ap-auth [data-ap-theme]').count(), 3, 'Live login should expose three icon-only theme buttons.');
+    await page.locator('.ap-auth [data-ap-theme="eye"]').first().click();
+    assert.equal(await page.evaluate(() => localStorage.getItem('ap-warm')), '1', 'Live eye-protection button should persist warm mode.');
+    assert.equal(await page.evaluate(() => document.documentElement.getAttribute('data-warm')), '1', 'Live eye-protection button should apply the warm tint.');
 
     const clientWidths = [];
     for (const width of [320, 360, 390, 430, 768, 1280]) {
