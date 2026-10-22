@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/step2-shasta-deposit-e2e
+      - feat/shasta-step2-main-sync-20261022
   workflow_dispatch:
 
 permissions:
@@ -15,7 +16,7 @@ concurrency:
 
 jobs:
   deploy-shasta-preview:
-    if: github.ref == 'refs/heads/feat/step2-shasta-deposit-e2e'
+    if: github.ref == 'refs/heads/feat/step2-shasta-deposit-e2e' || github.ref == 'refs/heads/feat/shasta-step2-main-sync-20261022'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_ACCOUNT_ID: "6a31dfe877fe64e588b9415265302af4"
