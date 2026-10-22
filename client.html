@@ -775,7 +775,7 @@ const logo=s=>'<svg width="'+s+'" height="'+Math.round(s*56/48)+'" viewBox="0 0 
 const sp=(a,c)=>{const m=Math.max(...a),n=Math.min(...a);return `<svg width="64" height="26" viewBox="0 0 64 26"><polyline fill="none" stroke="${c}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" points="${a.map((v,i)=>`${i*64/(a.length-1)},${24-(v-n)/(m-n||1)*22}`).join(' ')}"/></svg>`};
 const tx=(i,c,t,s,a,k)=>`<div class="row">${bub(ic(i),c)}<div>${t}<small>${s}</small></div><em class="${k}">${a}</em></div>`;
 const fp=(x,y)=>{const a=x<7&&y<7,b=x>17&&y<7,c=x<7&&y>17;if(!(a||b||c))return null;const u=x%18,v=y%18;return u==0||u==6||v==0||v==6||(u>1&&u<5&&v>1&&v<5)};
-const qr=(address)=>{const target=String(address||'').trim();if(!target)return '<div style="text-align:center;margin:14px auto"><div class="chip">Scan to Pay · USDT TRC20</div><p class="mu" style="font-size:12px;margin-top:10px">Deposit wallet is not configured. Please contact support before sending funds.</p></div>';const src='https://api.qrserver.com/v1/create-qr-code/?size=312x312&margin=8&data='+encodeURIComponent(target);return '<div style="text-align:center;margin:14px auto"><div class="chip">Scan to Pay · USDT TRC20</div><div style="background:#fff;border-radius:20px;padding:12px;width:236px;margin:12px auto;box-shadow:0 0 50px -8px var(--c)"><img src="'+src+'" alt="QR code for configured USDT TRC20 deposit wallet" referrerpolicy="no-referrer" style="display:block;width:100%;height:auto"></div><p class="mu" style="font-size:12px">QR is generated from the configured deposit address shown on this screen.</p></div>';};
+const qr=(address)=>{const target=String(address||'').trim();if(!target)return '<div class="p2-qr" style="text-align:center;margin:6px auto"><div class="chip">Scan to Pay · USDT TRC20</div><p class="mu" style="font-size:12px;margin-top:8px">Deposit wallet is not configured. Please contact support before sending funds.</p></div>';const src='https://api.qrserver.com/v1/create-qr-code/?size=224x224&margin=5&data='+encodeURIComponent(target);return '<div class="p2-qr" style="text-align:center;margin:6px auto"><div class="chip">Scan to Pay · USDT TRC20</div><div style="background:#fff;border:1px solid #eee;border-radius:16px;padding:8px;width:160px;max-width:100%;margin:6px auto;box-shadow:0 6px 22px -12px var(--c)"><img src="'+src+'" alt="QR code for configured USDT TRC20 deposit wallet" referrerpolicy="no-referrer" style="display:block;width:100%;height:auto"></div><p class="mu" style="font-size:11px;line-height:1.45;margin:0 auto;max-width:290px">QR is generated from the configured deposit address shown on this screen.</p></div>';};
 
 const marker='';
 const SC={
@@ -1244,7 +1244,7 @@ async function completeShopTask(taskId){
  }
 }
 
-async function getMyDepositAddress(){
+async function getMyDepositAddressDetails(){
  const result=await db.functions.invoke('get-deposit-address',{body:{}});
  if(result.error){
   let payload=result.data&&typeof result.data==='object'?result.data:{};
@@ -1261,27 +1261,28 @@ async function getMyDepositAddress(){
     :'The secure deposit service could not issue a unique receiving address. No funds were moved.';
   throw Object.assign(new Error(message),{code,status});
  }
- if(!result.data||!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(result.data.address||''))){
+ const row=result.data;
+ if(!row||!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(row.address||''))){
   throw Object.assign(new Error('A unique deposit address is unavailable. Do not send funds until the authenticated AegisPay page displays your address.'),{code:'ADDRESS_MISSING'});
  }
- const network=String(result.data.network||'').toUpperCase();
- const tokenContract=String(result.data.tokenContract||'').trim();
- const expectedContract=network==='TRON TESTNET'?'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs':network==='TRON MAINNET'?'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t':'';
- if(!expectedContract||tokenContract!==expectedContract){
-  throw Object.assign(new Error('The server returned an unsupported network/token pair. Do not transfer funds.'),{code:'ADDRESS_NETWORK_MISMATCH'});
+ const network=String(row.network||'').trim().toUpperCase();
+ const tokenContract=String(row.tokenContract||'').trim();
+ if(!['TRON MAINNET','TRON TESTNET'].includes(network)||!tokenContract){
+  throw Object.assign(new Error('The deposit service returned an unsupported network configuration. No funds were moved.'),{code:'UNSUPPORTED_DEPOSIT_NETWORK'});
  }
- return {address:String(result.data.address),network,tokenContract};
+ return {address:String(row.address),network,tokenContract};
+}
+async function getMyDepositAddress(){
+ const details=await getMyDepositAddressDetails();
+ return details.address;
 }
 async function liveTopup(){
  const d=settings.deposit_rules||{};
- let wallet='',walletNetwork='',walletTokenContract='',addressError=null;
- try{
-  const issued=await getMyDepositAddress();
-  wallet=issued.address;walletNetwork=issued.network;walletTokenContract=issued.tokenContract;
- }catch(e){addressError=e}
+ let wallet='',addressError=null;
+ try{wallet=await getMyDepositAddress()}catch(e){addressError=e}
  const production=settings.production_config||{},system=settings.system_mode||{};
- const paymentsPaused=walletNetwork!=='TRON TESTNET'&&(String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'||
-  production.live_deposits_enabled!==true||system.live_deposits!==true);
+ const paymentsPaused=String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'||
+  production.live_deposits_enabled!==true||system.live_deposits!==true;
  const minDeposit=Math.max(10,Number(d.minimum_amount||d.minimum_deposit||d.min_deposit||10)||10);
  const [ledgerResult,submissionResult]=await Promise.all([
   db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(100),
@@ -1303,8 +1304,7 @@ async function liveTopup(){
    ?submissionResult.data.map(x=>{
      const st=statusView(x.status),tx=String(x.txid||'');
      const shortTx=tx.length>18?tx.slice(0,10)+'…'+tx.slice(-6):tx;
-     const canCheckShasta=String(x.network||'').toUpperCase()==='TRON TESTNET'&&x.status==='PENDING_VERIFICATION';
-     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small>'+(canCheckShasta?'<button class="btn sm o" type="button" style="margin-top:8px" data-shasta-verify="'+esc(x.id)+'">Verify from TronGrid</button>':'')+'</div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
+     return '<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>Deposit request · '+Number(x.gross_amount||0).toFixed(2)+' USDT</b><small>'+esc(new Date(x.created_at).toLocaleString())+(shortTx?' · TXID '+esc(shortTx):'')+'</small></div><span class="bd '+st.cls+'">'+esc(st.label)+'</span></div>';
     }).join('')
    :'<div class="empty">No deposit requests have been submitted yet.</div>';
  const creditRows=ledgerResult.error
@@ -1325,138 +1325,41 @@ async function liveTopup(){
   ?'<div class="info b">'+apIcon('info')+'<div>Only verified transfers are credited. Duplicate TXIDs and unconfirmed transfers are not credited. Deposit status is confirmed by the server.</div></div>'+
    '<div class="steps"><i></i><i></i><i></i><i></i><i></i></div><div class="note" style="margin:6px 2px 0">1 Amount · 2 Transfer · 3 Evidence · 4 Server review · 5 Credit</div>'+
    '<div class="fl">1. Amount (USDT)<span style="color:var(--mut);font-weight:700">Minimum '+minDeposit.toFixed(2)+' USDT</span></div><input id="depAmount" type="number" inputmode="decimal" min="'+minDeposit+'" step="0.01" placeholder="0.00">'+
-   '<div class="fl">2. Receiving address <span style="color:var(--mut);font-weight:700">Network: '+esc(walletNetwork==='TRON TESTNET'?'TRON SHASTA TESTNET':walletNetwork)+'</span></div>'+
-   '<div class="card" style="padding:12px"><div class="qr-live"><img src="https://api.qrserver.com/v1/create-qr-code/?size=312x312&margin=8&data='+encodeURIComponent(wallet)+'" alt="Unique TRON deposit wallet QR code" loading="lazy" referrerpolicy="no-referrer"></div><div class="addr"><span style="flex:1;overflow-wrap:anywhere" id="depositAddress">'+esc(wallet)+'</span><button class="btn sm o" type="button" id="copyDepositAddress">Copy</button></div><div class="note">Check the full address, network and token contract before transferring. Only send the supported USDT token on '+esc(walletNetwork==='TRON TESTNET'?'TRON SHASTA TESTNET':walletNetwork)+' to this address.</div><div class="note" style="overflow-wrap:anywhere">USDT contract: '+esc(walletTokenContract)+'</div></div>'+
+   '<div class="fl">2. Receiving address <span style="color:var(--mut);font-weight:700">Network: '+esc(String(d.network||'TRON'))+'</span></div>'+
+   '<div class="card" style="padding:12px"><div class="qr-live"><img src="https://api.qrserver.com/v1/create-qr-code/?size=312x312&margin=8&data='+encodeURIComponent(wallet)+'" alt="Unique TRON deposit wallet QR code" loading="lazy" referrerpolicy="no-referrer"></div><div class="addr"><span style="flex:1;overflow-wrap:anywhere" id="depositAddress">'+esc(wallet)+'</span><button class="btn sm o" type="button" id="copyDepositAddress">Copy</button></div><div class="note">Check the full address and network before transferring. Only send the supported USDT token to this address.</div></div>'+
    '<div class="fl">3. Transaction screenshot <span style="color:var(--mut);font-weight:700">Image · max 10 MB</span></div>'+
    '<label class="up" for="proof">'+apIcon('upl')+'<div id="proofName">Choose screenshot<small>Stored privately and scoped to your account</small></div><input type="file" id="proof" accept="image/jpeg,image/png,image/webp" hidden></label>'+
-   '<button class="btn sm o" type="button" id="scanProofTxid" style="display:none;margin-top:8px;width:100%">Scan screenshot for TXID</button><div id="txidScanStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--mut);margin-top:6px;line-height:1.5"></div>'+
-   '<div class="fl">4. Transaction ID (TXID)'+(walletNetwork==='TRON TESTNET'?' <span style="color:var(--mut);font-weight:700">Optional for Shasta</span>':'')+'</div><input id="txid" autocomplete="off" placeholder="'+(walletNetwork==='TRON TESTNET'?'Optional — leave blank if unknown':'Paste the 64-character transaction hash')+'">'+
+   '<div class="fl">4. Transaction ID (TXID)</div><input id="txid" autocomplete="off" placeholder="Paste the 64-character transaction hash">'+
    '<div style="height:12px"></div><button class="btn" type="button" id="submitDep">Submit for verification</button>'
   :'<div class="info b">'+apIcon('info')+'<div><b>'+esc(pausedTitle)+'</b><p>'+esc(pausedMessage)+'</p></div></div>'+
    '<div class="card" style="padding:14px"><div class="sh" style="margin-top:0">Before you send funds</div><p class="note">No unique receiving address has been issued to this account. Do not transfer USDT to a treasury address, old screenshot, chat message, or any address copied from outside this authenticated deposit page.</p><div class="two" style="margin-top:12px"><button class="btn o" type="button" id="retryDepositAddress">Check again</button><button class="btn" type="button" id="depositViewActivity">Deposit history</button></div></div>';
  app.innerHTML='<div class="scr on">'+header+addressPanel+
   '<div class="sh" style="margin-top:18px">Deposit requests</div><div class="card list" id="depositRequests">'+requestRows+'</div>'+
   '<div class="sh">Verified deposit credits</div><div class="card list" id="depositCredits">'+creditRows+'</div>'+nav('hidden')+'</div>';
- document.querySelectorAll('[data-shasta-verify]').forEach(button=>{
-  button.onclick=async()=>{
-   const id=button.getAttribute('data-shasta-verify');
-   if(!id)return;
-   button.disabled=true;button.textContent='Checking TronGrid…';
-   try{
-    const result=await db.functions.invoke('verify-deposit',{body:{depositId:id}});
-    if(result.error)throw result.error;
-    const state=String(result.data&&result.data.status||'').toUpperCase();
-    if(state==='VERIFIED'){
-     uiNotice('Shasta transfer verified by the server. The confirmed transfer was reconciled with the deposit ledger.','success');
-    }else{
-     uiNotice(result.data&&(result.data.message||result.data.error)||'The server has not confirmed this transfer yet. No credit was applied.','info');
-    }
-    await liveTopup();
-   }catch(e){
-    uiNotice(e.message||'Shasta verification could not run. No funds were moved.','error');
-    button.disabled=false;button.textContent='Verify from TronGrid';
-   }
-  };
- });
  const back=document.getElementById('depositBack');if(back)back.onclick=()=>window.go('home');
  const retry=document.getElementById('retryDepositAddress');if(retry)retry.onclick=()=>liveTopup();
  const viewActivity=document.getElementById('depositViewActivity');if(viewActivity)viewActivity.onclick=()=>window.go('activity');
  const copy=document.getElementById('copyDepositAddress');if(copy)copy.onclick=()=>copyTextToClipboard(wallet,'Deposit address copied.');
  const amount=document.getElementById('depAmount'),txid=document.getElementById('txid'),proof=document.getElementById('proof'),submit=document.getElementById('submitDep');
- const scanButton=document.getElementById('scanProofTxid'),scanStatus=document.getElementById('txidScanStatus');
- let uploadedProofPath='',uploadedProofFile=null,uploadInFlight=null,uploadInFlightFile=null,proofScanToken=0,duplicateTxidDetected=false,duplicateEvidenceDetected=false;
- async function ensureProofUploaded(file){
-  if(uploadedProofPath&&uploadedProofFile===file)return uploadedProofPath;
-  if(uploadInFlight&&uploadInFlightFile===file)return await uploadInFlight;
-  const operation=(async()=>{
-   const extension=(file.name.split('.').pop()||'jpg').toLowerCase();
-   const safeExtension=['jpg','jpeg','png','webp'].includes(extension)?extension:'jpg';
-   const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+safeExtension;
-   const upload=await db.storage.from('private-verification').upload(path,file,{contentType:file.type||'image/jpeg'});
-   if(upload.error)throw upload.error;
-   if(proof.files&&proof.files[0]===file){uploadedProofPath=path;uploadedProofFile=file}
-   return path;
-  })();
-  uploadInFlight=operation;uploadInFlightFile=file;
-  try{return await operation}
-  finally{if(uploadInFlight===operation){uploadInFlight=null;uploadInFlightFile=null}}
- }
- async function edgeErrorDetails(error){
-  let payload=null;
-  try{if(error&&error.context&&typeof error.context.json==='function')payload=await error.context.json()}catch(_){}
-  return {payload,message:payload&&typeof payload.error==='string'?payload.error:(error&&error.message||'Request failed.')};
- }
- async function scanSelectedScreenshot(){
-  const file=proof&&proof.files&&proof.files[0];
-  if(!file){uiNotice('Choose your deposit screenshot first.','error');return}
-  const scanToken=++proofScanToken;
-  scanButton.disabled=true;scanButton.textContent='Scanning screenshot…';
-  if(submit)submit.disabled=true;
-  scanStatus.textContent='AI is reading the visible transaction hash. This does not verify or credit a deposit.';
-  try{
-   const screenshotPath=await ensureProofUploaded(file);
-   if(scanToken!==proofScanToken||!proof.files||proof.files[0]!==file)return;
-   const scanned=await db.functions.invoke('scan-deposit-txid',{body:{screenshotPath}});
-   if(scanToken!==proofScanToken||!proof.files||proof.files[0]!==file)return;
-   if(scanned.error){
-    const details=await edgeErrorDetails(scanned.error);
-    if(details.payload&&['DUPLICATE_DEPOSIT_TXID','ACCOUNT_BLOCKED_DUPLICATE_TXID'].includes(details.payload.code)){
-     duplicateTxidDetected=true;txid.value='';
-     scanStatus.textContent=details.message;
-    }else if(details.payload&&details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'){
-     duplicateEvidenceDetected=true;
-     scanStatus.textContent=details.message;
-    }else{
-     scanStatus.textContent=details.message;
-    }
-    throw new Error(details.message);
-   }
-   const candidate=String(scanned.data&&scanned.data.candidateTxid||'');
-   if(scanned.data&&scanned.data.found&&/^[a-f0-9]{64}$/i.test(candidate)){
-    txid.value=candidate;duplicateTxidDetected=false;
-    scanStatus.textContent='TXID candidate found and added. Please check it carefully. It is not verified yet—submit the request, then press Verify from TronGrid.';
-   }else{
-    scanStatus.textContent=scanned.data&&scanned.data.message||'No clear TXID found. You can type it manually.';
-   }
-  }catch(e){
-   const message=e&&e.message||'Screenshot scan failed. You can enter the TXID manually.';
-   if(!scanStatus.textContent||!scanStatus.textContent.includes(message))scanStatus.textContent=message;
-   uiNotice(message,'error');
-  }finally{
-   if(scanToken===proofScanToken){
-    scanButton.disabled=false;scanButton.textContent='Scan screenshot for TXID';
-    if(submit)submit.disabled=false;
-   }
-  }
- }
- if(scanButton)scanButton.onclick=scanSelectedScreenshot;
- if(txid)txid.oninput=()=>{duplicateTxidDetected=false};
  if(proof)proof.onchange=()=>{
-  const file=proof.files&&proof.files[0];
-  uploadedProofPath='';uploadedProofFile=null;uploadInFlight=null;uploadInFlightFile=null;proofScanToken++;duplicateTxidDetected=false;duplicateEvidenceDetected=false;
-  if(scanStatus)scanStatus.textContent='';
-  if(scanButton){scanButton.style.display=file?'block':'none';scanButton.disabled=!file}
-  if(submit)submit.disabled=!!file;
-  if(!file){if(submit)submit.disabled=false;return}
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type)){proof.value='';if(submit)submit.disabled=false;if(scanButton)scanButton.style.display='none';uiNotice('JPEG, PNG or WebP images only.','error');return}
-  if(file.size>10*1024*1024){proof.value='';if(submit)submit.disabled=false;if(scanButton)scanButton.style.display='none';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
-  document.getElementById('proofName').innerHTML=esc(file.name)+'<small>'+(file.size/1024).toFixed(0)+' KB · Private upload</small>';
-  // Start scan automatically after the user selects a screenshot; a retry button remains available.
-  scanSelectedScreenshot();
+  const f=proof.files&&proof.files[0];if(!f)return;
+  if(!['image/jpeg','image/png','image/webp'].includes(f.type)){proof.value='';uiNotice('JPEG, PNG or WebP images only.','error');return}
+  if(f.size>10*1024*1024){proof.value='';uiNotice('Screenshot must be 10 MB or smaller.','error');return}
+  document.getElementById('proofName').innerHTML=esc(f.name)+'<small>'+(f.size/1024).toFixed(0)+' KB · Private upload</small>';
  };
  if(submit)submit.onclick=async()=>{
   try{
    const value=Number(amount.value),f=proof.files&&proof.files[0],tx=txid.value.trim();
    if(!Number.isFinite(value)||value<minDeposit)throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
    if(!wallet)throw Error('No unique receiving address is available. Do not send funds.');
-   if(walletNetwork!=='TRON TESTNET'&&!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format for Mainnet.');if(tx.length>128)throw Error('TXID input is too long. Clear it or paste the transaction hash.');
+   if(!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format.');
    if(!f)throw Error('Please attach the transaction screenshot.');
    submit.disabled=true;submit.textContent='Submitting…';
-   if(duplicateEvidenceDetected)throw Error('This exact screenshot has already been submitted. Choose the correct new screenshot or open the existing deposit request.');
-   if(duplicateTxidDetected)throw Error('This TXID was already rejected as a duplicate. Enter a different valid transaction ID or choose the correct screenshot.');
-   const path=await ensureProofUploaded(f);
+   const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase());
+   const up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});
+   if(up.error)throw up.error;
    const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path}});
-   if(result.error){const details=await edgeErrorDetails(result.error);throw Error(details.message)}
+   if(result.error)throw result.error;
    uiNotice(result.data&&result.data.message||'Deposit submitted for verification.','success');
    await liveTopup();
   }catch(e){uiNotice(e.message||'Deposit could not be submitted.','error')}
@@ -2822,8 +2725,66 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
   '.p2-wallet{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:15px;background:rgba(255,255,255,.035);border:1px solid var(--ln)}.p2-wallet code{min-width:0;flex:1;font:600 10.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#4a3a2c}'+
   '.p2-status{display:flex;gap:10px;align-items:center;padding:11px 12px;border-radius:15px;background:rgba(201,75,138,.06);border:1px solid rgba(201,75,138,.18);margin-bottom:12px}.p2-status.green{background:rgba(26,154,110,.05);border-color:rgba(26,154,110,.20)}.p2-status.error{background:rgba(214,58,74,.06);border-color:rgba(214,58,74,.20)}.p2-status .dot{width:8px;height:8px;border-radius:50%;background:var(--c);flex:none}.p2-status.green .dot{background:var(--m)}.p2-status.error .dot{background:var(--r)}.p2-status b{font-size:11.5px}.p2-status small{display:block;color:var(--mu);font-size:10px;margin-top:2px}'+
   '.p2-ai{display:flex;gap:12px;align-items:center;padding:14px 15px;border-radius:20px;background:linear-gradient(135deg,rgba(240,106,77,.18),rgba(201,75,138,.08));border:1px solid rgba(240,106,77,.24);cursor:pointer}.p2-ai .orb{width:44px;height:44px;border-radius:15px;display:grid;place-items:center;background:var(--g);color:#fff}.p2-ai .grow{flex:1}.p2-ai b{font-size:13px}.p2-ai small{display:block;color:var(--mu);font-size:10.5px;line-height:1.4;margin-top:2px}.p2-ai-mini{width:38px;height:38px;border:1px solid var(--ln);border-radius:13px;background:rgba(255,255,255,.06);color:#fff;display:grid;place-items:center}'+
-  '.p2-empty{text-align:center;padding:24px 14px;color:var(--mu);font-size:11.5px}.p2-empty b{display:block;color:var(--t);font-size:13px;margin-bottom:4px}';
-  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css;document.head.appendChild(st);
+  '.p2-empty{text-align:center;padding:24px 14px;color:var(--mu);font-size:11.5px}.p2-empty b{display:block;color:var(--t);font-size:13px;margin-bottom:4px}'+
+  '.tier-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0 14px;align-items:stretch}'+
+  '.tier-card{appearance:none;-webkit-appearance:none;position:relative;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:6px;width:100%;min-width:0;min-height:130px;margin:0;padding:15px 12px 12px;border:1px solid #e9d9cc;border-radius:17px;background:linear-gradient(155deg,#fffdfa 0%,#fff7f1 100%);color:#49372c;text-align:left;font:600 12px/1.35 Sora,Arial,sans-serif;white-space:normal;overflow-wrap:anywhere;cursor:pointer;box-shadow:0 4px 12px rgba(91,54,31,.045);transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease}'+
+  '.tier-card .tier-check{display:grid;place-items:center;align-self:flex-end;width:23px;height:23px;margin-bottom:-1px;border:1px solid #ead9ce;border-radius:50%;background:#fff;color:#a18a7b;font-size:12px;font-weight:800;line-height:1}'+
+  '.tier-card .tier-name{max-width:100%;color:#513c30;font-size:12px;font-weight:750;line-height:1.35;letter-spacing:.1px}'+
+  '.tier-card .tier-amt{max-width:100%;color:#c6527e;font-size:19px;font-weight:800;line-height:1.2;letter-spacing:-.45px}'+
+  '.tier-card small{display:block;max-width:100%;color:#857568;font-size:10px;font-weight:500;line-height:1.4;white-space:normal;overflow-wrap:anywhere}'+
+  '.tier-card small:last-child{margin-top:auto;padding-top:3px;color:#9c7b6b;font-size:9.5px;font-weight:650}'+
+  '.tier-card.selected{border-color:#d47780;background:linear-gradient(150deg,#fff0e9 0%,#fff8f3 100%);box-shadow:0 0 0 2px rgba(210,103,119,.13),0 8px 18px rgba(164,82,76,.08)}'+
+  '.tier-card.selected .tier-check{border-color:#c95483;background:linear-gradient(135deg,#f06a4d,#c94b8a);color:#fff}'+
+  '.tier-card:not(:disabled):hover{border-color:#d58b91;box-shadow:0 8px 20px rgba(164,82,76,.10);transform:translateY(-1px)}'+
+  '.tier-card:focus-visible{outline:3px solid rgba(201,75,138,.28);outline-offset:2px}'+
+  '.tier-card:disabled,.tier-card.locked{cursor:not-allowed;background:#f7f3ef;border-color:#e9e0d8;box-shadow:none}'+
+  '.tier-card:disabled .tier-name,.tier-card.locked .tier-name{color:#9d9187}'+
+  '.tier-card:disabled .tier-amt,.tier-card.locked .tier-amt{color:#ae9ba0}'+
+  '.tier-card:disabled small,.tier-card.locked small{color:#a89c93}'+
+  '.p2-card .amt{font:600 14px/1.35 var(--ff);margin:0;letter-spacing:0;text-align:left}'+
+  '.p2-card .amt>small{display:block;margin:0 0 7px;color:var(--mu);font:700 11px/1.4 var(--ff);letter-spacing:.25px}'+
+  '.p2-wallet{gap:10px;padding:10px 12px;background:rgba(255,255,255,.52);border-color:#eadfd6;min-height:52px}'+
+  '.p2-wallet code{display:block;min-width:0;flex:1;color:#49372c;font:650 12px/1.5 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace;letter-spacing:-.2px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;text-overflow:clip}'+
+  '.p2-wallet .btn{flex:0 0 auto;min-height:38px;border-radius:12px!important}'+
+  '.p2-card .ap-field{margin-bottom:8px}'+
+  '.filepick{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-width:0;min-height:82px;margin:8px 0 0;padding:15px 14px;border:1.5px dashed #d78ca9;border-radius:17px;background:linear-gradient(135deg,#fff8f4 0%,#fff3f7 100%);color:#4b392f;text-align:left;cursor:pointer;transition:border-color .18s ease,background .18s ease,box-shadow .18s ease}'+
+  '.filepick:hover,.filepick:focus-within{border-color:#c94b8a;background:#fff2f6;box-shadow:0 0 0 3px rgba(201,75,138,.08)}'+
+  '.filepick-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:13px;background:rgba(201,75,138,.10);color:#c94b8a}'+
+  '.filepick-icon svg{width:20px;height:20px}'+
+  '.filepick-copy{display:flex;flex:1;flex-direction:column;gap:4px;min-width:0}'+
+  '.filepick-copy strong{display:block;max-width:100%;overflow:hidden;color:#513c30;font-size:12px;font-weight:750;line-height:1.4;text-overflow:ellipsis;white-space:nowrap}'+
+  '.filepick-copy small{display:block;color:#8f7d72;font-size:10px;font-weight:500;line-height:1.45;overflow-wrap:anywhere}'+
+  '.filepick-action{flex:none;padding:8px 10px;border:1px solid rgba(201,75,138,.22);border-radius:11px;background:#fff;color:#b33f78;font-size:10px;font-weight:750;white-space:nowrap}'+
+  '.filepick input[type=file]{position:absolute;z-index:1;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}'+
+  '.filepick:focus-within .filepick-action{background:#c94b8a;border-color:#c94b8a;color:#fff}'+
+  '@media(max-width:360px){.tier-grid{gap:7px}.tier-card{min-height:138px;padding:12px 9px 10px}.tier-card .tier-amt{font-size:17px}.tier-card small{font-size:9px}.filepick{gap:8px;padding:12px 10px}.filepick-icon{flex-basis:36px;width:36px;height:36px}.filepick-action{padding:7px 8px;font-size:9px}}'+
+  '#app:has(.p2-deposit-layout){width:100%;max-width:430px;padding:10px 12px 100px;margin:0 auto}.p2-deposit-layout{display:flex;flex-direction:column;gap:10px;align-items:stretch}.p2-network-status,.p2-deposit-card,.p2-upload-card,.p2-tier-card{width:100%;grid-column:auto;min-width:0;margin:0!important}.p2-network-status{min-height:48px;padding:9px 12px!important}.p2-deposit-card{display:block!important;padding:12px!important}.p2-deposit-card>.p2-head{margin:0 0 8px!important}.p2-deposit-card>.amt{padding:0!important}.p2-deposit-card>.p2-qr{display:block;width:100%;margin:8px auto!important}.p2-qr>div{width:148px!important;max-width:100%;margin:6px auto!important;padding:7px!important;border-radius:14px!important}.p2-qr p{font-size:10px!important;line-height:1.4!important;margin:4px auto 0!important}.p2-deposit-card>.p2-wallet{display:flex;align-items:center;width:100%;margin-top:8px!important;padding:9px 10px!important;gap:8px}.p2-deposit-card>.p2-wallet code{font-size:12.5px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word}.p2-deposit-card .amt .ap-field{margin-top:4px!important}.p2-upload-card,.p2-tier-card{padding:12px!important}.tier-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;width:100%;margin:10px 0 12px;align-items:stretch}.tier-card{width:100%;min-width:0;min-height:96px;padding:12px 13px;gap:5px}.tier-card .tier-amt{font-size:18px}.tier-card small{font-size:10px;line-height:1.4}.p2-tier-card .p2-head{margin-bottom:8px!important}body:has(#app .p2-deposit-layout) .activity-ticker{display:none!important}';
+  const nativeMobileLayout=!!(window.AEGIS_ANDROID_APP||window.AegisNative);
+  if(nativeMobileLayout)document.documentElement.classList.add('aegis-mobile-app-layout');
+  const nativeMobileOverrides=
+    'html.aegis-mobile-app-layout #app:has(.p2-deposit-layout){width:100%;max-width:430px;padding:10px 12px 100px;margin:0 auto}'+
+    '.aegis-mobile-app-layout .p2-deposit-layout{display:flex;flex-direction:column;gap:10px;align-items:stretch}'+
+    '.aegis-mobile-app-layout .p2-network-status,.aegis-mobile-app-layout .p2-deposit-card,.aegis-mobile-app-layout .p2-upload-card,.aegis-mobile-app-layout .p2-tier-card{width:100%;grid-column:auto;min-width:0}'+
+    '.aegis-mobile-app-layout .p2-deposit-card{display:block!important;padding:12px!important}'+
+    '.aegis-mobile-app-layout .p2-deposit-card>.p2-head{margin:0 0 8px!important}'+
+    '.aegis-mobile-app-layout .p2-deposit-card>.amt{padding:0!important}'+
+    '.aegis-mobile-app-layout .p2-deposit-card>.p2-qr{display:block;width:100%;margin:8px auto!important}'+
+    '.aegis-mobile-app-layout .p2-qr>div[style*="width:160px"]{width:148px!important;max-width:100%;margin:6px auto!important;padding:7px!important}'+
+    '.aegis-mobile-app-layout .p2-deposit-card>.p2-wallet{display:flex;align-items:center;width:100%;margin-top:8px!important;padding:9px 10px!important;gap:8px}'+
+    '.aegis-mobile-app-layout .p2-deposit-card>.p2-wallet code{font-size:12px;line-height:1.5;overflow-wrap:anywhere;word-break:break-word}'+
+    '.aegis-mobile-app-layout .p2-upload-card,.aegis-mobile-app-layout .p2-tier-card{padding:12px!important}'+
+    '.aegis-mobile-app-layout .p2-tier-card{grid-column:auto}'+
+    '.aegis-mobile-app-layout .tier-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;width:100%;margin:10px 0 12px}'+
+    '.aegis-mobile-app-layout .tier-card{width:100%;min-width:0;min-height:96px;padding:12px 13px;gap:5px}'+
+    '.aegis-mobile-app-layout .tier-card .tier-amt{font-size:18px}'+
+    '.aegis-mobile-app-layout .tier-card small{font-size:10px;line-height:1.4}'+
+    '.aegis-mobile-app-layout .p2-tier-card .p2-head{margin-bottom:8px!important}';
+  const walletContrastOverrides=
+    '.p2-wallet{background:linear-gradient(135deg,#fffefe 0%,#fff5f9 100%)!important;border:1px solid #ead7e1!important;box-shadow:0 4px 14px rgba(28,12,20,.08)!important}'+
+    '.p2-wallet>span:first-child,.p2-wallet>.bub,.p2-wallet>i:first-child{display:none!important}'+
+    '.p2-wallet code{display:block!important;min-width:0;flex:1;color:#2b2430!important;font:650 12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace!important;letter-spacing:0!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-shadow:none!important}'+
+    '.p2-wallet .btn{flex:0 0 auto;background:#fff!important;border-color:#e4b4ca!important;color:#b33f78!important;box-shadow:none!important}';
+  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css+walletContrastOverrides+(nativeMobileLayout?nativeMobileOverrides:'');document.head.appendChild(st);
 
   uiNotice=function(message,type){
     const root=document.getElementById('app');if(!root)return;const old=root.querySelector('.app-notice');if(old)old.remove();
@@ -2882,13 +2843,194 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
   };
 
   liveTopup=async function(){
-    const d=settings.deposit_rules||{},available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0)),activeTier=tiers.find(function(t){return String(t.id)===String(profile.selected_tier_id||'');});let wallet='',walletNetwork='',walletTokenContract='';
-    const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;try{const issued=await getMyDepositAddress();wallet=issued.address;walletNetwork=issued.network;walletTokenContract=issued.tokenContract;}catch(_){if(!depositsAllowed){app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposits temporarily paused</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">For your protection, new TRON USDT deposits are paused while production payouts are not fully approved, configured, and unlocked. Please do not send funds until this page confirms deposits are open.</p></div>'+nav('hidden');return;}app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposit address unavailable</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">A unique TRON deposit address could not be issued. Do not send funds until this page displays your address and network. No funds were moved.</p></div>'+nav('hidden');return;}if(walletNetwork==='TRON MAINNET'&&!depositsAllowed){app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposits temporarily paused</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">Mainnet deposits are paused while production readiness is incomplete. Do not send funds.</p></div>'+nav('hidden');return;}const cards=tiers.map(function(t){const ok=available>=Number(t.deposit_amount||0),sel=String(profile.selected_tier_id||'')===String(t.id);return '<button type="button" class="tier-card '+(sel?'selected ':'')+(!ok?'locked':'')+'" data-tier-id="'+esc(t.id)+'" '+(!ok?'disabled':'')+'><span class="tier-check">✓</span><div class="tier-name">'+esc(t.name)+'</div><div class="tier-amt">'+Number(t.deposit_amount||0).toFixed(0)+' USDT</div><small>Base profit '+Number(t.initial_profit||0).toFixed(2)+' USDT</small><small>'+(ok?'Ready to activate':'Need more available balance')+'</small></button>';}).join('');
-    app.innerHTML=top('Deposit USDT')+'<div class="p2-status"><span class="dot"></span><div><b>'+esc(walletNetwork==='TRON TESTNET'?'TRON SHASTA TESTNET':walletNetwork)+'</b><small>Only send the token shown below on this exact network.</small></div></div><div class="p2-card"><div class="p2-head"><h2>1. Deposit</h2><span>Secure flow</span></div><div class="amt" style="padding:12px 6px 4px"><small>Amount</small><div class="ap-field" style="margin-top:8px"><input id="depAmount" type="number" min="10" step=".01" inputmode="decimal" placeholder="10.00 USDT"></div></div>'+(wallet?qr(wallet):'<div class="warn">'+ic('alert')+'<span>Deposit wallet is not configured.</span></div>')+'<div class="p2-wallet"><span class="bub" style="width:34px;height:34px;background:rgba(201,75,138,.12);color:var(--c)">'+ic('link')+'</span><code>'+esc(wallet||'Not configured')+'</code><button id="copyDepositWallet" class="btn o" style="width:auto;padding:9px 11px;font-size:10px">Copy</button></div><small class="mu" style="display:block;overflow-wrap:anywhere;margin-top:8px">USDT contract · '+esc(walletTokenContract)+'</small></div><div class="p2-card"><div class="p2-head"><h2>2. Submit Proof</h2><span>Required</span></div><div class="ap-field"><label>TXID'+(walletNetwork==='TRON TESTNET'?' (optional on Shasta)':'')+'</label><input id="txid" type="text" placeholder="'+(walletNetwork==='TRON TESTNET'?'Optional — leave blank if unknown':'Paste transaction ID')+'"></div><label class="filepick">Choose Deposit Screenshot<input id="proof" type="file" accept="image/*"></label><button class="btn" style="margin-top:10px" id="submitDep">Submit Deposit '+ic('arrow')+'</button><div id="depositInlineStatus"></div></div><div class="p2-card"><div class="p2-head"><h2>3. Activate Tier</h2><span>'+available.toFixed(2)+' available</span></div><div class="mu" style="font-size:10.5px;line-height:1.5;margin-bottom:10px">Deposits can remain unactivated. Shop earnings begin after a tier is activated.</div><div class="tier-grid">'+cards+'</div>'+(activeTier?'<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Current tier: '+esc(activeTier.name)+'</b><small>Ready for the next Shop cycle.</small></div></div>':'')+'<button class="btn" style="margin-top:12px" id="activateTierBtn" disabled>Activate Selected Tier '+ic('arrow')+'</button></div>';
+    const d=settings.deposit_rules||{},available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0)),activeTier=tiers.find(function(t){return String(t.id)===String(profile.selected_tier_id||'');});
+    const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};
+    const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;
+    let wallet='',walletDetails=null,addressError=null;
+    try{walletDetails=await getMyDepositAddressDetails();wallet=walletDetails.address;}catch(error){addressError=error;}
+    const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
+    const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
+    const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
+    if(!depositsAllowed&&!shastaTestnetAllowed){
+      app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposits temporarily paused</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">For your protection, new Mainnet deposits are paused while production payouts are not fully approved, configured, and unlocked. Do not send Mainnet funds until this page confirms deposits are open.</p></div>'+nav('hidden');return;
+    }
+    if(!walletDetails){
+      app.innerHTML=top('Deposit USDT')+'<div class="p2-card"><div class="p2-head"><h2>Deposit address unavailable</h2><span class="chip">Not accepting funds</span></div><p class="mu" style="font-size:11px;line-height:1.6">'+esc(addressError&&addressError.message||'A unique receiving address could not be issued. No funds were moved.')+'</p></div>'+nav('hidden');return;
+    }
+    const minDeposit=Math.max(10,Number(d.minimum_amount||d.minimum_deposit||d.min_deposit||10)||10);
+    const cards=tiers.map(function(t){const ok=available>=Number(t.deposit_amount||0),sel=String(profile.selected_tier_id||'')===String(t.id);return '<button type="button" class="tier-card '+(sel?'selected ':'')+(!ok?'locked':'')+'" data-tier-id="'+esc(t.id)+'" '+(!ok?'disabled':'')+'><span class="tier-check">✓</span><div class="tier-name">'+esc(t.name)+'</div><div class="tier-amt">'+Number(t.deposit_amount||0).toFixed(0)+' USDT</div><small>Base profit '+Number(t.initial_profit||0).toFixed(2)+' USDT</small><small>'+(ok?'Ready to activate':'Need more available balance')+'</small></button>';}).join('');
+    
+    app.innerHTML=top('Deposit USDT')+'<div class="p2-deposit-layout"><div class="p2-status p2-network-status"><span class="dot"></span><div><b>'+esc(network==='TRON TESTNET'?'TRON SHASTA TESTNET':network)+'</b><small>Use the assigned deposit wallet on this network only.</small></div></div><div class="p2-card p2-deposit-card"><div class="p2-head"><h2>1. Deposit</h2><span>Secure flow</span></div><div class="amt" style="padding:12px 6px 4px"><small>Amount</small><div class="ap-field" style="margin-top:8px"><input id="depAmount" type="number" min="10" step=".01" inputmode="decimal" placeholder="10.00 USDT"></div></div>'+(wallet?qr(wallet):'<div class="warn">'+ic('alert')+'<span>Deposit wallet is not configured.</span></div>')+'<div class="p2-wallet"><code aria-label="Deposit receiving address">'+esc(wallet||'Not configured')+'</code><button id="copyDepositWallet" class="btn o" style="width:auto;padding:9px 11px;font-size:10px">Copy</button><small class="mu" style="display:block;overflow-wrap:anywhere;margin-top:8px">USDT contract: '+esc(tokenContract)+'</small></div></div><div class="p2-card p2-upload-card"><div class="p2-head"><h2>2. Upload Deposit Screenshot</h2><span>AI scan</span></div><label class="filepick" for="proof"><span class="filepick-icon"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg></span><span class="filepick-copy"><strong id="proofName">Choose deposit screenshot</strong><small id="proofMeta">PNG, JPG or WEBP · Max 10 MB</small></span><span class="filepick-action">Browse files</span><input id="proof" type="file" accept="image/jpeg,image/png,image/webp"></label><div id="depositScanStatus" class="note" role="status" aria-live="polite" style="margin-top:10px;overflow-wrap:anywhere">Choose a screenshot. AI will extract the TXID; TronGrid must still confirm the transfer.</div><div id="detectedTxidPanel" class="ap-field" hidden><label>AI-detected transaction ID</label><code id="detectedTxid" style="display:block;overflow-wrap:anywhere"></code></div><button class="btn" style="margin-top:10px" id="submitDep" disabled>Verify from TronGrid '+ic('arrow')+'</button><div id="depositInlineStatus"></div></div><div class="p2-card p2-tier-card"><div class="p2-head"><h2>3. Activate Tier</h2><span>'+available.toFixed(2)+' available</span></div><div class="mu" style="font-size:10.5px;line-height:1.5;margin-bottom:10px">Deposits can remain unactivated. Shop earnings begin after a tier is activated.</div><div class="tier-grid">'+cards+'</div>'+(activeTier?'<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Current tier: '+esc(activeTier.name)+'</b><small>Ready for the next Shop cycle.</small></div></div>':'')+'<button class="btn" style="margin-top:12px" id="activateTierBtn" disabled>Activate Selected Tier '+ic('arrow')+'</button></div></div>';
     document.querySelectorAll('[data-tier-id]').forEach(function(el){el.onclick=function(){document.querySelectorAll('[data-tier-id]').forEach(function(x){x.classList.toggle('selected',x===el);});const btn=document.getElementById('activateTierBtn');if(btn){btn.disabled=false;btn.dataset.tierId=el.getAttribute('data-tier-id');}};});
     const at=document.getElementById('activateTierBtn');if(at)at.onclick=function(){activateClientTier(at.dataset.tierId||'');};
     const cp=document.getElementById('copyDepositWallet');if(cp&&wallet)cp.onclick=async function(){try{await navigator.clipboard.writeText(wallet);uiNotice('Deposit wallet copied.','success');}catch(_){uiNotice('Copy is not available on this device.','info');}};
-    submitDep.onclick=async function(){const box=document.getElementById('depositInlineStatus');try{const amount=Number(depAmount.value),f=proof.files[0],tx=txid.value.trim();if(!Number.isFinite(amount)||amount<10)throw Error('Minimum deposit amount is 10 USDT.');if(!wallet)throw Error('Deposit wallet address is not configured.');if(walletNetwork!=='TRON TESTNET'&&!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Please enter a valid 64-character transaction ID / TXID for Mainnet.');if(tx.length>128)throw Error('TXID input is too long.');if(!f)throw Error('Please choose the deposit screenshot.');submitDep.disabled=true;const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase()),up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});if(up.error)throw up.error;const rr=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:tx,screenshotPath:path}});if(rr.error)throw rr.error;if(box)box.innerHTML='<div class="p2-status green" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Deposit submitted</b><small>'+esc(rr.data?.message||'Your deposit is under verification.')+'</small></div></div>';}catch(e){if(box)box.innerHTML='<div class="p2-status error" style="margin-top:10px;margin-bottom:0"><span class="dot"></span><div><b>Submission needs attention</b><small>'+esc(e.message||'Deposit failed. Please try again.')+'</small></div></div>'}finally{submitDep.disabled=false;}};
+    const depAmount=document.getElementById('depAmount');
+    const proof=document.getElementById('proof');
+    const submitDep=document.getElementById('submitDep');
+    const scanStatus=document.getElementById('depositScanStatus');
+    const detectedPanel=document.getElementById('detectedTxidPanel');
+    const detectedTxid=document.getElementById('detectedTxid');
+    let depositScreenshotPath='',depositScannedTxid='',depositPendingId='',depositBusy=false,allowShastaTxidless=false;
+    const setDepositScanStatus=function(message,state){
+      if(!scanStatus)return;
+      scanStatus.textContent=String(message||'');
+      scanStatus.dataset.state=String(state||'');
+      scanStatus.style.color=state==='error'?'#b42318':state==='success'?'#147d64':state==='pending'?'#946200':'';
+    };
+    const readDepositFunctionError=async function(error,fallback){
+      let payload={};
+      try{
+        const context=error&&error.context;
+        if(context&&typeof context.clone==='function')payload=await context.clone().json();
+      }catch(_){}
+      return {
+        message:String(payload.warning||payload.error||payload.message||(error&&error.message)||fallback),
+        payload:payload
+      };
+    };
+    const setProofLabel=function(file,meta){
+      const nameNode=document.getElementById('proofName');
+      const metaNode=document.getElementById('proofMeta');
+      if(nameNode)nameNode.textContent=file?file.name:'Choose deposit screenshot';
+      if(metaNode)metaNode.textContent=String(meta||'PNG, JPG or WEBP · Max 10 MB');
+    };
+    if(proof)proof.onchange=async function(){
+      const f=proof.files&&proof.files[0];
+      setProofLabel(f,f?((f.size/1024).toFixed(0)+' KB · Private upload'):'PNG, JPG or WEBP · Max 10 MB');
+      depositScreenshotPath='';depositScannedTxid='';depositPendingId='';allowShastaTxidless=false;
+      if(detectedPanel)detectedPanel.hidden=true;
+      if(detectedTxid)detectedTxid.textContent='';
+      if(submitDep){submitDep.disabled=true;submitDep.textContent='Verify from TronGrid';}
+      if(!f){setDepositScanStatus('Choose a screenshot to scan. No balance is credited until TronGrid confirms the transfer.','');return;}
+      if(!['image/jpeg','image/png','image/webp'].includes(f.type)){
+        proof.value='';setProofLabel(null,'PNG, JPG or WEBP · Max 10 MB');setDepositScanStatus('JPEG, PNG or WebP screenshots only.','error');uiNotice('JPEG, PNG or WebP screenshots only.','error');return;
+      }
+      if(f.size>10*1024*1024){
+        proof.value='';setProofLabel(null,'PNG, JPG or WEBP · Max 10 MB');setDepositScanStatus('Screenshot must be 10 MB or smaller.','error');uiNotice('Screenshot must be 10 MB or smaller.','error');return;
+      }
+      if(submitDep){submitDep.disabled=true;submitDep.textContent='Scanning screenshot…';}
+      setDepositScanStatus('Uploading your screenshot privately…','pending');
+      try{
+        const extension=(f.name.split('.').pop()||'jpg').toLowerCase();
+        const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+extension;
+        const upload=await db.storage.from('private-verification').upload(path,f,{contentType:f.type,upsert:false});
+        if(upload.error)throw upload.error;
+        depositScreenshotPath=path;
+        setDepositScanStatus('AI is reading the transaction ID. This scan does not prove that payment has occurred.','pending');
+        const scanResult=await db.functions.invoke('scan-deposit-txid',{body:{screenshotPath:depositScreenshotPath}});
+        if(scanResult.error){
+          const details=await readDepositFunctionError(scanResult.error,'The screenshot could not be scanned.');
+          if(details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'&&details.payload.depositId){
+            if(String(details.payload.status||'')==='PENDING_VERIFICATION'){
+              depositPendingId=String(details.payload.depositId);
+              setDepositScanStatus('This screenshot already belongs to a pending request. Use “Retry TronGrid verification” to check that existing request; a second request was not created.','pending');
+              if(submitDep){submitDep.disabled=false;submitDep.textContent='Retry TronGrid verification';}
+            }else{
+              setDepositScanStatus('This screenshot is already linked to a '+String(details.payload.status||'existing')+' deposit request. No duplicate request was created.','error');
+            }
+          }else{
+            if(network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'&&details.payload.code!=='DUPLICATE_DEPOSIT_EVIDENCE'){
+              allowShastaTxidless=true;
+              if(detectedPanel)detectedPanel.hidden=true;
+              setDepositScanStatus('Screenshot scanning could not produce a TXID. You may submit this evidence for Shasta exact-match verification; no balance will be credited without confirmed chain evidence.','pending');
+            }else{
+              const friendlyMessage=details.payload.code==='AI_SCAN_UNAVAILABLE'
+              ?'Automatic screenshot scanning is temporarily unavailable. Please retry later or contact support; no balance has been credited.'
+              :details.message;
+            setDepositScanStatus(friendlyMessage,'error');
+            uiNotice(friendlyMessage,'error');
+            }
+          }
+          return;
+        }
+        const scan=scanResult.data||{};
+        const candidate=String(scan.candidateTxid||'').trim();
+        if(scan.found!==true||! /^[a-f0-9]{64}$/i.test(candidate)){
+          if(network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'){
+            allowShastaTxidless=true;
+            if(detectedPanel)detectedPanel.hidden=true;
+            setDepositScanStatus('No clear TXID was detected. Shasta test mode can submit this screenshot for exact, unique confirmed-chain matching; no balance is credited unless TronGrid confirms it.','pending');
+            return;
+          }
+          setDepositScanStatus('AI could not identify one clear transaction ID. Upload a clearer screenshot or retry later; the TXID is not verified and no balance has been credited.','error');
+          return;
+        }
+        depositScannedTxid=candidate.toLowerCase();
+        if(detectedTxid)detectedTxid.textContent=depositScannedTxid;
+        if(detectedPanel)detectedPanel.hidden=false;
+        setDepositScanStatus('TXID detected. It is not verified yet. Click “Verify from TronGrid” to check the confirmed blockchain transfer.','success');
+        uiNotice('Transaction ID detected. Click Verify from TronGrid.','success');
+      }catch(error){
+        const details=await readDepositFunctionError(error,'Unable to scan the deposit screenshot.');
+        setDepositScanStatus(details.message,'error');
+        uiNotice(details.message,'error');
+      }finally{
+        if(submitDep){
+          if(depositPendingId){submitDep.disabled=false;submitDep.textContent='Retry TronGrid verification';}
+          else if(depositScannedTxid&&depositScreenshotPath){submitDep.disabled=false;submitDep.textContent='Verify from TronGrid';}
+          else if(allowShastaTxidless&&depositScreenshotPath&&network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'){submitDep.disabled=false;submitDep.textContent='Submit for Shasta matching';}
+          else{submitDep.disabled=true;submitDep.textContent='Verify from TronGrid';}
+        }
+      }
+    };
+    submitDep.onclick=async function(){
+      if(depositBusy)return;
+      try{
+        const amount=Number(depAmount.value);
+        if(!depositPendingId&&(!Number.isFinite(amount)||amount<minDeposit))throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
+        if(!wallet)throw Error('No unique receiving address is available. Do not send funds.');
+        const shastaTxidFallback=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs'&&allowShastaTxidless;
+        if(!depositScreenshotPath||(!depositScannedTxid&&!depositPendingId&&!shastaTxidFallback))throw Error('Choose a deposit screenshot and wait for the AI scan to finish.');
+        depositBusy=true;
+        submitDep.disabled=true;submitDep.textContent=depositPendingId?'Checking TronGrid…':'Submitting…';
+        if(!depositPendingId){
+          const submission=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:depositScannedTxid,screenshotPath:depositScreenshotPath}});
+          if(submission.error){
+            const details=await readDepositFunctionError(submission.error,'Deposit request could not be submitted.');
+            if(details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'&&details.payload.depositId&&String(details.payload.status||'')==='PENDING_VERIFICATION'){
+              depositPendingId=String(details.payload.depositId);
+              setDepositScanStatus('This screenshot already belongs to a pending request. Use “Retry TronGrid verification” to check the existing request; a second request was not created.','pending');
+            }else{
+              setDepositScanStatus(details.message,'error');uiNotice(details.message,'error');
+            }
+            return;
+          }
+          const submitted=submission.data||{};
+          if(!submitted.depositId)throw Error(submitted.message||'The server did not return a deposit request ID. No balance was credited.');
+          depositPendingId=String(submitted.depositId);
+          setDepositScanStatus(submitted.message||'Deposit request submitted. Checking the confirmed TRON blockchain…','pending');
+        }
+        const verification=await db.functions.invoke('verify-deposit',{body:{depositId:depositPendingId}});
+        if(verification.error){
+          const details=await readDepositFunctionError(verification.error,'TronGrid verification could not be completed.');
+          setDepositScanStatus(details.message,'error');uiNotice(details.message,'error');return;
+        }
+        const result=verification.data||{};
+        if(result.status==='VERIFIED'){
+          setDepositScanStatus('Deposit verified on-chain. The server has applied the verified credit. Refreshing your account…','success');
+          uiNotice('Deposit verified by TronGrid. Account balance updated.','success');
+          const refreshedProfile=await db.from('users').select('current_platform_balance,principal_balance,profit_balance,selected_tier_id').eq('id',profile.id).maybeSingle();
+          if(!refreshedProfile.error&&refreshedProfile.data)Object.assign(profile,refreshedProfile.data);
+          await liveTopup();
+          return;
+        }
+        if(result.status==='REJECTED'){
+          setDepositScanStatus(result.message||'This deposit request was rejected. No balance was credited.','error');
+          return;
+        }
+        setDepositScanStatus(result.message||'TronGrid has not confirmed a unique matching transfer yet. No balance has been credited; you can retry verification later.','pending');
+      }catch(error){
+        const details=await readDepositFunctionError(error,'Deposit verification could not be completed.');
+        setDepositScanStatus(details.message,'error');uiNotice(details.message,'error');
+      }finally{
+        depositBusy=false;
+        if(submitDep){
+          if(depositPendingId){submitDep.disabled=false;submitDep.textContent='Retry TronGrid verification';}
+          else if((depositScannedTxid||allowShastaTxidless)&&depositScreenshotPath){submitDep.disabled=false;submitDep.textContent=allowShastaTxidless?'Submit for Shasta matching':'Verify from TronGrid';}
+          else{submitDep.disabled=true;submitDep.textContent='Verify from TronGrid';}
+        }
+      }
+    };
   };
 
   liveShop=async function(){
@@ -3036,7 +3178,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
   };
   document.addEventListener('click',window.__aegisGlobalTapHandler,true);
   top=sunriseReferenceUI.top;nav=sunriseReferenceUI.nav;uiNotice=sunriseReferenceUI.uiNotice;
-  liveHome=sunriseReferenceUI.home;liveTopup=sunriseReferenceUI.topup;liveVip=sunriseReferenceUI.vip;liveKyc=sunriseReferenceUI.kyc;liveWithdraw=sunriseReferenceUI.withdraw;liveNotifications=sunriseReferenceUI.notifications;liveActivity=sunriseReferenceUI.activity;liveReferral=sunriseReferenceUI.referral;liveAssets=sunriseReferenceUI.assets;liveAccount=sunriseReferenceUI.account;liveShop=sunriseReferenceUI.shop;liveTasks=sunriseReferenceUI.tasks;liveBot=sunriseReferenceUI.bot;
+  liveHome=sunriseReferenceUI.home;liveVip=sunriseReferenceUI.vip;liveKyc=sunriseReferenceUI.kyc;liveWithdraw=sunriseReferenceUI.withdraw;liveNotifications=sunriseReferenceUI.notifications;liveActivity=sunriseReferenceUI.activity;liveReferral=sunriseReferenceUI.referral;liveAssets=sunriseReferenceUI.assets;liveAccount=sunriseReferenceUI.account;liveShop=sunriseReferenceUI.shop;liveTasks=sunriseReferenceUI.tasks;liveBot=sunriseReferenceUI.bot;
   window.go=function(id){
     const route=normalizeAegisReturnPage(id);
     if(route)window.__aegisCurrentRoute=route;
