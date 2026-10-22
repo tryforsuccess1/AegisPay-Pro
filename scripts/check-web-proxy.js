@@ -10,6 +10,9 @@ const serviceSource = fs.readFileSync("supabase-service.js", "utf8");
 assert.equal(config.name, "aegispay-web", "Fallback must keep the existing workers.dev hostname.");
 assert.equal(config.main, "index.js");
 assert.equal(config.workers_dev, true);
+assert.equal(config.observability?.enabled, true);
+assert.equal(config.observability?.redact_query_string, true,
+  "Worker request query strings must be redacted from persisted Cloudflare logs.");
 assert.match(source, /https:\/\/aegispay-pro\.pages\.dev/);
 assert.match(source, /X-AegisPay-Portal-Source/);
 assert.match(source, /redirect:\s*"follow"/);
