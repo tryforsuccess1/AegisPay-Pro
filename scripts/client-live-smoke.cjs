@@ -20,21 +20,17 @@ async function dismissWelcomeOverlay(page) {
   const layer = page.locator('#ap-welcome-layer');
   if (!(await layer.count()) || !(await layer.isVisible().catch(() => false))) return false;
 
-  const namedDismiss = layer.getByRole('button', {
-    name: /continue|get started|enter|open app|start|explore|skip|close|dismiss|got it|okay|ok|proceed|launch|begin|next|let'?s go/i
+  // Only click an unambiguously dismissive action. Avoid generic "Start",
+  // "Explore" or "Open App" buttons which can navigate away from the login page.
+  const dismissButton = layer.getByRole('button', {
+    name: /close|dismiss|skip|got it|okay|ok|continue/i
   }).last();
-  const fallback = layer.locator('button:not([disabled]), [role="button"]:not([aria-disabled="true"]), a[href]').last();
-  const action = (await namedDismiss.count()) && await namedDismiss.isVisible().catch(() => false)
-    ? namedDismiss
-    : fallback;
 
-  if (await action.count() && await action.isVisible().catch(() => false)) {
+  if (await dismissButton.count() && await dismissButton.isVisible().catch(() => false)) {
     try {
-      await action.click({ timeout: 5000 });
-    } catch (error) {
-      // A stale deployed welcome surface can expose a button without a working
-      // dismissal handler. Do not force-click through a visible overlay.
-      console.warn('Welcome overlay action did not complete; checking overlay state before continuing.');
+      await dismissButton.click({ timeout: 3000 });
+    } catch (_) {
+      console.warn('Welcome overlay dismiss control did not complete; isolating overlay from smoke test.');
     }
   }
 
@@ -42,8 +38,9 @@ async function dismissWelcomeOverlay(page) {
     await layer.waitFor({ state: 'hidden', timeout: 1500 });
   } catch (_) {
     if (await layer.isVisible().catch(() => false)) {
-      // Isolate this legacy, non-auth welcome surface from the login smoke test.
-      // This affects only the disposable Playwright page, never the real app.
+      // The legacy Pages welcome layer has no reliable close behavior on every
+      // run. Hide it only in this disposable Playwright context; never force a
+      // click through it or alter real application code.
       await layer.evaluate(el => {
         el.setAttribute('aria-hidden', 'true');
         el.setAttribute('data-smoke-test-dismissed', 'true');
@@ -198,7 +195,9 @@ async function clickAfterWelcomeDismiss(page, locator) {
       'Live Client language selection should persist English.');
 
     const modeBefore = await page.evaluate(() => document.documentElement.getAttribute('data-mode'));
-    await page.locator('.ap-auth [data-a="mode"]').first().click();
+    const modeControl = page.locator('[data-a="mode"]').first();
+    await modeControl.waitFor({ state: 'visible', timeout: 5000 });
+    await clickAfterWelcomeDismiss(page, modeControl);
     const modeAfter = await page.evaluate(() => ({
       attr: document.documentElement.getAttribute('data-mode'),
       pref: localStorage.getItem('ap-mode')
