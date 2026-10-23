@@ -186,15 +186,18 @@ async function clickAfterWelcomeDismiss(page, locator) {
       'Live Client language selection should persist English.');
 
     const modeBefore = await page.evaluate(() => document.documentElement.getAttribute('data-mode'));
-    const modeControl = page.locator('[data-a="mode"]').first();
+    const desiredMode = modeBefore === 'dark' ? 'light' : 'dark';
+    const modernModeControl = page.locator('.ap-auth [data-ap-theme="' + desiredMode + '"]').first();
+    const legacyModeControl = page.locator('.ap-auth [data-a="mode"]').first();
+    const modeControl = (await modernModeControl.count()) ? modernModeControl : legacyModeControl;
     await modeControl.waitFor({ state: 'visible', timeout: 5000 });
     await clickAfterWelcomeDismiss(page, modeControl);
     const modeAfter = await page.evaluate(() => ({
       attr: document.documentElement.getAttribute('data-mode'),
       pref: localStorage.getItem('ap-mode')
     }));
-    assert.ok(['light', 'dark'].includes(modeAfter.pref), 'Live Client theme selection should persist.');
-    assert.notEqual(modeAfter.attr, modeBefore, 'Live Client theme button should change the visible theme.');
+    assert.equal(modeAfter.pref, desiredMode, 'Live Client theme selection should persist the selected mode.');
+    assert.equal(modeAfter.attr, desiredMode, 'Live Client theme button should change to the selected visible theme.');
 
     const clientWidths = [];
     for (const width of [320, 360, 390, 430, 768, 1280]) {
