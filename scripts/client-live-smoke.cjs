@@ -23,7 +23,7 @@ async function dismissWelcomeOverlay(page) {
   // Only click an explicit dismiss action. Never hide or bypass an overlay
   // that could be blocking the real login controls for production users.
   const dismissButton = layer.getByRole('button', {
-    name: /close|dismiss|skip|got it|okay|ok|continue/i
+    name: /log\\s*in\\s*or\\s*sign\\s*up|close|dismiss|skip|got it|okay|ok|continue/i
   }).last();
 
   if (await dismissButton.count() && await dismissButton.isVisible().catch(() => false)) {
