@@ -1,0 +1,41 @@
+name: Shasta Read-only Resource Preflight
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "scripts/shasta-resource-preflight.cjs"
+      - "supabase/functions/sweep-deposit-wallets/**"
+      - "supabase/functions/_shared/tron-sweep.ts"
+      - ".github/workflows/shasta-readonly-preflight.yml"
+  push:
+    branches:
+      - feat/shasta-step2-main-sync-20261022
+    paths:
+      - "scripts/shasta-resource-preflight.cjs"
+      - "supabase/functions/sweep-deposit-wallets/**"
+      - "supabase/functions/_shared/tron-sweep.ts"
+      - ".github/workflows/shasta-readonly-preflight.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shasta-readonly-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  read-only-preflight:
+    name: Read-only Shasta resource diagnostic
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout reviewed branch
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Inspect public Shasta chain state (read only)
+        run: node scripts/shasta-resource-preflight.cjs
