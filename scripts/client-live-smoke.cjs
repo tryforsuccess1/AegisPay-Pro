@@ -33,9 +33,9 @@ async function dismissWelcomeOverlay(page) {
   try {
     await layer.waitFor({ state: 'hidden', timeout: 5000 });
   } catch (_) {
-    const overlayText = (await layer.innerText().catch(() => '')).replace(/\\s+/g, ' ').slice(0, 240);
+    const overlayText = (await layer.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240);
     const buttonLabels = (await layer.locator('button,[role="button"]').allTextContents().catch(() => []))
-      .map(label => label.replace(/\\s+/g, ' ').trim()).filter(Boolean).slice(0, 8);
+      .map(label => label.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 8);
     throw new Error(
       'Production welcome overlay did not dismiss; refusing to test login through an obstructing layer. ' +
       'Overlay text: ' + overlayText + '; buttons: ' + buttonLabels.join(' | ')

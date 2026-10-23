@@ -4,6 +4,8 @@ const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
 const packageManifest=JSON.parse(fs.readFileSync('package.json','utf8'));
 const appVersionManifest=JSON.parse(fs.readFileSync('app-version.json','utf8'));
+const liveSmokeSource=fs.readFileSync('scripts/client-live-smoke.cjs','utf8');
+assert(liveSmokeSource.includes('Production welcome overlay did not dismiss')&&liveSmokeSource.includes('modernModeControl')&&liveSmokeSource.includes('legacyModeControl')&&!liveSmokeSource.includes('data-smoke-test-dismissed'),'Live browser smoke must fail closed on a persistent welcome overlay and support current/legacy theme controls.');
 assert(packageManifest.version===appVersionManifest.versionName,'package.json and app-version.json must use the same candidate version');
 
 const must=[
@@ -516,7 +518,24 @@ const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/ind
 const optionalTxidMigration=fs.readFileSync('database/migrations/20261021120000_allow_shasta_deposit_txid_fallback.sql','utf8');
 assert(optionalTxidMigration.includes('ALTER COLUMN txid DROP NOT NULL')&&optionalTxidMigration.includes('ADD COLUMN IF NOT EXISTS submitted_txid')&&optionalTxidMigration.includes('Canonical transaction ID confirmed by server-side on-chain verification'),"Shasta screenshot-first migration must make canonical TXID nullable only as an on-chain pending state and preserve user input for audit.");
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
+const depositAddressIssuerSource=fs.readFileSync('supabase/functions/get-deposit-address/index.ts','utf8');
+const mainnetPayoutAliasFallback='Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || ""';
+assert([depositAddressIssuerSource,depositSubmitSource,depositVerifySource,depositMonitorSource,depositTxidScanSource,withdrawalReviewSource].every((source)=>source.includes(mainnetPayoutAliasFallback)), "Address issuance, submission, verification, screenshot scanning, withdrawal review, and monitoring must use the same Mainnet payout-key alias fallback.");
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+const executePayoutSource=fs.readFileSync("supabase/functions/execute-payout/index.ts","utf8");
+const depositSweepSource=fs.readFileSync("supabase/functions/sweep-deposit-wallets/index.ts","utf8");
+const shastaPayoutAliasFallback='Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || ""';
+assert([depositReadinessSource,executePayoutSource].every((source)=>source.includes(mainnetPayoutAliasFallback)), "Production readiness and payout execution must use the same Mainnet payout-key alias fallback.");
+assert([depositReadinessSource,executePayoutSource,depositSweepSource,withdrawalReviewSource].every((source)=>source.includes(shastaPayoutAliasFallback)), "Shasta payout credentials must use the descriptive alias with legacy fallback in readiness, payout execution, withdrawal review, and sweep.");
+assert(depositReadinessSource.includes('TronWeb.address.fromPrivateKey')&&depositReadinessSource.includes('mainnet_signer_matches_configured_treasury')&&depositReadinessSource.includes('shasta_signer_matches_configured_treasury'),"Readiness must derive both network signers and report configured-treasury match status.");
+assert(depositReadinessSource.includes('mainnet_selected_key_alias')&&depositReadinessSource.includes('shasta_selected_key_alias')&&depositReadinessSource.includes('mainnet_shasta_selected_keys_distinct'),"Readiness must identify the selected secret alias and verify selected Mainnet/Shasta key separation.");
+assert(depositReadinessSource.includes('mainnet_alias_conflict')&&depositReadinessSource.includes('shasta_alias_conflict')&&depositReadinessSource.includes('payout_keys_safely_separated'),"Payout readiness must fail closed for alias conflicts or unverified network/key separation.");
+assert(depositReadinessSource.includes('shasta_testnet_rules')&&depositReadinessSource.includes('SHASTA_USDT_CONTRACT')&&depositReadinessSource.includes('treasuryAddressesDistinct'),"Readiness must validate the configured Shasta treasury independently from Mainnet configuration.");
+assert(!depositReadinessSource.includes('console.log(MAINNET_PAYOUT_KEY')&&!depositReadinessSource.includes('console.log(TESTNET_PAYOUT_KEY')&&!depositReadinessSource.includes('derivedAddress,')&&!depositReadinessSource.includes('privateKey:MAINNET_PAYOUT_KEY'),"Readiness diagnostics must never log or return raw private keys or derived addresses.");
+assert(depositReadinessSource.includes('mainnet_hd_mnemonic_selected_alias')&&depositReadinessSource.includes('shasta_hd_mnemonic_selected_alias')&&depositReadinessSource.includes('mainnet_shasta_hd_mnemonics_distinct'),"Readiness must report HD mnemonic alias sources and prove the selected Mainnet/Shasta mnemonics are distinct.");
+assert(depositReadinessSource.includes('mainnet_hd_passphrase_present')&&depositReadinessSource.includes('shasta_hd_passphrase_present')&&depositReadinessSource.includes('mainnet_hd_passphrase_alias_conflict')&&depositReadinessSource.includes('shasta_hd_passphrase_alias_conflict'),"Readiness must report HD passphrase presence/alias conflicts without exposing passphrase values.");
+assert(depositReadinessSource.includes('network_secrets_safely_separated')&&depositReadinessSource.includes('mainnetPayoutEnablementReady=mainnetBaseConfigOk&&networkSecretsSafelySeparated'),"Production payout readiness must fail closed until signer, payout-key, HD seed and alias separation checks pass.");
+assert(!depositReadinessSource.includes('mnemonic:MAINNET_HD_MNEMONIC')&&!depositReadinessSource.includes('mnemonic:SHASTA_HD_MNEMONIC')&&!depositReadinessSource.includes('passphrase:MAINNET_HD_PASSPHRASE')&&!depositReadinessSource.includes('passphrase:SHASTA_HD_PASSPHRASE'),"Readiness diagnostics must never return HD mnemonics or passphrases.");
 const depositEvidenceDedupeMigration=fs.readFileSync('database/migrations/20261021140000_dedupe_shasta_deposit_screenshots.sql','utf8');
 const depositEvidenceDedupeTests=fs.readFileSync('scripts/sql-tests/deposit_evidence_dedupe_assertions.sql','utf8');
 const depositAdminReviewSource=fs.readFileSync('supabase/functions/admin-review/index.ts','utf8');
@@ -712,6 +731,8 @@ const hdWalletEndpoint=fs.readFileSync('supabase/functions/get-deposit-address/i
 const hdWalletMigration=fs.readFileSync('database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql','utf8');
 assert(hdWalletSource.includes("m/44'/195'/0'/0")&&hdWalletSource.includes('TronWeb.fromMnemonic'),'HD wallet derivation must use the TRON BIP44 path');
 assert(hdWalletEndpoint.includes('TRON_HD_WALLET_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must require a server-side seed and fail closed on root mismatch');
+assert(hdWalletEndpoint.includes('TRON_MAINNET_CHILD_HD_MNEMONIC')&&hdWalletEndpoint.includes('TRON_MAINNET_CHILD_HD_PASSPHRASE')&&hdWalletEndpoint.includes('TRON_MAINNET_TREASURY_PRIVATE_KEY'),'Mainnet address issuer must prefer descriptive Mainnet child-wallet and treasury secret names');
+assert(hdWalletEndpoint.includes('TRON_SHASTA_CHILD_HD_MNEMONIC')&&hdWalletEndpoint.includes('TRON_SHASTA_CHILD_HD_PASSPHRASE')&&hdWalletEndpoint.includes('TRON_SHASTA_TREASURY_PRIVATE_KEY'),'Shasta address issuer must prefer descriptive Shasta child-wallet and treasury secret names');
 assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint.includes('privateKey: identity.privateKey'),'HD address API must never return derived private keys');
 assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
@@ -727,9 +748,10 @@ assert(sweepWorker.includes('const NETWORK = "TRON TESTNET"')&&sweepWorker.inclu
 assert(sweepWorker.includes('Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true"')&&sweepWorker.includes('TESTNET_SWEEP_DISABLED'),'Testnet sweep must remain disabled unless explicitly enabled in an isolated test environment');
 assert(!sweepWorker.includes('TRON_PAYOUT_PRIVATE_KEY')&&!sweepWorker.includes('TRON MAINNET'),'Sweep worker must not read Mainnet payout keys or accept a Mainnet network');
 assert(sweepWorker.includes('shastaMnemonicsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC)')
-  && sweepWorker.includes('const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";')
+  && sweepWorker.includes('const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";')
   && fs.readFileSync('supabase/functions/_shared/shasta-test-mode.ts','utf8').includes('Boolean(testSeed && mainnetSeed && testSeed !== mainnetSeed)'),
   'Sweep must fail closed when either HD mnemonic is missing or reused, without reading the Mainnet payout private key');
+assert(sweepWorker.includes('TRON_SHASTA_CHILD_HD_MNEMONIC')&&sweepWorker.includes('TRON_SHASTA_CHILD_HD_PASSPHRASE')&&sweepWorker.includes('TRON_SHASTA_TREASURY_PRIVATE_KEY'),'Sweep worker must prefer descriptive Shasta secret names while preserving the no-Mainnet-payout-key boundary');
 assert(hdWalletEndpoint.includes('shastaSecretsAreDistinct(')&&hdWalletEndpoint.includes('TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY'),'Shasta address issuance must check that the dedicated test signer and HD seed are distinct from Mainnet before issuing an address');
 assert(sweepWorker.includes('mode.live_deposits !== false')&&sweepWorker.includes('production.payouts_locked !== true')&&sweepWorker.includes('PRODUCTION_MODE_BLOCKED'),'Sweep worker must fail closed unless all production money gates remain closed');
 assert(sweepWorker.includes('UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT')&&sweepWorker.includes('status", "VERIFIED"'),'Sweep must not move tokens when any inbound transfer lacks a verified deposit record');
