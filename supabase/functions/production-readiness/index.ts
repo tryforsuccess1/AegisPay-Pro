@@ -52,15 +52,20 @@ async function hdRootFingerprintStatus(admin:any, network:string, mnemonic:strin
   } catch {
     return {status:"DERIVATION_FAILED",matches:null,active_wallet_count:null};
   }
-  const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rootAddress));
-  const rootFingerprint=Array.from(new Uint8Array(digest)).map((byte)=>byte.toString(16).padStart(2,"0")).join("");
-  const {data,error}=await admin.from("deposit_wallets").select("wallet_root_fingerprint").eq("network",network).eq("status","ACTIVE").limit(1000);
-  if(error)return {status:"DATABASE_CHECK_FAILED",matches:null,active_wallet_count:null};
-  const rows=Array.isArray(data)?data:[];
-  if(rows.length===0)return {status:"NO_ACTIVE_WALLETS",matches:null,active_wallet_count:0};
-  if(rows.some((row:any)=>!String(row.wallet_root_fingerprint||"").trim()))return {status:"FINGERPRINT_MISSING",matches:false,active_wallet_count:rows.length};
-  const matches=rows.every((row:any)=>row.wallet_root_fingerprint===rootFingerprint);
-  return {status:matches?"MATCH":"MISMATCH",matches,active_wallet_count:rows.length};
+  try {
+    const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rootAddress));
+    const rootFingerprint=Array.from(new Uint8Array(digest)).map((byte)=>byte.toString(16).padStart(2,"0")).join("");
+    const {data,error}=await admin.from("deposit_wallets").select("wallet_root_fingerprint").eq("network",network).eq("status","ACTIVE").limit(1000);
+    if(error)return {status:"DATABASE_CHECK_FAILED",matches:null,active_wallet_count:null};
+    const rows=Array.isArray(data)?data:[];
+    if(rows.length===0)return {status:"NO_ACTIVE_WALLETS",matches:null,active_wallet_count:0};
+    if(rows.length===1000)return {status:"CHECK_LIMIT_REACHED",matches:null,active_wallet_count:rows.length};
+    if(rows.some((row:any)=>!String(row.wallet_root_fingerprint||"").trim()))return {status:"FINGERPRINT_MISSING",matches:false,active_wallet_count:rows.length};
+    const matches=rows.every((row:any)=>row.wallet_root_fingerprint===rootFingerprint);
+    return {status:matches?"MATCH":"MISMATCH",matches,active_wallet_count:rows.length};
+  } catch {
+    return {status:"CHECK_FAILED",matches:null,active_wallet_count:null};
+  }
 }
 Deno.serve(async(req:Request)=>{
  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
