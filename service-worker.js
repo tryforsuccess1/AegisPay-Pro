@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v47-mobile-web-deposit-shape';
+const CACHE='aegispay-shell-v48-follow-navigation-redirects';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
@@ -26,7 +26,7 @@ self.addEventListener('fetch',event=>{
 
   // Version checks should always ask the network and must not delay the app shell.
   if(url.pathname.endsWith('/app-version.json')) {
-    event.respondWith(fetch(event.request,{cache:'no-store'}).catch(()=>caches.match(event.request)));
+    event.respondWith(fetch(event.request,{cache:'no-store',redirect:'follow'}).catch(()=>caches.match(event.request)));
     return;
   }
 
@@ -52,7 +52,8 @@ self.addEventListener('fetch',event=>{
 
     // Revalidate in the background, but return the cached static shell immediately.
     // Strip query parameters from cache keys because signup/reset/OAuth codes live in the URL.
-    const update=fetch(event.request,{cache:'no-store'}).then(response=>{
+    // Navigation requests can use redirect mode 'manual'; never return an opaque redirect from the service worker.
+    const update=fetch(event.request,{cache:'no-store',redirect:'follow'}).then(response=>{
       if(response.ok&&shouldStore){
         return caches.open(CACHE).then(cache=>cache.put(cacheKey,response.clone())).then(()=>response);
       }
@@ -72,7 +73,7 @@ self.addEventListener('fetch',event=>{
   }
 
   // Other same-origin assets use cache-first, including product imagery already visited.
-  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{
+  event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request,{redirect:'follow'}).then(response=>{
     if(response.ok){const copy=response.clone();caches.open(CACHE).then(cache=>cache.put(event.request,copy)).catch(()=>{});}
     return response;
   }).catch(()=>caches.match('./index.html'))));
