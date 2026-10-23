@@ -1,6 +1,15 @@
 (function () {
   'use strict';
 
+  // The helper can be encountered through an HTML document and a stale shell cache
+  // during an update. Initialize its observer/widgets only once per page.
+  var HELPER_INIT_KEY = '__AEGIS_TURNSTILE_HELPER_INITIALIZED__';
+  if (window[HELPER_INIT_KEY]) return;
+  window[HELPER_INIT_KEY] = true;
+
+  // Share the loader promise across duplicate script evaluations as a second guard.
+  var API_PROMISE_KEY = '__AEGIS_TURNSTILE_API_PROMISE__';
+
   // Public Cloudflare Turnstile sitekey. The matching secret remains server-side.
   var SITEKEY = '0x4AAAAAAFZaOeTke8FQpVNS';
   var TEST_SITEKEY = '1x00000000000000000000AA';
@@ -40,45 +49,105 @@
 
   function loadApi() {
     if (window.turnstile && typeof window.turnstile.render === 'function') return Promise.resolve();
+    if (window[API_PROMISE_KEY]) {
+      apiPromise = window[API_PROMISE_KEY];
+      return apiPromise;
+    }
     if (apiPromise) return apiPromise;
+
     apiPromise = new Promise(function (resolve, reject) {
+      function apiReady() {
+        return !!(window.turnstile && typeof window.turnstile.render === 'function');
+      }
+
       function loadAttempt(attempt) {
-        var script = document.createElement('script');
+        if (apiReady()) {
+          resolve();
+          return;
+        }
+
+        // Reuse an already-inserted Turnstile API script rather than adding a
+        // second copy if another loader or a slow first request is still active.
+        var script = document.querySelector('script[src*="challenges.cloudflare.com/turnstile/v0/api.js"]');
+        var created = !script;
         var finished = false;
-        var timeout = window.setTimeout(function () {
-          fail(new Error('Cloudflare security verification did not load. Please check your connection and try again.'));
-        }, API_LOAD_TIMEOUT_MS);
-        function fail(error) {
+        var poll = null;
+        var timeout = null;
+        if (!script) {
+          script = document.createElement('script');
+          script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+          script.async = true;
+          script.defer = true;
+        }
+
+        function cleanup() {
+          if (timeout !== null) window.clearTimeout(timeout);
+          if (poll !== null) window.clearInterval(poll);
+          script.removeEventListener('load', onLoad);
+          script.removeEventListener('error', onError);
+        }
+
+        function succeed() {
+          if (finished || !apiReady()) return;
+          finished = true;
+          cleanup();
+          resolve();
+        }
+
+        function fail(error, removeFailedScript) {
           if (finished) return;
           finished = true;
-          window.clearTimeout(timeout);
-          script.remove();
+          cleanup();
+          // A timeout is not proof that the browser request has stopped. Keep
+          // the element so the retry can attach to it instead of double-loading.
+          if (removeFailedScript && created && script.isConnected) script.remove();
           if (attempt < 1) {
-            window.setTimeout(function () { loadAttempt(attempt + 1); }, VERIFY_RETRY_DELAY_MS);
+            window.setTimeout(function () {
+              if (apiReady()) {
+                resolve();
+                return;
+              }
+              loadAttempt(attempt + 1);
+            }, VERIFY_RETRY_DELAY_MS);
             return;
           }
+          if (window[API_PROMISE_KEY] === apiPromise) window[API_PROMISE_KEY] = null;
           apiPromise = null;
           reject(error);
         }
-        script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-        script.async = true;
-        script.defer = true;
-        script.onload = function () {
-          if (finished) return;
-          if (window.turnstile && typeof window.turnstile.render === 'function') {
-            finished = true;
-            window.clearTimeout(timeout);
-            resolve();
-          } else {
-            fail(new Error('Cloudflare security verification is unavailable. Please try again.'));
+
+        function onLoad() {
+          if (apiReady()) {
+            succeed();
+            return;
           }
-        };
-        script.onerror = function () {
-          fail(new Error('Cloudflare security verification could not load. Retrying automatically…'));
-        };
-        document.head.appendChild(script);
+          // The API script can finish its load event just before exposing the
+          // global; the short poll below will settle it if it appears.
+        }
+
+        function onError() {
+          fail(new Error('Cloudflare security verification could not load. Retrying automatically…'), true);
+        }
+
+        script.addEventListener('load', onLoad);
+        script.addEventListener('error', onError);
+        poll = window.setInterval(function () {
+          if (apiReady()) succeed();
+        }, 50);
+        timeout = window.setTimeout(function () {
+          fail(new Error('Cloudflare security verification did not load. Please check your connection and try again.'), false);
+        }, API_LOAD_TIMEOUT_MS);
+
+        if (created) document.head.appendChild(script);
       }
+
       loadAttempt(0);
+    });
+
+    window[API_PROMISE_KEY] = apiPromise;
+    apiPromise.catch(function () {
+      if (window[API_PROMISE_KEY] === apiPromise) window[API_PROMISE_KEY] = null;
+      apiPromise = null;
     });
     return apiPromise;
   }
