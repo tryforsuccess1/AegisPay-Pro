@@ -2,19 +2,19 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
-import { isAllowlistedShastaTestUser, loadShastaTestRules, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules, shastaMnemonicsAreDistinct, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
-const HD_PASSPHRASE = Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
-const TESTNET_HD_MNEMONIC = Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
-const TESTNET_HD_PASSPHRASE = Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
+const HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
+const HD_PASSPHRASE = Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
+const TESTNET_HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
+const TESTNET_HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
 const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
-const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
-const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
+const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
+const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID") || "";
 const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((v) => /^[0-9]{1,20}$/.test(v));
@@ -44,7 +44,13 @@ Deno.serve(async (req) => {
     const testnetRules = isShastaTestUser
       ? await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED)
       : null;
-    if (isShastaTestUser && !testnetRules) return json({ error: "Shasta test mode is unavailable while live-money gates are open or its test configuration is invalid.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
+    if (isShastaTestUser && !testnetRules) {
+      console.warn("SHASTA_TEST_RULES_BLOCKED", {
+        allowlistedTestUser: true,
+        testModeEnabled: SHASTA_TEST_MODE_ENABLED,
+      });
+      return json({ error: "Shasta test mode is unavailable while live-money gates are open or its test configuration is invalid.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
+    }
 
     const [{ data: runtimeEnabled, error: runtimeError }, { data: rulesRow, error: rulesError },
       { data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
@@ -85,11 +91,53 @@ Deno.serve(async (req) => {
         && production.go_live_approved === false && production.payouts_locked === true;
     } else return json({ error: "Unsupported deposit network." }, 503);
 
-    if (!ready) return json({ error: "Deposit addresses are unavailable until the selected network and payout-readiness checks pass.", code: "DEPOSIT_ADDRESS_NETWORK_PAUSED" }, 423);
-    if (network === "TRON TESTNET" && !shastaSecretsAreDistinct(
-      TESTNET_HD_MNEMONIC, HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY,
-    )) {
-      return json({ error: "All four Shasta/Mainnet HD and payout secrets must be present and distinct.", code: "TESTNET_SECRET_REUSE_BLOCKED" }, 423);
+    if (!ready) {
+      if (isShastaTestUser) {
+        // Log only boolean gate outcomes; never log secret values, hashes, or derived keys.
+        console.warn("SHASTA_DEPOSIT_READINESS_BLOCKED", {
+          checks: {
+            runtimeEnabled: runtimeEnabled === true,
+            allowlistedTestUser: isShastaTestUser,
+            testRulesLoaded: Boolean(testnetRules),
+            networkIsShasta: network === "TRON TESTNET",
+            tokenContractMatches: tokenContract === SHASTA_USDT,
+            systemModeIsMainnet: mode.mode === "MAINNET",
+            modeLiveDepositsDisabled: mode.live_deposits === false,
+            modeRealPayoutsDisabled: mode.real_payouts === false,
+            modeGoLiveApprovalDisabled: mode.production_go_live_approved === false,
+            environmentIsPreProduction: String(production.environment || "").toUpperCase() === "PRE_PRODUCTION",
+            productionLiveDepositsDisabled: production.live_deposits_enabled === false,
+            productionRealPayoutsDisabled: production.real_payouts_enabled === false,
+            productionGoLiveApprovalDisabled: production.go_live_approved === false,
+            payoutsLocked: production.payouts_locked === true,
+          },
+        });
+      }
+      return json({ error: "Deposit addresses are unavailable until the selected network and payout-readiness checks pass.", code: "DEPOSIT_ADDRESS_NETWORK_PAUSED" }, 423);
+    }
+    if (network === "TRON TESTNET") {
+      const seedsDistinct = shastaMnemonicsAreDistinct(TESTNET_HD_MNEMONIC, HD_MNEMONIC);
+      const payoutKeysPresentAndDistinct = Boolean(
+        TESTNET_PAYOUT_KEY.trim()
+        && MAINNET_PAYOUT_KEY.trim()
+        && TESTNET_PAYOUT_KEY.trim().toLowerCase() !== MAINNET_PAYOUT_KEY.trim().toLowerCase()
+      );
+      if (!shastaSecretsAreDistinct(
+        TESTNET_HD_MNEMONIC, HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY,
+      )) {
+        // Presence and distinctness checks are safe to log; actual secret material is never logged.
+        console.warn("SHASTA_DEPOSIT_SECRET_SEPARATION_BLOCKED", {
+          checks: {
+            testnetHdMnemonicPresent: Boolean(TESTNET_HD_MNEMONIC.trim()),
+            mainnetHdMnemonicPresent: Boolean(HD_MNEMONIC.trim()),
+            testnetPayoutPrivateKeyPresent: Boolean(TESTNET_PAYOUT_KEY.trim()),
+            mainnetPayoutPrivateKeyPresent: Boolean(MAINNET_PAYOUT_KEY.trim()),
+            hdMnemonicsDistinct: seedsDistinct,
+            payoutPrivateKeysPresentAndDistinct: payoutKeysPresentAndDistinct,
+          },
+        });
+        return json({ error: "All four Shasta/Mainnet HD and payout secrets must be present and distinct.", code: "TESTNET_SECRET_REUSE_BLOCKED" }, 423);
+      }
     }
     if (!validAddress(treasury) || !payoutKey || String(TronWeb.address.fromPrivateKey(payoutKey) || "") !== treasury) {
       return json({ error: "The configured treasury address does not match the authorized payout signer. No deposit address was issued.", code: "TREASURY_SIGNER_MISMATCH" }, 409);
