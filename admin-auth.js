@@ -401,7 +401,32 @@ function productionReadiness(){
   const payoutReady=Boolean(p.mainnet_payout_gate_ok);
   const secrets=d.secrets||{};
   const unresolved=Array.isArray(d.unresolved_payouts)?d.unresolved_payouts:[];
+  const keyDiagnostics=d.key_diagnostics||{};
   const secretMark=function(v){return v?'READY':'MISSING';};
+  const diagMark=function(v){return v===true?'PASS':v===false?'FAIL':'NOT REPORTED';};
+  const diagItem=function(label,value){return '<span>'+esc(label)+'<b>'+esc(value===undefined||value===null||value===''?'NOT REPORTED':String(value))+'</b></span>';};
+  const keyDiagnosticsMarkup='<section class="aa-panel" style="margin-top:14px"><div class="aa-panel-head"><div><h2>Network Key & Signer Diagnostics</h2><p>Status and environment-variable aliases only. Private keys, seed phrases, passphrases and wallet addresses are never displayed.</p></div><span class="aa-count">'+(d.network_secrets_safely_separated===true?'PASS':'CHECK')+'</span></div>'+
+    '<div class="aa-detail-grid">'+
+    diagItem('Mainnet selected key alias',keyDiagnostics.mainnet_selected_key_alias)+
+    diagItem('Mainnet alias conflict',diagMark(keyDiagnostics.mainnet_alias_conflict===false?true:keyDiagnostics.mainnet_alias_conflict===true?false:undefined))+
+    diagItem('Mainnet signer matches treasury',diagMark(keyDiagnostics.mainnet_signer_matches_configured_treasury))+
+    diagItem('Shasta selected key alias',keyDiagnostics.shasta_selected_key_alias)+
+    diagItem('Shasta alias conflict',diagMark(keyDiagnostics.shasta_alias_conflict===false?true:keyDiagnostics.shasta_alias_conflict===true?false:undefined))+
+    diagItem('Shasta signer matches treasury',diagMark(keyDiagnostics.shasta_signer_matches_configured_treasury))+
+    diagItem('Mainnet/Shasta payout keys distinct',diagMark(keyDiagnostics.mainnet_shasta_selected_keys_distinct))+
+    diagItem('Mainnet/Shasta treasury addresses distinct',diagMark(keyDiagnostics.mainnet_shasta_treasury_addresses_distinct))+
+    diagItem('Mainnet HD mnemonic alias',keyDiagnostics.mainnet_hd_mnemonic_selected_alias)+
+    diagItem('Mainnet HD mnemonic alias conflict',diagMark(keyDiagnostics.mainnet_hd_mnemonic_alias_conflict===false?true:keyDiagnostics.mainnet_hd_mnemonic_alias_conflict===true?false:undefined))+
+    diagItem('Shasta HD mnemonic alias',keyDiagnostics.shasta_hd_mnemonic_selected_alias)+
+    diagItem('Shasta HD mnemonic alias conflict',diagMark(keyDiagnostics.shasta_hd_mnemonic_alias_conflict===false?true:keyDiagnostics.shasta_hd_mnemonic_alias_conflict===true?false:undefined))+
+    diagItem('Mainnet/Shasta HD mnemonics distinct',diagMark(keyDiagnostics.mainnet_shasta_hd_mnemonics_distinct))+
+    diagItem('Mainnet HD passphrase alias',keyDiagnostics.mainnet_hd_passphrase_selected_alias)+
+    diagItem('Mainnet HD passphrase alias conflict',diagMark(keyDiagnostics.mainnet_hd_passphrase_alias_conflict===false?true:keyDiagnostics.mainnet_hd_passphrase_alias_conflict===true?false:undefined))+
+    diagItem('Shasta HD passphrase alias',keyDiagnostics.shasta_hd_passphrase_selected_alias)+
+    diagItem('Shasta HD passphrase alias conflict',diagMark(keyDiagnostics.shasta_hd_passphrase_alias_conflict===false?true:keyDiagnostics.shasta_hd_passphrase_alias_conflict===true?false:undefined))+
+    diagItem('Payout key separation',diagMark(d.payout_keys_safely_separated))+
+    diagItem('Network secret separation',diagMark(d.network_secrets_safely_separated))+
+    '</div></section>';
   return '<section class="aa-panel">'+
     '<div class="aa-panel-head"><div><h2>Production Readiness</h2><p>Phase 3 controls are enforced server-side. Secret values are never exposed.</p></div><span class="aa-count">'+(payoutReady?'READY':'LOCKED')+'</span></div>'+
     '<div class="aa-detail-grid">'+
@@ -434,6 +459,7 @@ function productionReadiness(){
       '<span>Payout Enablement Check<b>'+esc(d.mainnet_payout_enablement_ready?'READY':'MISSING PREREQUISITES')+'</b></span>'+
       '<span>Unreconciled Payouts<b>'+esc(String(unresolved.length))+'</b></span>'+
     '</div>'+
+    keyDiagnosticsMarkup+
     (unresolved.length?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Live payout activation blocked — reconciliation required</strong><small>'+esc(unresolved.length+' previously approved or processing withdrawal(s) have no transaction ID. The oldest is '+unresolved[0].id+' for '+money(unresolved[0].net_amount)+' USDT net. Verify its exact-case TRON Base58Check destination and real-chain status, then reconcile the request before opening live payout execution. Do not resend a transfer to an address that has not been confirmed.')+'</small></div></div>':'')+
     '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Phase 3 Safety Gate</strong><small>Real payouts can only be enabled by an active Master Admin when MAINNET, the TRON MAINNET configuration, runtime, go-live approval, payout unlock, required server-side secrets, Telegram approvers, and payout reconciliation are all ready.</small></div></div>'+
     '</section>';
