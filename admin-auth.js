@@ -404,25 +404,39 @@ function productionReadiness(){
   const keyDiagnostics=d.key_diagnostics||{};
   const secretMark=function(v){return v?'READY':'MISSING';};
   const diagMark=function(v){return v===true?'PASS':v===false?'FAIL':'NOT REPORTED';};
+  const aliasPresence=function(v){return v===true?'PRESENT':v===false?'ABSENT':'NOT REPORTED';};
+  const legacyFallbackState=function(present,ignored,conflict){if(present===false)return 'ABSENT';if(present!==true)return 'NOT REPORTED';if(conflict===true)return 'CONFLICT';if(ignored===true)return 'PRESENT — IGNORED; canonical signer matches treasury';return 'PRESENT — no conflict reported';};
   const diagItem=function(label,value){return '<span>'+esc(label)+'<b>'+esc(value===undefined||value===null||value===''?'NOT REPORTED':String(value))+'</b></span>';};
   const keyDiagnosticsMarkup='<section class="aa-panel" style="margin-top:14px"><div class="aa-panel-head"><div><h2>Network Key & Signer Diagnostics</h2><p>Status and environment-variable aliases only. Private keys, seed phrases, passphrases and wallet addresses are never displayed.</p></div><span class="aa-count">'+(d.network_secrets_safely_separated===true?'PASS':'CHECK')+'</span></div>'+
     '<div class="aa-detail-grid">'+
     diagItem('Mainnet selected key alias',keyDiagnostics.mainnet_selected_key_alias)+
+    diagItem('Mainnet canonical alias present',aliasPresence(keyDiagnostics.mainnet_primary_alias_present))+
+    diagItem('Mainnet legacy fallback state',legacyFallbackState(keyDiagnostics.mainnet_fallback_alias_present,keyDiagnostics.mainnet_legacy_alias_ignored,keyDiagnostics.mainnet_alias_conflict))+
     diagItem('Mainnet alias conflict',diagMark(keyDiagnostics.mainnet_alias_conflict===false?true:keyDiagnostics.mainnet_alias_conflict===true?false:undefined))+
     diagItem('Mainnet signer matches treasury',diagMark(keyDiagnostics.mainnet_signer_matches_configured_treasury))+
     diagItem('Shasta selected key alias',keyDiagnostics.shasta_selected_key_alias)+
+    diagItem('Shasta canonical alias present',aliasPresence(keyDiagnostics.shasta_primary_alias_present))+
+    diagItem('Shasta legacy fallback present',aliasPresence(keyDiagnostics.shasta_fallback_alias_present))+
     diagItem('Shasta alias conflict',diagMark(keyDiagnostics.shasta_alias_conflict===false?true:keyDiagnostics.shasta_alias_conflict===true?false:undefined))+
     diagItem('Shasta signer matches treasury',diagMark(keyDiagnostics.shasta_signer_matches_configured_treasury))+
     diagItem('Mainnet/Shasta payout keys distinct',diagMark(keyDiagnostics.mainnet_shasta_selected_keys_distinct))+
     diagItem('Mainnet/Shasta treasury addresses distinct',diagMark(keyDiagnostics.mainnet_shasta_treasury_addresses_distinct))+
     diagItem('Mainnet HD mnemonic alias',keyDiagnostics.mainnet_hd_mnemonic_selected_alias)+
+    diagItem('Mainnet HD mnemonic primary present',aliasPresence(keyDiagnostics.mainnet_hd_mnemonic_primary_alias_present))+
+    diagItem('Mainnet HD mnemonic fallback present',aliasPresence(keyDiagnostics.mainnet_hd_mnemonic_fallback_alias_present))+
     diagItem('Mainnet HD mnemonic alias conflict',diagMark(keyDiagnostics.mainnet_hd_mnemonic_alias_conflict===false?true:keyDiagnostics.mainnet_hd_mnemonic_alias_conflict===true?false:undefined))+
     diagItem('Shasta HD mnemonic alias',keyDiagnostics.shasta_hd_mnemonic_selected_alias)+
+    diagItem('Shasta HD mnemonic primary present',aliasPresence(keyDiagnostics.shasta_hd_mnemonic_primary_alias_present))+
+    diagItem('Shasta HD mnemonic fallback present',aliasPresence(keyDiagnostics.shasta_hd_mnemonic_fallback_alias_present))+
     diagItem('Shasta HD mnemonic alias conflict',diagMark(keyDiagnostics.shasta_hd_mnemonic_alias_conflict===false?true:keyDiagnostics.shasta_hd_mnemonic_alias_conflict===true?false:undefined))+
     diagItem('Mainnet/Shasta HD mnemonics distinct',diagMark(keyDiagnostics.mainnet_shasta_hd_mnemonics_distinct))+
     diagItem('Mainnet HD passphrase alias',keyDiagnostics.mainnet_hd_passphrase_selected_alias)+
+    diagItem('Mainnet HD passphrase primary present',aliasPresence(keyDiagnostics.mainnet_hd_passphrase_primary_alias_present))+
+    diagItem('Mainnet HD passphrase fallback present',aliasPresence(keyDiagnostics.mainnet_hd_passphrase_fallback_alias_present))+
     diagItem('Mainnet HD passphrase alias conflict',diagMark(keyDiagnostics.mainnet_hd_passphrase_alias_conflict===false?true:keyDiagnostics.mainnet_hd_passphrase_alias_conflict===true?false:undefined))+
     diagItem('Shasta HD passphrase alias',keyDiagnostics.shasta_hd_passphrase_selected_alias)+
+    diagItem('Shasta HD passphrase primary present',aliasPresence(keyDiagnostics.shasta_hd_passphrase_primary_alias_present))+
+    diagItem('Shasta HD passphrase fallback present',aliasPresence(keyDiagnostics.shasta_hd_passphrase_fallback_alias_present))+
     diagItem('Shasta HD passphrase alias conflict',diagMark(keyDiagnostics.shasta_hd_passphrase_alias_conflict===false?true:keyDiagnostics.shasta_hd_passphrase_alias_conflict===true?false:undefined))+
     diagItem('Payout key separation',diagMark(d.payout_keys_safely_separated))+
     diagItem('Network secret separation',diagMark(d.network_secrets_safely_separated))+
