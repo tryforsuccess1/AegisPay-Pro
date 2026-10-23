@@ -20,36 +20,27 @@ async function dismissWelcomeOverlay(page) {
   const layer = page.locator('#ap-welcome-layer');
   if (!(await layer.count()) || !(await layer.isVisible().catch(() => false))) return false;
 
-  // Only click an unambiguously dismissive action. Avoid generic "Start",
-  // "Explore" or "Open App" buttons which can navigate away from the login page.
+  // Only click an explicit dismiss action. Never hide or bypass an overlay
+  // that could be blocking the real login controls for production users.
   const dismissButton = layer.getByRole('button', {
     name: /close|dismiss|skip|got it|okay|ok|continue/i
   }).last();
 
   if (await dismissButton.count() && await dismissButton.isVisible().catch(() => false)) {
-    try {
-      await dismissButton.click({ timeout: 3000 });
-    } catch (_) {
-      console.warn('Welcome overlay dismiss control did not complete; isolating overlay from smoke test.');
-    }
+    await dismissButton.click({ timeout: 5000 }).catch(() => {});
   }
 
   try {
-    await layer.waitFor({ state: 'hidden', timeout: 1500 });
+    await layer.waitFor({ state: 'hidden', timeout: 5000 });
   } catch (_) {
-    if (await layer.isVisible().catch(() => false)) {
-      // The legacy Pages welcome layer has no reliable close behavior on every
-      // run. Hide it only in this disposable Playwright context; never force a
-      // click through it or alter real application code.
-      await layer.evaluate(el => {
-        el.setAttribute('aria-hidden', 'true');
-        el.setAttribute('data-smoke-test-dismissed', 'true');
-        el.style.setProperty('display', 'none', 'important');
-        el.style.setProperty('pointer-events', 'none', 'important');
-      });
-    }
+    const overlayText = (await layer.innerText().catch(() => '')).replace(/\\s+/g, ' ').slice(0, 240);
+    const buttonLabels = (await layer.locator('button,[role="button"]').allTextContents().catch(() => []))
+      .map(label => label.replace(/\\s+/g, ' ').trim()).filter(Boolean).slice(0, 8);
+    throw new Error(
+      'Production welcome overlay did not dismiss; refusing to test login through an obstructing layer. ' +
+      'Overlay text: ' + overlayText + '; buttons: ' + buttonLabels.join(' | ')
+    );
   }
-  await layer.waitFor({ state: 'hidden', timeout: 5000 });
   return true;
 }
 
