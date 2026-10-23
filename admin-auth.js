@@ -595,13 +595,17 @@ async function refreshData(){
     state.enabled=runtime;
   }catch(e){}
   try{
-    const pr=await c.rpc('get_production_readiness');
-    if(!pr.error)state.production=pr.data||null;
-  }catch(e){state.production=null;}
-  try{
+    // The legacy get_production_readiness RPC is intentionally revoked for
+    // authenticated clients. Use the Master-Admin-authorized Edge Function
+    // for the readiness snapshot to avoid the 403 and keep authorization
+    // behind the existing server-side gate.
     const prd=await service.invokeFunction('production-readiness',{body:{}});
-    if(!prd.error)state.productionDiag=prd.data||null;
-  }catch(e){state.productionDiag=null;}
+    state.productionDiag=prd.data||null;
+    state.production=prd.data?.readiness||null;
+  }catch(e){
+    state.productionDiag=null;
+    state.production=null;
+  }
   try{
     const q=await service.invokeFunction('admin-queues',{body:{}});
     state.queues={deposits:q.data?.deposits||[],kyc:q.data?.kyc||[],withdrawals:q.data?.withdrawals||[],kycHistory:q.data?.kycHistory||[],depositHistory:q.data?.depositHistory||[],stats:q.data?.stats||{}};
