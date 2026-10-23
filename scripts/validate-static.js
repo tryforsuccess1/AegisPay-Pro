@@ -159,7 +159,7 @@ assert(depositReviewBackendSource.includes('TRON TESTNET')&&depositReviewBackend
 assert(manualTestnetApprovalSql.includes("d.network")&&manualTestnetApprovalSql.includes("'TRON TESTNET'")&&manualTestnetApprovalSql.includes("'MASTER_ADMIN_TESTNET_MANUAL'")&&manualTestnetApprovalSql.includes('public.shasta_test_users')&&manualTestnetApprovalSql.includes('p_actor_user_id'),'Manual credit SQL must be restricted to the allowlisted test network and record the Master Admin actor.');
 assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApprovalSql.includes("real_payouts")&&manualTestnetApprovalSql.includes("payouts_locked")&&manualTestnetApprovalSql.includes('REVOKE ALL ON FUNCTION'),'Manual test credits must require closed live-money gates and service-role-only execution.');
 assert(manualTestnetApprovalSql.includes('manual_approved_by=v_actor.id')&&manualTestnetApprovalSql.includes('CREATE TRIGGER guard_shasta_deposit_verification')&&manualTestnetApprovalSql.includes('Manual test credits require all live-money gates to remain closed')&&manualTestnetApprovalSql.includes('MANUAL_APPROVED'),'Database trigger must independently validate and audit the only manual-approval exception.');
-assert(masterAdmin.includes('admin-auth.js?v=20261021-simple-admin-deposit-approval'),'Master Admin must request the simple approve/reject client code.');
+assert(masterAdmin.includes('admin-auth.js?v=20261023-p0-key-diagnostics-ui'),'Master Admin must request the P0 key-diagnostics UI asset.');
 const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
 assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v49-turnstile-singleton'"),'Service worker cache must be bumped for simple admin approval assets.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
@@ -490,6 +490,8 @@ const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/
 const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+assert(adminAuth.includes('Network Key & Signer Diagnostics')&&adminAuth.includes('keyDiagnostics.mainnet_signer_matches_configured_treasury')&&adminAuth.includes('keyDiagnostics.shasta_signer_matches_configured_treasury')&&adminAuth.includes('d.network_secrets_safely_separated'),'Master Admin must display the safe runtime signer/key-separation diagnostics.');
+assert(adminAuth.includes('Private keys, seed phrases, passphrases and wallet addresses are never displayed.')&&!adminAuth.includes('keyDiagnostics.mainnet_private_key')&&!adminAuth.includes('keyDiagnostics.shasta_private_key'),'P0 diagnostics UI must never expose secret values or actual wallet addresses.');
 const accessLogSource=fs.readFileSync('supabase/functions/record-user-access/index.ts','utf8');
 assert(accessLogSource.includes('event_type: eventType'), 'User access event logger must persist the declared eventType using the database event_type column');
 const telegramApproverSplitter = String.raw`split(/[\s,]+/)`;
