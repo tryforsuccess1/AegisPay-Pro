@@ -73,14 +73,21 @@ Deno.serve(async (req) => {
     }
     if (!HD_MNEMONIC.trim()) return json({ error: "The dedicated TRON HD wallet secret is not configured. No deposit address was issued.", code: "HD_WALLET_NOT_CONFIGURED" }, 503);
 
+    const body = await req.json().catch(() => ({}));
+    const requestId = String(body?.depositRequestId || "").trim();
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) {
+      return json({ error: "A valid deposit request ID is required. Refresh the deposit page to start a new request.", code: "DEPOSIT_REQUEST_ID_REQUIRED" }, 400);
+    }
+
     const rootIdentity = await deriveTronHdIdentity(HD_MNEMONIC, HD_PASSPHRASE, 0);
     const rootFingerprint = rootIdentity.rootFingerprint;
-    const { data: current, error: currentError } = await admin.from("deposit_wallets").select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,status")
-      .eq("user_id", profile.id).eq("network", network).eq("status", "ACTIVE").maybeSingle();
-    if (currentError) return json({ error: "Unable to load the assigned deposit address." }, 503);
+    const { data: current, error: currentError } = await admin.from("deposit_wallets")
+      .select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,status,deposit_request_id")
+      .eq("user_id", profile.id).eq("network", network).eq("deposit_request_id", requestId).maybeSingle();
+    if (currentError) return json({ error: "Unable to load this deposit request address." }, 503);
     if (current) {
-      if (current.wallet_root_fingerprint !== rootFingerprint) return json({ error: "The configured HD root does not match this user's existing address record. Restore the original root secret before issuing addresses.", code: "HD_WALLET_ROOT_MISMATCH" }, 409);
-      return json({ address: current.address, network, tokenContract: current.token_contract, derivationPath: `m/44'/195'/0'/0/${current.derivation_index}`, created: false });
+      if (current.wallet_root_fingerprint !== rootFingerprint) return json({ error: "The configured HD root does not match this deposit address record. Restore the original root secret before issuing addresses.", code: "HD_WALLET_ROOT_MISMATCH" }, 409);
+      return json({ address: current.address, network, tokenContract: current.token_contract, depositRequestId: current.deposit_request_id, depositWalletId: current.id, derivationPath: `m/44'/195'/0'/0/${current.derivation_index}`, created: false });
     }
 
     const { data: nextIndex, error: indexError } = await admin.rpc("next_tron_deposit_address_index");
@@ -90,17 +97,17 @@ Deno.serve(async (req) => {
     if (identity.rootFingerprint !== rootFingerprint || !validAddress(identity.address)) return json({ error: "HD wallet derivation validation failed." }, 503);
 
     const { data: inserted, error: insertError } = await admin.from("deposit_wallets").insert({
-      user_id: profile.id, network, address: identity.address, derivation_index: index,
+      user_id: profile.id, network, address: identity.address, derivation_index: index, deposit_request_id: requestId,
       wallet_root_fingerprint: rootFingerprint, token_contract: tokenContract, status: "ACTIVE",
-    }).select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract").single();
+    }).select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,deposit_request_id").single();
     if (insertError || !inserted) {
-      const { data: raced } = await admin.from("deposit_wallets").select("address,network,derivation_index,wallet_root_fingerprint,token_contract,status")
-        .eq("user_id", profile.id).eq("network", network).eq("status", "ACTIVE").maybeSingle();
-      if (raced && raced.wallet_root_fingerprint === rootFingerprint) return json({ address: raced.address, network, tokenContract: raced.token_contract, derivationPath: `m/44'/195'/0'/0/${raced.derivation_index}`, created: false });
+      const { data: raced } = await admin.from("deposit_wallets").select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,status,deposit_request_id")
+        .eq("user_id", profile.id).eq("network", network).eq("deposit_request_id", requestId).maybeSingle();
+      if (raced && raced.wallet_root_fingerprint === rootFingerprint) return json({ address: raced.address, network, tokenContract: raced.token_contract, depositRequestId: raced.deposit_request_id, depositWalletId: raced.id, derivationPath: `m/44'/195'/0'/0/${raced.derivation_index}`, created: false });
       return json({ error: "Unable to safely assign a unique deposit address." }, 409);
     }
-    await admin.from("audit_events").insert({ actor_user_id: profile.id, target_user_id: profile.id, event_type: "DEPOSIT_ADDRESS_ASSIGNED", description: "Assigned a unique TRON HD deposit address.", reference_id: inserted.id });
-    return json({ address: inserted.address, network, tokenContract: inserted.token_contract, derivationPath: identity.derivationPath, created: true });
+    await admin.from("audit_events").insert({ actor_user_id: profile.id, target_user_id: profile.id, event_type: "DEPOSIT_ADDRESS_ASSIGNED", description: "Assigned a unique TRON HD address for one deposit request.", reference_id: inserted.id });
+    return json({ address: inserted.address, network, tokenContract: inserted.token_contract, depositRequestId: inserted.deposit_request_id, depositWalletId: inserted.id, derivationPath: identity.derivationPath, created: true });
   } catch {
     return json({ error: "Unable to create or load the deposit address. No funds were moved." }, 500);
   }
