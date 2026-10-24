@@ -15,7 +15,7 @@ const TRON_MAINNET_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 
 /** Require both isolated HD seed phrases to be configured and different. */
 export function shastaMnemonicsAreDistinct(testHdMnemonic: string, mainnetHdMnemonic: string): boolean {
-  const normalize = (value: string) => value.trim().toLowerCase().split(/\\s+/).filter(Boolean).join(" ");
+  const normalize = (value: string) => value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
   const testSeed = normalize(testHdMnemonic);
   const mainnetSeed = normalize(mainnetHdMnemonic);
   return Boolean(testSeed && mainnetSeed && testSeed !== mainnetSeed);
