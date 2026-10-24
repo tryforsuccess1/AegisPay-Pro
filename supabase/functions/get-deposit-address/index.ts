@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
         && MAINNET_PAYOUT_KEY.trim()
         && TESTNET_PAYOUT_KEY.trim().toLowerCase() !== MAINNET_PAYOUT_KEY.trim().toLowerCase()
       );
-      if (!shastaSecretsAreDistinct(
+      if (!seedsDistinct || !payoutKeysPresentAndDistinct || !shastaSecretsAreDistinct(
         TESTNET_HD_MNEMONIC, HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY,
       )) {
         // Presence and distinctness checks are safe to log; actual secret material is never logged.
