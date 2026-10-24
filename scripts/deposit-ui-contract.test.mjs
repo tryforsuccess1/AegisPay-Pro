@@ -10,6 +10,7 @@ const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposi
 const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposit-wallets/index.ts", import.meta.url), "utf8");
 const monitorFunction = readFileSync(new URL("../supabase/functions/monitor-deposits/index.ts", import.meta.url), "utf8");
 const perDepositMigration = readFileSync(new URL("../database/migrations/20261024144103_per_deposit_tron_addresses_20261024.sql", import.meta.url), "utf8");
+const monitorRotationMigration = readFileSync(new URL("../database/migrations/20261024173503_deposit_monitor_queue_rotation_20261024.sql", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
@@ -111,6 +112,10 @@ test("Shasta blank-TXID discovery fallback is reachable in both user deposit flo
 test("deposit monitoring separates network queues and sweeper accepts monitor-verified source", () => {
   assert.ok(monitorFunction.includes('.eq("network", "TRON MAINNET")'));
   assert.ok(monitorFunction.includes('.eq("network", "TRON TESTNET")'));
+  assert.match(monitorFunction, /\.order\("monitor_last_attempt_at", \{ ascending: true, nullsFirst: true \}\)/);
+  assert.ok(monitorFunction.includes('update({ monitor_last_attempt_at: new Date().toISOString() })'));
+  assert.ok(monitorRotationMigration.includes("ADD COLUMN IF NOT EXISTS monitor_last_attempt_at timestamptz"));
+  assert.ok(monitorRotationMigration.includes("deposit_submissions_monitor_rotation_idx"));
   assert.ok(sweeperFunction.includes('.in("verification_source", ["TronGrid", "TronGrid Monitor"])'));
   assert.ok(sweeperFunction.includes('["TronGrid", "TronGrid Monitor"].includes(verificationSource)'));
 });
