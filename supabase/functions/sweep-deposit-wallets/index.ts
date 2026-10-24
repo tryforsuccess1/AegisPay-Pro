@@ -4,7 +4,7 @@ import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 
 import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
-import { loadShastaTestRules, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
+import { loadShastaTestRules, shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -13,7 +13,6 @@ const TESTNET_SWEEP_ENABLED = Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "tr
 const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
 const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
-const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
 const HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
 const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
@@ -375,14 +374,8 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Testnet sweep is not configured." }, 503);
   }
   if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
-  const testMnemonic = HD_MNEMONIC.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
-  const mainnetMnemonic = MAINNET_HD_MNEMONIC.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
-  const testPayoutKey = TESTNET_PAYOUT_KEY.trim().toLowerCase();
-  const mainnetPayoutKey = MAINNET_PAYOUT_KEY.trim().toLowerCase();
-  if (!testMnemonic || !mainnetMnemonic || !testPayoutKey || !mainnetPayoutKey ||
-      !shastaSecretsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY) ||
-      testMnemonic === mainnetMnemonic || testPayoutKey === mainnetPayoutKey) {
-    return json({ error: "All four Shasta/Mainnet HD and treasury secrets must be present and distinct.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
+  if (!shastaMnemonicsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC)) {
+    return json({ error: "Both Shasta and Mainnet HD mnemonics must be present and distinct.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
   }
 
   try {
