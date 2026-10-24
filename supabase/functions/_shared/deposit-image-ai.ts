@@ -16,6 +16,25 @@ export function resolveVisionEndpoint(value: string): { url: string; anthropic: 
   }
   return { url: endpointUrl.toString(), anthropic };
 }
+export function parseVisionJsonObject(content: string): Record<string, unknown> {
+  const normalized = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    // Recover only a complete object when a vision model adds a short preamble.
+    const firstBrace = normalized.indexOf("{");
+    const lastBrace = normalized.lastIndexOf("}");
+    if (firstBrace < 0 || lastBrace <= firstBrace) throw new Error("AI evidence review did not return a valid JSON object.");
+    try {
+      parsed = JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
+    } catch {
+      throw new Error("AI evidence review returned malformed JSON.");
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid AI result.");
+  return parsed as Record<string, unknown>;
+}
 export async function runVisionReview(prompt: string, images: ImagePayload[]): Promise<VisionResult> {
   const endpoint = Deno.env.get("AI_REVIEW_ENDPOINT") || "";
   const apiKey = Deno.env.get("AI_REVIEW_API_KEY") || "";
@@ -88,15 +107,35 @@ export async function runVisionReview(prompt: string, images: ImagePayload[]): P
       });
       throw new Error("AI evidence review returned HTTP " + response.status);
     }
-    const body = await response.json();
+    const responseText = await response.text();
+    let body: any;
+    try {
+      body = JSON.parse(responseText);
+    } catch {
+      console.warn("AI_REVIEW_INVALID_PROVIDER_JSON", {
+        provider: anthropic ? "anthropic" : "openai-compatible",
+        status: response.status,
+        content_type: response.headers.get("content-type") || "unknown",
+        response_length: responseText.length
+      });
+      throw new Error("AI evidence review returned an unreadable response.");
+    }
     const content = anthropic
       ? (Array.isArray(body?.content) ? body.content.filter((x: any) => x?.type === "text").map((x: any) => String(x.text || "")).join("\n") : "")
       : body?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("AI review returned no text.");
-    const normalized = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
-    const parsed = JSON.parse(normalized);
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid AI result.");
-    return { configured: true, result: parsed as Record<string, unknown> };
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = parseVisionJsonObject(content);
+    } catch (error) {
+      console.warn("AI_REVIEW_INVALID_MODEL_JSON", {
+        provider: anthropic ? "anthropic" : "openai-compatible",
+        content_length: content.length,
+        error_name: error instanceof Error ? error.name : "UnknownError"
+      });
+      throw error;
+    }
+    return { configured: true, result: parsed };
   } finally {
     clearTimeout(timer);
   }
