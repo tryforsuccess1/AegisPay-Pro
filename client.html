@@ -3602,8 +3602,10 @@ async function completeShopTask(taskId){
  }
 }
 
-async function getMyDepositAddressDetails(){
- const result=await db.functions.invoke('get-deposit-address',{body:{}});
+async function getMyDepositAddressDetails(depositRequestId){
+ const requestId=String(depositRequestId||'').trim();
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))throw Object.assign(new Error('Start a new deposit request before generating its receiving address.'),{code:'DEPOSIT_REQUEST_ID_REQUIRED'});
+ const result=await db.functions.invoke('get-deposit-address',{body:{depositRequestId:requestId}});
  if(result.error){
   let payload=result.data&&typeof result.data==='object'?result.data:{};
   try{
@@ -3635,16 +3637,74 @@ async function getMyDepositAddressDetails(){
  if(!['TRON MAINNET','TRON TESTNET'].includes(network)||!tokenContract){
   throw Object.assign(new Error('The deposit service returned an unsupported network configuration. No funds were moved.'),{code:'UNSUPPORTED_DEPOSIT_NETWORK'});
  }
- return {address:String(row.address),network,tokenContract};
+ return {address:String(row.address),network,tokenContract,depositRequestId:String(row.depositRequestId||requestId),depositWalletId:String(row.depositWalletId||'')};
+}
+let activeDepositRequestId='';
+function getDepositRequestStorageKey(){
+ // Use the stable AegisPay profile ID only. Falling back to authUser.id before
+ // profile hydration would create a second storage key after the profile loads.
+ const userKey=String((typeof profile!=='undefined'&&profile&&profile.id)||'');
+ if(!userKey){const error=new Error('Your account session is not ready. Reload the deposit page before transferring any funds.');error.code='DEPOSIT_REQUEST_SESSION_UNAVAILABLE';throw error;}
+ return 'aegis:deposit-request:'+userKey;
+}
+function createDepositRequestId(){
+ if(typeof crypto==='undefined'||typeof crypto.getRandomValues!=='function'){
+  const error=new Error('This browser cannot create a secure deposit request. Update your browser before proceeding.');error.code='DEPOSIT_REQUEST_CRYPTO_UNAVAILABLE';throw error;
+ }
+ if(typeof crypto.randomUUID==='function')return crypto.randomUUID();
+ const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);
+ bytes[6]=(bytes[6]&0x0f)|0x40;bytes[8]=(bytes[8]&0x3f)|0x80;
+ const hex=Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+ return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+}
+function depositRequestStorageError(){
+ const error=new Error('Your browser could not save the active deposit request. Enable site storage and reload before sending any funds.');
+ error.code='DEPOSIT_REQUEST_STORAGE_UNAVAILABLE';
+ return error;
+}
+function persistDepositRequestId(storageKey,requestId){
+ try{localStorage.setItem(storageKey,requestId);return localStorage.getItem(storageKey)===requestId;}catch(_){return false;}
+}
+async function getCurrentDepositRequestDetails(){
+ activeDepositRequestId='';
+ const storageKey=getDepositRequestStorageKey();
+ let storedValue='';
+ try{storedValue=String(localStorage.getItem(storageKey)||'');}catch(_){throw depositRequestStorageError();}
+ const validRequestId=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+ if(storedValue&&!validRequestId.test(storedValue)){
+  const error=new Error('The saved deposit request ID is invalid. Do not transfer funds; reload the page or contact support.');
+  error.code='DEPOSIT_REQUEST_ID_INVALID';
+  throw error;
+ }
+ let requestId=storedValue||createDepositRequestId();
+ if(!persistDepositRequestId(storageKey,requestId))throw depositRequestStorageError();
+ try{
+  const details=await getMyDepositAddressDetails(requestId);
+  activeDepositRequestId=String(details.depositRequestId||requestId);
+  if(activeDepositRequestId!==requestId&&!persistDepositRequestId(storageKey,activeDepositRequestId))throw depositRequestStorageError();
+  return details;
+ }catch(error){
+  if(error&&error.code==='DEPOSIT_REQUEST_ALREADY_COMPLETED'){
+   try{localStorage.removeItem(storageKey);}catch(_){throw depositRequestStorageError();}
+   requestId=createDepositRequestId();
+   if(!persistDepositRequestId(storageKey,requestId))throw depositRequestStorageError();
+   const details=await getMyDepositAddressDetails(requestId);
+   activeDepositRequestId=String(details.depositRequestId||requestId);
+   if(activeDepositRequestId!==requestId&&!persistDepositRequestId(storageKey,activeDepositRequestId))throw depositRequestStorageError();
+   return details;
+  }
+  throw error;
+ }
 }
 async function getMyDepositAddress(){
- const details=await getMyDepositAddressDetails();
+ const details=await getCurrentDepositRequestDetails();
  return details.address;
 }
 async function liveTopup(){
  const d=settings.deposit_rules||{};
- let wallet='',addressError=null;
- try{wallet=await getMyDepositAddress()}catch(e){addressError=e}
+ let wallet='',addressError=null,walletDetails=null;
+ try{walletDetails=await getCurrentDepositRequestDetails();wallet=walletDetails.address;}catch(e){addressError=e}
+ const shastaTestnetAllowed=String(walletDetails&&walletDetails.network||'').toUpperCase()==='TRON TESTNET'&&String(walletDetails&&walletDetails.tokenContract||'').trim()==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
  const production=settings.production_config||{},system=settings.system_mode||{};
  const paymentsPaused=String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'||
   production.live_deposits_enabled!==true||system.live_deposits!==true;
@@ -3717,13 +3777,14 @@ async function liveTopup(){
    const value=Number(amount.value),f=proof.files&&proof.files[0],tx=txid.value.trim();
    if(!Number.isFinite(value)||value<minDeposit)throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
    if(!wallet)throw Error('No unique receiving address is available. Do not send funds.');
-   if(!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format.');
+   if(!tx&&!shastaTestnetAllowed)throw Error('Enter the full 64-character TRON TXID in hexadecimal format.');
+   if(tx&&!/^[A-Fa-f0-9]{64}$/.test(tx))throw Error('Enter the full 64-character TRON TXID in hexadecimal format.');
    if(!f)throw Error('Please attach the transaction screenshot.');
    submit.disabled=true;submit.textContent='Submitting…';
    const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase());
    const up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});
    if(up.error)throw up.error;
-   const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path}});
+   const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path,depositRequestId:activeDepositRequestId}});
    if(result.error)throw result.error;
    uiNotice(result.data&&result.data.message||'Deposit submitted for verification.','success');
    await liveTopup();
@@ -5213,7 +5274,9 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};
     const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;
     let wallet='',walletDetails=null,addressError=null;
-    try{walletDetails=await getMyDepositAddressDetails();wallet=walletDetails.address;}catch(error){addressError=error;}
+     const depositRequestStorageKey=getDepositRequestStorageKey();
+     let depositRequestId='';
+     try{walletDetails=await getCurrentDepositRequestDetails();depositRequestId=activeDepositRequestId;wallet=walletDetails.address;}catch(error){addressError=error;}
     const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
     const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
     const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
@@ -5268,7 +5331,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
       if(depositPendingId){submitDep.disabled=false;submitDep.textContent='Retry TronGrid verification';if(manualTxidStatus)manualTxidStatus.textContent='A pending request exists. Retry will check that same request; no duplicate will be created.';return;}
       const candidate=depositScannedTxid||manualTxidValue();
       const amount=Number(depAmount&&depAmount.value);
-      const hashValid=/^[a-f0-9]{64}$/i.test(candidate);
+      const hashValid=shastaTestnetAllowed||/^[a-f0-9]{64}$/i.test(candidate);
       const amountValid=Number.isFinite(amount)&&amount>=minDeposit;
       // Keep the button actionable whenever it is not actively uploading/submitting.
       // Missing amount/TXID/screenshot is reported by the click handler without sending a request or crediting balance.
@@ -5385,12 +5448,12 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         const txidForSubmit=depositScannedTxid||manualTxidValue();
         if(!depositPendingId&&(!Number.isFinite(amount)||amount<minDeposit))throw Error('Minimum deposit amount is '+minDeposit.toFixed(2)+' USDT.');
         if(!wallet)throw Error('No unique receiving address is available. Do not send funds.');
-        if(!depositScreenshotPath||(!txidForSubmit&&!depositPendingId))throw Error('Choose a deposit screenshot and wait for the automatic scan or enter the fallback TXID.');
-        if(!depositPendingId&&!/^[a-f0-9]{64}$/i.test(txidForSubmit))throw Error('TXID must contain exactly 64 hexadecimal characters.');
+        if(!depositScreenshotPath||(!txidForSubmit&&!depositPendingId&&!shastaTestnetAllowed))throw Error(shastaTestnetAllowed?'Choose a deposit screenshot; the Shasta monitor can discover the TXID from confirmed chain data.':'Choose a deposit screenshot and wait for the automatic scan or enter the fallback TXID.');
+        if(!depositPendingId&&txidForSubmit&&!/^[a-f0-9]{64}$/i.test(txidForSubmit))throw Error('TXID must contain exactly 64 hexadecimal characters.');
         depositBusy=true;
         submitDep.disabled=true;submitDep.textContent=depositPendingId?'Checking TronGrid…':'Submitting…';
         if(!depositPendingId){
-          const submission=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:txidForSubmit,screenshotPath:depositScreenshotPath}});
+          const submission=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:txidForSubmit,screenshotPath:depositScreenshotPath,depositRequestId:depositRequestId}});
           if(submission.error){
             const details=await readDepositFunctionError(submission.error,'Deposit request could not be submitted.');
             if(details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'&&details.payload.depositId&&String(details.payload.status||'')==='PENDING_VERIFICATION'){
@@ -5413,6 +5476,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         }
         const result=verification.data||{};
         if(result.status==='VERIFIED'){
+          try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}
           setDepositScanStatus('Deposit verified on-chain. The server has applied the verified credit. Refreshing your account…','success');
           uiNotice('Deposit verified by TronGrid. Account balance updated.','success');
           try{sessionStorage.removeItem(amountSessionKey);}catch(_){}
@@ -5423,6 +5487,9 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         }
         if(result.status==='REJECTED'){
           setDepositScanStatus(result.message||'This deposit request was rejected. No balance was credited.','error');
+          try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}
+          depositPendingId='';activeDepositRequestId='';
+          await liveTopup();
           return;
         }
         setDepositScanStatus(result.message||'TronGrid has not confirmed a unique matching transfer yet. No balance has been credited; you can retry verification later.','pending');

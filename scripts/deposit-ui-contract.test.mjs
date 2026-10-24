@@ -5,6 +5,15 @@ import { runInNewContext } from "node:vm";
 
 const client = readFileSync(new URL("../client.html", import.meta.url), "utf8");
 const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.url), "utf8");
+const addressFunction = readFileSync(new URL("../supabase/functions/get-deposit-address/index.ts", import.meta.url), "utf8");
+const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposit/index.ts", import.meta.url), "utf8");
+const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposit-wallets/index.ts", import.meta.url), "utf8");
+const monitorFunction = readFileSync(new URL("../supabase/functions/monitor-deposits/index.ts", import.meta.url), "utf8");
+const verifyFunction = readFileSync(new URL("../supabase/functions/verify-deposit/index.ts", import.meta.url), "utf8");
+const depositCreditMigration = readFileSync(new URL("../database/migrations/20261024175706_harden_deposit_credit_single_pending_wallet_20261024.sql", import.meta.url), "utf8");
+const perDepositMigration = readFileSync(new URL("../database/migrations/20261024144103_per_deposit_tron_addresses_20261024.sql", import.meta.url), "utf8");
+const monitorRotationMigration = readFileSync(new URL("../database/migrations/20261024173503_deposit_monitor_queue_rotation_20261024.sql", import.meta.url), "utf8");
+const shastaTestModeSource = readFileSync(new URL("../supabase/functions/_shared/shasta-test-mode.ts", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
@@ -23,8 +32,8 @@ test("embedded QR encoder produces a valid SVG for a TRON wallet without network
 });
 
 test("service-worker cache version is bumped so deployed deposit UI fixes reach mobile clients", () => {
-  assert.match(serviceWorker, /aegispay-shell-v51-deposit-amount-ux/);
-  assert.doesNotMatch(serviceWorker, /aegispay-shell-v50-deposit-claude-refresh/);
+  assert.match(serviceWorker, /aegispay-shell-v52-persist-deposit-address/);
+  assert.doesNotMatch(serviceWorker, /aegispay-shell-v51-deposit-amount-ux/);
 });
 
 test("deposit QR is generated locally without an external QR image service", () => {
@@ -52,4 +61,86 @@ test("deposit TXID fallback exists and is used only when automatic extraction ha
   assert.match(client, /txid:txidForSubmit/);
   assert.match(client, /\^\[a-f0-9\]\{64\}\$/i);
   assert.match(client, /Deposit request submitted\. Checking the confirmed TRON blockchain/);
+});
+
+
+test("each deposit session gets a fresh idempotent address request, not the user's prior address", () => {
+  assert.match(client, /return 'aegis:deposit-request:/);
+  assert.match(client, /localStorage\.getItem\(storageKey\)/);
+  assert.match(client, /localStorage\.setItem\(storageKey,requestId\)/);
+  assert.match(client, /DEPOSIT_REQUEST_ALREADY_COMPLETED/);
+  assert.match(client, /localStorage\.removeItem\(storageKey\)/);
+  assert.match(client, /DEPOSIT_REQUEST_STORAGE_UNAVAILABLE/);
+  assert.match(client, /persistDepositRequestId\(storageKey,requestId\)/);
+  assert.match(client, /getCurrentDepositRequestDetails\(\)/);
+  assert.match(client, /getMyDepositAddressDetails\(depositRequestId\)/);
+  assert.match(client, /body:\{depositRequestId:requestId\}/);
+  assert.match(client, /depositRequestId:depositRequestId/);
+  assert.match(client, /depositRequestId:activeDepositRequestId/);
+  assert.match(addressFunction, /\.eq\("deposit_request_id", requestId\)/);
+  assert.doesNotMatch(addressFunction, /\.eq\("user_id", profile\.id\)\.eq\("network", network\)\.eq\("status", "ACTIVE"\)\.maybeSingle\(\)/);
+  assert.match(addressFunction, /deposit_request_id: requestId/);
+  assert.match(submitFunction, /\.eq\("deposit_request_id", depositRequestId\)/);
+  assert.match(perDepositMigration, /DROP CONSTRAINT IF EXISTS deposit_wallets_user_network_uq/);
+  assert.match(perDepositMigration, /deposit_wallets_request_id_uq/);
+  assert.match(perDepositMigration, /deposit_request_id SET NOT NULL/);
+  assert.match(perDepositMigration, /enforce_tron_deposit_wallet_issue_limit/);
+  assert.match(perDepositMigration, /last_sweep_attempt_at timestamptz/);
+  assert.match(sweeperFunction, /order\("last_sweep_attempt_at", \{ ascending: true, nullsFirst: true \}\)/);
+  assert.match(sweeperFunction, /update\(\{ last_sweep_attempt_at: new Date\(\)\.toISOString\(\) \}\)/);
+  assert.match(sweeperFunction, /TRON_SHASTA_TREASURY_PRIVATE_KEY/);
+  assert.match(sweeperFunction, /shastaMnemonicsAreDistinct\(HD_MNEMONIC, MAINNET_HD_MNEMONIC\)/);
+  assert.doesNotMatch(sweeperFunction, /TRON_MAINNET_TREASURY_PRIVATE_KEY|TRON_PAYOUT_PRIVATE_KEY|MAINNET_PAYOUT_KEY/);
+  assert.match(addressFunction, /!seedsDistinct \|\| !payoutKeysPresentAndDistinct \|\| !shastaSecretsAreDistinct\(/);
+});
+
+
+test("terminal deposit requests rotate safely and concurrent retries recover the assigned address", () => {
+  assert.ok(addressFunction.includes('.in("status", ["VERIFIED", "REJECTED", "FAILED"])'));
+  assert.ok(addressFunction.includes('const rateLimited = /DEPOSIT_ADDRESS_RATE_LIMIT/.test(errorText);'));
+  assert.ok(addressFunction.includes('if (racedError) return json({ error: "Unable to recover the existing deposit request safely." }, 503);'));
+  assert.ok(addressFunction.includes('.eq("deposit_request_id", requestId).limit(2)'));
+  assert.ok(addressFunction.includes('code: "DEPOSIT_REQUEST_NETWORK_CHANGED"'));
+  assert.ok(client.includes("if(result.status==='REJECTED')"));
+  assert.ok(client.includes("try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}"));
+  assert.ok(client.includes("DEPOSIT_REQUEST_CRYPTO_UNAVAILABLE"));
+});
+
+test("Shasta blank-TXID discovery fallback is reachable in both user deposit flows", () => {
+  assert.ok(client.includes("if(!tx&&!shastaTestnetAllowed)"));
+  assert.ok(client.includes("!txidForSubmit&&!depositPendingId&&!shastaTestnetAllowed"));
+  assert.ok(submitFunction.includes("if (!isShastaTestUser && !validEnteredTxid)"));
+});
+
+test("deposit monitoring separates network queues and sweeper accepts monitor-verified source", () => {
+  assert.ok(monitorFunction.includes('.eq("network", "TRON MAINNET")'));
+  assert.ok(monitorFunction.includes('.eq("network", "TRON TESTNET")'));
+  assert.match(monitorFunction, /\.order\("monitor_last_attempt_at", \{ ascending: true, nullsFirst: true \}\)/);
+  assert.ok(monitorFunction.includes('update({ monitor_last_attempt_at: new Date().toISOString() })'));
+  assert.ok(monitorRotationMigration.includes("ADD COLUMN IF NOT EXISTS monitor_last_attempt_at timestamptz"));
+  assert.ok(monitorRotationMigration.includes("deposit_submissions_monitor_rotation_idx"));
+  assert.ok(sweeperFunction.includes('.in("verification_source", ["TronGrid", "TronGrid Monitor"])'));
+  assert.ok(sweeperFunction.includes('["TronGrid", "TronGrid Monitor"].includes(verificationSource)'));
+});
+
+
+test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and normalized whitespace", () => {
+  assert.match(shastaTestModeSource, /export function shastaMnemonicsAreDistinct\(/);
+  assert.match(shastaTestModeSource, /split\(\/\\s\+\/\)/);
+  assert.match(shastaTestModeSource, /Boolean\(testSeed && mainnetSeed && testSeed !== mainnetSeed\)/);
+});
+
+
+test("Shasta fallback fails closed when the confirmed-transfer provider page is capped", () => {
+  assert.match(verifyFunction, /if \(transfers\.length >= 200\)[\s\S]{0,220}SHASTA_TRANSFER_PAGE_CAPPED/);
+  assert.match(monitorFunction, /if \(rows\.length >= 200\) return \{ id: deposit\.id, status: "SHASTA_TRANSFER_PAGE_CAPPED" \}/);
+});
+
+test("one unresolved submission per deposit wallet is enforced in code and database", () => {
+  assert.ok(submitFunction.includes('.eq("deposit_wallet_id", depositWallet.id).eq("status", "PENDING_VERIFICATION")'));
+  assert.ok(submitFunction.includes('code: "DEPOSIT_REQUEST_ALREADY_PENDING"'));
+  assert.ok(submitFunction.includes("/deposit_submissions_one_pending_per_wallet_uq/"));
+  assert.ok(depositCreditMigration.includes("deposit_submissions_one_pending_per_wallet_uq"));
+  assert.ok(depositCreditMigration.includes("shasta_testnet_rules"));
+  assert.ok(depositCreditMigration.includes("network differs from current settings"));
 });
