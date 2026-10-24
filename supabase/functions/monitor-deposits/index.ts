@@ -210,10 +210,12 @@ Deno.serve(async (req: Request) => {
       admin.from("deposit_submissions").select("*")
         .eq("status", "PENDING_VERIFICATION").eq("network", "TRON MAINNET")
         .in("ai_review_status", ["APPROVED", "MANUAL_APPROVED"])
+        .order("monitor_last_attempt_at", { ascending: true, nullsFirst: true })
         .order("created_at", { ascending: true }).limit(100),
       admin.from("deposit_submissions").select("*")
         .eq("status", "PENDING_VERIFICATION").eq("network", "TRON TESTNET")
         .in("ai_review_status", ["APPROVED", "MANUAL_APPROVED", "MANUAL_REVIEW"])
+        .order("monitor_last_attempt_at", { ascending: true, nullsFirst: true })
         .order("created_at", { ascending: true }).limit(100),
     ]);
     if (mainnetPendingError || shastaPendingError) return json({ error: "Unable to load pending deposits." }, 500);
@@ -277,6 +279,20 @@ Deno.serve(async (req: Request) => {
 
     const results = [];
     for (const deposit of pending || []) {
+      // Rotate before chain I/O. Even a pending/unmatched submission must not
+      // monopolize the oldest-first batch on every scheduled monitor run.
+      const { data: markedAttempt, error: markAttemptError } = await admin.from("deposit_submissions")
+        .update({ monitor_last_attempt_at: new Date().toISOString() })
+        .eq("id", deposit.id).eq("status", "PENDING_VERIFICATION")
+        .select("id").maybeSingle();
+      if (markAttemptError) {
+        results.push({ id: deposit.id, status: "MONITOR_ROTATION_MARK_FAILED" });
+        continue;
+      }
+      if (!markedAttempt) {
+        results.push({ id: deposit.id, status: "DEPOSIT_STATE_CHANGED" });
+        continue;
+      }
       try {
         const depositNetwork = String(deposit.network || "").toUpperCase();
         if (depositNetwork === "TRON TESTNET") {
