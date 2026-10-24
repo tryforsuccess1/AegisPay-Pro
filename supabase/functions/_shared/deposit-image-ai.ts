@@ -16,6 +16,25 @@ export function resolveVisionEndpoint(value: string): { url: string; anthropic: 
   }
   return { url: endpointUrl.toString(), anthropic };
 }
+export function parseVisionJsonObject(content: string): Record<string, unknown> {
+  const normalized = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(normalized);
+  } catch {
+    // Recover only a complete object when a vision model adds a short preamble.
+    const firstBrace = normalized.indexOf("{");
+    const lastBrace = normalized.lastIndexOf("}");
+    if (firstBrace < 0 || lastBrace <= firstBrace) throw new Error("AI evidence review did not return a valid JSON object.");
+    try {
+      parsed = JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
+    } catch {
+      throw new Error("AI evidence review returned malformed JSON.");
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid AI result.");
+  return parsed as Record<string, unknown>;
+}
 export async function runVisionReview(prompt: string, images: ImagePayload[]): Promise<VisionResult> {
   const endpoint = Deno.env.get("AI_REVIEW_ENDPOINT") || "";
   const apiKey = Deno.env.get("AI_REVIEW_API_KEY") || "";
@@ -105,36 +124,18 @@ export async function runVisionReview(prompt: string, images: ImagePayload[]): P
       ? (Array.isArray(body?.content) ? body.content.filter((x: any) => x?.type === "text").map((x: any) => String(x.text || "")).join("\n") : "")
       : body?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("AI review returned no text.");
-    const normalized = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
-    let parsed: unknown;
+    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(normalized);
-    } catch {
-      // Some vision models add a short preamble despite the JSON-only instruction.
-      // Recover only a complete JSON object; never guess or synthesize fields.
-      const firstBrace = normalized.indexOf("{");
-      const lastBrace = normalized.lastIndexOf("}");
-      if (firstBrace < 0 || lastBrace <= firstBrace) {
-        console.warn("AI_REVIEW_INVALID_MODEL_JSON", {
-          provider: anthropic ? "anthropic" : "openai-compatible",
-          content_length: normalized.length,
-          contains_object_start: firstBrace >= 0,
-          contains_object_end: lastBrace >= 0
-        });
-        throw new Error("AI evidence review did not return a valid JSON object.");
-      }
-      try {
-        parsed = JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
-      } catch {
-        console.warn("AI_REVIEW_MALFORMED_MODEL_JSON", {
-          provider: anthropic ? "anthropic" : "openai-compatible",
-          content_length: normalized.length
-        });
-        throw new Error("AI evidence review returned malformed JSON.");
-      }
+      parsed = parseVisionJsonObject(content);
+    } catch (error) {
+      console.warn("AI_REVIEW_INVALID_MODEL_JSON", {
+        provider: anthropic ? "anthropic" : "openai-compatible",
+        content_length: content.length,
+        error_name: error instanceof Error ? error.name : "UnknownError"
+      });
+      throw error;
     }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid AI result.");
-    return { configured: true, result: parsed as Record<string, unknown> };
+    return { configured: true, result: parsed };
   } finally {
     clearTimeout(timer);
   }
