@@ -30,6 +30,11 @@ test("deposit QR is generated locally without an external QR image service", () 
 
 test("deposit TXID fallback exists and is used only when automatic extraction has no candidate", () => {
   assert.match(client, /id="manualTxid"/);
+  assert.match(client, /id="manualTxidStatus"/);
+  assert.match(client, /candidate.length\+'\/64 characters'/);
+  assert.match(client, /else updateDepositSubmitAvailability\(\)/);
+  assert.match(client, /manualTxid.onpaste/);
+
   assert.match(client, /setManualTxidFallback\(true\)/);
   assert.match(client, /const txidForSubmit=depositScannedTxid\|\|manualTxidValue\(\)/);
   assert.match(client, /txid:txidForSubmit/);
