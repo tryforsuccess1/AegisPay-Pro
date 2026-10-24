@@ -8,9 +8,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
 const TESTNET_SWEEP_ENABLED = Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true";
-const HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
-const HD_PASSPHRASE = Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
-const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
+const HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || "";
+const HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
+const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const NETWORK = "TRON TESTNET";
 const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
@@ -394,12 +394,18 @@ Deno.serve(async (req: Request) => {
     const { data: wallets, error: walletError } = await admin.from("deposit_wallets")
       .select("id,user_id,address,derivation_index,wallet_root_fingerprint,token_contract,network")
       .eq("network", NETWORK).eq("token_contract", TOKEN).eq("status", "ACTIVE")
+      .order("last_sweep_attempt_at", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: true }).limit(MAX_WALLETS_PER_RUN);
     if (walletError) return json({ error: "Unable to load testnet deposit wallets." }, 500);
     const results = [];
     for (const wallet of (wallets || []) as WalletRow[]) {
-      try { results.push(await processWallet(admin, wallet, treasury)); }
-      catch (error) { results.push({ walletId: wallet.id, status: "NOT_SWEPT", code: errorCode(error) }); }
+      let walletResult: Record<string, unknown>;
+      try { walletResult = await processWallet(admin, wallet, treasury); }
+      catch (error) { walletResult = { walletId: wallet.id, status: "NOT_SWEPT", code: errorCode(error) }; }
+      results.push(walletResult);
+      const { error: rotationError } = await admin.from("deposit_wallets")
+        .update({ last_sweep_attempt_at: new Date().toISOString() }).eq("id", wallet.id);
+      if (rotationError) results[results.length - 1].rotationMarked = false;
     }
     return json({ network: NETWORK, checked: results.length, results, mainnetSweepEnabled: false });
   } catch {
