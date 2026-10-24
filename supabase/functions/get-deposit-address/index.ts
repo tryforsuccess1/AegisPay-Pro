@@ -153,16 +153,24 @@ Deno.serve(async (req) => {
 
     const rootIdentity = await deriveTronHdIdentity(hdMnemonic, hdPassphrase, 0);
     const rootFingerprint = rootIdentity.rootFingerprint;
-    const { data: current, error: currentError } = await admin.from("deposit_wallets")
+    // The request ID is bound to the network on which its address was first
+    // issued. Search across networks so a config change cannot silently create
+    // a second receiving address for an in-flight transfer.
+    const { data: matchingRequests, error: currentError } = await admin.from("deposit_wallets")
       .select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,status,deposit_request_id")
-      .eq("user_id", profile.id).eq("network", network).eq("deposit_request_id", requestId).maybeSingle();
+      .eq("user_id", profile.id).eq("deposit_request_id", requestId).limit(2);
     if (currentError) return json({ error: "Unable to load this deposit request address." }, 503);
+    if ((matchingRequests || []).length > 1) return json({ error: "This request ID is linked to more than one network. No receiving address was displayed; contact support.", code: "DEPOSIT_REQUEST_NETWORK_AMBIGUOUS" }, 409);
+    const current = (matchingRequests || [])[0] || null;
     if (current) {
-      if (current.wallet_root_fingerprint !== rootFingerprint) return json({ error: "The configured HD root does not match this user's existing address record. Restore the original root secret before issuing addresses.", code: "HD_WALLET_ROOT_MISMATCH" }, 409);
       const { data: terminalSubmissions, error: terminalSubmissionError } = await admin.from("deposit_submissions").select("id,status")
         .eq("deposit_wallet_id", current.id).in("status", ["VERIFIED", "REJECTED", "FAILED"]).limit(1);
       if (terminalSubmissionError) return json({ error: "Unable to confirm whether this deposit request is complete." }, 503);
-      if ((terminalSubmissions || []).length) return json({ error: "This deposit request is already complete or rejected. Start a fresh deposit request.", code: "DEPOSIT_REQUEST_ALREADY_COMPLETED" }, 409);
+      if (current.status !== "ACTIVE" || (terminalSubmissions || []).length) return json({ error: "This deposit request is already complete, rejected, or inactive. Start a fresh deposit request.", code: "DEPOSIT_REQUEST_ALREADY_COMPLETED" }, 409);
+      if (String(current.network || "").toUpperCase() !== network) {
+        return json({ error: "The active deposit request belongs to a different network. No new address was issued. Do not send funds; contact support to recover the in-progress request.", code: "DEPOSIT_REQUEST_NETWORK_CHANGED" }, 409);
+      }
+      if (current.wallet_root_fingerprint !== rootFingerprint) return json({ error: "The configured HD root does not match this user's existing address record. Restore the original root secret before issuing addresses.", code: "HD_WALLET_ROOT_MISMATCH" }, 409);
       return json({ address: current.address, network, tokenContract: current.token_contract, depositRequestId: current.deposit_request_id, depositWalletId: current.id, derivationPath: `m/44'/195'/0'/0/${current.derivation_index}`, created: false });
     }
 
