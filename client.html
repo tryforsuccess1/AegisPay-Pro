@@ -5255,7 +5255,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const setManualTxidFallback=function(show){
       if(manualTxidWrap){manualTxidWrap.hidden=!show;manualTxidWrap.style.display=show?'block':'none';}
     };
-    const manualTxidValue=function(){return String(manualTxid&&manualTxid.value||'').trim().replace(/^0x/i,'').replace(/\\s+/g,'').toLowerCase();};
+    const manualTxidValue=function(){return String(manualTxid&&manualTxid.value||'').trim().replace(/^0x/i,'').replace(/\s+/g,'').toLowerCase();};
     const updateDepositSubmitAvailability=function(){
       if(!submitDep||depositBusy)return;
       if(depositPendingId){submitDep.disabled=false;submitDep.textContent='Retry TronGrid verification';if(manualTxidStatus)manualTxidStatus.textContent='A pending request exists. Retry will check that same request; no duplicate will be created.';return;}
