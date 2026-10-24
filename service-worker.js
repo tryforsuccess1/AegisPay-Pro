@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v51-deposit-amount-ux';
+const CACHE='aegispay-shell-v52-persist-deposit-address';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
