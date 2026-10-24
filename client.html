@@ -3641,28 +3641,47 @@ async function getMyDepositAddressDetails(depositRequestId){
 }
 let activeDepositRequestId='';
 function getDepositRequestStorageKey(){
- return 'aegis:deposit-request:'+String((typeof authUser!=='undefined'&&authUser&&authUser.id)||(typeof profile!=='undefined'&&profile&&(profile.auth_user_id||profile.id))||'')+':'+String((typeof settings!=='undefined'&&settings&&settings.system_mode&&settings.system_mode.mode)||'');
+ const userKey=String((typeof profile!=='undefined'&&profile&&profile.id)||(typeof authUser!=='undefined'&&authUser&&authUser.id)||'');
+ if(!userKey){const error=new Error('Your account session is not ready. Reload the deposit page before transferring any funds.');error.code='DEPOSIT_REQUEST_SESSION_UNAVAILABLE';throw error;}
+ return 'aegis:deposit-request:'+userKey;
 }
 function createDepositRequestId(){
  return (typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){const r=Math.random()*16|0;return(ch==='x'?r:(r&3|8)).toString(16);});
 }
+function depositRequestStorageError(){
+ const error=new Error('Your browser could not save the active deposit request. Enable site storage and reload before sending any funds.');
+ error.code='DEPOSIT_REQUEST_STORAGE_UNAVAILABLE';
+ return error;
+}
+function persistDepositRequestId(storageKey,requestId){
+ try{localStorage.setItem(storageKey,requestId);return localStorage.getItem(storageKey)===requestId;}catch(_){return false;}
+}
 async function getCurrentDepositRequestDetails(){
+ activeDepositRequestId='';
  const storageKey=getDepositRequestStorageKey();
- let requestId='';
- try{requestId=String(localStorage.getItem(storageKey)||'');}catch(_){}
- if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)){
-  requestId=createDepositRequestId();try{localStorage.setItem(storageKey,requestId);}catch(_){}
+ let storedValue='';
+ try{storedValue=String(localStorage.getItem(storageKey)||'');}catch(_){throw depositRequestStorageError();}
+ const validRequestId=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+ if(storedValue&&!validRequestId.test(storedValue)){
+  const error=new Error('The saved deposit request ID is invalid. Do not transfer funds; reload the page or contact support.');
+  error.code='DEPOSIT_REQUEST_ID_INVALID';
+  throw error;
  }
+ let requestId=storedValue||createDepositRequestId();
+ if(!persistDepositRequestId(storageKey,requestId))throw depositRequestStorageError();
  try{
   const details=await getMyDepositAddressDetails(requestId);
   activeDepositRequestId=String(details.depositRequestId||requestId);
+  if(activeDepositRequestId!==requestId&&!persistDepositRequestId(storageKey,activeDepositRequestId))throw depositRequestStorageError();
   return details;
  }catch(error){
   if(error&&error.code==='DEPOSIT_REQUEST_ALREADY_COMPLETED'){
-   try{localStorage.removeItem(storageKey);}catch(_){}
-   requestId=createDepositRequestId();try{localStorage.setItem(storageKey,requestId);}catch(_){}
+   try{localStorage.removeItem(storageKey);}catch(_){throw depositRequestStorageError();}
+   requestId=createDepositRequestId();
+   if(!persistDepositRequestId(storageKey,requestId))throw depositRequestStorageError();
    const details=await getMyDepositAddressDetails(requestId);
    activeDepositRequestId=String(details.depositRequestId||requestId);
+   if(activeDepositRequestId!==requestId&&!persistDepositRequestId(storageKey,activeDepositRequestId))throw depositRequestStorageError();
    return details;
   }
   throw error;
