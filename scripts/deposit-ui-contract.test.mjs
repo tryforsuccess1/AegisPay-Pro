@@ -26,8 +26,8 @@ test("embedded QR encoder produces a valid SVG for a TRON wallet without network
 });
 
 test("service-worker cache version is bumped so deployed deposit UI fixes reach mobile clients", () => {
-  assert.match(serviceWorker, /aegispay-shell-v51-deposit-amount-ux/);
-  assert.doesNotMatch(serviceWorker, /aegispay-shell-v50-deposit-claude-refresh/);
+  assert.match(serviceWorker, /aegispay-shell-v52-persist-deposit-address/);
+  assert.doesNotMatch(serviceWorker, /aegispay-shell-v51-deposit-amount-ux/);
 });
 
 test("deposit QR is generated locally without an external QR image service", () => {
@@ -59,7 +59,11 @@ test("deposit TXID fallback exists and is used only when automatic extraction ha
 
 
 test("each deposit session gets a fresh idempotent address request, not the user's prior address", () => {
-  assert.match(client, /const depositRequestId=\(typeof crypto!=='undefined'&&typeof crypto\.randomUUID==='function'\)\?crypto\.randomUUID\(\)/);
+  assert.match(client, /depositRequestStorageKey='aegis:deposit-request:/);
+  assert.match(client, /localStorage\.getItem\(depositRequestStorageKey\)/);
+  assert.match(client, /localStorage\.setItem\(depositRequestStorageKey,depositRequestId\)/);
+  assert.match(client, /DEPOSIT_REQUEST_ALREADY_COMPLETED/);
+  assert.match(client, /localStorage\.removeItem\(depositRequestStorageKey\)/);
   assert.match(client, /getMyDepositAddressDetails\(depositRequestId\)/);
   assert.match(client, /body:\{depositRequestId:requestId\}/);
   assert.match(client, /depositRequestId:depositRequestId/);
