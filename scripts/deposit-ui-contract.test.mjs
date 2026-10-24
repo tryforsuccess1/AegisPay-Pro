@@ -7,6 +7,7 @@ const client = readFileSync(new URL("../client.html", import.meta.url), "utf8");
 const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.url), "utf8");
 const addressFunction = readFileSync(new URL("../supabase/functions/get-deposit-address/index.ts", import.meta.url), "utf8");
 const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposit/index.ts", import.meta.url), "utf8");
+const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposit-wallets/index.ts", import.meta.url), "utf8");
 const perDepositMigration = readFileSync(new URL("../database/migrations/20261024143000_per_deposit_tron_addresses.sql", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
@@ -59,14 +60,16 @@ test("deposit TXID fallback exists and is used only when automatic extraction ha
 
 
 test("each deposit session gets a fresh idempotent address request, not the user's prior address", () => {
-  assert.match(client, /depositRequestStorageKey='aegis:deposit-request:/);
-  assert.match(client, /localStorage\.getItem\(depositRequestStorageKey\)/);
-  assert.match(client, /localStorage\.setItem\(depositRequestStorageKey,depositRequestId\)/);
+  assert.match(client, /return 'aegis:deposit-request:/);
+  assert.match(client, /localStorage\.getItem\(storageKey\)/);
+  assert.match(client, /localStorage\.setItem\(storageKey,requestId\)/);
   assert.match(client, /DEPOSIT_REQUEST_ALREADY_COMPLETED/);
-  assert.match(client, /localStorage\.removeItem\(depositRequestStorageKey\)/);
+  assert.match(client, /localStorage\.removeItem\(storageKey\)/);
+  assert.match(client, /getCurrentDepositRequestDetails\(\)/);
   assert.match(client, /getMyDepositAddressDetails\(depositRequestId\)/);
   assert.match(client, /body:\{depositRequestId:requestId\}/);
   assert.match(client, /depositRequestId:depositRequestId/);
+  assert.match(client, /depositRequestId:activeDepositRequestId/);
   assert.match(addressFunction, /\.eq\("deposit_request_id", requestId\)/);
   assert.doesNotMatch(addressFunction, /\.eq\("user_id", profile\.id\)\.eq\("network", network\)\.eq\("status", "ACTIVE"\)\.maybeSingle\(\)/);
   assert.match(addressFunction, /deposit_request_id: requestId/);
@@ -74,4 +77,9 @@ test("each deposit session gets a fresh idempotent address request, not the user
   assert.match(perDepositMigration, /DROP CONSTRAINT IF EXISTS deposit_wallets_user_network_uq/);
   assert.match(perDepositMigration, /deposit_wallets_request_id_uq/);
   assert.match(perDepositMigration, /deposit_request_id SET NOT NULL/);
+  assert.match(perDepositMigration, /enforce_tron_deposit_wallet_issue_limit/);
+  assert.match(perDepositMigration, /last_sweep_attempt_at timestamptz/);
+  assert.match(sweeperFunction, /order\("last_sweep_attempt_at", \{ ascending: true, nullsFirst: true \}\)/);
+  assert.match(sweeperFunction, /update\(\{ last_sweep_attempt_at: new Date\(\)\.toISOString\(\) \}\)/);
+  assert.match(sweeperFunction, /TRON_SHASTA_TREASURY_PRIVATE_KEY/);
 });
