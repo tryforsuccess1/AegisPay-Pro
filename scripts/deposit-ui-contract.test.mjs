@@ -9,7 +9,7 @@ const addressFunction = readFileSync(new URL("../supabase/functions/get-deposit-
 const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposit/index.ts", import.meta.url), "utf8");
 const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposit-wallets/index.ts", import.meta.url), "utf8");
 const monitorFunction = readFileSync(new URL("../supabase/functions/monitor-deposits/index.ts", import.meta.url), "utf8");
-const perDepositMigration = readFileSync(new URL("../database/migrations/20261024143000_per_deposit_tron_addresses.sql", import.meta.url), "utf8");
+const perDepositMigration = readFileSync(new URL("../database/migrations/20261024144103_per_deposit_tron_addresses_20261024.sql", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
