@@ -65,6 +65,8 @@ test("each deposit session gets a fresh idempotent address request, not the user
   assert.match(client, /localStorage\.setItem\(storageKey,requestId\)/);
   assert.match(client, /DEPOSIT_REQUEST_ALREADY_COMPLETED/);
   assert.match(client, /localStorage\.removeItem\(storageKey\)/);
+  assert.match(client, /DEPOSIT_REQUEST_STORAGE_UNAVAILABLE/);
+  assert.match(client, /persistDepositRequestId\(storageKey,requestId\)/);
   assert.match(client, /getCurrentDepositRequestDetails\(\)/);
   assert.match(client, /getMyDepositAddressDetails\(depositRequestId\)/);
   assert.match(client, /body:\{depositRequestId:requestId\}/);
