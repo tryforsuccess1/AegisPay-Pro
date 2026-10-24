@@ -8,6 +8,7 @@ const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.u
 const addressFunction = readFileSync(new URL("../supabase/functions/get-deposit-address/index.ts", import.meta.url), "utf8");
 const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposit/index.ts", import.meta.url), "utf8");
 const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposit-wallets/index.ts", import.meta.url), "utf8");
+const monitorFunction = readFileSync(new URL("../supabase/functions/monitor-deposits/index.ts", import.meta.url), "utf8");
 const perDepositMigration = readFileSync(new URL("../database/migrations/20261024143000_per_deposit_tron_addresses.sql", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
@@ -84,4 +85,27 @@ test("each deposit session gets a fresh idempotent address request, not the user
   assert.match(sweeperFunction, /order\("last_sweep_attempt_at", \{ ascending: true, nullsFirst: true \}\)/);
   assert.match(sweeperFunction, /update\(\{ last_sweep_attempt_at: new Date\(\)\.toISOString\(\) \}\)/);
   assert.match(sweeperFunction, /TRON_SHASTA_TREASURY_PRIVATE_KEY/);
+});
+
+
+test("terminal deposit requests rotate safely and concurrent retries recover the assigned address", () => {
+  assert.ok(addressFunction.includes('.in("status", ["VERIFIED", "REJECTED", "FAILED"])'));
+  assert.ok(addressFunction.includes('const rateLimited = /DEPOSIT_ADDRESS_RATE_LIMIT/.test(errorText);'));
+  assert.ok(addressFunction.includes('if (racedError) return json({ error: "Unable to recover the existing deposit request safely." }, 503);'));
+  assert.ok(client.includes("if(result.status==='REJECTED')"));
+  assert.ok(client.includes("try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}"));
+  assert.ok(client.includes("DEPOSIT_REQUEST_CRYPTO_UNAVAILABLE"));
+});
+
+test("Shasta blank-TXID discovery fallback is reachable in both user deposit flows", () => {
+  assert.ok(client.includes("if(!tx&&!shastaTestnetAllowed)"));
+  assert.ok(client.includes("!txidForSubmit&&!depositPendingId&&!shastaTestnetAllowed"));
+  assert.ok(submitFunction.includes("if (!isShastaTestUser && !validEnteredTxid)"));
+});
+
+test("deposit monitoring separates network queues and sweeper accepts monitor-verified source", () => {
+  assert.ok(monitorFunction.includes('.eq("network", "TRON MAINNET")'));
+  assert.ok(monitorFunction.includes('.eq("network", "TRON TESTNET")'));
+  assert.ok(sweeperFunction.includes('.in("verification_source", ["TronGrid", "TronGrid Monitor"])'));
+  assert.ok(sweeperFunction.includes('["TronGrid", "TronGrid Monitor"].includes(verificationSource)'));
 });
