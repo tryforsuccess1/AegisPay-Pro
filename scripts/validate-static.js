@@ -512,7 +512,7 @@ assert(depositVerifySource.includes('mainnetTokenContract !== MAINNET_USDT')&&de
 assert(depositReadinessSource.includes('mainnetUsdtContractOk')&&depositReadinessSource.includes('mainnetBaseConfigOk')&&depositReadinessSource.includes('mainnet_usdt_contract_ok'),'Production readiness must fail closed and report official USDT token-contract readiness');
 assert(depositSafetyMigration.includes('Live mainnet deposits require approved PRODUCTION mode')&&depositSafetyMigration.includes('PRE_PRODUCTION_PAYOUTS_LOCKED'),'Database settings RPC and current Mainnet configuration must fail closed');
 assert(depositMonitorSource.includes('verify_deposit_monitor_cron_secret')&&depositMonitorSource.includes('x-aegis-cron-secret'),'Deposit monitor must validate the configured Vault-backed cron secret');
-assert(depositMonitorSource.includes('.in("ai_review_status", ["APPROVED","MANUAL_APPROVED"])'),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
+assert(/\.in\("ai_review_status",\s*\["APPROVED",\s*"MANUAL_APPROVED"\]\)/.test(depositMonitorSource),'Automatic deposit monitor may process only AI-approved/manual-approved submissions');
 assert(adminQueuesSource.includes('is_valid_tron_address')&&adminQueuesSource.includes('walletValid'),'Master Admin withdrawal queue must show exact-case recipient validation');
 assert(adminAuth.includes('DO NOT EXECUTE THIS PAYOUT')&&adminAuth.includes('Changing the profile wallet does not automatically change this existing request'),'Invalid recipients must be visibly blocked in the Master Admin queue');
 const invalidWalletRefund=fs.readFileSync('database/migrations/20261011_reconcile_invalid_unbroadcast_withdrawal.sql','utf8');
