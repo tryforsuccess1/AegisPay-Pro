@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { loadPrivateImage, runVisionReview } from "../_shared/deposit-image-ai.ts";
+import { loadPrivateImage, normalizeVisionConfidence, runVisionReview } from "../_shared/deposit-image-ai.ts";
 import { extractUniqueTxidCandidate, sha256Hex } from "../_shared/deposit-txid.ts";
 import { isAllowlistedShastaTestUser, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
@@ -166,9 +166,7 @@ Deno.serve(async (req: Request) => {
     }
     const result = scan.result || {};
     const candidateTxid = extractUniqueTxidCandidate(result.candidate_txid);
-    const rawConfidence = typeof result.confidence === "number" ? result.confidence : null;
-    const confidence = rawConfidence !== null && Number.isFinite(rawConfidence) && rawConfidence >= 0 && rawConfidence <= 1
-      ? Math.round(rawConfidence * 1000) / 1000 : null;
+    const confidence = normalizeVisionConfidence(result.confidence);
     console.info("TXID_SCAN_RESULT", {
       provider: scan.provider || "unknown",
       candidate_valid: Boolean(candidateTxid),
