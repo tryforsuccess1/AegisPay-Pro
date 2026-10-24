@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
-import { shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
+
 import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
 import { loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
@@ -373,7 +373,7 @@ Deno.serve(async (req: Request) => {
   }
   if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
   if (!MAINNET_HD_MNEMONIC.trim() ||
-      !shastaMnemonicsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC)) {
+      !(HD_MNEMONIC.trim() && MAINNET_HD_MNEMONIC.trim() && HD_MNEMONIC.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ") !== MAINNET_HD_MNEMONIC.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" "))) {
     return json({ error: "Shasta HD mnemonic is missing or reused from Mainnet.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
   }
 
