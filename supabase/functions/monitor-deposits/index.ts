@@ -67,6 +67,8 @@ async function verifyOne(admin: any, deposit: any, receiving: string, baseUrl: s
     const preferredTxid = canonicalTxid || claimedTxid;
     match = preferredTxid ? findExactShastaUsdtTransfer(rows, preferredTxid, receiving) : null;
     if (!match || !exactUsdtRawAmountMatches(match, deposit.gross_amount)) {
+      // A capped provider response cannot establish uniqueness of a fallback.
+      if (rows.length >= 200) return { id: deposit.id, status: "SHASTA_TRANSFER_PAGE_CAPPED" };
       const createdAt = new Date(deposit.created_at || Date.now()).getTime();
       const candidates = findShastaTransfersByAmount(rows, receiving, deposit.gross_amount, Math.max(1, createdAt - 24 * 60 * 60 * 1000));
       if (!candidates.length) return { id: deposit.id, status: "PENDING_NO_CHAIN_MATCH" };
