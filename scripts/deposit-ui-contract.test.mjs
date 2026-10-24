@@ -9,6 +9,8 @@ const addressFunction = readFileSync(new URL("../supabase/functions/get-deposit-
 const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposit/index.ts", import.meta.url), "utf8");
 const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposit-wallets/index.ts", import.meta.url), "utf8");
 const monitorFunction = readFileSync(new URL("../supabase/functions/monitor-deposits/index.ts", import.meta.url), "utf8");
+const verifyFunction = readFileSync(new URL("../supabase/functions/verify-deposit/index.ts", import.meta.url), "utf8");
+const depositCreditMigration = readFileSync(new URL("../database/migrations/20261024180500_harden_deposit_credit_and_single_pending_wallet_20261024.sql", import.meta.url), "utf8");
 const perDepositMigration = readFileSync(new URL("../database/migrations/20261024144103_per_deposit_tron_addresses_20261024.sql", import.meta.url), "utf8");
 const monitorRotationMigration = readFileSync(new URL("../database/migrations/20261024173503_deposit_monitor_queue_rotation_20261024.sql", import.meta.url), "utf8");
 const shastaTestModeSource = readFileSync(new URL("../supabase/functions/_shared/shasta-test-mode.ts", import.meta.url), "utf8");
@@ -126,4 +128,19 @@ test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and n
   assert.match(shastaTestModeSource, /export function shastaMnemonicsAreDistinct\(/);
   assert.match(shastaTestModeSource, /split\(\/\\s\+\/\)/);
   assert.match(shastaTestModeSource, /Boolean\(testSeed && mainnetSeed && testSeed !== mainnetSeed\)/);
+});
+
+
+test("Shasta fallback fails closed when the confirmed-transfer provider page is capped", () => {
+  assert.match(verifyFunction, /if \(transfers\.length >= 200\)[\s\S]{0,220}SHASTA_TRANSFER_PAGE_CAPPED/);
+  assert.match(monitorFunction, /if \(rows\.length >= 200\) return \{ id: deposit\.id, status: "SHASTA_TRANSFER_PAGE_CAPPED" \}/);
+});
+
+test("one unresolved submission per deposit wallet is enforced in code and database", () => {
+  assert.ok(submitFunction.includes('.eq("deposit_wallet_id", depositWallet.id).eq("status", "PENDING_VERIFICATION")'));
+  assert.ok(submitFunction.includes('code: "DEPOSIT_REQUEST_ALREADY_PENDING"'));
+  assert.ok(submitFunction.includes("/deposit_submissions_one_pending_per_wallet_uq/"));
+  assert.ok(depositCreditMigration.includes("deposit_submissions_one_pending_per_wallet_uq"));
+  assert.ok(depositCreditMigration.includes("shasta_testnet_rules"));
+  assert.ok(depositCreditMigration.includes("network differs from current settings"));
 });
