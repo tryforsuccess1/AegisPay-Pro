@@ -159,10 +159,10 @@ Deno.serve(async (req) => {
     if (currentError) return json({ error: "Unable to load this deposit request address." }, 503);
     if (current) {
       if (current.wallet_root_fingerprint !== rootFingerprint) return json({ error: "The configured HD root does not match this user's existing address record. Restore the original root secret before issuing addresses.", code: "HD_WALLET_ROOT_MISMATCH" }, 409);
-      const { data: priorVerified, error: priorVerifiedError } = await admin.from("deposit_submissions").select("id")
-        .eq("deposit_wallet_id", current.id).eq("status", "VERIFIED").limit(1);
-      if (priorVerifiedError) return json({ error: "Unable to confirm whether this deposit request is complete." }, 503);
-      if ((priorVerified || []).length) return json({ error: "This deposit request is already completed. Start a fresh deposit request.", code: "DEPOSIT_REQUEST_ALREADY_COMPLETED" }, 409);
+      const { data: terminalSubmissions, error: terminalSubmissionError } = await admin.from("deposit_submissions").select("id,status")
+        .eq("deposit_wallet_id", current.id).in("status", ["VERIFIED", "REJECTED", "FAILED"]).limit(1);
+      if (terminalSubmissionError) return json({ error: "Unable to confirm whether this deposit request is complete." }, 503);
+      if ((terminalSubmissions || []).length) return json({ error: "This deposit request is already complete or rejected. Start a fresh deposit request.", code: "DEPOSIT_REQUEST_ALREADY_COMPLETED" }, 409);
       return json({ address: current.address, network, tokenContract: current.token_contract, depositRequestId: current.deposit_request_id, depositWalletId: current.id, derivationPath: `m/44'/195'/0'/0/${current.derivation_index}`, created: false });
     }
 
@@ -183,12 +183,15 @@ Deno.serve(async (req) => {
       wallet_root_fingerprint: rootFingerprint, token_contract: tokenContract, status: "ACTIVE",
     }).select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,deposit_request_id").single();
     if (insertError || !inserted) {
-      if (insertError && /DEPOSIT_ADDRESS_RATE_LIMIT/.test([insertError.message, insertError.details, insertError.hint].filter(Boolean).join(" "))) {
-        return json({ error: "You have reached the limit of 10 new deposit addresses in 24 hours. Continue with your existing deposit request or contact support.", code: "DEPOSIT_ADDRESS_RATE_LIMIT" }, 429);
-      }
-      const { data: raced } = await admin.from("deposit_wallets").select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,deposit_request_id")
+      const errorText = [insertError?.message, insertError?.details, insertError?.hint].filter(Boolean).join(" ");
+      const rateLimited = /DEPOSIT_ADDRESS_RATE_LIMIT/.test(errorText);
+      // A concurrent retry may race the per-user limit trigger. Recover the
+      // winning row for the same request ID before returning a rate-limit error.
+      const { data: raced, error: racedError } = await admin.from("deposit_wallets").select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,deposit_request_id")
         .eq("user_id", profile.id).eq("network", network).eq("deposit_request_id", requestId).maybeSingle();
+      if (racedError) return json({ error: "Unable to recover the existing deposit request safely." }, 503);
       if (raced && raced.wallet_root_fingerprint === rootFingerprint) return json({ address: raced.address, network, tokenContract: raced.token_contract, depositRequestId: raced.deposit_request_id, depositWalletId: raced.id, derivationPath: `m/44'/195'/0'/0/${raced.derivation_index}`, created: false });
+      if (rateLimited) return json({ error: "You have reached the limit of 10 new deposit addresses in 24 hours. Continue with your existing deposit request or contact support.", code: "DEPOSIT_ADDRESS_RATE_LIMIT" }, 429);
       return json({ error: "Unable to safely assign a unique deposit address." }, 409);
     }
     await admin.from("audit_events").insert({ actor_user_id: profile.id, target_user_id: profile.id, event_type: "DEPOSIT_ADDRESS_ASSIGNED", description: "Assigned a unique TRON HD address for one deposit request.", reference_id: inserted.id });
