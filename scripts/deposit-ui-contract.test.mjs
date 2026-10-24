@@ -5,6 +5,9 @@ import { runInNewContext } from "node:vm";
 
 const client = readFileSync(new URL("../client.html", import.meta.url), "utf8");
 const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.url), "utf8");
+const addressFunction = readFileSync(new URL("../supabase/functions/get-deposit-address/index.ts", import.meta.url), "utf8");
+const submitFunction = readFileSync(new URL("../supabase/functions/submit-deposit/index.ts", import.meta.url), "utf8");
+const perDepositMigration = readFileSync(new URL("../database/migrations/20261024143000_per_deposit_tron_addresses.sql", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
@@ -52,4 +55,19 @@ test("deposit TXID fallback exists and is used only when automatic extraction ha
   assert.match(client, /txid:txidForSubmit/);
   assert.match(client, /\^\[a-f0-9\]\{64\}\$/i);
   assert.match(client, /Deposit request submitted\. Checking the confirmed TRON blockchain/);
+});
+
+
+test("each deposit session gets a fresh idempotent address request, not the user's prior address", () => {
+  assert.match(client, /const depositRequestId=\(typeof crypto!=='undefined'&&typeof crypto\.randomUUID==='function'\)\?crypto\.randomUUID\(\)/);
+  assert.match(client, /getMyDepositAddressDetails\(depositRequestId\)/);
+  assert.match(client, /body:\{depositRequestId:requestId\}/);
+  assert.match(client, /depositRequestId:depositRequestId/);
+  assert.match(addressFunction, /\.eq\("deposit_request_id", requestId\)/);
+  assert.doesNotMatch(addressFunction, /\.eq\("user_id", profile\.id\)\.eq\("network", network\)\.eq\("status", "ACTIVE"\)\.maybeSingle\(\)/);
+  assert.match(addressFunction, /deposit_request_id: requestId/);
+  assert.match(submitFunction, /\.eq\("deposit_request_id", depositRequestId\)/);
+  assert.match(perDepositMigration, /DROP CONSTRAINT IF EXISTS deposit_wallets_user_network_uq/);
+  assert.match(perDepositMigration, /deposit_wallets_request_id_uq/);
+  assert.match(perDepositMigration, /deposit_request_id SET NOT NULL/);
 });

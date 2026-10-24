@@ -3602,8 +3602,10 @@ async function completeShopTask(taskId){
  }
 }
 
-async function getMyDepositAddressDetails(){
- const result=await db.functions.invoke('get-deposit-address',{body:{}});
+async function getMyDepositAddressDetails(depositRequestId){
+ const requestId=String(depositRequestId||'').trim();
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))throw Object.assign(new Error('Start a new deposit request before generating its receiving address.'),{code:'DEPOSIT_REQUEST_ID_REQUIRED'});
+ const result=await db.functions.invoke('get-deposit-address',{body:{depositRequestId:requestId}});
  if(result.error){
   let payload=result.data&&typeof result.data==='object'?result.data:{};
   try{
@@ -3635,7 +3637,7 @@ async function getMyDepositAddressDetails(){
  if(!['TRON MAINNET','TRON TESTNET'].includes(network)||!tokenContract){
   throw Object.assign(new Error('The deposit service returned an unsupported network configuration. No funds were moved.'),{code:'UNSUPPORTED_DEPOSIT_NETWORK'});
  }
- return {address:String(row.address),network,tokenContract};
+ return {address:String(row.address),network,tokenContract,depositRequestId:String(row.depositRequestId||requestId),depositWalletId:String(row.depositWalletId||'')};
 }
 async function getMyDepositAddress(){
  const details=await getMyDepositAddressDetails();
@@ -5213,7 +5215,8 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};
     const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;
     let wallet='',walletDetails=null,addressError=null;
-    try{walletDetails=await getMyDepositAddressDetails();wallet=walletDetails.address;}catch(error){addressError=error;}
+     const depositRequestId=(typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){const r=Math.random()*16|0;return(ch==='x'?r:(r&3|8)).toString(16);});
+     try{walletDetails=await getMyDepositAddressDetails(depositRequestId);wallet=walletDetails.address;}catch(error){addressError=error;}
     const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
     const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
     const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
@@ -5390,7 +5393,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         depositBusy=true;
         submitDep.disabled=true;submitDep.textContent=depositPendingId?'Checking TronGrid…':'Submitting…';
         if(!depositPendingId){
-          const submission=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:txidForSubmit,screenshotPath:depositScreenshotPath}});
+          const submission=await db.functions.invoke('submit-deposit',{body:{amount:amount,txid:txidForSubmit,screenshotPath:depositScreenshotPath,depositRequestId:depositRequestId}});
           if(submission.error){
             const details=await readDepositFunctionError(submission.error,'Deposit request could not be submitted.');
             if(details.payload.code==='DUPLICATE_DEPOSIT_EVIDENCE'&&details.payload.depositId&&String(details.payload.status||'')==='PENDING_VERIFICATION'){

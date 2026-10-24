@@ -76,15 +76,20 @@ Deno.serve(async (req: Request) => {
     if (profile.role !== "USER" || ["BLOCKED", "SUSPENDED", "DELETED"].includes(String(profile.status).toUpperCase())) return json({ error: "This account cannot submit deposits." }, 403);
     if (profile.frozen_until && new Date(profile.frozen_until).getTime() > Date.now()) return json({ error: "Account is temporarily frozen for security. Please try again after the freeze expires." }, 423);
 
+    const body = await req.json().catch(() => null);
+    const depositRequestId = typeof body?.depositRequestId === "string" ? body.depositRequestId.trim() : "";
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(depositRequestId)) {
+      return json({ error: "This deposit request is missing its address reference. Reopen Deposit to create a new request.", code: "DEPOSIT_REQUEST_ID_REQUIRED" }, 400);
+    }
     const { data: depositWallet, error: depositWalletError } = await admin.from("deposit_wallets")
-      .select("id,address,network,token_contract,status").eq("user_id", profile.id).eq("network", depositNetwork).eq("status", "ACTIVE").maybeSingle();
+      .select("id,address,network,token_contract,status,deposit_request_id")
+      .eq("user_id", profile.id).eq("network", depositNetwork).eq("deposit_request_id", depositRequestId).maybeSingle();
     if (depositWalletError || !depositWallet || !/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(depositWallet.address || ""))) {
-      return json({ error: "Your unique TRON deposit address is not ready. Open the deposit page again before submitting proof.", code: "USER_DEPOSIT_ADDRESS_REQUIRED" }, 409);
+      return json({ error: "This deposit request address was not found. Reopen Deposit and use the newly displayed address.", code: "USER_DEPOSIT_ADDRESS_REQUIRED" }, 409);
     }
     const receivingAddress = String(depositWallet.address).trim();
     if (String(depositWallet.token_contract || "") !== String(rules.token_contract || "")) return json({ error: "The assigned deposit address token configuration is stale. Contact support before submitting a transfer.", code: "DEPOSIT_WALLET_CONFIG_MISMATCH" }, 409);
 
-    const body = await req.json().catch(() => null);
     const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
     const amount = Number(amountInput);
     const txid = typeof body?.txid === "string" ? body.txid.trim() : "";
