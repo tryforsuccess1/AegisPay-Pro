@@ -5,12 +5,14 @@ import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-const HD_MNEMONIC = Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
-const HD_PASSPHRASE = Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
+const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || "";
+const SHASTA_HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || "";
+const MAINNET_HD_PASSPHRASE = Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
+const SHASTA_HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
-const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
-const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
+const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || "";
+const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || "";
 const TELEGRAM_TOKEN = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 const TELEGRAM_CHAT_ID = Deno.env.get("TELEGRAM_CHAT_ID") || "";
 const TELEGRAM_APPROVER_IDS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((v) => /^[0-9]{1,20}$/.test(v));
@@ -49,6 +51,8 @@ Deno.serve(async (req) => {
     const rules = rulesRow.value_json, mode = modeRow.value_json, production = productionRow.value_json;
     const network = String(rules.network || "").toUpperCase();
     const tokenContract = String(rules.token_contract || "").trim();
+    const HD_MNEMONIC = network === "TRON MAINNET" ? MAINNET_HD_MNEMONIC : network === "TRON TESTNET" ? SHASTA_HD_MNEMONIC : "";
+    const HD_PASSPHRASE = network === "TRON MAINNET" ? MAINNET_HD_PASSPHRASE : network === "TRON TESTNET" ? SHASTA_HD_PASSPHRASE : "";
     const treasury = String(rules.receiving_address || "").trim();
     let ready = false, payoutKey = "";
     if (network === "TRON MAINNET") {
