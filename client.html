@@ -3639,8 +3639,37 @@ async function getMyDepositAddressDetails(depositRequestId){
  }
  return {address:String(row.address),network,tokenContract,depositRequestId:String(row.depositRequestId||requestId),depositWalletId:String(row.depositWalletId||'')};
 }
+let activeDepositRequestId='';
+function getDepositRequestStorageKey(){
+ return 'aegis:deposit-request:'+String((typeof authUser!=='undefined'&&authUser&&authUser.id)||(typeof profile!=='undefined'&&profile&&(profile.auth_user_id||profile.id))||'')+':'+String((typeof settings!=='undefined'&&settings&&settings.system_mode&&settings.system_mode.mode)||'');
+}
+function createDepositRequestId(){
+ return (typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){const r=Math.random()*16|0;return(ch==='x'?r:(r&3|8)).toString(16);});
+}
+async function getCurrentDepositRequestDetails(){
+ const storageKey=getDepositRequestStorageKey();
+ let requestId='';
+ try{requestId=String(localStorage.getItem(storageKey)||'');}catch(_){}
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)){
+  requestId=createDepositRequestId();try{localStorage.setItem(storageKey,requestId);}catch(_){}
+ }
+ try{
+  const details=await getMyDepositAddressDetails(requestId);
+  activeDepositRequestId=String(details.depositRequestId||requestId);
+  return details;
+ }catch(error){
+  if(error&&error.code==='DEPOSIT_REQUEST_ALREADY_COMPLETED'){
+   try{localStorage.removeItem(storageKey);}catch(_){}
+   requestId=createDepositRequestId();try{localStorage.setItem(storageKey,requestId);}catch(_){}
+   const details=await getMyDepositAddressDetails(requestId);
+   activeDepositRequestId=String(details.depositRequestId||requestId);
+   return details;
+  }
+  throw error;
+ }
+}
 async function getMyDepositAddress(){
- const details=await getMyDepositAddressDetails();
+ const details=await getCurrentDepositRequestDetails();
  return details.address;
 }
 async function liveTopup(){
@@ -3725,7 +3754,7 @@ async function liveTopup(){
    const path=authUser.id+'/deposits/'+crypto.randomUUID()+'.'+((f.name.split('.').pop()||'jpg').toLowerCase());
    const up=await db.storage.from('private-verification').upload(path,f,{contentType:f.type||'image/jpeg'});
    if(up.error)throw up.error;
-   const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path}});
+   const result=await db.functions.invoke('submit-deposit',{body:{amount:value,txid:tx,screenshotPath:path,depositRequestId:activeDepositRequestId}});
    if(result.error)throw result.error;
    uiNotice(result.data&&result.data.message||'Deposit submitted for verification.','success');
    await liveTopup();
@@ -5215,18 +5244,9 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};
     const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;
     let wallet='',walletDetails=null,addressError=null;
-     const depositRequestStorageKey='aegis:deposit-request:'+String(authUser.id||'')+':'+String((settings.system_mode&&settings.system_mode.mode)||'');
-     const createDepositRequestId=()=>((typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){const r=Math.random()*16|0;return(ch==='x'?r:(r&3|8)).toString(16);}));
+     const depositRequestStorageKey=getDepositRequestStorageKey();
      let depositRequestId='';
-     try{depositRequestId=String(localStorage.getItem(depositRequestStorageKey)||'');}catch(_){}
-     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(depositRequestId)){depositRequestId=createDepositRequestId();try{localStorage.setItem(depositRequestStorageKey,depositRequestId);}catch(_){}}
-     try{walletDetails=await getMyDepositAddressDetails(depositRequestId);wallet=walletDetails.address;}catch(error){
-       if(error&&error.code==='DEPOSIT_REQUEST_ALREADY_COMPLETED'){
-         try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}
-         depositRequestId=createDepositRequestId();try{localStorage.setItem(depositRequestStorageKey,depositRequestId);}catch(_){}
-         try{walletDetails=await getMyDepositAddressDetails(depositRequestId);wallet=walletDetails.address;}catch(retryError){addressError=retryError;}
-       }else addressError=error;
-     }
+     try{walletDetails=await getCurrentDepositRequestDetails();depositRequestId=activeDepositRequestId;wallet=walletDetails.address;}catch(error){addressError=error;}
     const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
     const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
     const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
