@@ -200,12 +200,24 @@ Deno.serve(async (req: Request) => {
     }
     const shastaRules = await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED);
 
-    // Include Shasta manual-review rows so confirmed on-chain proof can resolve
-    // receipt/OCR uncertainty. The loop keeps all Mainnet review gates unchanged.
-    const { data: pending, error } = await admin.from("deposit_submissions").select("*")
-      .eq("status", "PENDING_VERIFICATION")
-      .order("created_at", { ascending: true }).limit(100);
-    if (error) return json({ error: "Unable to load pending deposits." }, 500);
+    // Keep independent queues per network: old unmatched Shasta manual-review
+    // rows must not occupy the oldest-first Mainnet batch. Select only review
+    // states that the verification loop can process.
+    const [
+      { data: mainnetPending, error: mainnetPendingError },
+      { data: shastaPending, error: shastaPendingError },
+    ] = await Promise.all([
+      admin.from("deposit_submissions").select("*")
+        .eq("status", "PENDING_VERIFICATION").eq("network", "TRON MAINNET")
+        .in("ai_review_status", ["APPROVED", "MANUAL_APPROVED"])
+        .order("created_at", { ascending: true }).limit(100),
+      admin.from("deposit_submissions").select("*")
+        .eq("status", "PENDING_VERIFICATION").eq("network", "TRON TESTNET")
+        .in("ai_review_status", ["APPROVED", "MANUAL_APPROVED", "MANUAL_REVIEW"])
+        .order("created_at", { ascending: true }).limit(100),
+    ]);
+    if (mainnetPendingError || shastaPendingError) return json({ error: "Unable to load pending deposits." }, 500);
+    const pending = [...(mainnetPending || []), ...(shastaPending || [])];
 
     let mainnetDepositsOpen = false;
     if (network === "TRON MAINNET") {
