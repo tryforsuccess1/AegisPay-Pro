@@ -56,6 +56,10 @@ export function resolveVisionEndpoint(value: string): { url: string; anthropic: 
   }
   return { url: endpointUrl.toString(), anthropic };
 }
+export function normalizeVisionConfidence(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0 || value > 1) return null;
+  return Math.round(value * 1000) / 1000;
+}
 export function parseVisionJsonObject(content: string): Record<string, unknown> {
   const normalized = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
   let parsed: unknown;
