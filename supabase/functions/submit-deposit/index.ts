@@ -125,6 +125,20 @@ Deno.serve(async (req: Request) => {
     const receivingAddress = String(depositWallet.address).trim();
     if (String(depositWallet.token_contract || "") !== String(rules.token_contract || "")) return json({ error: "The assigned deposit address token configuration is stale. Contact support before submitting a transfer.", code: "DEPOSIT_WALLET_CONFIG_MISMATCH" }, 409);
 
+    // One deposit request/address may have only one unresolved submission.
+    // This prevents ambiguous same-amount Shasta chain-discovery claims.
+    const { data: existingPending, error: existingPendingError } = await admin.from("deposit_submissions")
+      .select("id,status,gross_amount,created_at").eq("user_id", profile.id)
+      .eq("deposit_wallet_id", depositWallet.id).eq("status", "PENDING_VERIFICATION")
+      .order("created_at", { ascending: true }).limit(1).maybeSingle();
+    if (existingPendingError) return json({ error: "Unable to check for an existing pending deposit. Please retry shortly.", code: "PENDING_DEPOSIT_LOOKUP_FAILED" }, 503);
+    if (existingPending) return json({
+      error: "This deposit address already has a pending submission. No second submission was created; wait for review or open the existing request.",
+      code: "DEPOSIT_REQUEST_ALREADY_PENDING",
+      depositId: existingPending.id,
+      status: existingPending.status,
+    }, 409);
+
     const amountInput = (typeof body?.amount === "number" || typeof body?.amount === "string") ? String(body.amount).trim() : "";
     const amount = Number(amountInput);
     const enteredTxid = typeof body?.txid === "string" ? body.txid.trim() : "";
@@ -202,6 +216,18 @@ Deno.serve(async (req: Request) => {
     }).select("id,status,ai_review_status,gross_amount,created_at").single();
     if (insertError || !deposit) {
       const errorMessage = String(insertError?.message || "");
+      if (/deposit_submissions_one_pending_per_wallet_uq/.test(errorMessage)) {
+        const { data: racedPending, error: racedPendingError } = await admin.from("deposit_submissions")
+          .select("id,status").eq("user_id", profile.id).eq("deposit_wallet_id", depositWallet.id)
+          .eq("status", "PENDING_VERIFICATION").limit(1).maybeSingle();
+        if (racedPendingError) return json({ error: "A pending deposit may already exist; unable to safely confirm it. Retry shortly.", code: "PENDING_DEPOSIT_LOOKUP_FAILED" }, 503);
+        return json({
+          error: "This deposit address already has a pending submission. No second submission was created.",
+          code: "DEPOSIT_REQUEST_ALREADY_PENDING",
+          depositId: racedPending?.id || null,
+          status: racedPending?.status || "PENDING_VERIFICATION",
+        }, 409);
+      }
       const duplicateTxid = /duplicate|unique/i.test(errorMessage) && /txid/i.test(errorMessage);
       if (duplicateTxid && validEnteredTxid) {
         const recorded = await registerDuplicateTxidAttempt(admin, profile.id, enteredTxid);
