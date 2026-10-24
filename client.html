@@ -3641,7 +3641,9 @@ async function getMyDepositAddressDetails(depositRequestId){
 }
 let activeDepositRequestId='';
 function getDepositRequestStorageKey(){
- const userKey=String((typeof profile!=='undefined'&&profile&&profile.id)||(typeof authUser!=='undefined'&&authUser&&authUser.id)||'');
+ // Use the stable AegisPay profile ID only. Falling back to authUser.id before
+ // profile hydration would create a second storage key after the profile loads.
+ const userKey=String((typeof profile!=='undefined'&&profile&&profile.id)||'');
  if(!userKey){const error=new Error('Your account session is not ready. Reload the deposit page before transferring any funds.');error.code='DEPOSIT_REQUEST_SESSION_UNAVAILABLE';throw error;}
  return 'aegis:deposit-request:'+userKey;
 }
