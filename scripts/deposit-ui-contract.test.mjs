@@ -87,6 +87,7 @@ test("each deposit session gets a fresh idempotent address request, not the user
   assert.match(sweeperFunction, /TRON_SHASTA_TREASURY_PRIVATE_KEY/);
   assert.match(sweeperFunction, /TRON_MAINNET_TREASURY_PRIVATE_KEY/);
   assert.match(sweeperFunction, /shastaSecretsAreDistinct\(HD_MNEMONIC, MAINNET_HD_MNEMONIC, TESTNET_PAYOUT_KEY, MAINNET_PAYOUT_KEY\)/);
+  assert.match(addressFunction, /!seedsDistinct \|\| !payoutKeysPresentAndDistinct \|\| !shastaSecretsAreDistinct\(/);
 });
 
 
