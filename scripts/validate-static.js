@@ -670,7 +670,7 @@ const hdWalletSource=fs.readFileSync('supabase/functions/_shared/tron-hd-wallet.
 const hdWalletEndpoint=fs.readFileSync('supabase/functions/get-deposit-address/index.ts','utf8');
 const hdWalletMigration=fs.readFileSync('database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql','utf8');
 assert(hdWalletSource.includes("m/44'/195'/0'/0")&&hdWalletSource.includes('TronWeb.fromMnemonic'),'HD wallet derivation must use the TRON BIP44 path');
-assert(hdWalletEndpoint.includes('TRON_HD_WALLET_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must require a server-side seed and fail closed on root mismatch');
+assert(hdWalletEndpoint.includes('TRON_MAINNET_CHILD_HD_MNEMONIC')&&hdWalletEndpoint.includes('TRON_SHASTA_CHILD_HD_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must use network-specific server-side seeds and fail closed on root mismatch');
 assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint.includes('privateKey: identity.privateKey'),'HD address API must never return derived private keys');
 assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
