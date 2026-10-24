@@ -7,7 +7,7 @@ const client = readFileSync(new URL("../client.html", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
-  const end = client.indexOf("\\nconst qrSvg=(address)=>", start);
+  const end = client.indexOf("\nconst qrSvg=(address)=>", start);
   assert.ok(start >= 0 && end > start, "embedded QR library boundaries must exist");
   const sandbox = {};
   runInNewContext(client.slice(start, end), sandbox, { timeout: 1000 });
@@ -16,8 +16,8 @@ test("embedded QR encoder produces a valid SVG for a TRON wallet without network
   code.addData("TPXkczErK2Bo66MMU9HxYvnPFqB6mGYTTJ", "Byte");
   code.make();
   const svg = code.createSvgTag(5, 4);
-  assert.match(svg, /<svg\\b/);
-  assert.match(svg, /viewBox="0 0 [1-9]\\d* [1-9]\\d*"/);
+  assert.match(svg, /<svg\b/);
+  assert.match(svg, /viewBox="0 0 [1-9]\d* [1-9]\d*"/);
   assert.doesNotMatch(svg, /NaN|undefined/);
 });
 
