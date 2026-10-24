@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
-import { isAllowlistedShastaTestUser, loadShastaTestRules, shastaMnemonicsAreDistinct, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
+import { isAllowlistedShastaTestUser, loadShastaTestRules, shastaSecretsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -116,7 +116,8 @@ Deno.serve(async (req) => {
       return json({ error: "Deposit addresses are unavailable until the selected network and payout-readiness checks pass.", code: "DEPOSIT_ADDRESS_NETWORK_PAUSED" }, 423);
     }
     if (network === "TRON TESTNET") {
-      const seedsDistinct = shastaMnemonicsAreDistinct(TESTNET_HD_MNEMONIC, HD_MNEMONIC);
+      const normalizeMnemonic = (value: string) => value.trim().toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+      const seedsDistinct = Boolean(TESTNET_HD_MNEMONIC.trim() && HD_MNEMONIC.trim() && normalizeMnemonic(TESTNET_HD_MNEMONIC) !== normalizeMnemonic(HD_MNEMONIC));
       const payoutKeysPresentAndDistinct = Boolean(
         TESTNET_PAYOUT_KEY.trim()
         && MAINNET_PAYOUT_KEY.trim()
