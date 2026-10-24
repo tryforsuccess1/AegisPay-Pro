@@ -88,13 +88,51 @@ export async function runVisionReview(prompt: string, images: ImagePayload[]): P
       });
       throw new Error("AI evidence review returned HTTP " + response.status);
     }
-    const body = await response.json();
+    const responseText = await response.text();
+    let body: any;
+    try {
+      body = JSON.parse(responseText);
+    } catch {
+      console.warn("AI_REVIEW_INVALID_PROVIDER_JSON", {
+        provider: anthropic ? "anthropic" : "openai-compatible",
+        status: response.status,
+        content_type: response.headers.get("content-type") || "unknown",
+        response_length: responseText.length
+      });
+      throw new Error("AI evidence review returned an unreadable response.");
+    }
     const content = anthropic
       ? (Array.isArray(body?.content) ? body.content.filter((x: any) => x?.type === "text").map((x: any) => String(x.text || "")).join("\n") : "")
       : body?.choices?.[0]?.message?.content;
     if (typeof content !== "string") throw new Error("AI review returned no text.");
     const normalized = content.trim().replace(/^\x60\x60\x60(?:json)?\s*/i, "").replace(/\s*\x60\x60\x60$/, "");
-    const parsed = JSON.parse(normalized);
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(normalized);
+    } catch {
+      // Some vision models add a short preamble despite the JSON-only instruction.
+      // Recover only a complete JSON object; never guess or synthesize fields.
+      const firstBrace = normalized.indexOf("{");
+      const lastBrace = normalized.lastIndexOf("}");
+      if (firstBrace < 0 || lastBrace <= firstBrace) {
+        console.warn("AI_REVIEW_INVALID_MODEL_JSON", {
+          provider: anthropic ? "anthropic" : "openai-compatible",
+          content_length: normalized.length,
+          contains_object_start: firstBrace >= 0,
+          contains_object_end: lastBrace >= 0
+        });
+        throw new Error("AI evidence review did not return a valid JSON object.");
+      }
+      try {
+        parsed = JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
+      } catch {
+        console.warn("AI_REVIEW_MALFORMED_MODEL_JSON", {
+          provider: anthropic ? "anthropic" : "openai-compatible",
+          content_length: normalized.length
+        });
+        throw new Error("AI evidence review returned malformed JSON.");
+      }
+    }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("Invalid AI result.");
     return { configured: true, result: parsed as Record<string, unknown> };
   } finally {
