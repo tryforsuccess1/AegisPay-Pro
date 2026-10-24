@@ -127,17 +127,19 @@ async function getIncomingTransfers(address: string): Promise<IncomingTransfer[]
 }
 async function getVerifiedSources(admin: Admin, walletId: string): Promise<Map<string, VerifiedSource>> {
   const { data, error } = await admin.from("deposit_submissions")
-    .select("id,txid,raw_amount,verification_source").eq("deposit_wallet_id", walletId).eq("status", "VERIFIED").eq("verification_source", "TronGrid").limit(1000);
+    .select("id,txid,raw_amount,verification_source").eq("deposit_wallet_id", walletId).eq("status", "VERIFIED")
+    .in("verification_source", ["TronGrid", "TronGrid Monitor"]).limit(1000);
   if (error) throw new Error("VERIFIED_DEPOSIT_LOOKUP_FAILED");
   const map = new Map<string, VerifiedSource>();
   for (const row of data || []) {
     const txid = String(row.txid || "").toLowerCase();
-    if (validTxid(txid) && String(row.verification_source || "") === "TronGrid") {
+    const verificationSource = String(row.verification_source || "");
+    if (validTxid(txid) && ["TronGrid", "TronGrid Monitor"].includes(verificationSource)) {
       map.set(txid, {
         id: String(row.id),
         txid,
         raw_amount: row.raw_amount == null ? null : String(row.raw_amount),
-        verification_source: "TronGrid",
+        verification_source: verificationSource,
       });
     }
   }
