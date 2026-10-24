@@ -2,15 +2,19 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
+import { shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
 import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
+import { loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
 const TESTNET_SWEEP_ENABLED = Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true";
-const HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || "";
-const HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
-const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || "";
+const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
+const HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
+const MAINNET_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
+const HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
+const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const NETWORK = "TRON TESTNET";
 const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
@@ -39,7 +43,7 @@ type SweepRow = {
   status: string; idempotency_key: string; failure_code?: string | null;
 };
 type IncomingTransfer = { txid: string; rawAmount: string; blockTimestamp: number };
-type VerifiedSource = { id: string; txid: string; raw_amount?: string | null };
+type VerifiedSource = { id: string; txid: string; raw_amount?: string | null; verification_source: string };
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: cors });
@@ -123,12 +127,19 @@ async function getIncomingTransfers(address: string): Promise<IncomingTransfer[]
 }
 async function getVerifiedSources(admin: Admin, walletId: string): Promise<Map<string, VerifiedSource>> {
   const { data, error } = await admin.from("deposit_submissions")
-    .select("id,txid,raw_amount").eq("deposit_wallet_id", walletId).eq("status", "VERIFIED").limit(1000);
+    .select("id,txid,raw_amount,verification_source").eq("deposit_wallet_id", walletId).eq("status", "VERIFIED").eq("verification_source", "TronGrid").limit(1000);
   if (error) throw new Error("VERIFIED_DEPOSIT_LOOKUP_FAILED");
   const map = new Map<string, VerifiedSource>();
   for (const row of data || []) {
     const txid = String(row.txid || "").toLowerCase();
-    if (validTxid(txid)) map.set(txid, { id: String(row.id), txid, raw_amount: row.raw_amount == null ? null : String(row.raw_amount) });
+    if (validTxid(txid) && String(row.verification_source || "") === "TronGrid") {
+      map.set(txid, {
+        id: String(row.id),
+        txid,
+        raw_amount: row.raw_amount == null ? null : String(row.raw_amount),
+        verification_source: "TronGrid",
+      });
+    }
   }
   return map;
 }
@@ -356,18 +367,22 @@ async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
-  if (!TESTNET_SWEEP_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
+  if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
   if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
     return json({ error: "Testnet sweep is not configured." }, 503);
   }
   if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
+  if (!MAINNET_HD_MNEMONIC.trim() ||
+      !shastaMnemonicsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC)) {
+    return json({ error: "Shasta HD mnemonic is missing or reused from Mainnet.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
+  }
 
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     const [{ data: appEnabled, error: runtimeError }, { data: rulesRow, error: rulesError },
       { data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
       admin.rpc("app_runtime_enabled"),
-      admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
+      admin.from("platform_settings").select("value_json").eq("key", "shasta_testnet_rules").maybeSingle(),
       admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
       admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
     ]);
@@ -376,36 +391,44 @@ Deno.serve(async (req: Request) => {
     }
     const rules = rulesRow.value_json, mode = modeRow.value_json, production = productionRow.value_json;
     if (appEnabled !== true) return json({ error: "AegisPay runtime is paused." }, 423);
-    const productionEnvironment = String(production.environment || "").toUpperCase();
-    if (String(rules.network || "").toUpperCase() !== NETWORK || String(rules.token_contract || "") !== TOKEN) {
-      return json({ error: "This worker is restricted to the TRON Shasta testnet USDT contract.", code: "TESTNET_ONLY" }, 423);
+    const validatedRules = await loadShastaTestRules(admin, SHASTA_TEST_MODE_ENABLED);
+    if (!validatedRules || String(rules.network || "").toUpperCase() !== NETWORK || String(rules.token_contract || "") !== TOKEN) {
+      return json({ error: "The separate Shasta test configuration is invalid or live-money gates are not safely closed.", code: "SHASTA_TEST_MODE_BLOCKED" }, 423);
     }
-    if (productionEnvironment === "PRODUCTION" || mode.mode === "MAINNET" ||
+    const productionEnvironment = String(production.environment || "").toUpperCase();
+    if (productionEnvironment !== "PRE_PRODUCTION" || String(mode.mode || "").toUpperCase() !== "MAINNET" ||
       mode.live_deposits !== false || mode.real_payouts !== false || mode.production_go_live_approved !== false ||
       production.live_deposits_enabled !== false || production.real_payouts_enabled !== false ||
       production.go_live_approved !== false || production.payouts_locked !== true) {
       return json({ error: "Sweep refused because production or payment gates are not safely closed.", code: "PRODUCTION_MODE_BLOCKED" }, 423);
     }
-    const treasury = String(rules.receiving_address || "").trim();
+    const treasury = String(validatedRules.receiving_address || "").trim();
     if (!validAddress(treasury)) return json({ error: "Valid testnet treasury address is required." }, 503);
     const derivedTreasury = String(TronWeb.address.fromPrivateKey(TESTNET_PAYOUT_KEY) || "");
     if (derivedTreasury !== treasury) return json({ error: "Testnet treasury key mismatch.", code: "TREASURY_KEY_MISMATCH" }, 403);
 
+    const { data: allowlistedUsers, error: allowlistError } = await admin.from("shasta_test_users")
+      .select("user_id").eq("enabled", true);
+    if (allowlistError) return json({ error: "Unable to confirm the Shasta test-account allowlist." }, 503);
+    const testUserIds = [...new Set((allowlistedUsers || []).map((row: any) => String(row.user_id || "")))]
+      .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
+    if (!testUserIds.length) return json({ network: NETWORK, checked: 0, results: [], reason: "NO_ALLOWLISTED_TEST_USERS" });
     const { data: wallets, error: walletError } = await admin.from("deposit_wallets")
       .select("id,user_id,address,derivation_index,wallet_root_fingerprint,token_contract,network")
       .eq("network", NETWORK).eq("token_contract", TOKEN).eq("status", "ACTIVE")
+      .in("user_id", testUserIds)
       .order("last_sweep_attempt_at", { ascending: true, nullsFirst: true })
       .order("created_at", { ascending: true }).limit(MAX_WALLETS_PER_RUN);
-    if (walletError) return json({ error: "Unable to load testnet deposit wallets." }, 500);
+    if (walletError) return json({ error: "Unable to load allowlisted testnet deposit wallets." }, 500);
     const results = [];
     for (const wallet of (wallets || []) as WalletRow[]) {
-      let walletResult: Record<string, unknown>;
-      try { walletResult = await processWallet(admin, wallet, treasury); }
-      catch (error) { walletResult = { walletId: wallet.id, status: "NOT_SWEPT", code: errorCode(error) }; }
-      results.push(walletResult);
+      let result: Record<string, unknown>;
+      try { result = await processWallet(admin, wallet, treasury); }
+      catch (error) { result = { walletId: wallet.id, status: "NOT_SWEPT", code: errorCode(error) }; }
       const { error: rotationError } = await admin.from("deposit_wallets")
         .update({ last_sweep_attempt_at: new Date().toISOString() }).eq("id", wallet.id);
-      if (rotationError) results[results.length - 1].rotationMarked = false;
+      if (rotationError) result.rotationMarked = false;
+      results.push(result);
     }
     return json({ network: NETWORK, checked: results.length, results, mainnetSweepEnabled: false });
   } catch {
