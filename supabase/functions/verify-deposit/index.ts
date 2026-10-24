@@ -196,6 +196,11 @@ Deno.serve(async (req: Request) => {
       const preferredTxid = canonicalTxid || claimedTxid;
       match = preferredTxid ? findExactShastaUsdtTransfer(transfers, preferredTxid, receiving) : null;
       if (!match || !exactUsdtRawAmountMatches(match, deposit.gross_amount)) {
+        // Never declare a unique fallback while the provider page is capped:
+        // another exact-amount transfer may exist beyond the first 200 rows.
+        if (transfers.length >= 200) {
+          return json({ status: "PENDING_VERIFICATION", code: "SHASTA_TRANSFER_PAGE_CAPPED", message: "More confirmed Shasta transfers exist than can be safely checked in one page. No unique match or credit was made; retry later or review manually." }, 202);
+        }
         const createdAt = new Date(deposit.created_at || Date.now()).getTime();
         const notBefore = Math.max(1, createdAt - 24 * 60 * 60 * 1000);
         const candidates = findShastaTransfersByAmount(transfers, receiving, deposit.gross_amount, notBefore);
