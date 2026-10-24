@@ -92,6 +92,8 @@ test("terminal deposit requests rotate safely and concurrent retries recover the
   assert.ok(addressFunction.includes('.in("status", ["VERIFIED", "REJECTED", "FAILED"])'));
   assert.ok(addressFunction.includes('const rateLimited = /DEPOSIT_ADDRESS_RATE_LIMIT/.test(errorText);'));
   assert.ok(addressFunction.includes('if (racedError) return json({ error: "Unable to recover the existing deposit request safely." }, 503);'));
+  assert.ok(addressFunction.includes('.eq("deposit_request_id", requestId).limit(2)'));
+  assert.ok(addressFunction.includes('code: "DEPOSIT_REQUEST_NETWORK_CHANGED"'));
   assert.ok(client.includes("if(result.status==='REJECTED')"));
   assert.ok(client.includes("try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}"));
   assert.ok(client.includes("DEPOSIT_REQUEST_CRYPTO_UNAVAILABLE"));
