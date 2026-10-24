@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { runInNewContext } from "node:vm";
 
 const client = readFileSync(new URL("../client.html", import.meta.url), "utf8");
+const serviceWorker = readFileSync(new URL("../service-worker.js", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
@@ -21,6 +22,11 @@ test("embedded QR encoder produces a valid SVG for a TRON wallet without network
   assert.doesNotMatch(svg, /NaN|undefined/);
 });
 
+test("service-worker cache version is bumped so deployed deposit UI fixes reach mobile clients", () => {
+  assert.match(serviceWorker, /aegispay-shell-v50-deposit-claude-refresh/);
+  assert.doesNotMatch(serviceWorker, /aegispay-shell-v49-turnstile-singleton/);
+});
+
 test("deposit QR is generated locally without an external QR image service", () => {
   assert.match(client, /const qrSvg=\(address\)=>/);
   assert.match(client, /qrcode\(0,'M'\)/);
@@ -34,6 +40,8 @@ test("deposit TXID fallback exists and is used only when automatic extraction ha
   assert.match(client, /TXID length:/);
   assert.match(client, /else updateDepositSubmitAvailability\(\)/);
   assert.match(client, /manualTxid.onpaste/);
+  assert.match(client, /submitDep\.disabled=!depositScreenshotPath/);
+  assert.match(client, /TXID format valid/);
 
   assert.match(client, /setManualTxidFallback\(true\)/);
   assert.match(client, /const txidForSubmit=depositScannedTxid\|\|manualTxidValue\(\)/);

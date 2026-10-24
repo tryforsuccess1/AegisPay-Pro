@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v49-turnstile-singleton';
+const CACHE='aegispay-shell-v50-deposit-claude-refresh';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE

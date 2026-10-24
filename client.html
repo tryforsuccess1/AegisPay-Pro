@@ -5263,8 +5263,10 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
       const amount=Number(depAmount&&depAmount.value);
       const hashValid=/^[a-f0-9]{64}$/i.test(candidate);
       const amountValid=Number.isFinite(amount)&&amount>=minDeposit;
+      // Once evidence is uploaded, keep Verify clickable so the client can receive a precise validation message.
+      // The server submission path still rejects incomplete TXIDs/amounts before any chain verification or credit.
+      submitDep.disabled=!depositScreenshotPath;
       const ready=Boolean(depositScreenshotPath&&hashValid&&amountValid);
-      submitDep.disabled=!ready;
       submitDep.textContent='Verify from TronGrid';
       if(manualTxidStatus){
         if(!depositScreenshotPath)manualTxidStatus.textContent='Upload the deposit screenshot first.';
