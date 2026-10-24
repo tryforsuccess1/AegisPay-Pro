@@ -24,6 +24,8 @@ jobs:
           node-version: 24
       - name: Repository checks
         run: npm run check
+      - name: Test deposit UI QR and TXID fallback contract
+        run: node --test scripts/deposit-ui-contract.test.mjs
       - name: Test authenticated Cloudflare Workers AI handler
         run: node --test workers/aegispay-web/ai-handler.test.mjs
       - name: Syntax-check live production browser smoke test
@@ -48,6 +50,8 @@ jobs:
           deno-version: v2.x
       - name: Type-check every Supabase Edge Function
         run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
+      - name: Test deposit AI endpoint normalization
+        run: deno test supabase/functions/_shared/deposit-image-ai_test.ts
       - name: Test breached password security helper
         run: deno test supabase/functions/_shared/pwned-passwords_test.ts
       - name: Test centralized password policy
