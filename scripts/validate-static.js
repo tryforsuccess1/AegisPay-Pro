@@ -620,7 +620,8 @@ assert(client.includes('const qr=(address)=>')&&client.includes('wallet?qr(walle
 assert(client.includes('const walletContrastOverrides=')&&client.includes('.p2-wallet>span:first-child,.p2-wallet>.bub,.p2-wallet>i:first-child{display:none!important}'),'Deposit address row must hide the legacy leading plus/link icon.');
 assert(client.includes('background:linear-gradient(135deg,#fffefe 0%,#fff5f9 100%)!important')&&client.includes('color:#2b2430!important;font:650 12.5px/1.55')&&client.includes('overflow-wrap:anywhere!important;word-break:break-word!important'),'Deposit address must stay readable on dark mode using a light surface, larger high-contrast text and safe wrapping.');
 assert(client.includes("st.textContent=css+walletContrastOverrides+(nativeMobileLayout?nativeMobileOverrides:'')"),'Address contrast styles must apply consistently to web and native app layouts.');
-assert(client.includes('encodeURIComponent(wallet)'),'Active deposit flow must encode its configured wallet into the QR generator URL');
+assert(client.includes('const qrSvg=(address)=>')&&client.includes("code.addData(target,'Byte');code.make()")&&client.includes('qrDataUrl(wallet)'),'Active deposit flow must render a QR locally from its configured wallet address.');
+assert(!client.includes('api.qrserver.com'),'Deposit QR generation must not depend on a third-party image service.');
 assert(!client.includes('DEPOSIT_QR')&&!client.includes('TPr8f6Qx2J9mN4kR7vY8sZmU'),'Legacy deposit UI must not contain a hard-coded QR or receiving address');
 assert(client.includes('async function isPreProductionActivityTickerAllowed()')&&client.includes("db.functions.invoke('preproduction-activity-ticker',{body:{}})"),'The sample activity ticker must ask the server whether pre-production testing is permitted.');
 const tickerGateSource=fs.readFileSync('supabase/functions/preproduction-activity-ticker/index.ts','utf8');
