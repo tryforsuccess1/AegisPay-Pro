@@ -5215,8 +5215,18 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};
     const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;
     let wallet='',walletDetails=null,addressError=null;
-     const depositRequestId=(typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){const r=Math.random()*16|0;return(ch==='x'?r:(r&3|8)).toString(16);});
-     try{walletDetails=await getMyDepositAddressDetails(depositRequestId);wallet=walletDetails.address;}catch(error){addressError=error;}
+     const depositRequestStorageKey='aegis:deposit-request:'+String(authUser.id||'')+':'+String((settings.system_mode&&settings.system_mode.mode)||'');
+     const createDepositRequestId=()=>((typeof crypto!=='undefined'&&typeof crypto.randomUUID==='function')?crypto.randomUUID():'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(ch){const r=Math.random()*16|0;return(ch==='x'?r:(r&3|8)).toString(16);}));
+     let depositRequestId='';
+     try{depositRequestId=String(localStorage.getItem(depositRequestStorageKey)||'');}catch(_){}
+     if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(depositRequestId)){depositRequestId=createDepositRequestId();try{localStorage.setItem(depositRequestStorageKey,depositRequestId);}catch(_){}}
+     try{walletDetails=await getMyDepositAddressDetails(depositRequestId);wallet=walletDetails.address;}catch(error){
+       if(error&&error.code==='DEPOSIT_REQUEST_ALREADY_COMPLETED'){
+         try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}
+         depositRequestId=createDepositRequestId();try{localStorage.setItem(depositRequestStorageKey,depositRequestId);}catch(_){}
+         try{walletDetails=await getMyDepositAddressDetails(depositRequestId);wallet=walletDetails.address;}catch(retryError){addressError=retryError;}
+       }else addressError=error;
+     }
     const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
     const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
     const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
@@ -5416,6 +5426,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
         }
         const result=verification.data||{};
         if(result.status==='VERIFIED'){
+          try{localStorage.removeItem(depositRequestStorageKey);}catch(_){}
           setDepositScanStatus('Deposit verified on-chain. The server has applied the verified credit. Refreshing your account…','success');
           uiNotice('Deposit verified by TronGrid. Account balance updated.','success');
           try{sessionStorage.removeItem(amountSessionKey);}catch(_){}
