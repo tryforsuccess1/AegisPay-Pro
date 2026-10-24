@@ -40,7 +40,11 @@ test("deposit TXID fallback exists and is used only when automatic extraction ha
   assert.match(client, /TXID length:/);
   assert.match(client, /else updateDepositSubmitAvailability\(\)/);
   assert.match(client, /manualTxid.onpaste/);
-  assert.match(client, /submitDep\.disabled=!depositScreenshotPath/);
+  assert.match(client, /submitDep\.disabled=false/);
+  assert.match(client, /amountSessionKey/);
+  assert.match(client, /sessionStorage\.setItem\(amountSessionKey/);
+  assert.match(client, /if\(!initialDepositAmount&&shastaTestnetAllowed\)initialDepositAmount='100'/);
+  assert.match(client, /const amount=Number\(depAmount\.value\)/);
   assert.match(client, /TXID format valid/);
 
   assert.match(client, /setManualTxidFallback\(true\)/);
