@@ -11,6 +11,7 @@ const sweeperFunction = readFileSync(new URL("../supabase/functions/sweep-deposi
 const monitorFunction = readFileSync(new URL("../supabase/functions/monitor-deposits/index.ts", import.meta.url), "utf8");
 const perDepositMigration = readFileSync(new URL("../database/migrations/20261024144103_per_deposit_tron_addresses_20261024.sql", import.meta.url), "utf8");
 const monitorRotationMigration = readFileSync(new URL("../database/migrations/20261024173503_deposit_monitor_queue_rotation_20261024.sql", import.meta.url), "utf8");
+const shastaTestModeSource = readFileSync(new URL("../supabase/functions/_shared/shasta-test-mode.ts", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
@@ -118,4 +119,11 @@ test("deposit monitoring separates network queues and sweeper accepts monitor-ve
   assert.ok(monitorRotationMigration.includes("deposit_submissions_monitor_rotation_idx"));
   assert.ok(sweeperFunction.includes('.in("verification_source", ["TronGrid", "TronGrid Monitor"])'));
   assert.ok(sweeperFunction.includes('["TronGrid", "TronGrid Monitor"].includes(verificationSource)'));
+});
+
+
+test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and normalized whitespace", () => {
+  assert.match(shastaTestModeSource, /export function shastaMnemonicsAreDistinct\(/);
+  assert.match(shastaTestModeSource, /split\(\/\\s\+\/\)/);
+  assert.match(shastaTestModeSource, /Boolean\(testSeed && mainnetSeed && testSeed !== mainnetSeed\)/);
 });
