@@ -1,12 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
+import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
+import { checkWithdrawalPayoutHdConfig, estimatePayoutFeeReserveSun } from "../_shared/withdrawal-payout-wallet.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
 const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
+const MAINNET_WITHDRAWAL_PAYOUT_MODE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_PAYOUT_MODE") || "DISABLED";
+const MAINNET_WITHDRAWAL_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_MNEMONIC") || "";
+const MAINNET_WITHDRAWAL_HD_PASSPHRASE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_PASSPHRASE") || "";
+const MAINNET_DEPOSIT_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
+const SHASTA_HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
+const MAINNET_WITHDRAWAL_MAX_FEE_TRX = Number(Deno.env.get("TRON_MAINNET_WITHDRAWAL_MAX_FEE_TRX") || "80");
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SHASTA_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 
@@ -23,6 +31,106 @@ function json(body: unknown, status = 200) {
 
 function errorMessage(error: unknown) {
   return String((error as Error)?.message || error).slice(0, 500);
+}
+
+function safeTxid(value: unknown): string {
+  if (typeof value === "string") return value;
+  const row = value as any;
+  return String(row?.txid || row?.txID || row?.transaction?.txID || row?.transaction?.txid || "");
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForTransactionInfo(tron: any, txid: string): Promise<any> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    let info: any = null;
+    try { info = await tron.trx.getTransactionInfo(txid); } catch { info = null; }
+    const returnedId = String(info?.id || info?.txID || "").toLowerCase();
+    const blockNumber = Number(info?.blockNumber || 0);
+    if (info && blockNumber > 0 && (!returnedId || returnedId === txid.toLowerCase())) {
+      const result = String(info?.receipt?.result || "").toUpperCase();
+      if (result && result !== "SUCCESS") throw new Error("TRON_TRANSACTION_FAILED");
+      return info;
+    }
+    await sleep(1000);
+  }
+  throw new Error("TRON_TRANSACTION_CONFIRMATION_PENDING");
+}
+
+function expectedAddressTopic(address: string): string {
+  return TronWeb.address.toHex(address).replace(/^41/i, "").toLowerCase().padStart(64, "0");
+}
+
+function hasExpectedUsdtTransfer(info: any, from: string, to: string, amountRaw: string): boolean {
+  const tokenHex = TronWeb.address.toHex(MAINNET_USDT).toLowerCase();
+  const transferTopic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+  const expectedFrom = expectedAddressTopic(from);
+  const expectedTo = expectedAddressTopic(to);
+  const expectedAmount = BigInt(amountRaw).toString(16).padStart(64, "0").toLowerCase();
+  const logs = Array.isArray(info?.log) ? info.log : [];
+  return logs.some((entry: any) => {
+    const logAddress = String(entry?.address || "").replace(/^0x/i, "").toLowerCase();
+    const topics = Array.isArray(entry?.topics)
+      ? entry.topics.map((x: unknown) => String(x || "").replace(/^0x/i, "").toLowerCase())
+      : [];
+    const data = String(entry?.data || "").replace(/^0x/i, "").toLowerCase().padStart(64, "0");
+    return logAddress === tokenHex &&
+      topics[0] === transferTopic &&
+      topics[1] === expectedFrom &&
+      topics[2] === expectedTo &&
+      data === expectedAmount;
+  });
+}
+
+async function estimateUsdtTransferEnergy(
+  chain: string,
+  senderAddress: string,
+  destinationAddress: string,
+  amountRaw: string,
+): Promise<{ energyRequired: number; energyFeeSun: number }> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
+  const destinationHex = TronWeb.address.toHex(destinationAddress).replace(/^41/i, "");
+  const parameter = destinationHex.padStart(64, "0") + BigInt(amountRaw).toString(16).padStart(64, "0");
+  const estimateResponse = await fetch(chain + "/wallet/estimateenergy", {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      owner_address: TronWeb.address.toHex(senderAddress),
+      contract_address: TronWeb.address.toHex(MAINNET_USDT),
+      function_selector: "transfer(address,uint256)",
+      parameter,
+      visible: false,
+    }),
+  });
+  if (!estimateResponse.ok) throw new Error("PAYOUT_ENERGY_ESTIMATE_UNAVAILABLE");
+  const estimate = await estimateResponse.json().catch(() => null);
+  const energyRequired = Number(estimate?.energy_required);
+  if (!Number.isSafeInteger(energyRequired) || energyRequired <= 0 || energyRequired > 1_000_000) {
+    throw new Error("PAYOUT_ENERGY_ESTIMATE_INVALID");
+  }
+
+  const paramsResponse = await fetch(chain + "/wallet/getchainparameters", {
+    method: "POST", headers, body: "{}",
+  });
+  if (!paramsResponse.ok) throw new Error("PAYOUT_CHAIN_FEE_PARAMETERS_UNAVAILABLE");
+  const params = await paramsResponse.json().catch(() => null);
+  const entries = Array.isArray(params?.chainParameter) ? params.chainParameter : [];
+  const energyFeeSun = Number(entries.find((x: any) => x?.key === "getEnergyFee")?.value);
+  if (!Number.isSafeInteger(energyFeeSun) || energyFeeSun <= 0 || energyFeeSun > 1_000_000) {
+    throw new Error("PAYOUT_CHAIN_ENERGY_FEE_INVALID");
+  }
+  return { energyRequired, energyFeeSun };
+}
+
+async function updateWithdrawalPayoutJournal(admin: any, withdrawalId: string, patch: Record<string, unknown>) {
+  const { error } = await admin.from("withdrawal_payout_journal").update({
+    ...patch,
+    updated_at: new Date().toISOString(),
+  }).eq("withdrawal_id", withdrawalId);
+  if (error) throw new Error("PAYOUT_JOURNAL_UPDATE_FAILED");
 }
 
 function usdtUnits(value: unknown) {
@@ -45,6 +153,8 @@ let admin: ReturnType<typeof createClient<any>> | null = null;
 let withdrawalId: string | null = null;
 let claimedWithdrawal: any = null;
 let payoutMayHaveBeenBroadcast = false;
+let mainnetEphemeralPayout = false;
+let payoutJournalStarted = false;
 
   try {
     if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -121,6 +231,28 @@ let payoutMayHaveBeenBroadcast = false;
       && productionConfig.payouts_locked === false
       && String(productionConfig.environment || "").toUpperCase() === "PRODUCTION";
 
+    if (mainnet) {
+      const payoutHdConfig = checkWithdrawalPayoutHdConfig(
+        MAINNET_WITHDRAWAL_PAYOUT_MODE,
+        MAINNET_WITHDRAWAL_HD_MNEMONIC,
+        MAINNET_DEPOSIT_HD_MNEMONIC,
+        SHASTA_HD_MNEMONIC,
+      );
+      if (!payoutHdConfig.ready) {
+        return json({
+          error: "Per-withdrawal payout sender-wallet mode is not configured with a dedicated Mainnet HD seed. No payout was sent.",
+          code: "WITHDRAWAL_PAYOUT_HD_NOT_READY",
+        }, 503);
+      }
+      if (!TRONGRID_KEY) {
+        return json({ error: "TRONGrid API key is required for per-withdrawal payout verification. No payout was sent.", code: "PAYOUT_TRONGRID_REQUIRED" }, 503);
+      }
+      if (!Number.isFinite(MAINNET_WITHDRAWAL_MAX_FEE_TRX) || MAINNET_WITHDRAWAL_MAX_FEE_TRX < 3 || MAINNET_WITHDRAWAL_MAX_FEE_TRX > 100) {
+        return json({ error: "The per-withdrawal payout fee cap is invalid. No payout was sent.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
+      }
+      mainnetEphemeralPayout = true;
+    }
+
     if (systemMode.mode === "MAINNET" && network === "TRON MAINNET" && systemMode.real_payouts === true && !mainnet) {
       return json({ error: "Production payout gate is locked. Complete the Phase 3 go-live checks before enabling real payouts." }, 403);
     }
@@ -157,6 +289,21 @@ let payoutMayHaveBeenBroadcast = false;
         error: "Withdrawal destination is not a valid exact-case TRON Base58Check address. No transaction was sent. Master Admin must verify the correct wallet and reconcile this request.",
         code: "INVALID_WITHDRAWAL_DESTINATION",
         withdrawalId,
+      }, 409);
+    }
+
+    if (mainnetEphemeralPayout) {
+      const { data: existingJournal, error: existingJournalError } = await admin
+        .from("withdrawal_payout_journal")
+        .select("status,payout_txid")
+        .eq("withdrawal_id", withdrawalId)
+        .maybeSingle();
+      if (existingJournalError) return json({ error: "Unable to confirm payout journal state. No payout was sent.", code: "PAYOUT_JOURNAL_UNAVAILABLE" }, 503);
+      if (existingJournal) return json({
+        error: "This withdrawal already has a per-withdrawal payout journal. Reconcile its on-chain stages before any retry.",
+        code: "PAYOUT_JOURNAL_RECONCILIATION_REQUIRED",
+        status: existingJournal.status,
+        txidRecorded: Boolean(existingJournal.payout_txid),
       }, 409);
     }
 
@@ -245,14 +392,151 @@ let payoutMayHaveBeenBroadcast = false;
       }
     }
 
-    // From this point onward a transport error can mean the chain accepted the transfer.
-    // Keep the row PROCESSING on any uncertain outcome so it cannot be paid a second time.
-    payoutMayHaveBeenBroadcast = true;
-    const txid = String(await contract.transfer(withdrawal.destination_address, amountRaw).send({
-      feeLimit: 100_000_000,
-      callValue: 0,
-      shouldPollResponse: true,
-    }));
+    let txid = "";
+    if (mainnet) {
+      // Reserve a unique withdrawal-specific child index from a seed kept separate
+      // from both deposit HD seeds. No private key is persisted or returned.
+      const { data: nextIndexValue, error: indexError } = await admin.rpc("next_tron_withdrawal_payout_index");
+      const derivationIndex = Number(nextIndexValue);
+      if (indexError || !Number.isSafeInteger(derivationIndex) || derivationIndex < 1 || derivationIndex >= 2147483648) {
+        throw new Error("WITHDRAWAL_PAYOUT_INDEX_UNAVAILABLE");
+      }
+      const senderIdentity = await deriveTronHdIdentity(
+        MAINNET_WITHDRAWAL_HD_MNEMONIC,
+        MAINNET_WITHDRAWAL_HD_PASSPHRASE,
+        derivationIndex,
+      );
+      const depositRoot = await deriveTronHdIdentity(MAINNET_DEPOSIT_HD_MNEMONIC, Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "", 0);
+      const shastaRoot = await deriveTronHdIdentity(SHASTA_HD_MNEMONIC, Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "", 0);
+      if (senderIdentity.rootFingerprint === depositRoot.rootFingerprint || senderIdentity.rootFingerprint === shastaRoot.rootFingerprint) {
+        throw new Error("WITHDRAWAL_PAYOUT_HD_ROOT_NOT_DISTINCT");
+      }
+      const { data: indexCollision, error: indexCollisionError } = await admin.from("withdrawal_payout_journal")
+        .select("id").eq("derivation_index", derivationIndex).limit(1);
+      const { data: addressCollision, error: addressCollisionError } = await admin.from("withdrawal_payout_journal")
+        .select("id").eq("address", senderIdentity.address).limit(1);
+      const { data: depositCollision, error: depositCollisionError } = await admin.from("deposit_wallets")
+        .select("id").eq("network", "TRON MAINNET").eq("address", senderIdentity.address).limit(1);
+      if (indexCollisionError || addressCollisionError || depositCollisionError ||
+          (indexCollision || []).length || (addressCollision || []).length || (depositCollision || []).length) {
+        throw new Error("WITHDRAWAL_PAYOUT_ADDRESS_COLLISION");
+      }
+
+      const treasuryTron = new TronWeb({
+        fullHost: chain,
+        headers: { "TRON-PRO-API-KEY": TRONGRID_KEY },
+        privateKey: payoutKey,
+      });
+      const senderTron = new TronWeb({
+        fullHost: chain,
+        headers: { "TRON-PRO-API-KEY": TRONGRID_KEY },
+        privateKey: senderIdentity.privateKey,
+      });
+      const treasuryContract = await treasuryTron.contract().at(MAINNET_USDT);
+      const senderContract = await senderTron.contract().at(MAINNET_USDT);
+      const currentTrx = Number(await senderTron.trx.getBalance(senderIdentity.address));
+      const currentToken = BigInt(String(await senderContract.balanceOf(senderIdentity.address).call()));
+      if (currentTrx !== 0 || currentToken !== 0n) {
+        throw new Error("WITHDRAWAL_PAYOUT_CHILD_ADDRESS_NOT_EMPTY");
+      }
+
+      const { data: journalRow, error: journalInsertError } = await admin.from("withdrawal_payout_journal").insert({
+        withdrawal_id: withdrawal.id,
+        user_id: withdrawal.user_id,
+        network: "TRON MAINNET",
+        derivation_index: derivationIndex,
+        address: senderIdentity.address,
+        root_fingerprint: senderIdentity.rootFingerprint,
+        destination_address: withdrawal.destination_address,
+        net_amount_raw: amountRaw,
+        status: "PREPARED",
+        idempotency_key: "withdrawal:" + withdrawal.id,
+      }).select("id").single();
+      if (journalInsertError || !journalRow) {
+        throw new Error("WITHDRAWAL_PAYOUT_JOURNAL_CREATE_FAILED");
+      }
+      payoutJournalStarted = true;
+
+      // An activation transfer is required for a new TRON account. The main treasury
+      // funds the sender wallet; this funding transaction remains visible on-chain.
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "ACTIVATION_SUBMITTED" });
+      payoutMayHaveBeenBroadcast = true;
+      const activationResult = await treasuryTron.trx.sendTrx(senderIdentity.address, 1_000_000);
+      const activationTxid = safeTxid(activationResult);
+      if (!/^[a-fA-F0-9]{64}$/.test(activationTxid)) throw new Error("WITHDRAWAL_PAYOUT_ACTIVATION_TXID_MISSING");
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { trx_activation_txid: activationTxid });
+      const activationInfo = await waitForTransactionInfo(treasuryTron, activationTxid);
+      if (Number(await senderTron.trx.getBalance(senderIdentity.address)) <= 0) {
+        throw new Error("WITHDRAWAL_PAYOUT_ACTIVATION_NOT_VISIBLE");
+      }
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "ACTIVATED", activated_at: new Date().toISOString() });
+
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDING_SUBMITTED" });
+      const usdtFundingResult = await treasuryContract.transfer(senderIdentity.address, amountRaw).send({
+        feeLimit: 100_000_000,
+        callValue: 0,
+        shouldPollResponse: true,
+      });
+      const usdtFundingTxid = safeTxid(usdtFundingResult);
+      if (!/^[a-fA-F0-9]{64}$/.test(usdtFundingTxid)) throw new Error("WITHDRAWAL_PAYOUT_FUNDING_TXID_MISSING");
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { usdt_funding_txid: usdtFundingTxid });
+      const usdtFundingInfo = await waitForTransactionInfo(treasuryTron, usdtFundingTxid);
+      if (!hasExpectedUsdtTransfer(usdtFundingInfo, configuredTreasury, senderIdentity.address, amountRaw)) {
+        throw new Error("WITHDRAWAL_PAYOUT_FUNDING_RECEIPT_MISMATCH");
+      }
+      const fundedTokenBalance = BigInt(String(await senderContract.balanceOf(senderIdentity.address).call()));
+      if (fundedTokenBalance !== BigInt(amountRaw)) throw new Error("WITHDRAWAL_PAYOUT_FUNDING_BALANCE_MISMATCH");
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDED", funded_at: new Date().toISOString() });
+
+      const energyEstimate = await estimateUsdtTransferEnergy(chain, senderIdentity.address, withdrawal.destination_address, amountRaw);
+      const feeReserve = estimatePayoutFeeReserveSun(
+        energyEstimate.energyRequired,
+        energyEstimate.energyFeeSun,
+        MAINNET_WITHDRAWAL_MAX_FEE_TRX,
+      );
+      if (!feeReserve.ok) throw new Error(feeReserve.code);
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, {
+        estimated_energy: feeReserve.estimatedEnergy,
+        estimated_fee_sun: feeReserve.reserveSun.toString(),
+      });
+
+      const currentSun = BigInt(String(await senderTron.trx.getBalance(senderIdentity.address)));
+      if (currentSun < feeReserve.reserveSun) {
+        const topupSun = feeReserve.reserveSun - currentSun;
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "TRX_FEE_TOPUP_SUBMITTED" });
+        const topupResult = await treasuryTron.trx.sendTrx(senderIdentity.address, Number(topupSun));
+        const topupTxid = safeTxid(topupResult);
+        if (!/^[a-fA-F0-9]{64}$/.test(topupTxid)) throw new Error("WITHDRAWAL_PAYOUT_FEE_TXID_MISSING");
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { trx_fee_topup_txid: topupTxid });
+        await waitForTransactionInfo(treasuryTron, topupTxid);
+        if (BigInt(String(await senderTron.trx.getBalance(senderIdentity.address))) < feeReserve.reserveSun) {
+          throw new Error("WITHDRAWAL_PAYOUT_FEE_RESERVE_NOT_VISIBLE");
+        }
+      }
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "FEE_READY" });
+
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAYOUT_SUBMITTED", payout_submitted_at: new Date().toISOString() });
+      const payoutTxid = safeTxid(await senderContract.transfer(withdrawal.destination_address, amountRaw).send({
+        feeLimit: Math.floor(MAINNET_WITHDRAWAL_MAX_FEE_TRX * 1_000_000),
+        callValue: 0,
+        shouldPollResponse: true,
+      }));
+      if (!/^[a-fA-F0-9]{64}$/.test(payoutTxid)) throw new Error("WITHDRAWAL_PAYOUT_TXID_MISSING");
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { payout_txid: payoutTxid });
+      const payoutInfo = await waitForTransactionInfo(senderTron, payoutTxid);
+      if (!hasExpectedUsdtTransfer(payoutInfo, senderIdentity.address, withdrawal.destination_address, amountRaw)) {
+        throw new Error("WITHDRAWAL_PAYOUT_RECEIPT_MISMATCH");
+      }
+      txid = payoutTxid;
+    } else {
+      // Testnet/demo payout behavior remains unchanged.
+      payoutMayHaveBeenBroadcast = true;
+      txid = safeTxid(await contract.transfer(withdrawal.destination_address, amountRaw).send({
+        feeLimit: 100_000_000,
+        callValue: 0,
+        shouldPollResponse: true,
+      }));
+    }
     if (!txid || txid === "undefined" || txid === "null") {
       throw new Error("TRON returned no transaction id.");
     }
@@ -282,17 +566,37 @@ let payoutMayHaveBeenBroadcast = false;
       }, 202);
     }
 
+    if (mainnetEphemeralPayout && payoutJournalStarted) {
+      try {
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAID", payout_txid: txid, paid_at: new Date().toISOString(), last_error_code: null });
+      } catch {
+        await admin.from("withdrawal_payout_journal").update({
+          status: "RECONCILIATION_REQUIRED",
+          last_error_code: "PAYOUT_CONFIRMED_JOURNAL_FINALIZE_FAILED",
+          updated_at: new Date().toISOString(),
+        }).eq("withdrawal_id", withdrawal.id);
+        return json({ status: "PAID", txid, journalReconciliationRequired: true }, 202);
+      }
+    }
+
     const { error: auditError } = await admin.from("audit_events").insert({
       actor_user_id: profile.id,
       target_user_id: withdrawal.user_id,
       event_type: "WITHDRAWAL_PAID",
-      description: "TRON USDT payout submitted by payout service",
+      description: mainnetEphemeralPayout ? "TRON USDT payout sent via per-withdrawal HD sender wallet" : "TRON USDT payout submitted by payout service",
       reference_id: withdrawal.id,
     });
 
     return json({ status: "PAID", txid, auditLogged: !auditError });
   } catch (error) {
-    const detail = errorMessage(error);
+    const detail = mainnetEphemeralPayout ? "Per-withdrawal payout stage failed; reconcile the journal before any retry." : errorMessage(error);
+    if (admin && withdrawalId && mainnetEphemeralPayout && payoutJournalStarted) {
+      await admin.from("withdrawal_payout_journal").update({
+        status: payoutMayHaveBeenBroadcast ? "RECONCILIATION_REQUIRED" : "FAILED_BEFORE_BROADCAST",
+        last_error_code: payoutMayHaveBeenBroadcast ? "PAYOUT_STAGE_REQUIRES_RECONCILIATION" : "PAYOUT_FAILED_BEFORE_BROADCAST",
+        updated_at: new Date().toISOString(),
+      }).eq("withdrawal_id", withdrawalId);
+    }
     if (admin && withdrawalId) {
       if (payoutMayHaveBeenBroadcast) {
         await admin.from("withdrawal_requests")
