@@ -25,6 +25,7 @@ const state={
   settings:{},
   production:null,
   productionDiag:null,
+  mainnetHdPreflight:null,
   telegram:null
 };
 
@@ -410,6 +411,7 @@ function productionReadiness(){
   const secrets=d.secrets||{};
   const unresolved=Array.isArray(d.unresolved_payouts)?d.unresolved_payouts:[];
   const keyDiagnostics=d.key_diagnostics||{};
+  const mainnetHdPreflight=state.mainnetHdPreflight||null;
   const secretMark=function(v){return v?'READY':'MISSING';};
   const diagMark=function(v){return v===true?'PASS':v===false?'FAIL':'NOT REPORTED';};
   const aliasPresence=function(v){return v===true?'PRESENT':v===false?'ABSENT':'NOT REPORTED';};
@@ -492,6 +494,22 @@ function productionReadiness(){
       '<span>Unreconciled Payouts<b>'+esc(String(unresolved.length))+'</b></span>'+
     '</div>'+
     keyDiagnosticsMarkup+
+    '<section class="aa-panel" style="margin-top:14px"><div class="aa-panel-head"><div><h2>Locked Mainnet HD Wallet Preflight</h2><p>Admin-only dry run. It consumes one HD index to prevent future reuse, but does not create a wallet record, reveal an address/key, or send a transaction.</p></div><span class="aa-count">'+esc(mainnetHdPreflight?.status||'NOT RUN')+'</span></div>'+
+    '<button type="button" class="aa-secondary" data-action="mainnet-hd-preflight">Run Locked Mainnet HD Preflight</button>'+
+    (mainnetHdPreflight?'<div class="aa-detail-grid" style="margin-top:12px">'+
+      diagItem('Preflight result',mainnetHdPreflight.status)+
+      diagItem('Mainnet root derivation',diagMark(mainnetHdPreflight.checks?.rootDerivationValid))+
+      diagItem('Candidate child derivation',diagMark(mainnetHdPreflight.checks?.childDerivationValid))+
+      diagItem('Root fingerprint consistency',diagMark(mainnetHdPreflight.checks?.rootFingerprintConsistent))+
+      diagItem('Address/private-key consistency',diagMark(mainnetHdPreflight.checks?.derivedAddressMatchesPrivateKey))+
+      diagItem('Candidate index unique',diagMark(mainnetHdPreflight.checks?.candidateIndexUnique))+
+      diagItem('Candidate address unique',diagMark(mainnetHdPreflight.checks?.candidateAddressUnique))+
+      diagItem('Gates stayed closed',diagMark(mainnetHdPreflight.checks?.gatesStillClosedAfterCheck))+
+      diagItem('Wallet row created',mainnetHdPreflight.walletRowCreated===true?'YES':'NO')+
+      diagItem('Address returned to browser',mainnetHdPreflight.walletAddressReturned===true?'YES':'NO')+
+      diagItem('Funds moved',mainnetHdPreflight.fundsMoved===true?'YES':'NO')+
+    '</div>':'')+
+    '</section>'+
     (unresolved.length?'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Live payout activation blocked — reconciliation required</strong><small>'+esc(unresolved.length+' previously approved or processing withdrawal(s) have no transaction ID. The oldest is '+unresolved[0].id+' for '+money(unresolved[0].net_amount)+' USDT net. Verify its exact-case TRON Base58Check destination and real-chain status, then reconcile the request before opening live payout execution. Do not resend a transfer to an address that has not been confirmed.')+'</small></div></div>':'')+
     '<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Phase 3 Safety Gate</strong><small>Real payouts can only be enabled by an active Master Admin when MAINNET, the TRON MAINNET configuration, runtime, go-live approval, payout unlock, required server-side secrets, Telegram approvers, and payout reconciliation are all ready.</small></div></div>'+
     '</section>';
@@ -977,6 +995,19 @@ async function updateSupportCase(el){
     await refreshData();
   });
 }
+async function runMainnetHdPreflight(){
+  if(!window.confirm('Run the locked Mainnet HD wallet preflight? It will consume one derivation index so that the candidate is never reused, but will not create a wallet record, reveal an address/private key, or send funds. Production flags must remain OFF and payout lock CLOSED.'))return;
+  await setBusy(async function(){
+    const r=await service.invokeFunction('production-readiness',{body:{action:'mainnet_wallet_preflight'}});
+    if(r.error)throw r.error;
+    state.mainnetHdPreflight=r.data||null;
+    if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='BLOCKED'){
+      state.error=state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.';
+    }
+    await refreshData();
+  });
+}
+
 async function saveProductionConfig(e){
   e.preventDefault();
   await setBusy(async function(){
@@ -1051,6 +1082,7 @@ root.addEventListener('click',function(e){
   if(action==='refresh'){setBusy(refreshData);return;}
   if(action==='logout'){service.signOut().finally(function(){state.profile=null;state.queues={deposits:[],kyc:[],withdrawals:[],kycHistory:[],depositHistory:[],stats:{}};render();});return;}
   if(action==='runtime'){runtime();return;}
+  if(action==='mainnet-hd-preflight'){runMainnetHdPreflight();return;}
   if(action==='ai-toggle'){toggleAiBot();return;}
   if(action==='withdrawal-ai-toggle'){toggleWithdrawalAI();return;}
   if(action==='withdrawal-ai-limit'){saveWithdrawalAILimit();return;}
