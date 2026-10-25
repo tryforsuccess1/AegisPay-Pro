@@ -1,0 +1,68 @@
+name: AegisPay Production Config Edge RPC Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/20261025130000_fix_production_readiness_edge_rpc.sql'
+      - 'supabase/functions/production-readiness/index.ts'
+      - 'scripts/sql-tests/production_config_edge_rpc_*.sql'
+      - '.github/workflows/production-config-edge-rpc-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/20261025130000_fix_production_readiness_edge_rpc.sql'
+      - 'supabase/functions/production-readiness/index.ts'
+      - 'scripts/sql-tests/production_config_edge_rpc_*.sql'
+      - '.github/workflows/production-config-edge-rpc-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-config-edge-rpc:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL is ready
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create production configuration fixture
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/production_config_edge_rpc_fixture.sql
+      - name: Apply restricted production configuration RPC migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261025130000_fix_production_readiness_edge_rpc.sql
+      - name: Verify identity checks, payout/deposit gates, consistency and grants
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/production_config_edge_rpc_assertions.sql
+      - name: Verify Edge Function uses the privileged RPC without weakening legacy grants
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import assert from 'node:assert/strict';
+          const source = readFileSync('supabase/functions/production-readiness/index.ts', 'utf8');
+          assert.match(source, /admin\.rpc\("set_production_config_from_admin_edge"/);
+          assert.match(source, /p_actor_auth_user_id:authResult\.user\.id/);
+          assert.doesNotMatch(source, /userScoped\.rpc\("set_production_config"/);
+          console.log('Production readiness Edge Function RPC wiring: PASS');
+          NODE
