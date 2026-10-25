@@ -10,8 +10,13 @@ assert.match(worker, /shastaMnemonicsAreDistinct\(HD_MNEMONIC, MAINNET_HD_MNEMON
   'Sweep signing must verify both HD seeds exist and differ without reading Mainnet payout key material.');
 assert.match(secrets, /Boolean\(testSeed && mainnetSeed && testSeed !== mainnetSeed\)/,
   'HD-seed separation must fail closed when either seed is missing.');
-assert.match(secrets, /Boolean\(testKey && mainnetKey && testKey !== mainnetKey\)/,
-  'Payout-signer separation must fail closed when either key is missing.');
+assert.match(secrets, /const reusedSigner = Boolean\(testKey && mainnetKey && testKey === mainnetKey\)/,
+  'The shared Shasta helper must detect reuse of the Mainnet payout signer.');
+const addressIssuer = fs.readFileSync('supabase/functions/get-deposit-address/index.ts', 'utf8');
+assert.match(addressIssuer, /const payoutKeysPresentAndDistinct = Boolean\(/,
+  'Shasta address issuance must separately require both payout keys and verify that they differ.');
+assert.match(addressIssuer, /if \(!seedsDistinct \|\| !payoutKeysPresentAndDistinct \|\| !shastaSecretsAreDistinct\(/,
+  'Shasta address issuance must fail closed unless the seed phrases and payout keys are both present and distinct.');
 
 assert.match(worker, /\.select\("id,txid,raw_amount,verification_source"\)/,
   'Sweep source query must include the verification source.');
