@@ -237,7 +237,8 @@ let payoutJournalStarted = false;
       systemMode.mode === "MAINNET" &&
       String(shastaRules.network || "").toUpperCase() === "TRON TESTNET" &&
       String(shastaRules.token_contract || "") === SHASTA_USDT &&
-      Boolean(String(shastaRules.receiving_address || "").trim());
+      Boolean(String(shastaRules.receiving_address || "").trim()) &&
+      String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() === "EPHEMERAL_HD";
     const payoutNetworkRow = isolatedShasta ? shastaRulesRow : networkRow;
     const network = String(payoutNetworkRow?.value_json?.network || "").toUpperCase();
 
