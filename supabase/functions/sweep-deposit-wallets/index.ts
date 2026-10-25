@@ -8,7 +8,6 @@ import { loadShastaTestRules, shastaMnemonicsAreDistinct } from "../_shared/shas
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
 const TESTNET_SWEEP_ENABLED = Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true";
 const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
@@ -380,12 +379,9 @@ Deno.serve(async (req: Request) => {
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
     const suppliedSecret = req.headers.get("x-aegis-cron-secret");
-    const environmentSecretMatches = Boolean(CRON_SECRET && suppliedSecret && suppliedSecret === CRON_SECRET);
-    if (!environmentSecretMatches) {
-      if (!suppliedSecret) return json({ error: "Unauthorized." }, 401);
-      const { data: secretMatches, error: secretError } = await admin.rpc("verify_testnet_sweep_cron_secret", { p_token: suppliedSecret });
-      if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401);
-    }
+    if (!suppliedSecret) return json({ error: "Unauthorized." }, 401);
+    const { data: secretMatches, error: secretError } = await admin.rpc("verify_testnet_sweep_cron_secret", { p_token: suppliedSecret });
+    if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401);
     const [{ data: appEnabled, error: runtimeError }, { data: rulesRow, error: rulesError },
       { data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
       admin.rpc("app_runtime_enabled"),
