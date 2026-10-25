@@ -673,6 +673,19 @@ const hdWalletEndpoint=fs.readFileSync('supabase/functions/get-deposit-address/i
 const hdWalletMigration=fs.readFileSync('database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql','utf8');
 assert(hdWalletSource.includes("m/44'/195'/0'/0")&&hdWalletSource.includes('TronWeb.fromMnemonic'),'HD wallet derivation must use the TRON BIP44 path');
 assert(hdWalletEndpoint.includes('TRON_MAINNET_CHILD_HD_MNEMONIC')&&hdWalletEndpoint.includes('TRON_SHASTA_CHILD_HD_MNEMONIC')&&hdWalletEndpoint.includes('HD_WALLET_ROOT_MISMATCH'),'HD endpoint must use network-specific server-side seeds and fail closed on root mismatch');
+const mainnetAddressIssuanceRequirements = [
+  'ready = tokenContract === MAINNET_USDT && mode.mode === "MAINNET" && mode.live_deposits === true',
+  '&& mode.real_payouts === true && mode.production_go_live_approved === true',
+  'String(production.environment || "").toUpperCase() === "PRODUCTION"',
+  'production.live_deposits_enabled === true && production.real_payouts_enabled === true',
+  'production.go_live_approved === true && production.payouts_locked === false',
+  'credentialsReady && (unresolved || []).length === 0'
+];
+assert(mainnetAddressIssuanceRequirements.every(condition => hdWalletEndpoint.includes(condition)),'Mainnet HD address issuance must require official USDT, all production flags, credentials and zero unreconciled payouts.');
+const mainnetAddressBlockOffset = hdWalletEndpoint.indexOf('if (!ready)');
+const mainnetAddressDerivationOffset = hdWalletEndpoint.indexOf('const rootIdentity = await deriveTronHdIdentity');
+const mainnetAddressInsertOffset = hdWalletEndpoint.indexOf('.from("deposit_wallets").insert(');
+assert(mainnetAddressBlockOffset >= 0 && mainnetAddressBlockOffset < mainnetAddressDerivationOffset && mainnetAddressBlockOffset < mainnetAddressInsertOffset,'A locked Mainnet readiness result must block wallet derivation and persistence before any address is issued.');
 assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint.includes('privateKey: identity.privateKey'),'HD address API must never return derived private keys');
 assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
