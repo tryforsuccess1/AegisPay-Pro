@@ -420,26 +420,6 @@ let payoutJournalStarted = false;
       if (!finalGateOpen) {
         throw new Error("Production payout gate was closed before broadcast.");
       }
-      if (ephemeralPayout && mainnet) {
-        const { data: immediateModeRow, error: immediateModeError } = await admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle();
-        const { data: immediateProdRow, error: immediateProdError } = await admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle();
-        const { data: immediateNetworkRow, error: immediateNetworkError } = await admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle();
-        const { data: immediateRuntime, error: immediateRuntimeError } = await admin.rpc("app_runtime_enabled");
-        if (immediateModeError || immediateProdError || immediateNetworkError || immediateRuntimeError) {
-          throw new Error("Unable to perform final payout gate revalidation.");
-        }
-        const modeNow = immediateModeRow?.value_json || {};
-        const prodNow = immediateProdRow?.value_json || {};
-        const networkNow = immediateNetworkRow?.value_json || {};
-        if (modeNow.mode !== "MAINNET" || modeNow.real_payouts !== true ||
-            modeNow.production_go_live_approved !== true ||
-            String(networkNow.network || "").toUpperCase() !== "TRON MAINNET" ||
-            String(prodNow.environment || "").toUpperCase() !== "PRODUCTION" ||
-            prodNow.go_live_approved !== true || prodNow.real_payouts_enabled !== true ||
-            prodNow.payouts_locked !== false || immediateRuntime !== true) {
-          throw new Error("Production payout gate closed immediately before final broadcast.");
-        }
-      }
     } else {
       const { data: stillEnabled, error: finalRuntimeError } = await admin.rpc("app_runtime_enabled");
       if (finalRuntimeError || stillEnabled !== true) {
@@ -558,6 +538,26 @@ let payoutJournalStarted = false;
       }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "FEE_READY" });
 
+      if (ephemeralPayout && mainnet) {
+        const { data: immediateModeRow, error: immediateModeError } = await admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle();
+        const { data: immediateProdRow, error: immediateProdError } = await admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle();
+        const { data: immediateNetworkRow, error: immediateNetworkError } = await admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle();
+        const { data: immediateRuntime, error: immediateRuntimeError } = await admin.rpc("app_runtime_enabled");
+        if (immediateModeError || immediateProdError || immediateNetworkError || immediateRuntimeError) {
+          throw new Error("Unable to perform final payout gate revalidation.");
+        }
+        const modeNow = immediateModeRow?.value_json || {};
+        const prodNow = immediateProdRow?.value_json || {};
+        const networkNow = immediateNetworkRow?.value_json || {};
+        if (modeNow.mode !== "MAINNET" || modeNow.real_payouts !== true ||
+            modeNow.production_go_live_approved !== true ||
+            String(networkNow.network || "").toUpperCase() !== "TRON MAINNET" ||
+            String(prodNow.environment || "").toUpperCase() !== "PRODUCTION" ||
+            prodNow.go_live_approved !== true || prodNow.real_payouts_enabled !== true ||
+            prodNow.payouts_locked !== false || immediateRuntime !== true) {
+          throw new Error("Production payout gate closed immediately before final broadcast.");
+        }
+      }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAYOUT_SUBMITTED", payout_submitted_at: new Date().toISOString() });
       const payoutTxid = safeTxid(await senderContract.transfer(withdrawal.destination_address, amountRaw).send({
         feeLimit: Math.floor(selectedPayoutMaxFeeTrx * 1_000_000), callValue: 0, shouldPollResponse: true,
