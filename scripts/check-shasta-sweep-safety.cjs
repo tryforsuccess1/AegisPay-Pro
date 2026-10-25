@@ -20,7 +20,7 @@ assert.match(addressIssuer, /if \(!seedsDistinct \|\| !payoutKeysPresentAndDisti
 
 assert.match(worker, /\.select\("id,txid,raw_amount,verification_source"\)/,
   'Sweep source query must include the verification source.');
-assert.match(worker, /\.eq\("status", "VERIFIED"\)\.in\("verification_source", \["TronGrid", "TronGrid Monitor"\]\)/,
+assert.match(worker, /\.eq\("status", "VERIFIED"\)\s*\.in\("verification_source", \["TronGrid", "TronGrid Monitor"\]\)/,
   'Only VERIFIED deposits independently confirmed by allowed chain monitor sources may enter the sweep source map.');
 assert.match(worker, /\["TronGrid", "TronGrid Monitor"\]\.includes\(verificationSource\)/,
   'Sweep source records must be checked again while building the source map.');
