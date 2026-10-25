@@ -611,34 +611,46 @@ let payoutJournalStarted = false;
       // Revalidate isolated Shasta configuration immediately before the customer's USDT broadcast.
       // Mainnet remains locked; this gate is strictly limited to the Shasta test path.
       if (isolatedShasta) {
+        const finalShastaEnabled = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true";
         const [
           { data: finalShastaModeRow, error: finalShastaModeError },
           { data: finalShastaRulesRow, error: finalShastaRulesError },
           { data: finalShastaProductionRow, error: finalShastaProductionError },
           { data: finalShastaRuntime, error: finalShastaRuntimeError },
+          finalShastaTestUserAllowed,
+          finalShastaWithdrawalAllowed,
+          finalValidatedShastaRules,
         ] = await Promise.all([
           admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
           admin.from("platform_settings").select("value_json").eq("key", "shasta_testnet_rules").maybeSingle(),
           admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
           admin.rpc("app_runtime_enabled"),
+          isAllowlistedShastaTestUser(admin, String(withdrawal.user_id || ""), finalShastaEnabled),
+          isAllowlistedShastaTestWithdrawal(admin, String(withdrawal.id || withdrawalId || ""), finalShastaEnabled),
+          loadShastaTestRules(admin, finalShastaEnabled),
         ]);
         const finalShastaMode = finalShastaModeRow?.value_json || {};
         const finalShastaRules = finalShastaRulesRow?.value_json || {};
         const finalShastaProduction = finalShastaProductionRow?.value_json || {};
         if (
           finalShastaModeError || finalShastaRulesError || finalShastaProductionError || finalShastaRuntimeError ||
-          Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") !== "true" ||
+          !finalShastaEnabled ||
+          !finalShastaTestUserAllowed ||
+          !finalShastaWithdrawalAllowed ||
+          !finalValidatedShastaRules ||
           String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() !== "EPHEMERAL_HD" ||
           finalShastaMode.mode !== "MAINNET" ||
           String(finalShastaRules.network || "").toUpperCase() !== "TRON TESTNET" ||
           String(finalShastaRules.token_contract || "") !== SHASTA_USDT ||
           String(finalShastaRules.receiving_address || "").trim() !== configuredTreasury ||
+          finalValidatedShastaRules.token_contract !== SHASTA_USDT ||
+          String(finalValidatedShastaRules.receiving_address || "").trim() !== configuredTreasury ||
           finalShastaRuntime !== true ||
           finalShastaProduction.payouts_locked !== true ||
           finalShastaProduction.real_payouts_enabled !== false ||
           finalShastaProduction.live_deposits_enabled !== false
         ) {
-          throw new Error("Isolated Shasta payout gate changed or could not be verified immediately before broadcast.");
+          throw new Error("Isolated Shasta payout gate or allowlist changed/could not be verified immediately before broadcast.");
         }
       }
 
