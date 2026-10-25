@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 import { checkWithdrawalPayoutHdConfig, estimatePayoutFeeReserveSun } from "../_shared/withdrawal-payout-wallet.ts";
+import { isAllowlistedShastaTestUser, isIsolatedShastaPayoutEligible, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -217,6 +218,15 @@ let payoutJournalStarted = false;
       aiApprovedClientPayout = true;
     }
 
+    // Load the payout target once so Shasta routing can be tied to its owner; a feature flag alone must never route an ordinary withdrawal to testnet.
+    const { data: payoutTarget, error: payoutTargetError } = await admin
+      .from("withdrawal_requests")
+      .select("id,user_id,destination_address")
+      .eq("id", withdrawalId)
+      .maybeSingle();
+    if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
+    if (!payoutTarget) return json({ error: "Withdrawal request not found. No transaction was sent." }, 404);
+
     const { data: appEnabled, error: runtimeError } = await admin.rpc("app_runtime_enabled");
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
@@ -227,19 +237,24 @@ let payoutJournalStarted = false;
     const { data: networkRow, error: networkError } = await admin.from("platform_settings")
       .select("value_json").eq("key", "deposit_rules").maybeSingle();
     if (networkError) return json({ error: "Unable to confirm configured payout network." }, 503);
-    const { data: shastaRulesRow, error: shastaRulesError } = await admin.from("platform_settings")
-      .select("value_json").eq("key", "shasta_testnet_rules").maybeSingle();
-    if (shastaRulesError) return json({ error: "Unable to confirm isolated Shasta testnet rules." }, 503);
-    const shastaRules = shastaRulesRow?.value_json || {};
-    // This explicit server-side flag enables only Shasta test payouts. It does not alter
-    // system_mode, deposit_rules, or any Mainnet production gate.
-    const isolatedShasta = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true" &&
-      systemMode.mode === "MAINNET" &&
-      String(shastaRules.network || "").toUpperCase() === "TRON TESTNET" &&
-      String(shastaRules.token_contract || "") === SHASTA_USDT &&
-      Boolean(String(shastaRules.receiving_address || "").trim()) &&
-      String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() === "EPHEMERAL_HD";
-    const payoutNetworkRow = isolatedShasta ? shastaRulesRow : networkRow;
+    // Shasta routing requires both the explicit server-side flag and a row-level test-user allowlist.
+    // loadShastaTestRules also fails closed unless all production-money gates remain closed and the two networks are configured distinctly.
+    const shastaTestPayoutsEnabled = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true";
+    const shastaTestUserAllowed = await isAllowlistedShastaTestUser(
+      admin,
+      String(payoutTarget.user_id || ""),
+      shastaTestPayoutsEnabled,
+    );
+    const shastaRules = shastaTestUserAllowed
+      ? await loadShastaTestRules(admin, shastaTestPayoutsEnabled)
+      : null;
+    const isolatedShasta = isIsolatedShastaPayoutEligible(
+      shastaTestPayoutsEnabled,
+      systemMode.mode,
+      shastaTestUserAllowed,
+      shastaRules,
+    );
+    const payoutNetworkRow = isolatedShasta ? { value_json: shastaRules } : networkRow;
     const network = String(payoutNetworkRow?.value_json?.network || "").toUpperCase();
 
     const { data: productionRow, error: productionError } = await admin.from("platform_settings")
@@ -323,13 +338,6 @@ let payoutJournalStarted = false;
 
     // Validate the exact case-sensitive recipient before claiming the payout. TRON addresses
     // use Base58Check and changing letter case can redirect or invalidate a transfer.
-    const { data: payoutTarget, error: payoutTargetError } = await admin
-      .from("withdrawal_requests")
-      .select("id,destination_address")
-      .eq("id", withdrawalId)
-      .maybeSingle();
-    if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
-    if (!payoutTarget) return json({ error: "Withdrawal request not found. No transaction was sent." }, 404);
     const { data: destinationValid, error: destinationValidationError } = await admin.rpc("is_valid_tron_address", {
       p_address: String(payoutTarget.destination_address || "")
     });

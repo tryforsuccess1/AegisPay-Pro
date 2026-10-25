@@ -46,6 +46,24 @@ export function validShastaTestRules(value: unknown): value is ShastaTestRules {
 }
 
 /**
+ * Testnet payout routing is allowed only for an explicitly enabled, allowlisted
+ * Shasta test user with validated Shasta rules while the application remains in
+ * MAINNET mode. The caller must obtain `rules` through loadShastaTestRules,
+ * which verifies that all real-money gates remain closed.
+ */
+export function isIsolatedShastaPayoutEligible(
+  enabled: boolean,
+  systemMode: unknown,
+  testUserAllowlisted: boolean,
+  rules: unknown,
+): rules is ShastaTestRules {
+  return enabled
+    && testUserAllowlisted
+    && String(systemMode || "").trim().toUpperCase() === "MAINNET"
+    && validShastaTestRules(rules);
+}
+
+/**
  * Test mode is opt-in at the function secret AND the row-level allowlist.
  * Both conditions fail closed; user-supplied request fields cannot opt an
  * account into Shasta testing.
