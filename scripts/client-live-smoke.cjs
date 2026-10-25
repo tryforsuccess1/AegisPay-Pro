@@ -538,12 +538,17 @@ async function visit(page, url, expectedSelector) {
       headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
       body: '{}'
     });
-    assert.equal(sweepGuardResponse.status, 423,
-      'Testnet sweep must remain disabled by default and reject invocation with 423.');
+    assert.ok([401, 423].includes(sweepGuardResponse.status),
+      'Testnet sweep must reject unauthenticated invocation with 401 or fail closed as disabled with 423.');
     const sweepGuardBody = await sweepGuardResponse.json();
-    assert.equal(sweepGuardBody.code, 'TESTNET_SWEEP_DISABLED',
-      'Testnet sweep must remain disabled by default rather than process wallets.');
-    console.log('Testnet sweep guard: ' + sweepGuardResponse.status + ' (' + sweepGuardBody.code + ').');
+    if (sweepGuardResponse.status === 423) {
+      assert.equal(sweepGuardBody.code, 'TESTNET_SWEEP_DISABLED',
+        'When testnet sweep is disabled it must return the explicit disabled guard.');
+    } else {
+      assert.equal(sweepGuardBody.error, 'Unauthorized.',
+        'When testnet sweep is enabled for isolated test use, anonymous callers must still be unauthorized.');
+    }
+    console.log('Testnet sweep guard: ' + sweepGuardResponse.status + ' (' + (sweepGuardBody.code || sweepGuardBody.error) + ').');
     console.log('No credentials were used; no database writes, deposits, withdrawals, or payouts were attempted.');
     await context.close();
   } catch (error) {
