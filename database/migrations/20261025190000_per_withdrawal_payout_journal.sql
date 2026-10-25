@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.withdrawal_payout_journal (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   withdrawal_id uuid NOT NULL UNIQUE REFERENCES public.withdrawal_requests(id) ON DELETE RESTRICT,
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
-  network text NOT NULL DEFAULT 'TRON MAINNET' CHECK (network = 'TRON MAINNET'),
+  network text NOT NULL DEFAULT 'TRON MAINNET' CHECK (network IN ('TRON MAINNET','TRON TESTNET')),
   derivation_index bigint NOT NULL UNIQUE CHECK (derivation_index > 0 AND derivation_index < 2147483648),
   address text NOT NULL UNIQUE CHECK (address ~ '^T[1-9A-HJ-NP-Za-km-z]{33}$'),
   root_fingerprint text NOT NULL CHECK (root_fingerprint ~ '^[a-fA-F0-9]{64}$'),
@@ -84,7 +84,7 @@ REVOKE ALL PRIVILEGES ON SEQUENCE public.tron_withdrawal_payout_index_seq FROM P
 GRANT USAGE, SELECT ON SEQUENCE public.tron_withdrawal_payout_index_seq TO service_role;
 
 COMMENT ON TABLE public.withdrawal_payout_journal IS
-  'One-time Mainnet HD sender address per approved withdrawal. Stores index, public address and funding/payout TXIDs only; never stores private keys or seed phrases.';
+  'One-time network-specific HD sender address per approved withdrawal. Stores index, public address and funding/payout TXIDs only; never stores private keys or seed phrases.';
 COMMENT ON COLUMN public.withdrawal_payout_journal.address IS
   'One-time derived payout sender address. Its public transaction history includes treasury funding and the final customer payout.';
 COMMENT ON COLUMN public.withdrawal_payout_journal.status IS
