@@ -15,6 +15,10 @@ const MAINNET_WITHDRAWAL_HD_PASSPHRASE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_H
 const MAINNET_DEPOSIT_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_HD_WALLET_MNEMONIC") || "";
 const SHASTA_HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
 const MAINNET_WITHDRAWAL_MAX_FEE_TRX = Number(Deno.env.get("TRON_MAINNET_WITHDRAWAL_MAX_FEE_TRX") || "80");
+const SHASTA_WITHDRAWAL_PAYOUT_MODE = Deno.env.get("TRON_SHASTA_WITHDRAWAL_PAYOUT_MODE") || "DISABLED";
+const SHASTA_WITHDRAWAL_HD_MNEMONIC = Deno.env.get("TRON_SHASTA_WITHDRAWAL_HD_MNEMONIC") || "";
+const SHASTA_WITHDRAWAL_HD_PASSPHRASE = Deno.env.get("TRON_SHASTA_WITHDRAWAL_HD_PASSPHRASE") || "";
+const SHASTA_WITHDRAWAL_MAX_FEE_TRX = Number(Deno.env.get("TRON_SHASTA_WITHDRAWAL_MAX_FEE_TRX") || "80");
 const MAINNET_USDT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const SHASTA_USDT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 
@@ -63,8 +67,8 @@ function expectedAddressTopic(address: string): string {
   return TronWeb.address.toHex(address).replace(/^41/i, "").toLowerCase().padStart(64, "0");
 }
 
-function hasExpectedUsdtTransfer(info: any, from: string, to: string, amountRaw: string): boolean {
-  const tokenHex = TronWeb.address.toHex(MAINNET_USDT).toLowerCase();
+function hasExpectedUsdtTransfer(info: any, tokenContract: string, from: string, to: string, amountRaw: string): boolean {
+  const tokenHex = TronWeb.address.toHex(tokenContract).toLowerCase();
   const transferTopic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
   const expectedFrom = expectedAddressTopic(from);
   const expectedTo = expectedAddressTopic(to);
@@ -86,6 +90,7 @@ function hasExpectedUsdtTransfer(info: any, from: string, to: string, amountRaw:
 
 async function estimateUsdtTransferEnergy(
   chain: string,
+  tokenContract: string,
   senderAddress: string,
   destinationAddress: string,
   amountRaw: string,
@@ -99,7 +104,7 @@ async function estimateUsdtTransferEnergy(
     headers,
     body: JSON.stringify({
       owner_address: TronWeb.address.toHex(senderAddress),
-      contract_address: TronWeb.address.toHex(MAINNET_USDT),
+      contract_address: TronWeb.address.toHex(tokenContract),
       function_selector: "transfer(address,uint256)",
       parameter,
       visible: false,
@@ -153,7 +158,10 @@ let admin: ReturnType<typeof createClient<any>> | null = null;
 let withdrawalId: string | null = null;
 let claimedWithdrawal: any = null;
 let payoutMayHaveBeenBroadcast = false;
-let mainnetEphemeralPayout = false;
+let ephemeralPayout = false;
+let selectedPayoutHdMnemonic = "";
+let selectedPayoutHdPassphrase = "";
+let selectedPayoutMaxFeeTrx = 80;
 let payoutJournalStarted = false;
 
   try {
@@ -250,7 +258,30 @@ let payoutJournalStarted = false;
       if (!Number.isFinite(MAINNET_WITHDRAWAL_MAX_FEE_TRX) || MAINNET_WITHDRAWAL_MAX_FEE_TRX < 3 || MAINNET_WITHDRAWAL_MAX_FEE_TRX > 100) {
         return json({ error: "The per-withdrawal payout fee cap is invalid. No payout was sent.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
       }
-      mainnetEphemeralPayout = true;
+      ephemeralPayout = true;
+      selectedPayoutHdMnemonic = MAINNET_WITHDRAWAL_HD_MNEMONIC;
+      selectedPayoutHdPassphrase = MAINNET_WITHDRAWAL_HD_PASSPHRASE;
+      selectedPayoutMaxFeeTrx = MAINNET_WITHDRAWAL_MAX_FEE_TRX;
+    }
+
+    if (testnet && String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() === "EPHEMERAL_HD") {
+      const payoutHdConfig = checkWithdrawalPayoutHdConfig(
+        SHASTA_WITHDRAWAL_PAYOUT_MODE,
+        SHASTA_WITHDRAWAL_HD_MNEMONIC,
+        SHASTA_HD_MNEMONIC,
+        MAINNET_DEPOSIT_HD_MNEMONIC,
+      );
+      if (!payoutHdConfig.ready) {
+        return json({ error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent.", code: "SHASTA_WITHDRAWAL_PAYOUT_HD_NOT_READY" }, 503);
+      }
+      if (!TRONGRID_KEY) return json({ error: "TRONGrid API key is required for per-withdrawal testnet payout verification.", code: "PAYOUT_TRONGRID_REQUIRED" }, 503);
+      if (!Number.isFinite(SHASTA_WITHDRAWAL_MAX_FEE_TRX) || SHASTA_WITHDRAWAL_MAX_FEE_TRX < 3 || SHASTA_WITHDRAWAL_MAX_FEE_TRX > 100) {
+        return json({ error: "The Shasta per-withdrawal payout fee cap is invalid.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
+      }
+      ephemeralPayout = true;
+      selectedPayoutHdMnemonic = SHASTA_WITHDRAWAL_HD_MNEMONIC;
+      selectedPayoutHdPassphrase = SHASTA_WITHDRAWAL_HD_PASSPHRASE;
+      selectedPayoutMaxFeeTrx = SHASTA_WITHDRAWAL_MAX_FEE_TRX;
     }
 
     if (systemMode.mode === "MAINNET" && network === "TRON MAINNET" && systemMode.real_payouts === true && !mainnet) {
@@ -292,7 +323,7 @@ let payoutJournalStarted = false;
       }, 409);
     }
 
-    if (mainnetEphemeralPayout) {
+    if (ephemeralPayout) {
       const { data: existingJournal, error: existingJournalError } = await admin
         .from("withdrawal_payout_journal")
         .select("status,payout_txid")
@@ -393,22 +424,25 @@ let payoutJournalStarted = false;
     }
 
     let txid = "";
-    if (mainnet) {
-      // Reserve a unique withdrawal-specific child index from a seed kept separate
-      // from both deposit HD seeds. No private key is persisted or returned.
+    if (ephemeralPayout) {
+      // The one-time payout HD seed is separate from both deposit seeds. No private key is persisted or returned.
       const { data: nextIndexValue, error: indexError } = await admin.rpc("next_tron_withdrawal_payout_index");
       const derivationIndex = Number(nextIndexValue);
       if (indexError || !Number.isSafeInteger(derivationIndex) || derivationIndex < 1 || derivationIndex >= 2147483648) {
         throw new Error("WITHDRAWAL_PAYOUT_INDEX_UNAVAILABLE");
       }
-      const senderIdentity = await deriveTronHdIdentity(
-        MAINNET_WITHDRAWAL_HD_MNEMONIC,
-        MAINNET_WITHDRAWAL_HD_PASSPHRASE,
-        derivationIndex,
-      );
-      const depositRoot = await deriveTronHdIdentity(MAINNET_DEPOSIT_HD_MNEMONIC, Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "", 0);
-      const shastaRoot = await deriveTronHdIdentity(SHASTA_HD_MNEMONIC, Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "", 0);
-      if (senderIdentity.rootFingerprint === depositRoot.rootFingerprint || senderIdentity.rootFingerprint === shastaRoot.rootFingerprint) {
+      const senderIdentity = await deriveTronHdIdentity(selectedPayoutHdMnemonic, selectedPayoutHdPassphrase, derivationIndex);
+      const sameNetworkDepositMnemonic = mainnet ? MAINNET_DEPOSIT_HD_MNEMONIC : SHASTA_HD_MNEMONIC;
+      const otherNetworkDepositMnemonic = mainnet ? SHASTA_HD_MNEMONIC : MAINNET_DEPOSIT_HD_MNEMONIC;
+      const sameNetworkDepositPassphrase = mainnet
+        ? (Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "")
+        : (Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "");
+      const otherNetworkDepositPassphrase = mainnet
+        ? (Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "")
+        : (Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPHRASE") || Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "");
+      const depositRoot = await deriveTronHdIdentity(sameNetworkDepositMnemonic, sameNetworkDepositPassphrase, 0);
+      const otherRoot = await deriveTronHdIdentity(otherNetworkDepositMnemonic, otherNetworkDepositPassphrase, 0);
+      if (senderIdentity.rootFingerprint === depositRoot.rootFingerprint || senderIdentity.rootFingerprint === otherRoot.rootFingerprint) {
         throw new Error("WITHDRAWAL_PAYOUT_HD_ROOT_NOT_DISTINCT");
       }
       const { data: indexCollision, error: indexCollisionError } = await admin.from("withdrawal_payout_journal")
@@ -416,7 +450,7 @@ let payoutJournalStarted = false;
       const { data: addressCollision, error: addressCollisionError } = await admin.from("withdrawal_payout_journal")
         .select("id").eq("address", senderIdentity.address).limit(1);
       const { data: depositCollision, error: depositCollisionError } = await admin.from("deposit_wallets")
-        .select("id").eq("network", "TRON MAINNET").eq("address", senderIdentity.address).limit(1);
+        .select("id").eq("network", network).eq("address", senderIdentity.address).limit(1);
       if (indexCollisionError || addressCollisionError || depositCollisionError ||
           (indexCollision || []).length || (addressCollision || []).length || (depositCollision || []).length) {
         throw new Error("WITHDRAWAL_PAYOUT_ADDRESS_COLLISION");
@@ -432,18 +466,16 @@ let payoutJournalStarted = false;
         headers: { "TRON-PRO-API-KEY": TRONGRID_KEY },
         privateKey: senderIdentity.privateKey,
       });
-      const treasuryContract = await treasuryTron.contract().at(MAINNET_USDT);
-      const senderContract = await senderTron.contract().at(MAINNET_USDT);
+      const treasuryContract = await treasuryTron.contract().at(usdtContract);
+      const senderContract = await senderTron.contract().at(usdtContract);
       const currentTrx = Number(await senderTron.trx.getBalance(senderIdentity.address));
       const currentToken = BigInt(String(await senderContract.balanceOf(senderIdentity.address).call()));
-      if (currentTrx !== 0 || currentToken !== 0n) {
-        throw new Error("WITHDRAWAL_PAYOUT_CHILD_ADDRESS_NOT_EMPTY");
-      }
+      if (currentTrx !== 0 || currentToken !== 0n) throw new Error("WITHDRAWAL_PAYOUT_CHILD_ADDRESS_NOT_EMPTY");
 
       const { data: journalRow, error: journalInsertError } = await admin.from("withdrawal_payout_journal").insert({
         withdrawal_id: withdrawal.id,
         user_id: withdrawal.user_id,
-        network: "TRON MAINNET",
+        network,
         derivation_index: derivationIndex,
         address: senderIdentity.address,
         root_fingerprint: senderIdentity.rootFingerprint,
@@ -452,48 +484,37 @@ let payoutJournalStarted = false;
         status: "PREPARED",
         idempotency_key: "withdrawal:" + withdrawal.id,
       }).select("id").single();
-      if (journalInsertError || !journalRow) {
-        throw new Error("WITHDRAWAL_PAYOUT_JOURNAL_CREATE_FAILED");
-      }
+      if (journalInsertError || !journalRow) throw new Error("WITHDRAWAL_PAYOUT_JOURNAL_CREATE_FAILED");
       payoutJournalStarted = true;
 
-      // An activation transfer is required for a new TRON account. The main treasury
-      // funds the sender wallet; this funding transaction remains visible on-chain.
+      // The temporary account must be activated and funded. Funding transactions are public
+      // and can be linked back to the treasury; the customer's final USDT payout is sent by
+      // this per-withdrawal sender address.
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "ACTIVATION_SUBMITTED" });
       payoutMayHaveBeenBroadcast = true;
       const activationResult = await treasuryTron.trx.sendTrx(senderIdentity.address, 1_000_000);
       const activationTxid = safeTxid(activationResult);
       if (!/^[a-fA-F0-9]{64}$/.test(activationTxid)) throw new Error("WITHDRAWAL_PAYOUT_ACTIVATION_TXID_MISSING");
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { trx_activation_txid: activationTxid });
-      const activationInfo = await waitForTransactionInfo(treasuryTron, activationTxid);
-      if (Number(await senderTron.trx.getBalance(senderIdentity.address)) <= 0) {
-        throw new Error("WITHDRAWAL_PAYOUT_ACTIVATION_NOT_VISIBLE");
-      }
+      await waitForTransactionInfo(treasuryTron, activationTxid);
+      if (Number(await senderTron.trx.getBalance(senderIdentity.address)) <= 0) throw new Error("WITHDRAWAL_PAYOUT_ACTIVATION_NOT_VISIBLE");
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "ACTIVATED", activated_at: new Date().toISOString() });
 
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDING_SUBMITTED" });
       const usdtFundingResult = await treasuryContract.transfer(senderIdentity.address, amountRaw).send({
-        feeLimit: 100_000_000,
-        callValue: 0,
-        shouldPollResponse: true,
+        feeLimit: 100_000_000, callValue: 0, shouldPollResponse: true,
       });
       const usdtFundingTxid = safeTxid(usdtFundingResult);
       if (!/^[a-fA-F0-9]{64}$/.test(usdtFundingTxid)) throw new Error("WITHDRAWAL_PAYOUT_FUNDING_TXID_MISSING");
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { usdt_funding_txid: usdtFundingTxid });
       const usdtFundingInfo = await waitForTransactionInfo(treasuryTron, usdtFundingTxid);
-      if (!hasExpectedUsdtTransfer(usdtFundingInfo, configuredTreasury, senderIdentity.address, amountRaw)) {
-        throw new Error("WITHDRAWAL_PAYOUT_FUNDING_RECEIPT_MISMATCH");
-      }
+      if (!hasExpectedUsdtTransfer(usdtFundingInfo, usdtContract, configuredTreasury, senderIdentity.address, amountRaw)) throw new Error("WITHDRAWAL_PAYOUT_FUNDING_RECEIPT_MISMATCH");
       const fundedTokenBalance = BigInt(String(await senderContract.balanceOf(senderIdentity.address).call()));
       if (fundedTokenBalance !== BigInt(amountRaw)) throw new Error("WITHDRAWAL_PAYOUT_FUNDING_BALANCE_MISMATCH");
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDED", funded_at: new Date().toISOString() });
 
-      const energyEstimate = await estimateUsdtTransferEnergy(chain, senderIdentity.address, withdrawal.destination_address, amountRaw);
-      const feeReserve = estimatePayoutFeeReserveSun(
-        energyEstimate.energyRequired,
-        energyEstimate.energyFeeSun,
-        MAINNET_WITHDRAWAL_MAX_FEE_TRX,
-      );
+      const energyEstimate = await estimateUsdtTransferEnergy(chain, usdtContract, senderIdentity.address, withdrawal.destination_address, amountRaw);
+      const feeReserve = estimatePayoutFeeReserveSun(energyEstimate.energyRequired, energyEstimate.energyFeeSun, selectedPayoutMaxFeeTrx);
       if (!feeReserve.ok) throw new Error(feeReserve.code);
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, {
         estimated_energy: feeReserve.estimatedEnergy,
@@ -509,24 +530,18 @@ let payoutJournalStarted = false;
         if (!/^[a-fA-F0-9]{64}$/.test(topupTxid)) throw new Error("WITHDRAWAL_PAYOUT_FEE_TXID_MISSING");
         await updateWithdrawalPayoutJournal(admin, withdrawal.id, { trx_fee_topup_txid: topupTxid });
         await waitForTransactionInfo(treasuryTron, topupTxid);
-        if (BigInt(String(await senderTron.trx.getBalance(senderIdentity.address))) < feeReserve.reserveSun) {
-          throw new Error("WITHDRAWAL_PAYOUT_FEE_RESERVE_NOT_VISIBLE");
-        }
+        if (BigInt(String(await senderTron.trx.getBalance(senderIdentity.address))) < feeReserve.reserveSun) throw new Error("WITHDRAWAL_PAYOUT_FEE_RESERVE_NOT_VISIBLE");
       }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "FEE_READY" });
 
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAYOUT_SUBMITTED", payout_submitted_at: new Date().toISOString() });
       const payoutTxid = safeTxid(await senderContract.transfer(withdrawal.destination_address, amountRaw).send({
-        feeLimit: Math.floor(MAINNET_WITHDRAWAL_MAX_FEE_TRX * 1_000_000),
-        callValue: 0,
-        shouldPollResponse: true,
+        feeLimit: Math.floor(selectedPayoutMaxFeeTrx * 1_000_000), callValue: 0, shouldPollResponse: true,
       }));
       if (!/^[a-fA-F0-9]{64}$/.test(payoutTxid)) throw new Error("WITHDRAWAL_PAYOUT_TXID_MISSING");
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { payout_txid: payoutTxid });
       const payoutInfo = await waitForTransactionInfo(senderTron, payoutTxid);
-      if (!hasExpectedUsdtTransfer(payoutInfo, senderIdentity.address, withdrawal.destination_address, amountRaw)) {
-        throw new Error("WITHDRAWAL_PAYOUT_RECEIPT_MISMATCH");
-      }
+      if (!hasExpectedUsdtTransfer(payoutInfo, usdtContract, senderIdentity.address, withdrawal.destination_address, amountRaw)) throw new Error("WITHDRAWAL_PAYOUT_RECEIPT_MISMATCH");
       txid = payoutTxid;
     } else {
       // Testnet/demo payout behavior remains unchanged.
@@ -566,7 +581,7 @@ let payoutJournalStarted = false;
       }, 202);
     }
 
-    if (mainnetEphemeralPayout && payoutJournalStarted) {
+    if (ephemeralPayout && payoutJournalStarted) {
       try {
         await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAID", payout_txid: txid, paid_at: new Date().toISOString(), last_error_code: null });
       } catch {
@@ -583,14 +598,14 @@ let payoutJournalStarted = false;
       actor_user_id: profile.id,
       target_user_id: withdrawal.user_id,
       event_type: "WITHDRAWAL_PAID",
-      description: mainnetEphemeralPayout ? "TRON USDT payout sent via per-withdrawal HD sender wallet" : "TRON USDT payout submitted by payout service",
+      description: ephemeralPayout ? "TRON USDT payout sent via per-withdrawal HD sender wallet" : "TRON USDT payout submitted by payout service",
       reference_id: withdrawal.id,
     });
 
     return json({ status: "PAID", txid, auditLogged: !auditError });
   } catch (error) {
-    const detail = mainnetEphemeralPayout ? "Per-withdrawal payout stage failed; reconcile the journal before any retry." : errorMessage(error);
-    if (admin && withdrawalId && mainnetEphemeralPayout && payoutJournalStarted) {
+    const detail = ephemeralPayout ? "Per-withdrawal payout stage failed; reconcile the journal before any retry." : errorMessage(error);
+    if (admin && withdrawalId && ephemeralPayout && payoutJournalStarted) {
       await admin.from("withdrawal_payout_journal").update({
         status: payoutMayHaveBeenBroadcast ? "RECONCILIATION_REQUIRED" : "FAILED_BEFORE_BROADCAST",
         last_error_code: payoutMayHaveBeenBroadcast ? "PAYOUT_STAGE_REQUIRES_RECONCILIATION" : "PAYOUT_FAILED_BEFORE_BROADCAST",
