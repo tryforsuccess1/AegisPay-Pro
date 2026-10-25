@@ -131,6 +131,14 @@ test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and n
 });
 
 
+test("testnet sweep auth supports a dedicated vault-backed validator fallback without sharing monitor credentials", () => {
+  assert.match(sweeperFunction, /const environmentSecretMatches = Boolean\(CRON_SECRET && suppliedSecret && suppliedSecret === CRON_SECRET\)/);
+  assert.match(sweeperFunction, /admin\.rpc\("verify_testnet_sweep_cron_secret", \{ p_token: suppliedSecret \}\)/);
+  assert.match(sweeperFunction, /if \(secretError \|\| secretMatches !== true\) return json\(\{ error: "Unauthorized\." \}, 401\)/);
+  assert.match(sweeperFunction, /if \(!TESTNET_SWEEP_ENABLED \|\| !SHASTA_TEST_MODE_ENABLED\)/);
+  assert.match(sweeperFunction, /mainnetSweepEnabled: false/);
+});
+
 test("Shasta fallback fails closed when the confirmed-transfer provider page is capped", () => {
   assert.match(verifyFunction, /if \(transfers\.length >= 200\)[\s\S]{0,220}SHASTA_TRANSFER_PAGE_CAPPED/);
   assert.match(monitorFunction, /if \(rows\.length >= 200\) return \{ id: deposit\.id, status: "SHASTA_TRANSFER_PAGE_CAPPED" \}/);
