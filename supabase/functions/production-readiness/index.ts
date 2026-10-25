@@ -177,6 +177,9 @@ Deno.serve(async(req:Request)=>{
    mainnet_shasta_selected_keys_distinct:mainnetShastaSelectedKeysDistinct,
    mainnet_shasta_treasury_addresses_distinct:treasuryAddressesDistinct,
   };
+  // Runtime audit log intentionally contains only safe status booleans and selected alias labels.
+  // Never add raw private keys, mnemonics, passphrases, wallet addresses, or fingerprints here.
+  console.info("P0_NETWORK_SECRET_DIAGNOSTICS",JSON.stringify(keyDiagnostics));
   const payoutKeysSafelySeparated= !mainnetAliasConflict&&!shastaAliasConflict
    &&mainnetShastaSelectedKeysDistinct&&treasuryAddressesDistinct&&shastaRulesConfigOk
    &&mainnetSignerCheck.matches&&shastaSignerCheck.matches;
