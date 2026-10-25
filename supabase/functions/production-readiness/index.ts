@@ -43,28 +43,45 @@ function signerAddressCheck(privateKey:string, configuredAddress:string) {
 }
 async function hdRootFingerprintStatus(admin:any, network:string, mnemonic:string, passphrase:string) {
   const normalizedMnemonic=String(mnemonic||"").trim().replace(/\s+/g," ");
-  if(!normalizedMnemonic)return {status:"SECRET_MISSING",matches:null,active_wallet_count:0};
+  if(!normalizedMnemonic)return {status:"SECRET_MISSING",matches:null,active_wallet_count:0,root_derivation_valid:false,child_derivation_valid:false};
+  const normalizedPassphrase=String(passphrase||"");
   let rootAddress="";
   try {
-    const account=TronWeb.fromMnemonic(normalizedMnemonic,"m/44'/195'/0'/0/0",String(passphrase||""));
+    const account=TronWeb.fromMnemonic(normalizedMnemonic,"m/44'/195'/0'/0/0",normalizedPassphrase);
     rootAddress=String(account.address||"");
-    if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(rootAddress))return {status:"DERIVATION_FAILED",matches:null,active_wallet_count:null};
+    if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(rootAddress))return {status:"DERIVATION_FAILED",matches:null,active_wallet_count:null,root_derivation_valid:false,child_derivation_valid:false};
   } catch {
-    return {status:"DERIVATION_FAILED",matches:null,active_wallet_count:null};
+    return {status:"DERIVATION_FAILED",matches:null,active_wallet_count:null,root_derivation_valid:false,child_derivation_valid:false};
   }
+
+  // Dry-run the same first child path used for deposit-address issuance.
+  // Never return or log the derived address/private key and never store or broadcast it.
+  let childDerivationValid=false;
+  try {
+    const child=TronWeb.fromMnemonic(normalizedMnemonic,"m/44'/195'/0'/0/1",normalizedPassphrase);
+    const childAddress=String(child.address||"");
+    const childPrivateKey=String(child.privateKey||"").replace(/^0x/i,"");
+    childDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(childAddress)
+      &&/^[a-fA-F0-9]{64}$/.test(childPrivateKey)
+      &&TronWeb.address.fromPrivateKey(childPrivateKey)===childAddress;
+  } catch {
+    childDerivationValid=false;
+  }
+  if(!childDerivationValid)return {status:"DERIVATION_FAILED",matches:null,active_wallet_count:null,root_derivation_valid:true,child_derivation_valid:false};
+
   try {
     const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rootAddress));
     const rootFingerprint=Array.from(new Uint8Array(digest)).map((byte)=>byte.toString(16).padStart(2,"0")).join("");
     const {data,error}=await admin.from("deposit_wallets").select("wallet_root_fingerprint").eq("network",network).eq("status","ACTIVE").limit(1000);
-    if(error)return {status:"DATABASE_CHECK_FAILED",matches:null,active_wallet_count:null};
+    if(error)return {status:"DATABASE_CHECK_FAILED",matches:null,active_wallet_count:null,root_derivation_valid:true,child_derivation_valid:true};
     const rows=Array.isArray(data)?data:[];
-    if(rows.length===0)return {status:"NO_ACTIVE_WALLETS",matches:null,active_wallet_count:0};
-    if(rows.length===1000)return {status:"CHECK_LIMIT_REACHED",matches:null,active_wallet_count:rows.length};
-    if(rows.some((row:any)=>!String(row.wallet_root_fingerprint||"").trim()))return {status:"FINGERPRINT_MISSING",matches:false,active_wallet_count:rows.length};
+    if(rows.length===0)return {status:"NO_ACTIVE_WALLETS",matches:null,active_wallet_count:0,root_derivation_valid:true,child_derivation_valid:true};
+    if(rows.length===1000)return {status:"CHECK_LIMIT_REACHED",matches:null,active_wallet_count:rows.length,root_derivation_valid:true,child_derivation_valid:true};
+    if(rows.some((row:any)=>!String(row.wallet_root_fingerprint||"").trim()))return {status:"FINGERPRINT_MISSING",matches:false,active_wallet_count:rows.length,root_derivation_valid:true,child_derivation_valid:true};
     const matches=rows.every((row:any)=>row.wallet_root_fingerprint===rootFingerprint);
-    return {status:matches?"MATCH":"MISMATCH",matches,active_wallet_count:rows.length};
+    return {status:matches?"MATCH":"MISMATCH",matches,active_wallet_count:rows.length,root_derivation_valid:true,child_derivation_valid:true};
   } catch {
-    return {status:"CHECK_FAILED",matches:null,active_wallet_count:null};
+    return {status:"CHECK_FAILED",matches:null,active_wallet_count:null,root_derivation_valid:true,child_derivation_valid:true};
   }
 }
 Deno.serve(async(req:Request)=>{
@@ -159,9 +176,13 @@ Deno.serve(async(req:Request)=>{
    shasta_hd_mnemonic_alias_conflict:shastaHdMnemonicAliasConflict,
    mainnet_shasta_hd_mnemonics_distinct:mainnetShastaHdMnemonicsDistinct,
    mainnet_hd_root_fingerprint_status:mainnetHdRootCheck.status,
+   mainnet_hd_root_derivation_valid:mainnetHdRootCheck.root_derivation_valid,
+   mainnet_hd_child_derivation_valid:mainnetHdRootCheck.child_derivation_valid,
    mainnet_hd_root_matches_active_wallets:mainnetHdRootCheck.matches,
    mainnet_hd_root_active_wallet_count:mainnetHdRootCheck.active_wallet_count,
    shasta_hd_root_fingerprint_status:shastaHdRootCheck.status,
+   shasta_hd_root_derivation_valid:shastaHdRootCheck.root_derivation_valid,
+   shasta_hd_child_derivation_valid:shastaHdRootCheck.child_derivation_valid,
    shasta_hd_root_matches_active_wallets:shastaHdRootCheck.matches,
    shasta_hd_root_active_wallet_count:shastaHdRootCheck.active_wallet_count,
    mainnet_hd_passphrase_present:Boolean(MAINNET_HD_PASSPHRASE),
