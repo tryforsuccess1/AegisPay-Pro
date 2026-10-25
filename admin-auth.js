@@ -438,10 +438,14 @@ function productionReadiness(){
     diagItem('Shasta HD mnemonic fallback present',aliasPresence(keyDiagnostics.shasta_hd_mnemonic_fallback_alias_present))+
     diagItem('Shasta HD mnemonic alias conflict',diagMark(keyDiagnostics.shasta_hd_mnemonic_alias_conflict===false?true:keyDiagnostics.shasta_hd_mnemonic_alias_conflict===true?false:undefined))+
     diagItem('Mainnet/Shasta HD mnemonics distinct',diagMark(keyDiagnostics.mainnet_shasta_hd_mnemonics_distinct))+
-    diagItem('Mainnet HD root fingerprint check',keyDiagnostics.mainnet_hd_root_fingerprint_status)+
+    diagItem('Mainnet HD root derivation',diagMark(keyDiagnostics.mainnet_hd_root_derivation_valid))+
+     diagItem('Mainnet HD child derivation',diagMark(keyDiagnostics.mainnet_hd_child_derivation_valid))+
+     diagItem('Mainnet HD root fingerprint check',keyDiagnostics.mainnet_hd_root_fingerprint_status)+
     diagItem('Mainnet HD root matches active wallets',diagMark(keyDiagnostics.mainnet_hd_root_matches_active_wallets))+
     diagItem('Mainnet active HD wallet count',keyDiagnostics.mainnet_hd_root_active_wallet_count)+
-    diagItem('Shasta HD root fingerprint check',keyDiagnostics.shasta_hd_root_fingerprint_status)+
+    diagItem('Shasta HD root derivation',diagMark(keyDiagnostics.shasta_hd_root_derivation_valid))+
+     diagItem('Shasta HD child derivation',diagMark(keyDiagnostics.shasta_hd_child_derivation_valid))+
+     diagItem('Shasta HD root fingerprint check',keyDiagnostics.shasta_hd_root_fingerprint_status)+
     diagItem('Shasta HD root matches active wallets',diagMark(keyDiagnostics.shasta_hd_root_matches_active_wallets))+
     diagItem('Shasta active HD wallet count',keyDiagnostics.shasta_hd_root_active_wallet_count)+
     diagItem('Mainnet HD passphrase alias',keyDiagnostics.mainnet_hd_passphrase_selected_alias)+
