@@ -1,0 +1,55 @@
+name: AegisPay Service-Only Internal Deposit Table Access Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/20261025140000_harden_service_only_deposit_tables.sql'
+      - 'scripts/sql-tests/service_only_deposit_tables_*.sql'
+      - '.github/workflows/service-only-deposit-tables-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/20261025140000_harden_service_only_deposit_tables.sql'
+      - 'scripts/sql-tests/service_only_deposit_tables_*.sql'
+      - '.github/workflows/service-only-deposit-tables-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  service-only-deposit-tables:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL is ready
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create service-only table fixture with intentionally broad grants
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/service_only_deposit_tables_fixture.sql
+      - name: Apply deny-client-access migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261025140000_harden_service_only_deposit_tables.sql
+      - name: Assert RLS policies, client denials and backend access
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/service_only_deposit_tables_assertions.sql
