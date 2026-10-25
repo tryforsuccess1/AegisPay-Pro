@@ -204,14 +204,35 @@ async function markConfirmed(admin: Admin, row: SweepRow, txid: string) {
   return { walletId: row.deposit_wallet_id, sweepId: row.id, status: updated.status === "CONFIRMED" ? "SWEPT_CONFIRMED" : updated.status, txid };
 }
 
+async function getTransactionInfoForReconciliation(client: any, txid: string): Promise<any> {
+  let info: any = null;
+  try { info = await client.trx.getTransactionInfo(txid); } catch { /* Use the explicit Shasta HTTP fallback below. */ }
+  if (info && String(info.id || "").toLowerCase() === txid.toLowerCase()
+    && info.receipt && Array.isArray(info.log)) return info;
+  try {
+    const headers: Record<string, string> = { accept: "application/json", "Content-Type": "application/json" };
+    if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
+    const response = await fetch(HOST + "/wallet/gettransactioninfobyid", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ value: txid }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) {
+      const fallback = await response.json();
+      if (fallback && String(fallback.id || "").toLowerCase() === txid.toLowerCase()) return fallback;
+    }
+  } catch { /* Fall through to the safe PENDING/expiry handling below. */ }
+  return info;
+}
+
 async function processSavedTransaction(admin: Admin, client: any, row: SweepRow, treasury: string) {
   const decision = classifySweepAction(row);
   if (decision === "ALREADY_CONFIRMED") return { walletId: row.deposit_wallet_id, sweepId: row.id, status: "ALREADY_CONFIRMED", txid: row.txid };
   if (decision === "MANUAL_REVIEW") return markReview(admin, row, "SAVED_TRANSACTION_INVALID_OR_EXPIRED");
   const txid = String(row.txid);
   const signedTx = row.signed_transaction;
-  let info: any = null;
-  try { info = await client.trx.getTransactionInfo(txid); } catch { /* Not yet indexed; rebroadcast only the exact saved signed bytes. */ }
+  const info = await getTransactionInfoForReconciliation(client, txid);
   const receiptState = classifySweepReceipt(
     info,
     txid,
