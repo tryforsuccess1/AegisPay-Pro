@@ -224,16 +224,29 @@ let payoutJournalStarted = false;
     const { data: modeRow } = await admin.from("platform_settings")
       .select("value_json").eq("key", "system_mode").maybeSingle();
     const systemMode = modeRow?.value_json || {};
-    const { data: networkRow } = await admin.from("platform_settings")
+    const { data: networkRow, error: networkError } = await admin.from("platform_settings")
       .select("value_json").eq("key", "deposit_rules").maybeSingle();
-    const network = String(networkRow?.value_json?.network || "").toUpperCase();
+    if (networkError) return json({ error: "Unable to confirm configured payout network." }, 503);
+    const { data: shastaRulesRow, error: shastaRulesError } = await admin.from("platform_settings")
+      .select("value_json").eq("key", "shasta_testnet_rules").maybeSingle();
+    if (shastaRulesError) return json({ error: "Unable to confirm isolated Shasta testnet rules." }, 503);
+    const shastaRules = shastaRulesRow?.value_json || {};
+    // This explicit server-side flag enables only Shasta test payouts. It does not alter
+    // system_mode, deposit_rules, or any Mainnet production gate.
+    const isolatedShasta = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true" &&
+      systemMode.mode === "MAINNET" &&
+      String(shastaRules.network || "").toUpperCase() === "TRON TESTNET" &&
+      String(shastaRules.token_contract || "") === SHASTA_USDT &&
+      Boolean(String(shastaRules.receiving_address || "").trim());
+    const payoutNetworkRow = isolatedShasta ? shastaRulesRow : networkRow;
+    const network = String(payoutNetworkRow?.value_json?.network || "").toUpperCase();
 
     const { data: productionRow, error: productionError } = await admin.from("platform_settings")
       .select("value_json").eq("key", "production_config").maybeSingle();
     if (productionError) return json({ error: "Unable to confirm production payout gate." }, 503);
     const productionConfig = productionRow?.value_json || {};
 
-    const testnet = systemMode.mode === "TESTNET_DEMO" && systemMode.testnet_payouts === true && network === "TRON TESTNET";
+    const testnet = (systemMode.mode === "TESTNET_DEMO" && systemMode.testnet_payouts === true && network === "TRON TESTNET") || isolatedShasta;
     const mainnet = systemMode.mode === "MAINNET"
       && systemMode.real_payouts === true
       && systemMode.production_go_live_approved === true
@@ -294,14 +307,14 @@ let payoutJournalStarted = false;
     if (!testnet && !mainnet) return json({ error: "The selected TRON network is not enabled for payouts." }, 403);
     const payoutKey = testnet ? TESTNET_PAYOUT_KEY : MAINNET_PAYOUT_KEY;
     if (!payoutKey) return json({ error: testnet ? "TRON_TESTNET_PAYOUT_PRIVATE_KEY is not configured." : "TRON_PAYOUT_PRIVATE_KEY is not configured." }, 503);
-    const tokenContract = String(networkRow?.value_json?.token_contract || "");
+    const tokenContract = String(payoutNetworkRow?.value_json?.token_contract || "");
     if (testnet && tokenContract !== SHASTA_USDT) return json({ error: "The testnet USDT contract does not match the supported Shasta token." }, 403);
     if (mainnet && tokenContract && tokenContract !== MAINNET_USDT) return json({ error: "The configured token is not the supported TRON mainnet USDT contract." }, 403);
     const chain = testnet ? "https://api.shasta.trongrid.io" : "https://api.trongrid.io";
     const usdtContract = testnet ? SHASTA_USDT : MAINNET_USDT;
 
     // Fail closed before claiming a withdrawal if the configured treasury and signer do not match.
-    const configuredTreasury = String(networkRow?.value_json?.receiving_address || "").trim();
+    const configuredTreasury = String(payoutNetworkRow?.value_json?.receiving_address || "").trim();
     const signerAddress = String(TronWeb.address.fromPrivateKey(payoutKey) || "");
     if (!configuredTreasury || signerAddress !== configuredTreasury) {
       return json({ error: "Payout signer does not match the configured treasury address. No transaction was sent.", code: "PAYOUT_TREASURY_MISMATCH" }, 409);
@@ -369,7 +382,19 @@ let payoutJournalStarted = false;
     if (testnet) {
       const { data: currentMode, error: currentModeError } = await admin.from("platform_settings")
         .select("value_json").eq("key", "system_mode").maybeSingle();
-      if (currentModeError || currentMode?.value_json?.mode !== "TESTNET_DEMO" || currentMode?.value_json?.testnet_payouts !== true) {
+      if (currentModeError) throw new Error("Unable to revalidate testnet payout mode.");
+      if (isolatedShasta) {
+        const { data: currentShasta, error: currentShastaError } = await admin.from("platform_settings")
+          .select("value_json").eq("key", "shasta_testnet_rules").maybeSingle();
+        const currentRules = currentShasta?.value_json || {};
+        if (currentShastaError || Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") !== "true" ||
+            currentMode?.value_json?.mode !== "MAINNET" ||
+            String(currentRules.network || "").toUpperCase() !== "TRON TESTNET" ||
+            String(currentRules.token_contract || "") !== SHASTA_USDT ||
+            String(currentRules.receiving_address || "").trim() !== configuredTreasury) {
+          throw new Error("Isolated Shasta test payouts were disabled or their rules changed before broadcast.");
+        }
+      } else if (currentMode?.value_json?.mode !== "TESTNET_DEMO" || currentMode?.value_json?.testnet_payouts !== true) {
         throw new Error("Testnet payouts were disabled before the transfer could be broadcast.");
       }
     }
