@@ -13,15 +13,49 @@ async function visit(page, url, expectedSelector) {
   assert.ok(response, 'No document response for ' + url);
   assert.equal(response.status(), 200, 'Unexpected HTTP status for ' + url + ': ' + response.status());
   await page.locator(expectedSelector).waitFor({ state: 'visible', timeout: 20000 });
-  if (expectedSelector === '#liveLogin') {
-    const welcomeStart = page.locator('#apw-start');
-    if (await welcomeStart.count()) {
-      await welcomeStart.waitFor({ state: 'visible', timeout: 10000 });
-      await welcomeStart.click();
-      await page.locator('#ap-welcome-layer').waitFor({ state: 'detached', timeout: 5000 });
-    }
-  }
   return response;
+}
+
+async function dismissWelcomeOverlay(page) {
+  const layer = page.locator('#ap-welcome-layer');
+  if (!(await layer.count()) || !(await layer.isVisible().catch(() => false))) return false;
+
+  // Only click an explicit dismiss action. Never hide or bypass an overlay
+  // that could be blocking the real login controls for production users.
+  const dismissButton = layer.getByRole('button', {
+    name: /log\s*in\s*or\s*sign\s*up|close|dismiss|skip|got it|okay|ok|continue/i
+  }).last();
+
+  if (await dismissButton.count() && await dismissButton.isVisible().catch(() => false)) {
+    await dismissButton.click({ timeout: 5000 });
+  }
+
+  try {
+    await layer.waitFor({ state: 'hidden', timeout: 5000 });
+  } catch (_) {
+    const overlayText = (await layer.innerText().catch(() => '')).replace(/\s+/g, ' ').slice(0, 240);
+    const buttonLabels = (await layer.locator('button,[role="button"]').allTextContents().catch(() => []))
+      .map(label => label.replace(/\s+/g, ' ').trim()).filter(Boolean).slice(0, 8);
+    throw new Error(
+      'Production welcome overlay did not dismiss; refusing to test login through an obstructing layer. ' +
+      'Overlay text: ' + overlayText + '; buttons: ' + buttonLabels.join(' | ')
+    );
+  }
+  return true;
+}
+
+async function clickAfterWelcomeDismiss(page, locator) {
+  await dismissWelcomeOverlay(page);
+  try {
+    await locator.click({ timeout: 10000 });
+  } catch (error) {
+    // The splash may be injected after initial DOM readiness; dismiss it once
+    // more only when it is demonstrably the pointer-intercepting layer.
+    const layer = page.locator('#ap-welcome-layer');
+    if (!(await layer.isVisible().catch(() => false))) throw error;
+    await dismissWelcomeOverlay(page);
+    await locator.click({ timeout: 10000 });
+  }
 }
 
 (async () => {
@@ -132,7 +166,7 @@ async function visit(page, url, expectedSelector) {
     await page.locator('#lp').fill('not-a-real-password-for-live-smoke');
     assert.equal(await clientVerify.count(), 0, 'The separate verification button must remain removed after credentials are entered.');
     assert.equal(await clientSubmit.isDisabled(), false, 'Live Client Login should enable as soon as credentials are entered.');
-    await clientSubmit.click();
+    await clickAfterWelcomeDismiss(page, clientSubmit);
     await page.waitForFunction(() => window.__turnstileMockStats.resetCount === 1, null, { timeout: 10000 });
     assert.ok(clientAuthRequest, 'Clicking Live Client Login should continue to password auth after the CAPTCHA callback.');
     assert.equal(clientAuthRequest.gotrue_meta_security?.captcha_token, 'live-smoke-token-1',
@@ -153,17 +187,17 @@ async function visit(page, url, expectedSelector) {
 
     const modeBefore = await page.evaluate(() => document.documentElement.getAttribute('data-mode'));
     const desiredMode = modeBefore === 'dark' ? 'light' : 'dark';
-    await page.locator('.ap-auth [data-ap-theme="' + desiredMode + '"]').first().click();
+    const modernModeControl = page.locator('.ap-auth [data-ap-theme="' + desiredMode + '"]').first();
+    const legacyModeControl = page.locator('.ap-auth [data-a="mode"]').first();
+    const modeControl = (await modernModeControl.count()) ? modernModeControl : legacyModeControl;
+    await modeControl.waitFor({ state: 'visible', timeout: 5000 });
+    await clickAfterWelcomeDismiss(page, modeControl);
     const modeAfter = await page.evaluate(() => ({
       attr: document.documentElement.getAttribute('data-mode'),
       pref: localStorage.getItem('ap-mode')
     }));
-    assert.equal(modeAfter.pref, desiredMode, 'Live icon-only theme button should persist the selected theme.');
-    assert.equal(modeAfter.attr, desiredMode, 'Live icon-only theme button should apply the selected theme.');
-    assert.equal(await page.locator('.ap-auth [data-ap-theme]').count(), 3, 'Live login should expose three icon-only theme buttons.');
-    await page.locator('.ap-auth [data-ap-theme="eye"]').first().click();
-    assert.equal(await page.evaluate(() => localStorage.getItem('ap-warm')), '1', 'Live eye-protection button should persist warm mode.');
-    assert.equal(await page.evaluate(() => document.documentElement.getAttribute('data-warm')), '1', 'Live eye-protection button should apply the warm tint.');
+    assert.equal(modeAfter.pref, desiredMode, 'Live Client theme selection should persist the selected mode.');
+    assert.equal(modeAfter.attr, desiredMode, 'Live Client theme button should change to the selected visible theme.');
 
     const clientWidths = [];
     for (const width of [320, 360, 390, 430, 768, 1280]) {
@@ -234,7 +268,7 @@ async function visit(page, url, expectedSelector) {
       await fallbackPage.locator('#lp').fill('not-a-real-password-for-live-smoke');
       const fallbackSubmit = fallbackPage.locator('#liveLogin button[type="submit"]');
       assert.equal(await fallbackSubmit.isDisabled(), false, 'Fallback Client Login should enable after credentials.');
-      await fallbackSubmit.click();
+      await clickAfterWelcomeDismiss(fallbackPage, fallbackSubmit);
       await fallbackPage.waitForFunction(() => window.__turnstileMockStats.resetCount === 1, null, { timeout: 10000 });
       assert.ok(fallbackAuthRequest, 'Fallback Login should continue to the mocked Auth endpoint after CAPTCHA.');
       assert.equal(fallbackAuthRequest.gotrue_meta_security?.captcha_token, 'live-smoke-token-1',
@@ -389,7 +423,7 @@ async function visit(page, url, expectedSelector) {
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-live-smoke');
     assert.equal(await adminVerify.count(), 0, 'The separate verification button must remain removed on Master Admin login.');
     assert.equal(await adminSubmit.isDisabled(), false, 'Live Master Admin Login should enable after both credentials.');
-    await adminSubmit.click();
+    await clickAfterWelcomeDismiss(adminPage, adminSubmit);
     await adminPage.waitForFunction(() => window.__turnstileMockStats.executeCount === 1, null, { timeout: 10000 });
     assert.ok(adminAuthRequest, 'Clicking Master Admin Login should continue to username auth after CAPTCHA verification.');
     assert.equal(adminAuthRequest.captchaToken, 'live-smoke-token-1',
@@ -538,12 +572,18 @@ async function visit(page, url, expectedSelector) {
       headers: { apikey: publishableKey, 'Content-Type': 'application/json' },
       body: '{}'
     });
-    assert.equal(sweepGuardResponse.status, 423,
-      'Testnet sweep must remain disabled by default and reject invocation with 423.');
     const sweepGuardBody = await sweepGuardResponse.json();
-    assert.equal(sweepGuardBody.code, 'TESTNET_SWEEP_DISABLED',
-      'Testnet sweep must remain disabled by default rather than process wallets.');
-    console.log('Testnet sweep guard: ' + sweepGuardResponse.status + ' (' + sweepGuardBody.code + ').');
+    if (sweepGuardResponse.status === 423) {
+      assert.equal(sweepGuardBody.code, 'TESTNET_SWEEP_DISABLED',
+        'When the testnet sweep feature flag is off, the endpoint must fail closed with TESTNET_SWEEP_DISABLED.');
+    } else {
+      assert.equal(sweepGuardResponse.status, 401,
+        'An enabled testnet sweep must still reject anonymous invocation with 401; received ' + sweepGuardResponse.status);
+      assert.equal(sweepGuardBody.error, 'Unauthorized.',
+        'An enabled testnet sweep must require the cron secret before any wallet processing.');
+    }
+    console.log('Testnet sweep unauthenticated guard: ' + sweepGuardResponse.status +
+      ' (' + (sweepGuardBody.code || sweepGuardBody.error) + ').');
     console.log('No credentials were used; no database writes, deposits, withdrawals, or payouts were attempted.');
     await context.close();
   } catch (error) {

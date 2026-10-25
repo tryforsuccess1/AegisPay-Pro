@@ -56,6 +56,21 @@ const must=[
   'docs/hd-tron-deposit-wallets.md',
   'scripts/sql-tests/hd_deposit_sweep_assertions.sql',
   'scripts/sql-tests/deposit_migration_fixture.sql',
+  'database/migrations/20261020180500_harden_shasta_deposit_credit.sql',
+  'database/migrations/20261021100000_isolate_shasta_test_credit_side_effects.sql',
+  'database/migrations/20261021120000_allow_shasta_deposit_txid_fallback.sql',
+  'database/migrations/20261021140000_dedupe_shasta_deposit_screenshots.sql',
+  'database/migrations/20261021150000_limit_shasta_txid_hint_index.sql',
+  'database/migrations/20261022103000_deposit_duplicate_txid_abuse_guard.sql',
+  'database/migrations/20261022111500_block_second_duplicate_txid_attempt.sql',
+  'supabase/functions/_shared/tron-deposit-validation_test.ts',
+  'supabase/functions/_shared/deposit-txid_test.ts',
+  'supabase/functions/_shared/shasta-test-mode_test.ts',
+  'scripts/sql-tests/deposit_txid_optional_assertions.sql',
+  'scripts/sql-tests/deposit_evidence_dedupe_assertions.sql',
+  'scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql',
+  'scripts/check-shasta-sweep-safety.cjs',
+  'scripts/shasta-resource-preflight.cjs',
   'scripts/sql-tests/deposit_migration_assertions.sql',
   'scripts/sql-tests/deposit_monitor_cron_fixture.sql',
   'scripts/sql-tests/deposit_monitor_cron_assertions.sql',
@@ -302,8 +317,9 @@ assert(passwordResetSource.includes('passwordPolicyError(password)')&&passwordRe
 assert(turnstileHelper.includes('https://challenges.cloudflare.com/turnstile/v0/api.js')&&turnstileHelper.includes('requireToken')&&turnstileHelper.includes('window.turnstile.reset'),'Turnstile helper must render, require, and reset a one-use token');
 assert(turnstileHelper.includes("var HELPER_INIT_KEY = '__AEGIS_TURNSTILE_HELPER_INITIALIZED__'")&&turnstileHelper.includes('if (window[HELPER_INIT_KEY]) return;')&&turnstileHelper.includes("var API_PROMISE_KEY = '__AEGIS_TURNSTILE_API_PROMISE__'"),'Turnstile helper must initialize once per page and share one API load promise across duplicate evaluations.');
 assert(turnstileHelper.includes('document.querySelector(\'script[src*="challenges.cloudflare.com/turnstile/v0/api.js"]\')')&&turnstileHelper.includes('A timeout is not proof that the browser request has stopped.'),'Turnstile loader must reuse an existing API script rather than inject a duplicate after a slow request.');
-assert((client.match(/<script src="\.\/aegis-turnstile\.js\?v=20261023-turnstile-singleton-loader"/g)||[]).length===1&&(masterAdmin.match(/<script src="\.\/aegis-turnstile\.js\?v=20261023-turnstile-singleton-loader"/g)||[]).length===1,'Client and Master Admin must each load the cache-busted Turnstile helper exactly once.');
+assert((client.match(/<script src="\.\/aegis-turnstile\.js\?v=20261025-turnstile-fast-retry"/g)||[]).length===1&&(masterAdmin.match(/<script src="\.\/aegis-turnstile\.js\?v=20261025-turnstile-fast-retry"/g)||[]).length===1,'Client and Master Admin must each load the cache-busted Turnstile helper exactly once.');
 assert(turnstileHelper.includes("var MANUAL_LOGIN_FORMS = new Set(['liveLogin', 'aaLoginForm'])")&&turnstileHelper.includes("execution: manual ? 'execute' : 'render'")&&turnstileHelper.includes("appearance: manual ? 'execute' : 'always'")&&turnstileHelper.includes("retry: manual ? 'never' : 'auto'")&&turnstileHelper.includes("'refresh-expired': 'auto'")&&turnstileHelper.includes("'refresh-timeout': 'auto'")&&turnstileHelper.includes('loadApi().catch(function (error)')&&turnstileHelper.includes('VERIFY_RETRY_LIMIT')&&turnstileHelper.includes('failOrRetryVerification')&&turnstileHelper.includes('armVerificationWatchdog')&&turnstileHelper.includes('state.pendingPromise')&&turnstileHelper.includes('state.wrap.dataset.challengeActive')&&turnstileHelper.includes('window.turnstile.execute(state.widgetId)')&&!turnstileHelper.includes('aegis-turnstile-verify-button'),'Client and Master Admin Login must prewarm Turnstile and retry verification automatically without a separate checkbox button');
+assert(turnstileHelper.includes('VERIFY_RETRY_DELAY_MS = 500'),'Turnstile verification retry delay must be 500ms for the fast-retry behavior.');
 assert(turnstileHelper.includes('VERIFY_ATTEMPT_TIMEOUT_MS = 30000')&&turnstileHelper.includes('VERIFY_RETRY_LIMIT = 1')&&turnstileHelper.includes('var timeoutMs = VERIFY_ATTEMPT_TIMEOUT_MS')&&turnstileHelper.includes("does not authorize this website hostname (110200)")&&turnstileHelper.includes("administrator must check the widget/sitekey configuration"),'Turnstile login must allow a full challenge window, perform only one automatic retry, and distinguish hostname/sitekey configuration errors.');
 assert(client.includes('if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(login)')&&fs.readFileSync('admin-auth.js','utf8').includes('if(captchaToken&&loginForm&&loginForm.isConnected&&window.AegisTurnstile)'),'Login widgets must not reset when submission is blocked before a verification token is used');
 assert(client.includes("return 'https://aegispay-web.aegispay.workers.dev/product-image?url='+encodeURIComponent(raw);"),'Client product images must use the dedicated Worker proxy instead of the static Pages origin');
@@ -687,6 +703,12 @@ assert(sweepWorker.includes('Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "tru
 assert(!sweepWorker.includes('TRON_PAYOUT_PRIVATE_KEY')&&!sweepWorker.includes('TRON MAINNET'),'Sweep worker must not read Mainnet payout keys or accept a Mainnet network');
 assert(sweepWorker.includes('mode.live_deposits !== false')&&sweepWorker.includes('production.payouts_locked !== true')&&sweepWorker.includes('PRODUCTION_MODE_BLOCKED'),'Sweep worker must fail closed unless all production money gates remain closed');
 assert(sweepWorker.includes('UNVERIFIED_OR_AMOUNT_MISMATCHED_INBOUND_TRANSFER_PRESENT')&&sweepWorker.includes('status", "VERIFIED"'),'Sweep must not move tokens when any inbound transfer lacks a verified deposit record');
+const prConsolidationSmokeSource=fs.readFileSync('scripts/client-live-smoke.cjs','utf8');
+assert(prConsolidationSmokeSource.includes('Production welcome overlay did not dismiss')&&prConsolidationSmokeSource.includes('modernModeControl')&&prConsolidationSmokeSource.includes('legacyModeControl'),'Live browser smoke must safely dismiss the welcome overlay and support modern/legacy mode controls.');
+assert(prConsolidationSmokeSource.includes('An enabled testnet sweep must still reject anonymous invocation with 401')&&prConsolidationSmokeSource.includes('TESTNET_SWEEP_DISABLED'),'Live browser smoke must accept only the disabled or unauthenticated sweep response, never send sweep credentials.');
+const prConsolidationQueueSource=fs.readFileSync('supabase/functions/admin-queues/index.ts','utf8');
+assert(['submitted_txid','network','token_contract','receiving_address','deposit_wallet_id','sender_address','raw_amount','block_timestamp','verification_source','evidence_sha256'].every(field=>prConsolidationQueueSource.includes(field)),'Master Admin deposit review must include on-chain metadata needed for reconciliation.');
+assert(client.includes("network==='TRON TESTNET'?'TRON SHASTA TESTNET':network")&&client.includes("USDT contract: '+esc(tokenContract)"),'Deposit UI must clearly label Shasta testnet and show the configured token contract.');
 assert(sweepWorker.includes('signed_transaction: transaction.signed')&&sweepWorker.includes('sendRawTransaction(signedTx)')&&sweepWorker.includes('transaction_expiration_ms'),'Sweep must persist exact signed bytes and txid before broadcasting or retrying');
 assert(sweepWorker.includes('NEEDS_TESTNET_TRX_OR_ENERGY')&&sweepWorker.includes('MIN_TRX_FOR_SWEEP_SUN'),'Sweep must skip wallets without a conservative TRX/Energy reserve rather than auto-funding from treasury');
 assert(sweepHelper.includes('RECONCILE_SAVED_TRANSACTION')&&sweepHelper.includes('MANUAL_REVIEW'),'Sweep recovery must reconcile saved transaction IDs and force ambiguous cases to manual review');

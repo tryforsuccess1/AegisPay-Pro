@@ -34,7 +34,7 @@ export function shastaSecretsAreDistinct(
   const mainnetKey = mainnetPayoutPrivateKey.trim().toLowerCase();
   const reusedSeed = Boolean(testSeed && mainnetSeed && testSeed === mainnetSeed);
   const reusedSigner = Boolean(testKey && mainnetKey && testKey === mainnetKey);
-  return !reusedSeed && !reusedSigner;
+  return Boolean(testSeed && mainnetSeed && testKey && mainnetKey && !reusedSeed && !reusedSigner);
 }
 
 export function validShastaTestRules(value: unknown): value is ShastaTestRules {
