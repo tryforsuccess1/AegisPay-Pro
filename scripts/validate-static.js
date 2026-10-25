@@ -504,7 +504,7 @@ const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/ind
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
 assert(depositReadinessSource.includes('P0_NETWORK_SECRET_DIAGNOSTICS')&&depositReadinessSource.includes('JSON.stringify(keyDiagnostics)'),'Production readiness must emit status-only network-secret diagnostics for runtime audit evidence.');
-const productionReadinessLogLines=depositReadinessSource.split(/\\r?\\n/).filter(line=>/console\\.(?:log|info|warn|error)\\s*\\(/.test(line));
+const productionReadinessLogLines=depositReadinessSource.split(/\r?\n/).filter(line=>/console\.(?:log|info|warn|error)\s*\(/.test(line));
 assert(productionReadinessLogLines.every(line=>!/(?:MAINNET_PAYOUT_KEY|TESTNET_PAYOUT_KEY|HD_MNEMONIC|HD_PASSPHRASE|PRIVATE_KEY|TELEGRAM_TOKEN|TRONGRID_KEY)/.test(line)),'Production readiness logging must never include raw secret variables.');
 
 assert(adminAuth.includes('Network Key & Signer Diagnostics')&&adminAuth.includes('keyDiagnostics.mainnet_signer_matches_configured_treasury')&&adminAuth.includes('keyDiagnostics.shasta_signer_matches_configured_treasury')&&adminAuth.includes('d.network_secrets_safely_separated'),'Master Admin must display the safe runtime signer/key-separation diagnostics.');
