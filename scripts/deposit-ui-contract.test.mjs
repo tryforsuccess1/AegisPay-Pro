@@ -131,6 +131,12 @@ test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and n
 });
 
 
+test("sweep reconciliation fetches an explicit Shasta receipt before treating a saved tx as expired", () => {
+  assert.ok(sweeperFunction.includes("getTransactionInfoForReconciliation(client, txid)"));
+  assert.ok(sweeperFunction.includes('HOST + "/wallet/gettransactioninfobyid"'));
+  assert.ok(sweeperFunction.includes('body: JSON.stringify({ value: txid })'));
+});
+
 test("testnet sweep requires its dedicated vault-backed secret and never accepts the monitor cron token", () => {
   assert.doesNotMatch(sweeperFunction, /AEGIS_CRON_SECRET|environmentSecretMatches/);
   assert.ok(sweeperFunction.includes('const suppliedSecret = req.headers.get("x-aegis-cron-secret")'));
