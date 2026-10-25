@@ -10,8 +10,14 @@ assert.match(worker, /shastaMnemonicsAreDistinct\(HD_MNEMONIC, MAINNET_HD_MNEMON
   'Sweep signing must verify both HD seeds exist and differ without reading Mainnet payout key material.');
 assert.match(secrets, /Boolean\(testSeed && mainnetSeed && testSeed !== mainnetSeed\)/,
   'HD-seed separation must fail closed when either seed is missing.');
-assert.match(secrets, /Boolean\(testKey && mainnetKey && testKey !== mainnetKey\)/,
-  'Payout-signer separation must fail closed when either key is missing.');
+assert.match(secrets, /const reusedSigner = Boolean\(testKey && mainnetKey && testKey === mainnetKey\);/,
+  'The shared helper must detect reuse of the Shasta and Mainnet payout signer keys.');
+assert.match(secrets, /return !reusedSeed && !reusedSigner;/,
+  'The shared helper must reject reused seed phrases or payout signer keys.');
+assert.match(worker, /if \(!SUPABASE_URL \|\| !SERVICE_KEY \|\| !CRON_SECRET \|\| !HD_MNEMONIC \|\| !TESTNET_PAYOUT_KEY \|\| !TRONGRID_KEY\)/,
+  'Sweep execution must stop when its Shasta mnemonic, payout signer, provider key, or cron authorization is missing.');
+assert.match(worker, /if \(derivedTreasury !== treasury\) return json\(\{ error: "Testnet treasury key mismatch\."/,
+  'Sweep signing must fail closed unless its testnet private key maps to the configured treasury address.');
 
 assert.match(worker, /\.select\("id,txid,raw_amount,verification_source"\)/,
   'Sweep source query must include the verification source.');
