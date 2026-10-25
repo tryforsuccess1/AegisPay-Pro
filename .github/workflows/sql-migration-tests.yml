@@ -91,7 +91,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_assertions.sql
 
       - name: Reset disposable deposit fixtures before applying historical Shasta migrations
-        run: psql -v ON_ERROR_STOP=1 -c "DELETE FROM public.deposit_submissions;"
+        run: psql -v ON_ERROR_STOP=1 -c "DELETE FROM public.deposit_wallet_sweep_items; DELETE FROM public.deposit_submissions;"
       - name: Restore Shasta deposit credit guards using recorded migration versions
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020190212_harden_shasta_deposit_credit_20261020.sql
       - name: Isolate Shasta test credits from Mainnet account side effects
