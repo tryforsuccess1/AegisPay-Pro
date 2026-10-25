@@ -4,6 +4,12 @@ const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
 const packageManifest=JSON.parse(fs.readFileSync('package.json','utf8'));
 const appVersionManifest=JSON.parse(fs.readFileSync('app-version.json','utf8'));
+const liveSmokeSource=fs.readFileSync('scripts/client-live-smoke.cjs','utf8');
+assert(liveSmokeSource.includes('Production welcome overlay did not dismiss') &&
+  liveSmokeSource.includes('modernModeControl') && liveSmokeSource.includes('legacyModeControl') &&
+  liveSmokeSource.includes('Testnet sweep unauthenticated guard') &&
+  liveSmokeSource.includes('TESTNET_SWEEP_DISABLED') && liveSmokeSource.includes('Unauthorized.'),
+  'Live smoke must fail closed on an obstructing welcome overlay, support current/legacy theme controls, and verify the sweep authorization gate.');
 assert(packageManifest.version===appVersionManifest.versionName,'package.json and app-version.json must use the same candidate version');
 
 const must=[
@@ -492,6 +498,10 @@ const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/ind
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
 assert(adminAuth.includes('Network Key & Signer Diagnostics')&&adminAuth.includes('keyDiagnostics.mainnet_signer_matches_configured_treasury')&&adminAuth.includes('keyDiagnostics.shasta_signer_matches_configured_treasury')&&adminAuth.includes('d.network_secrets_safely_separated'),'Master Admin must display the safe runtime signer/key-separation diagnostics.');
 assert(adminAuth.includes('Private keys, seed phrases, passphrases and wallet addresses are never displayed.')&&!adminAuth.includes('keyDiagnostics.mainnet_private_key')&&!adminAuth.includes('keyDiagnostics.shasta_private_key'),'P0 diagnostics UI must never expose secret values or actual wallet addresses.');
+assert(depositReadinessSource.includes('console.info("P0_NETWORK_SECRET_DIAGNOSTICS",JSON.stringify(keyDiagnostics))') &&
+  !depositReadinessSource.includes('console.info("P0_NETWORK_SECRET_DIAGNOSTICS",JSON.stringify(MAINNET_PAYOUT_KEY)') &&
+  !depositReadinessSource.includes('console.info("P0_NETWORK_SECRET_DIAGNOSTICS",JSON.stringify(TESTNET_PAYOUT_KEY)'),
+  'Production-readiness runtime logs may record safe status booleans/alias labels only, never raw signer keys.');
 const accessLogSource=fs.readFileSync('supabase/functions/record-user-access/index.ts','utf8');
 assert(accessLogSource.includes('event_type: eventType'), 'User access event logger must persist the declared eventType using the database event_type column');
 const telegramApproverSplitter = String.raw`split(/[\s,]+/)`;
