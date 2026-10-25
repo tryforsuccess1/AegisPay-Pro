@@ -42,7 +42,7 @@ Deno.serve(async (req: Request) => {
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     const [depositResult, kycResult, withdrawalResult, depositHistoryResult, kycHistoryResult, accessResult] = await Promise.all([
       admin.from("deposit_submissions")
-        .select("id,user_id,tier_id,gross_amount,credited_amount,txid,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
+        .select("id,user_id,tier_id,gross_amount,credited_amount,txid,submitted_txid,network,token_contract,receiving_address,deposit_wallet_id,sender_address,raw_amount,block_timestamp,verification_source,evidence_sha256,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
         .eq("status", "PENDING_VERIFICATION").order("created_at", { ascending: true }).limit(50),
       admin.from("kyc_verifications")
         .select("id,user_id,document_type,status,ai_review_status,ai_confidence,ai_checks,ai_policy_version,review_reason,front_storage_path,back_storage_path,submitted_at")
@@ -51,7 +51,7 @@ Deno.serve(async (req: Request) => {
         .select("id,user_id,amount,fee_amount,net_amount,destination_address,status,created_at,payout_error,payout_txid,payout_started_at,balance_deducted,panel_decision,panel_decided_at,telegram_decision,telegram_decided_at,telegram_status,telegram_message_id,ai_decision,ai_confidence,ai_review_reason,ai_reviewed_at")
         .in("status", ["PENDING_APPROVAL","APPROVED"]).order("created_at", { ascending: true }).limit(50),
       admin.from("deposit_submissions")
-        .select("id,user_id,tier_id,gross_amount,credited_amount,txid,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
+        .select("id,user_id,tier_id,gross_amount,credited_amount,txid,submitted_txid,network,token_contract,receiving_address,deposit_wallet_id,sender_address,raw_amount,block_timestamp,verification_source,evidence_sha256,status,ai_review_status,ai_review_reason,ai_confidence,ai_checks,ai_policy_version,verification_note,screenshot_path,created_at")
         .neq("status", "PENDING_VERIFICATION").order("created_at", { ascending: false }).limit(100),
       admin.from("kyc_verifications")
         .select("id,user_id,document_type,status,ai_review_status,ai_confidence,ai_checks,ai_policy_version,review_reason,front_storage_path,back_storage_path,submitted_at")
@@ -87,13 +87,19 @@ Deno.serve(async (req: Request) => {
     return json({
       deposits: await Promise.all(deposits.map(async (x: any) => ({
         id: x.id, tierId: x.tier_id, grossAmount: x.gross_amount, creditedAmount: x.credited_amount,
-        txid: x.txid, status: x.status, aiReviewStatus: x.ai_review_status,
+        txid: x.txid, submittedTxid: x.submitted_txid, network: x.network, tokenContract: x.token_contract,
+        receivingAddress: x.receiving_address, depositWalletId: x.deposit_wallet_id, senderAddress: x.sender_address,
+        rawAmount: x.raw_amount, blockTimestamp: x.block_timestamp, verificationSource: x.verification_source,
+        evidenceSha256: x.evidence_sha256, status: x.status, aiReviewStatus: x.ai_review_status,
         aiReviewReason: x.ai_review_reason, aiConfidence: x.ai_confidence, aiChecks: x.ai_checks || {}, aiPolicyVersion: x.ai_policy_version, note: x.verification_note, submittedAt: x.created_at,
         user: users.get(x.user_id) || null, screenshotUrl: await signedUrl(admin, x.screenshot_path),
       }))),
       depositHistory: await Promise.all(depositHistory.map(async (x: any) => ({
         id: x.id, tierId: x.tier_id, grossAmount: x.gross_amount, creditedAmount: x.credited_amount,
-        txid: x.txid, status: x.status, aiReviewStatus: x.ai_review_status,
+        txid: x.txid, submittedTxid: x.submitted_txid, network: x.network, tokenContract: x.token_contract,
+        receivingAddress: x.receiving_address, depositWalletId: x.deposit_wallet_id, senderAddress: x.sender_address,
+        rawAmount: x.raw_amount, blockTimestamp: x.block_timestamp, verificationSource: x.verification_source,
+        evidenceSha256: x.evidence_sha256, status: x.status, aiReviewStatus: x.ai_review_status,
         aiReviewReason: x.ai_review_reason, aiConfidence: x.ai_confidence, aiChecks: x.ai_checks || {}, aiPolicyVersion: x.ai_policy_version, note: x.verification_note, submittedAt: x.created_at,
         user: users.get(x.user_id) || null, screenshotUrl: await signedUrl(admin, x.screenshot_path),
       }))),

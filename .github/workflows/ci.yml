@@ -4,6 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: aegispay-ci-${{ github.ref }}
@@ -24,6 +25,8 @@ jobs:
           node-version: 24
       - name: Repository checks
         run: npm run check
+      - name: Verify Shasta sweep safety boundaries
+        run: node scripts/check-shasta-sweep-safety.cjs
       - name: Test deposit UI QR and TXID fallback contract
         run: node --test scripts/deposit-ui-contract.test.mjs
       - name: Test authenticated Cloudflare Workers AI handler
@@ -52,6 +55,12 @@ jobs:
         run: deno check --node-modules-dir=auto supabase/functions/*/index.ts
       - name: Test deposit AI endpoint normalization
         run: deno test supabase/functions/_shared/deposit-image-ai_test.ts
+      - name: Test exact Shasta transfer and amount validation
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/tron-deposit-validation_test.ts
+      - name: Test screenshot TXID extraction helper
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/deposit-txid_test.ts
+      - name: Test fail-closed Shasta test-mode rules
+        run: deno test --node-modules-dir=auto supabase/functions/_shared/shasta-test-mode_test.ts
       - name: Test breached password security helper
         run: deno test supabase/functions/_shared/pwned-passwords_test.ts
       - name: Test centralized password policy
