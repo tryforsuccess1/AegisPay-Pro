@@ -47,9 +47,12 @@ const must=[
   'database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql',
   'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
   'database/migrations/20261025190000_per_withdrawal_payout_journal.sql',
+  'database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql',
   'scripts/sql-tests/withdrawal_payout_journal_fixture.sql',
   'scripts/sql-tests/withdrawal_payout_journal_assertions.sql',
   '.github/workflows/withdrawal-payout-journal-tests.yml',
+  'supabase/functions/_shared/shasta-test-mode.ts',
+  'supabase/functions/_shared/shasta-test-mode_test.ts',
   'supabase/functions/_shared/withdrawal-payout-wallet.ts',
   'supabase/functions/_shared/withdrawal-payout-wallet_test.ts',
   'supabase/functions/get-deposit-address/index.ts',
@@ -707,6 +710,13 @@ assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigratio
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
 assert(depositMonitorSource.includes('deposit.receiving_address')&&depositVerifySource.includes('DEPOSIT_RECIPIENT_MISMATCH'),'Deposit verification must use assigned recipient');
 assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('signerAddress !== configuredTreasury'),'Payout must fail closed on signer/treasury mismatch');
+const shastaTestModeSource=fs.readFileSync('supabase/functions/_shared/shasta-test-mode.ts','utf8');
+const shastaTestModeTests=fs.readFileSync('supabase/functions/_shared/shasta-test-mode_test.ts','utf8');
+const shastaTestWithdrawalMigration=fs.readFileSync('database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql','utf8');
+assert(payoutSource.includes('isAllowlistedShastaTestUser')&&payoutSource.includes('isAllowlistedShastaTestWithdrawal')&&payoutSource.includes('shastaTestWithdrawalAllowed')&&payoutSource.includes('SHASTA_TEST_WITHDRAWAL_NOT_READY'),'Shasta payout routing must require a separate allowlist entry for the exact withdrawal and must not fall through to Mainnet.');
+assert(shastaTestModeSource.includes('shasta_test_withdrawals')&&shastaTestModeSource.includes('testWithdrawalAllowlisted'),'Shasta payout helper must enforce explicit per-withdrawal authorization.');
+assert(shastaTestModeTests.includes('exact withdrawal ID in the service-only allowlist')&&shastaTestModeTests.includes('testWithdrawalAllowlisted'),'Shasta routing must regression-test exact-withdrawal allowlisting.');
+assert(shastaTestWithdrawalMigration.includes('ENABLE ROW LEVEL SECURITY')&&shastaTestWithdrawalMigration.includes('FROM PUBLIC, anon, authenticated')&&shastaTestWithdrawalMigration.includes('TO service_role')&&shastaTestWithdrawalMigration.includes('DEFAULT false'),'Per-withdrawal Shasta test authorization must default disabled and remain service-role-only.');
 const withdrawalPayoutPolicy=fs.readFileSync('supabase/functions/_shared/withdrawal-payout-wallet.ts','utf8');
 const withdrawalPayoutPolicyTests=fs.readFileSync('supabase/functions/_shared/withdrawal-payout-wallet_test.ts','utf8');
 const withdrawalPayoutJournalMigration=fs.readFileSync('database/migrations/20261025190000_per_withdrawal_payout_journal.sql','utf8');

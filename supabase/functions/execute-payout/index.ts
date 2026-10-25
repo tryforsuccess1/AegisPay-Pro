@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 import { checkWithdrawalPayoutHdConfig, estimatePayoutFeeReserveSun } from "../_shared/withdrawal-payout-wallet.ts";
-import { isAllowlistedShastaTestUser, isIsolatedShastaPayoutEligible, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
+import { isAllowlistedShastaTestUser, isAllowlistedShastaTestWithdrawal, isIsolatedShastaPayoutEligible, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -245,13 +245,21 @@ let payoutJournalStarted = false;
       String(payoutTarget.user_id || ""),
       shastaTestPayoutsEnabled,
     );
-    const shastaRules = shastaTestUserAllowed
+    // Test-user status alone is not enough: allowlist the exact withdrawal separately,
+    // so another ordinary request from the same account can never be silently routed to Shasta.
+    const shastaTestWithdrawalAllowed = await isAllowlistedShastaTestWithdrawal(
+      admin,
+      withdrawalId,
+      shastaTestPayoutsEnabled,
+    );
+    const shastaRules = shastaTestUserAllowed && shastaTestWithdrawalAllowed
       ? await loadShastaTestRules(admin, shastaTestPayoutsEnabled)
       : null;
     const isolatedShasta = isIsolatedShastaPayoutEligible(
       shastaTestPayoutsEnabled,
       systemMode.mode,
       shastaTestUserAllowed,
+      shastaTestWithdrawalAllowed,
       shastaRules,
     );
     const payoutNetworkRow = isolatedShasta ? { value_json: shastaRules } : networkRow;
@@ -271,6 +279,14 @@ let payoutJournalStarted = false;
       && productionConfig.real_payouts_enabled === true
       && productionConfig.payouts_locked === false
       && String(productionConfig.environment || "").toUpperCase() === "PRODUCTION";
+
+    // A withdrawal explicitly marked for Shasta testing must never fall through to Mainnet.
+    if (shastaTestWithdrawalAllowed && !isolatedShasta) {
+      return json({
+        error: "This withdrawal is marked for isolated Shasta testing, but its test payout gates are not ready. No payout was sent.",
+        code: "SHASTA_TEST_WITHDRAWAL_NOT_READY",
+      }, 403);
+    }
 
     if (mainnet) {
       const payoutHdConfig = checkWithdrawalPayoutHdConfig(

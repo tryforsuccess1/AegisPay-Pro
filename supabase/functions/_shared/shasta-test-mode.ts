@@ -55,12 +55,35 @@ export function isIsolatedShastaPayoutEligible(
   enabled: boolean,
   systemMode: unknown,
   testUserAllowlisted: boolean,
+  testWithdrawalAllowlisted: boolean,
   rules: unknown,
 ): rules is ShastaTestRules {
   return enabled
     && testUserAllowlisted
+    && testWithdrawalAllowlisted
     && String(systemMode || "").trim().toUpperCase() === "MAINNET"
     && validShastaTestRules(rules);
+}
+
+/**
+ * Require explicit approval for a particular withdrawal ID to use the isolated
+ * Shasta test network. The normal customer withdrawal row is never implicitly
+ * treated as a test simply because its owner is a test user.
+ */
+export async function isAllowlistedShastaTestWithdrawal(
+  admin: SettingsAdmin,
+  withdrawalId: string,
+  enabled: boolean,
+): Promise<boolean> {
+  if (!enabled || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(withdrawalId)) {
+    return false;
+  }
+  const { data, error } = await admin.from("shasta_test_withdrawals")
+    .select("withdrawal_id")
+    .eq("withdrawal_id", withdrawalId)
+    .eq("enabled", true)
+    .maybeSingle();
+  return !error && Boolean(data);
 }
 
 /**
