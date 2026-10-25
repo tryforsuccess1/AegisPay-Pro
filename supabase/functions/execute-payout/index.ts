@@ -67,15 +67,19 @@ function expectedAddressTopic(address: string): string {
   return TronWeb.address.toHex(address).replace(/^41/i, "").toLowerCase().padStart(64, "0");
 }
 
+function normalizeTronHexAddress(value: unknown): string {
+  return String(value || "").replace(/^0x/i, "").replace(/^41/i, "").toLowerCase();
+}
+
 function hasExpectedUsdtTransfer(info: any, tokenContract: string, from: string, to: string, amountRaw: string): boolean {
-  const tokenHex = TronWeb.address.toHex(tokenContract).toLowerCase();
+  const tokenHex = normalizeTronHexAddress(TronWeb.address.toHex(tokenContract));
   const transferTopic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
   const expectedFrom = expectedAddressTopic(from);
   const expectedTo = expectedAddressTopic(to);
   const expectedAmount = BigInt(amountRaw).toString(16).padStart(64, "0").toLowerCase();
   const logs = Array.isArray(info?.log) ? info.log : [];
   return logs.some((entry: any) => {
-    const logAddress = String(entry?.address || "").replace(/^0x/i, "").toLowerCase();
+    const logAddress = normalizeTronHexAddress(entry?.address);
     const topics = Array.isArray(entry?.topics)
       ? entry.topics.map((x: unknown) => String(x || "").replace(/^0x/i, "").toLowerCase())
       : [];
@@ -415,6 +419,26 @@ let payoutJournalStarted = false;
         finalRuntimeEnabled === true;
       if (!finalGateOpen) {
         throw new Error("Production payout gate was closed before broadcast.");
+      }
+      if (ephemeralPayout && mainnet) {
+        const { data: immediateModeRow, error: immediateModeError } = await admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle();
+        const { data: immediateProdRow, error: immediateProdError } = await admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle();
+        const { data: immediateNetworkRow, error: immediateNetworkError } = await admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle();
+        const { data: immediateRuntime, error: immediateRuntimeError } = await admin.rpc("app_runtime_enabled");
+        if (immediateModeError || immediateProdError || immediateNetworkError || immediateRuntimeError) {
+          throw new Error("Unable to perform final payout gate revalidation.");
+        }
+        const modeNow = immediateModeRow?.value_json || {};
+        const prodNow = immediateProdRow?.value_json || {};
+        const networkNow = immediateNetworkRow?.value_json || {};
+        if (modeNow.mode !== "MAINNET" || modeNow.real_payouts !== true ||
+            modeNow.production_go_live_approved !== true ||
+            String(networkNow.network || "").toUpperCase() !== "TRON MAINNET" ||
+            String(prodNow.environment || "").toUpperCase() !== "PRODUCTION" ||
+            prodNow.go_live_approved !== true || prodNow.real_payouts_enabled !== true ||
+            prodNow.payouts_locked !== false || immediateRuntime !== true) {
+          throw new Error("Production payout gate closed immediately before final broadcast.");
+        }
       }
     } else {
       const { data: stillEnabled, error: finalRuntimeError } = await admin.rpc("app_runtime_enabled");
