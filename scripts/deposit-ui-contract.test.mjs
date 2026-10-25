@@ -133,11 +133,11 @@ test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and n
 
 test("testnet sweep requires its dedicated vault-backed secret and never accepts the monitor cron token", () => {
   assert.doesNotMatch(sweeperFunction, /AEGIS_CRON_SECRET|environmentSecretMatches/);
-  assert.match(sweeperFunction, /const suppliedSecret = req\\.headers\\.get\\("x-aegis-cron-secret"\\)/);
-  assert.match(sweeperFunction, /admin\\.rpc\\("verify_testnet_sweep_cron_secret", \\{ p_token: suppliedSecret \\}\\)/);
-  assert.match(sweeperFunction, /if \\(secretError \\|\\| secretMatches !== true\\) return json\\(\\{ error: "Unauthorized\\." \\}, 401\\)/);
-  assert.match(sweeperFunction, /if \\(!TESTNET_SWEEP_ENABLED \\|\\| !SHASTA_TEST_MODE_ENABLED\\)/);
-  assert.match(sweeperFunction, /mainnetSweepEnabled: false/);
+  assert.ok(sweeperFunction.includes('const suppliedSecret = req.headers.get("x-aegis-cron-secret")'));
+  assert.ok(sweeperFunction.includes('admin.rpc("verify_testnet_sweep_cron_secret", { p_token: suppliedSecret })'));
+  assert.ok(sweeperFunction.includes('if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401)'));
+  assert.ok(sweeperFunction.includes('if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED)'));
+  assert.ok(sweeperFunction.includes("mainnetSweepEnabled: false"));
 });
 
 test("Shasta fallback fails closed when the confirmed-transfer provider page is capped", () => {
