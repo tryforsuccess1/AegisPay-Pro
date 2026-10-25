@@ -81,6 +81,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
+      - name: Verify deposit idempotency, permissions, referral settings, and safe gates
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
       - name: Create disposable cron, Vault, and pg_net stubs
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_fixture.sql
       - name: Apply guarded deposit monitor cron migration
@@ -115,5 +117,3 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql
       - name: Apply manual approval lookup index migration
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022085746_index_deposit_submissions_manual_approved_by.sql
-      - name: Verify deposit idempotency, permissions, referral settings, and safe gates
-        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
