@@ -23,6 +23,9 @@ const MAINNET_HD_PASSPHRASE_FALLBACK = Deno.env.get("TRON_HD_WALLET_PASSPHRASE")
 const SHASTA_HD_PASSPHRASE_PRIMARY = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || "";
 const SHASTA_HD_PASSPHRASE_FALLBACK = Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
 const MAINNET_WITHDRAWAL_PAYOUT_MODE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_PAYOUT_MODE") || "DISABLED";
+const MAINNET_WITHDRAWAL_MAX_FEE_TRX_RAW = Deno.env.get("TRON_MAINNET_WITHDRAWAL_MAX_FEE_TRX") || "30";
+const MAINNET_WITHDRAWAL_MAX_FEE_TRX = Number(MAINNET_WITHDRAWAL_MAX_FEE_TRX_RAW);
+const withdrawalPayoutFeeCapValid = Number.isFinite(MAINNET_WITHDRAWAL_MAX_FEE_TRX) && MAINNET_WITHDRAWAL_MAX_FEE_TRX >= 3 && MAINNET_WITHDRAWAL_MAX_FEE_TRX <= 100;
 const MAINNET_WITHDRAWAL_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_MNEMONIC") || "";
 const MAINNET_WITHDRAWAL_HD_PASSPHRASE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_PASSPHRASE") || "";
 const SHASTA_USDT_CONTRACT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
@@ -236,7 +239,7 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
   const payoutKeysSafelySeparated= !mainnetAliasConflict&&!shastaAliasConflict
    &&mainnetShastaSelectedKeysDistinct&&treasuryAddressesDistinct&&shastaRulesConfigOk
    &&mainnetSignerCheck.matches&&shastaSignerCheck.matches;
-   const withdrawalPayoutWalletReady=withdrawalPayoutModeEnabled&&withdrawalPayoutSeedDistinct
+   const withdrawalPayoutWalletReady=withdrawalPayoutModeEnabled&&withdrawalPayoutFeeCapValid&&withdrawalPayoutSeedDistinct
     &&withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid&&withdrawalPayoutHdCheck.rootFingerprintConsistent;
    const networkSecretsSafelySeparated=payoutKeysSafelySeparated
     &&!mainnetHdMnemonicAliasConflict&&!shastaHdMnemonicAliasConflict
@@ -443,6 +446,6 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
    mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&mainnetPayoutGateOk&&mainnetDepositEnablementReady,mainnet_payout_gate_ok:mainnetPayoutGateOk,
    server_side_secrets_required:true,cron_secret_required_for_monitoring:true
   };
-   return json({readiness,secrets,key_diagnostics:keyDiagnostics,payout_keys_safely_separated:payoutKeysSafelySeparated,network_secrets_safely_separated:networkSecretsSafelySeparated,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,mainnet_withdrawal_payout_wallet_ready:withdrawalPayoutWalletReady,mainnet_withdrawal_payout_wallet_mode:String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"DISABLED").trim().toUpperCase(),mainnet_wallet_preflight_available:true,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
+   return json({readiness,secrets,key_diagnostics:keyDiagnostics,payout_keys_safely_separated:payoutKeysSafelySeparated,network_secrets_safely_separated:networkSecretsSafelySeparated,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,mainnet_withdrawal_payout_wallet_ready:withdrawalPayoutWalletReady,mainnet_withdrawal_payout_fee_cap_valid:withdrawalPayoutFeeCapValid,mainnet_withdrawal_payout_wallet_mode:String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"DISABLED").trim().toUpperCase(),mainnet_wallet_preflight_available:true,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
  }catch(error){return json({error:String((error as Error)?.message||error).slice(0,500)},500);}
 });
