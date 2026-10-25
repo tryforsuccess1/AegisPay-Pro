@@ -370,16 +370,22 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
   if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
-  if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
+  if (!SUPABASE_URL || !SERVICE_KEY || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
     return json({ error: "Testnet sweep is not configured." }, 503);
   }
-  if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
   if (!shastaMnemonicsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC)) {
     return json({ error: "Both Shasta and Mainnet HD mnemonics must be present and distinct.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
   }
 
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const suppliedSecret = req.headers.get("x-aegis-cron-secret");
+    const environmentSecretMatches = Boolean(CRON_SECRET && suppliedSecret && suppliedSecret === CRON_SECRET);
+    if (!environmentSecretMatches) {
+      if (!suppliedSecret) return json({ error: "Unauthorized." }, 401);
+      const { data: secretMatches, error: secretError } = await admin.rpc("verify_testnet_sweep_cron_secret", { p_token: suppliedSecret });
+      if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401);
+    }
     const [{ data: appEnabled, error: runtimeError }, { data: rulesRow, error: rulesError },
       { data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
       admin.rpc("app_runtime_enabled"),
