@@ -399,6 +399,14 @@ function productionReadiness(){
   const locked=p.payouts_locked!==false;
   const approved=Boolean(p.production_config_go_live_approved);
   const payoutReady=Boolean(p.mainnet_payout_gate_ok);
+  // Distinguish an intentionally closed production gate from genuinely missing prerequisites.
+  // mainnet_monitoring_ready means the live monitoring gate is already active; it is false by
+  // design while deposits/payouts are OFF. mainnet_deposit_enablement_ready is the preflight.
+  const monitoringGateStatus = d.mainnet_monitoring_ready
+    ? 'ACTIVE'
+    : d.mainnet_deposit_enablement_ready
+      ? 'READY — GATES CLOSED'
+      : 'NOT READY';
   const secrets=d.secrets||{};
   const unresolved=Array.isArray(d.unresolved_payouts)?d.unresolved_payouts:[];
   const keyDiagnostics=d.key_diagnostics||{};
@@ -474,7 +482,7 @@ function productionReadiness(){
       '<span>Telegram Bot<b>'+esc(secretMark(secrets.telegram_bot_token))+'</b></span>'+
       '<span>Telegram Chat<b>'+esc(secretMark(secrets.telegram_chat))+'</b></span>'+
       '<span>Telegram Approvers<b>'+esc(secretMark(secrets.telegram_approvers))+'</b></span>'+
-      '<span>Monitoring Gate<b>'+esc(d.mainnet_monitoring_ready?'READY':'NOT READY')+'</b></span>'+
+      '<span>Monitoring Gate<b>'+esc(monitoringGateStatus)+'</b></span>'+
       '<span>Payout Ops Gate<b>'+esc(d.mainnet_payout_operational?'READY':'LOCKED')+'</b></span>'+
       '<span>Payout Enablement Check<b>'+esc(d.mainnet_payout_enablement_ready?'READY':'MISSING PREREQUISITES')+'</b></span>'+
       '<span>Unreconciled Payouts<b>'+esc(String(unresolved.length))+'</b></span>'+
