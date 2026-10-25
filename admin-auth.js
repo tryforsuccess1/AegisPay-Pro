@@ -495,7 +495,7 @@ function productionReadiness(){
     '</div>'+
     keyDiagnosticsMarkup+
     '<section class="aa-panel" style="margin-top:14px"><div class="aa-panel-head"><div><h2>Locked Mainnet HD Wallet Preflight</h2><p>Admin-only dry run. It consumes one HD index to prevent future reuse, but does not create a wallet record, reveal an address/key, or send a transaction.</p></div><span class="aa-count">'+esc(mainnetHdPreflight?.status||'NOT RUN')+'</span></div>'+
-    '<button type="button" class="aa-secondary" data-action="mainnet-hd-preflight">Run Locked Mainnet HD Preflight</button>'+
+    (d.mainnet_wallet_preflight_available===true?'<button type="button" class="aa-secondary" data-action="mainnet-hd-preflight">Run Locked Mainnet HD Preflight</button>':'<div class="aa-callout"><div class="aa-callout-dot"></div><div><strong>Preflight backend not deployed yet</strong><small>This control will appear after the server confirms the preflight action is live.</small></div></div>')+
     (mainnetHdPreflight?'<div class="aa-detail-grid" style="margin-top:12px">'+
       diagItem('Preflight result',mainnetHdPreflight.status)+
       diagItem('Mainnet root derivation',diagMark(mainnetHdPreflight.checks?.rootDerivationValid))+
