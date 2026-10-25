@@ -225,11 +225,12 @@ Deno.serve(async(req:Request)=>{
       return json({error:"Production live-deposit monitoring is not ready. Configure TRONGrid and cron authentication before enabling production live deposits.",code:"PRODUCTION_DEPOSIT_MONITORING_NOT_READY"},409);
     }
 
-    const userScoped=createClient(SUPABASE_URL,SERVICE_KEY,{
-      auth:{persistSession:false,autoRefreshToken:false},
-      global:{headers:{Authorization:"Bearer "+token}}
-    });
-    const {data:updated,error:updateError}=await userScoped.rpc("set_production_config",{
+    // This endpoint has already authenticated the bearer token and verified the
+    // caller's active MASTER ADMIN profile. Use the service-role client only for
+    // the RPC intentionally restricted to service_role; never relax the legacy
+    // authenticated RPC grants to make this write path work.
+    const {data:updated,error:updateError}=await admin.rpc("set_production_config_from_admin_edge",{
+      p_actor_auth_user_id:authResult.user.id,
       p_environment:env,
       p_live_deposits_enabled:live,
       p_real_payouts_enabled:payouts,
