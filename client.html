@@ -5712,7 +5712,7 @@ document.addEventListener('click',function(e){var a=e.target.closest('[data-a="w
  if(window.matchMedia){var mm=window.matchMedia('(prefers-color-scheme: dark)');if(mm.addEventListener)mm.addEventListener('change',function(){if(apPref==='auto')apApplyMode()})}
  window.setInterval(function(){if(apPref==='auto')apApplyMode();document.querySelectorAll('[data-ready-at]').forEach(function(el){var s=Math.max(0,Math.floor((Number(el.dataset.readyAt)-Date.now())/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),sec=s%60;el.textContent=(h<10?'0':'')+h+':'+(m<10?'0':'')+m+':'+(sec<10?'0':'')+sec})},1000);
 })();
-</script><script src="./aegis-turnstile.js?v=20261025-turnstile-prewarm"></script><script>
+</script><script src="./aegis-turnstile.js?v=20261025-turnstile-fast-retry"></script><script>
 (function(){
   if(window.AEGIS_ANDROID_APP||!('serviceWorker' in navigator)||
      (window.location.protocol!=='https:'&&window.location.protocol!=='http:'))return;
