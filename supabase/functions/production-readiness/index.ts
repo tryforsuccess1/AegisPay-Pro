@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
+import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL"), SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY=Deno.env.get("TRONGRID_API_KEY"), CRON_SECRET=Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
@@ -226,7 +227,141 @@ Deno.serve(async(req:Request)=>{
    const mainnetMonitoringReady=mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.cron_secret&&mainnetPayoutEnablementReady;
    const mainnetPayoutOperational=mainnetPayoutGateOk&&networkSecretsSafelySeparated&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers;
 
-  if(action==="update"){
+  
+   if(action==="mainnet_wallet_preflight"){
+     // Admin-only dry-run: only while live-money gates are intentionally closed.
+     // It consumes a unique sequence index so that candidate is never later reused,
+     // but never creates a deposit wallet row, returns an address/private key, or broadcasts.
+     const gatesIntentionallyClosed=
+       environment==="PRE_PRODUCTION"&&
+       system.mode==="MAINNET"&&network==="TRON MAINNET"&&
+       liveDeposits===false&&realPayouts===false&&goLive===false&&
+       productionLiveDeposits===false&&productionRealPayouts===false&&productionGoLive===false&&
+       payoutsLocked===true;
+     const prerequisitesReady=
+       mainnetBaseConfigOk&&mainnetUsdtContractOk&&
+       mainnetSignerCheck.matches===true&&
+       networkSecretsSafelySeparated===true&&
+       mainnetPayoutEnablementReady===true&&
+       mainnetDepositEnablementReady===true&&
+       Boolean(MAINNET_HD_MNEMONIC.trim());
+     const checks:any={
+       gatesIntentionallyClosed,
+       officialMainnetUsdtContract:mainnetUsdtContractOk,
+       treasurySignerMatchesConfiguredAddress:mainnetSignerCheck.matches===true,
+       networkSecretsSeparated:networkSecretsSafelySeparated===true,
+       payoutAndMonitoringPrerequisitesReady:mainnetPayoutEnablementReady===true&&mainnetDepositEnablementReady===true,
+       configuredMainnetHdMnemonicPresent:Boolean(MAINNET_HD_MNEMONIC.trim()),
+       rootDerivationValid:false,
+       childDerivationValid:false,
+       rootFingerprintConsistent:false,
+       derivedAddressMatchesPrivateKey:false,
+       candidateAddressUnique:false,
+       candidateIndexUnique:false,
+       gatesStillClosedAfterCheck:false
+     };
+     if(!gatesIntentionallyClosed||!prerequisitesReady){
+       return json({
+         status:"BLOCKED",
+         error:"The locked Mainnet HD preflight requires PRE_PRODUCTION, all live-money flags OFF, the payout lock closed, and the approved signer/monitoring prerequisites ready.",
+         checks,
+         candidateIndexConsumed:false,
+         walletRowCreated:false,
+         walletAddressReturned:false,
+         fundsMoved:false
+       },409);
+     }
+
+     const {data:nextIndexValue,error:indexError}=await admin.rpc("next_tron_deposit_address_index");
+     const candidateIndex=Number(nextIndexValue);
+     if(indexError||!Number.isSafeInteger(candidateIndex)||candidateIndex<1||candidateIndex>=2147483648){
+       return json({
+         status:"BLOCKED",
+         error:"Could not safely reserve a unique HD derivation index for the preflight.",
+         checks,
+         candidateIndexConsumed:false,
+         walletRowCreated:false,
+         walletAddressReturned:false,
+         fundsMoved:false
+       },503);
+     }
+
+     const {data:indexRows,error:indexLookupError}=await admin.from("deposit_wallets")
+       .select("id").eq("network","TRON MAINNET").eq("derivation_index",candidateIndex).limit(1);
+     if(indexLookupError||((indexRows||[]).length>0)){
+       return json({
+         status:"BLOCKED",
+         error:"The reserved HD index could not be confirmed unique for Mainnet; no wallet row was created.",
+         checks,
+         candidateIndexConsumed:true,
+         walletRowCreated:false,
+         walletAddressReturned:false,
+         fundsMoved:false
+       },409);
+     }
+
+     let rootIdentity:any=null, candidateIdentity:any=null;
+     try{
+       rootIdentity=await deriveTronHdIdentity(MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE,0);
+       candidateIdentity=await deriveTronHdIdentity(MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE,candidateIndex);
+       checks.rootDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(rootIdentity.address||""));
+       checks.childDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(candidateIdentity.address||""))&&/^[a-fA-F0-9]{64}$/.test(String(candidateIdentity.privateKey||""));
+       checks.rootFingerprintConsistent=Boolean(rootIdentity.rootFingerprint)&&rootIdentity.rootFingerprint===candidateIdentity.rootFingerprint;
+       checks.derivedAddressMatchesPrivateKey=Boolean(candidateIdentity.address&&candidateIdentity.privateKey)&&TronWeb.address.fromPrivateKey(candidateIdentity.privateKey)===candidateIdentity.address;
+       checks.candidateAddressUnique=candidateIdentity.address!==receiving;
+       checks.candidateIndexUnique=true;
+       const {data:addressRows,error:addressLookupError}=await admin.from("deposit_wallets")
+         .select("id").eq("network","TRON MAINNET").eq("address",candidateIdentity.address).limit(1);
+       checks.candidateAddressUnique=checks.candidateAddressUnique&&!addressLookupError&&((addressRows||[]).length===0);
+     }catch{
+       // Do not include derivation exceptions: they may contain implementation details.
+       checks.childDerivationValid=false;
+     }finally{
+       // The derived key material is never logged, returned, persisted or used to sign.
+       rootIdentity=null;
+       candidateIdentity=null;
+     }
+
+     const [{data:finalSystemRow,error:finalSystemError},
+       {data:finalDepositRow,error:finalDepositError},
+       {data:finalProdRow,error:finalProdError}]=await Promise.all([
+         admin.from("platform_settings").select("value_json").eq("key","system_mode").maybeSingle(),
+         admin.from("platform_settings").select("value_json").eq("key","deposit_rules").maybeSingle(),
+         admin.from("platform_settings").select("value_json").eq("key","production_config").maybeSingle()
+       ]);
+     const finalSystem=finalSystemRow?.value_json||{},finalDeposit=finalDepositRow?.value_json||{},finalProd=finalProdRow?.value_json||{};
+     checks.gatesStillClosedAfterCheck=Boolean(!finalSystemError&&!finalDepositError&&!finalProdError
+       &&String(finalProd.environment||"").toUpperCase()==="PRE_PRODUCTION"
+       &&String(finalDeposit.network||"").toUpperCase()==="TRON MAINNET"
+       &&String(finalDeposit.token_contract||"").trim()==="TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"
+       &&String(finalSystem.mode||"").toUpperCase()==="MAINNET"
+       &&finalSystem.live_deposits===false&&finalSystem.real_payouts===false&&finalSystem.production_go_live_approved===false
+       &&finalProd.live_deposits_enabled===false&&finalProd.real_payouts_enabled===false&&finalProd.go_live_approved===false
+       &&finalProd.payouts_locked===true);
+
+     const passed=Object.values(checks).every((value)=>value===true);
+     const auditDescription="Locked Mainnet HD preflight "+(passed?"PASS":"FAIL")+
+       "; root/child derivation checked; candidate index consumed without wallet-row creation, address disclosure, or transaction broadcast.";
+     const {error:auditError}=await admin.from("audit_events").insert({
+       actor_user_id:profile.id,
+       event_type:"MAINNET_HD_PREFLIGHT",
+       description:auditDescription
+     });
+     if(auditError){
+       return json({status:"AUDIT_FAILED",error:"Preflight result could not be recorded in the audit log.",checks,
+         candidateIndexConsumed:true,walletRowCreated:false,walletAddressReturned:false,fundsMoved:false},503);
+     }
+     return json({
+       status:passed?"PASS":"FAIL",
+       checks,
+       candidateIndexConsumed:true,
+       walletRowCreated:false,
+       walletAddressReturned:false,
+       fundsMoved:false
+     },200);
+   }
+
+   if(action==="update"){
     const env=String(body.environment||"PRE_PRODUCTION").toUpperCase();
     const live=body.liveDepositsEnabled===true;
     const payouts=body.realPayoutsEnabled===true;
