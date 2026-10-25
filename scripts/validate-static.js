@@ -4,9 +4,22 @@ const assert=(ok,msg)=>{if(!ok)throw new Error(msg)};
 const exists=p=>fs.existsSync(p);
 const packageManifest=JSON.parse(fs.readFileSync('package.json','utf8'));
 const appVersionManifest=JSON.parse(fs.readFileSync('app-version.json','utf8'));
+assert(packageManifest.scripts.check.includes('node scripts/check-shasta-sweep-safety.cjs'),'Canonical checks must include the dedicated Shasta sweep-safety regression guard.');
 assert(packageManifest.version===appVersionManifest.versionName,'package.json and app-version.json must use the same candidate version');
 
 const must=[
+  'scripts/check-shasta-sweep-safety.cjs',
+  'scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql',
+  'scripts/sql-tests/deposit_evidence_dedupe_assertions.sql',
+  'scripts/sql-tests/deposit_txid_optional_assertions.sql',
+  'database/migrations/20261020190212_harden_shasta_deposit_credit_20261020.sql',
+  'database/migrations/20261020194312_isolate_shasta_test_credit_side_effects_20261021.sql',
+  'database/migrations/20261020210418_allow_shasta_deposit_txid_fallback_20261021.sql',
+  'database/migrations/20261020213216_dedupe_shasta_deposit_screenshots_20261021140000.sql',
+  'database/migrations/20261020213915_limit_shasta_txid_hint_index_20261021150000.sql',
+  'database/migrations/20261021200250_deposit_duplicate_txid_abuse_guard_20261022.sql',
+  'database/migrations/20261021203129_block_second_duplicate_txid_attempt.sql',
+
   'client.html','master-admin.html','admin-auth.js','aegis-turnstile.js','scripts/client-browser-smoke.cjs',
   'supabase-client.js','supabase-service.js','aegis-auth-redirect.js','app-update.js',
    'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','app-version.json','package.json',
@@ -151,7 +164,7 @@ const masterAdmin=fs.readFileSync('master-admin.html','utf8');
 // Master Admin; actual credit still has to pass the existing chain verifier.
 const depositReviewFrontendSource=fs.readFileSync('admin-auth.js','utf8');
 const depositReviewBackendSource=fs.readFileSync('supabase/functions/admin-review/index.ts','utf8');
-const manualTestnetApprovalSql=fs.readFileSync('database/migrations/20261021_master_admin_testnet_manual_deposit_approval.sql','utf8');
+const manualTestnetApprovalSql=fs.readFileSync('database/migrations/20261021182655_master_admin_testnet_manual_deposit_approval_20261021.sql','utf8');
 assert(depositReviewFrontendSource.includes('data-decision="approve">Approve</button>')&&depositReviewFrontendSource.includes('data-decision="reject">Reject</button>'),'Master Admin deposit review must expose only simple Approve and Reject actions.');
 assert(!depositReviewFrontendSource.includes('aa-txid-entry')&&!depositReviewFrontendSource.includes('attachDepositTxid')&&!depositReviewFrontendSource.includes('data-deposit-txid'),'Master Admin deposit review must not include the custom TXID-recovery field or action.');
 assert(depositReviewFrontendSource.includes("r.data?.requiresChainVerification===true")&&depositReviewBackendSource.includes('apply_manual_testnet_deposit_approval'),'Approved testnet deposits without a TXID use the guarded manual test-credit flow; mainnet remains chain-verified.');
@@ -302,7 +315,7 @@ assert(passwordResetSource.includes('passwordPolicyError(password)')&&passwordRe
 assert(turnstileHelper.includes('https://challenges.cloudflare.com/turnstile/v0/api.js')&&turnstileHelper.includes('requireToken')&&turnstileHelper.includes('window.turnstile.reset'),'Turnstile helper must render, require, and reset a one-use token');
 assert(turnstileHelper.includes("var HELPER_INIT_KEY = '__AEGIS_TURNSTILE_HELPER_INITIALIZED__'")&&turnstileHelper.includes('if (window[HELPER_INIT_KEY]) return;')&&turnstileHelper.includes("var API_PROMISE_KEY = '__AEGIS_TURNSTILE_API_PROMISE__'"),'Turnstile helper must initialize once per page and share one API load promise across duplicate evaluations.');
 assert(turnstileHelper.includes('document.querySelector(\'script[src*="challenges.cloudflare.com/turnstile/v0/api.js"]\')')&&turnstileHelper.includes('A timeout is not proof that the browser request has stopped.'),'Turnstile loader must reuse an existing API script rather than inject a duplicate after a slow request.');
-assert((client.match(/<script src="\.\/aegis-turnstile\.js\?v=20261023-turnstile-singleton-loader"/g)||[]).length===1&&(masterAdmin.match(/<script src="\.\/aegis-turnstile\.js\?v=20261023-turnstile-singleton-loader"/g)||[]).length===1,'Client and Master Admin must each load the cache-busted Turnstile helper exactly once.');
+assert((client.match(/<script src="\.\/aegis-turnstile\.js\?v=20261025-turnstile-consolidated"/g)||[]).length===1&&(masterAdmin.match(/<script src="\.\/aegis-turnstile\.js\?v=20261025-turnstile-consolidated"/g)||[]).length===1,'Client and Master Admin must each load the cache-busted Turnstile helper exactly once.');
 assert(turnstileHelper.includes("var MANUAL_LOGIN_FORMS = new Set(['liveLogin', 'aaLoginForm'])")&&turnstileHelper.includes("execution: manual ? 'execute' : 'render'")&&turnstileHelper.includes("appearance: manual ? 'execute' : 'always'")&&turnstileHelper.includes("retry: manual ? 'never' : 'auto'")&&turnstileHelper.includes("'refresh-expired': 'auto'")&&turnstileHelper.includes("'refresh-timeout': 'auto'")&&turnstileHelper.includes('loadApi().catch(function (error)')&&turnstileHelper.includes('VERIFY_RETRY_LIMIT')&&turnstileHelper.includes('failOrRetryVerification')&&turnstileHelper.includes('armVerificationWatchdog')&&turnstileHelper.includes('state.pendingPromise')&&turnstileHelper.includes('state.wrap.dataset.challengeActive')&&turnstileHelper.includes('window.turnstile.execute(state.widgetId)')&&!turnstileHelper.includes('aegis-turnstile-verify-button'),'Client and Master Admin Login must prewarm Turnstile and retry verification automatically without a separate checkbox button');
 assert(turnstileHelper.includes('VERIFY_ATTEMPT_TIMEOUT_MS = 30000')&&turnstileHelper.includes('VERIFY_RETRY_LIMIT = 1')&&turnstileHelper.includes('var timeoutMs = VERIFY_ATTEMPT_TIMEOUT_MS')&&turnstileHelper.includes("does not authorize this website hostname (110200)")&&turnstileHelper.includes("administrator must check the widget/sitekey configuration"),'Turnstile login must allow a full challenge window, perform only one automatic retry, and distinguish hostname/sitekey configuration errors.');
 assert(client.includes('if(captchaToken&&window.AegisTurnstile)window.AegisTurnstile.reset(login)')&&fs.readFileSync('admin-auth.js','utf8').includes('if(captchaToken&&loginForm&&loginForm.isConnected&&window.AegisTurnstile)'),'Login widgets must not reset when submission is blocked before a verification token is used');
@@ -490,6 +503,10 @@ const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/
 const depositVerifySource=fs.readFileSync('supabase/functions/verify-deposit/index.ts','utf8');
 const depositSubmitSource=fs.readFileSync('supabase/functions/submit-deposit/index.ts','utf8');
 const depositReadinessSource=fs.readFileSync('supabase/functions/production-readiness/index.ts','utf8');
+assert(depositReadinessSource.includes('P0_NETWORK_SECRET_DIAGNOSTICS')&&depositReadinessSource.includes('JSON.stringify(keyDiagnostics)'),'Production readiness must emit status-only network-secret diagnostics for runtime audit evidence.');
+const productionReadinessLogLines=depositReadinessSource.split(/\r?\n/).filter(line=>/console\.(?:log|info|warn|error)\s*\(/.test(line));
+assert(productionReadinessLogLines.every(line=>!/(?:MAINNET_PAYOUT_KEY|TESTNET_PAYOUT_KEY|HD_MNEMONIC|HD_PASSPHRASE|PRIVATE_KEY|TELEGRAM_TOKEN|TRONGRID_KEY)/.test(line)),'Production readiness logging must never include raw secret variables.');
+
 assert(adminAuth.includes('Network Key & Signer Diagnostics')&&adminAuth.includes('keyDiagnostics.mainnet_signer_matches_configured_treasury')&&adminAuth.includes('keyDiagnostics.shasta_signer_matches_configured_treasury')&&adminAuth.includes('d.network_secrets_safely_separated'),'Master Admin must display the safe runtime signer/key-separation diagnostics.');
 assert(adminAuth.includes('Private keys, seed phrases, passphrases and wallet addresses are never displayed.')&&!adminAuth.includes('keyDiagnostics.mainnet_private_key')&&!adminAuth.includes('keyDiagnostics.shasta_private_key'),'P0 diagnostics UI must never expose secret values or actual wallet addresses.');
 const accessLogSource=fs.readFileSync('supabase/functions/record-user-access/index.ts','utf8');

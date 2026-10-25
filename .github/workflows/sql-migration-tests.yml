@@ -89,7 +89,33 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261015222625_deposit_monitor_skip_when_gates_closed.sql
       - name: Verify cron skips requests while gates are closed and dispatches only when gates are open
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_monitor_cron_assertions.sql
+
+      - name: Reset disposable deposit fixtures before applying historical Shasta migrations
+        run: psql -v ON_ERROR_STOP=1 -c "DELETE FROM public.deposit_wallet_sweep_items; DELETE FROM public.deposit_submissions;"
+      - name: Restore Shasta deposit credit guards using recorded migration versions
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020190212_harden_shasta_deposit_credit_20261020.sql
+      - name: Isolate Shasta test credits from Mainnet account side effects
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020194312_isolate_shasta_test_credit_side_effects_20261021.sql
+      - name: Allow Shasta screenshot-first deposits with canonical TXID fallback
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020210418_allow_shasta_deposit_txid_fallback_20261021.sql
+      - name: Verify nullable TXID and uniqueness schema
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_txid_optional_assertions.sql
+      - name: Deduplicate Shasta deposit evidence
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020213216_dedupe_shasta_deposit_screenshots_20261021140000.sql
+      - name: Restrict submitted-TXID deduplication to valid Shasta hashes
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261020213915_limit_shasta_txid_hint_index_20261021150000.sql
+      - name: Verify duplicate screenshot and submitted-TXID protection
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_evidence_dedupe_assertions.sql
+
       - name: Apply Master Admin testnet manual approval migration
-        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021_master_admin_testnet_manual_deposit_approval.sql
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021182655_master_admin_testnet_manual_deposit_approval_20261021.sql
       - name: Verify simple Master Admin approve/reject credit flow
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/manual_testnet_deposit_approval_assertions.sql
+      - name: Apply duplicate-TXID abuse guard migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021200250_deposit_duplicate_txid_abuse_guard_20261022.sql
+      - name: Apply second-strike duplicate-TXID block migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261021203129_block_second_duplicate_txid_attempt.sql
+      - name: Verify duplicate-TXID warning and block threshold
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_duplicate_txid_abuse_assertions.sql
+      - name: Apply manual approval lookup index migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261022085746_index_deposit_submissions_manual_approved_by.sql
