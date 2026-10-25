@@ -8,7 +8,6 @@ import { loadShastaTestRules, shastaMnemonicsAreDistinct } from "../_shared/shas
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const CRON_SECRET = Deno.env.get("AEGIS_CRON_SECRET") || "";
 const TESTNET_SWEEP_ENABLED = Deno.env.get("AEGIS_ENABLE_TESTNET_SWEEP") === "true";
 const SHASTA_TEST_MODE_ENABLED = Deno.env.get("AEGIS_SHASTA_TEST_MODE") === "true";
 const HD_MNEMONIC = Deno.env.get("TRON_SHASTA_CHILD_HD_MNEMONIC") || Deno.env.get("TRON_TESTNET_HD_WALLET_MNEMONIC") || "";
@@ -205,14 +204,35 @@ async function markConfirmed(admin: Admin, row: SweepRow, txid: string) {
   return { walletId: row.deposit_wallet_id, sweepId: row.id, status: updated.status === "CONFIRMED" ? "SWEPT_CONFIRMED" : updated.status, txid };
 }
 
+async function getTransactionInfoForReconciliation(client: any, txid: string): Promise<any> {
+  let info: any = null;
+  try { info = await client.trx.getTransactionInfo(txid); } catch { /* Use the explicit Shasta HTTP fallback below. */ }
+  if (info && String(info.id || "").toLowerCase() === txid.toLowerCase()
+    && info.receipt && Array.isArray(info.log)) return info;
+  try {
+    const headers: Record<string, string> = { accept: "application/json", "Content-Type": "application/json" };
+    if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
+    const response = await fetch(HOST + "/wallet/gettransactioninfobyid", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ value: txid }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) {
+      const fallback = await response.json();
+      if (fallback && String(fallback.id || "").toLowerCase() === txid.toLowerCase()) return fallback;
+    }
+  } catch { /* Fall through to the safe PENDING/expiry handling below. */ }
+  return info;
+}
+
 async function processSavedTransaction(admin: Admin, client: any, row: SweepRow, treasury: string) {
   const decision = classifySweepAction(row);
   if (decision === "ALREADY_CONFIRMED") return { walletId: row.deposit_wallet_id, sweepId: row.id, status: "ALREADY_CONFIRMED", txid: row.txid };
   if (decision === "MANUAL_REVIEW") return markReview(admin, row, "SAVED_TRANSACTION_INVALID_OR_EXPIRED");
   const txid = String(row.txid);
   const signedTx = row.signed_transaction;
-  let info: any = null;
-  try { info = await client.trx.getTransactionInfo(txid); } catch { /* Not yet indexed; rebroadcast only the exact saved signed bytes. */ }
+  const info = await getTransactionInfoForReconciliation(client, txid);
   const receiptState = classifySweepReceipt(
     info,
     txid,
@@ -370,16 +390,19 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
   if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
-  if (!SUPABASE_URL || !SERVICE_KEY || !CRON_SECRET || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
+  if (!SUPABASE_URL || !SERVICE_KEY || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
     return json({ error: "Testnet sweep is not configured." }, 503);
   }
-  if ((req.headers.get("x-aegis-cron-secret") || "") !== CRON_SECRET) return json({ error: "Unauthorized." }, 401);
   if (!shastaMnemonicsAreDistinct(HD_MNEMONIC, MAINNET_HD_MNEMONIC)) {
     return json({ error: "Both Shasta and Mainnet HD mnemonics must be present and distinct.", code: "SHASTA_SECRET_SEPARATION_BLOCKED" }, 423);
   }
 
   try {
     const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const suppliedSecret = req.headers.get("x-aegis-cron-secret");
+    if (!suppliedSecret) return json({ error: "Unauthorized." }, 401);
+    const { data: secretMatches, error: secretError } = await admin.rpc("verify_testnet_sweep_cron_secret", { p_token: suppliedSecret });
+    if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401);
     const [{ data: appEnabled, error: runtimeError }, { data: rulesRow, error: rulesError },
       { data: modeRow, error: modeError }, { data: productionRow, error: productionError }] = await Promise.all([
       admin.rpc("app_runtime_enabled"),

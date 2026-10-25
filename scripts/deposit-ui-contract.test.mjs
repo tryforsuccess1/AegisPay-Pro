@@ -131,6 +131,21 @@ test("Shasta/Mainnet HD mnemonic separation requires both configured seeds and n
 });
 
 
+test("sweep reconciliation fetches an explicit Shasta receipt before treating a saved tx as expired", () => {
+  assert.ok(sweeperFunction.includes("getTransactionInfoForReconciliation(client, txid)"));
+  assert.ok(sweeperFunction.includes('HOST + "/wallet/gettransactioninfobyid"'));
+  assert.ok(sweeperFunction.includes('body: JSON.stringify({ value: txid })'));
+});
+
+test("testnet sweep requires its dedicated vault-backed secret and never accepts the monitor cron token", () => {
+  assert.doesNotMatch(sweeperFunction, /AEGIS_CRON_SECRET|environmentSecretMatches/);
+  assert.ok(sweeperFunction.includes('const suppliedSecret = req.headers.get("x-aegis-cron-secret")'));
+  assert.ok(sweeperFunction.includes('admin.rpc("verify_testnet_sweep_cron_secret", { p_token: suppliedSecret })'));
+  assert.ok(sweeperFunction.includes('if (secretError || secretMatches !== true) return json({ error: "Unauthorized." }, 401)'));
+  assert.ok(sweeperFunction.includes('if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED)'));
+  assert.ok(sweeperFunction.includes("mainnetSweepEnabled: false"));
+});
+
 test("Shasta fallback fails closed when the confirmed-transfer provider page is capped", () => {
   assert.match(verifyFunction, /if \(transfers\.length >= 200\)[\s\S]{0,220}SHASTA_TRANSFER_PAGE_CAPPED/);
   assert.match(monitorFunction, /if \(rows\.length >= 200\) return \{ id: deposit\.id, status: "SHASTA_TRANSFER_PAGE_CAPPED" \}/);
