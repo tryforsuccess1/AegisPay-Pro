@@ -22,6 +22,12 @@ const MAINNET_HD_PASSPHRASE_PRIMARY = Deno.env.get("TRON_MAINNET_CHILD_HD_PASSPH
 const MAINNET_HD_PASSPHRASE_FALLBACK = Deno.env.get("TRON_HD_WALLET_PASSPHRASE") || "";
 const SHASTA_HD_PASSPHRASE_PRIMARY = Deno.env.get("TRON_SHASTA_CHILD_HD_PASSPHRASE") || "";
 const SHASTA_HD_PASSPHRASE_FALLBACK = Deno.env.get("TRON_TESTNET_HD_WALLET_PASSPHRASE") || "";
+const MAINNET_WITHDRAWAL_PAYOUT_MODE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_PAYOUT_MODE") || "DISABLED";
+const MAINNET_WITHDRAWAL_MAX_FEE_TRX_RAW = Deno.env.get("TRON_MAINNET_WITHDRAWAL_MAX_FEE_TRX") || "30";
+const MAINNET_WITHDRAWAL_MAX_FEE_TRX = Number(MAINNET_WITHDRAWAL_MAX_FEE_TRX_RAW);
+const withdrawalPayoutFeeCapValid = Number.isFinite(MAINNET_WITHDRAWAL_MAX_FEE_TRX) && MAINNET_WITHDRAWAL_MAX_FEE_TRX >= 3 && MAINNET_WITHDRAWAL_MAX_FEE_TRX <= 100;
+const MAINNET_WITHDRAWAL_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_MNEMONIC") || "";
+const MAINNET_WITHDRAWAL_HD_PASSPHRASE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_PASSPHRASE") || "";
 const SHASTA_USDT_CONTRACT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 const AI_ENDPOINT=Deno.env.get("AI_REVIEW_ENDPOINT"), AI_KEY=Deno.env.get("AI_REVIEW_API_KEY"), AI_MODEL=Deno.env.get("AI_REVIEW_MODEL");
 const TELEGRAM_TOKEN=Deno.env.get("TELEGRAM_BOT_TOKEN");
@@ -42,6 +48,26 @@ function signerAddressCheck(privateKey:string, configuredAddress:string) {
   return {status:"INVALID_PRIVATE_KEY",matches:false};
  }
 }
+async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
+  if(!String(mnemonic||"").trim())return {rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
+  let root:any=null,child:any=null;
+  try {
+    root=await deriveTronHdIdentity(mnemonic,passphrase,0);
+    child=await deriveTronHdIdentity(mnemonic,passphrase,1);
+    return {
+      rootDerivationValid:/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(root.address||"")),
+      childDerivationValid:/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(child.address||""))
+        &&/^[a-fA-F0-9]{64}$/.test(String(child.privateKey||""))
+        &&TronWeb.address.fromPrivateKey(child.privateKey)===child.address,
+      rootFingerprintConsistent:Boolean(root.rootFingerprint)&&root.rootFingerprint===child.rootFingerprint,
+    };
+  } catch {
+    return {rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
+  } finally {
+    root=null;child=null;
+  }
+}
+
 async function hdRootFingerprintStatus(admin:any, network:string, mnemonic:string, passphrase:string) {
   const normalizedMnemonic=String(mnemonic||"").trim().replace(/\s+/g," ");
   if(!normalizedMnemonic)return {status:"SECRET_MISSING",matches:null,active_wallet_count:0,root_derivation_valid:false,child_derivation_valid:false};
@@ -146,10 +172,15 @@ Deno.serve(async(req:Request)=>{
   const treasuryAddressesDistinct=Boolean(receiving&&shastaReceiving)&&receiving!==shastaReceiving;
   const mainnetKeySourceAlias=MAINNET_TREASURY_KEY_ALIAS?"TRON_MAINNET_TREASURY_PRIVATE_KEY":MAINNET_PAYOUT_FALLBACK_KEY?"TRON_PAYOUT_PRIVATE_KEY":"NONE";
   const shastaKeySourceAlias=SHASTA_TREASURY_KEY_ALIAS?"TRON_SHASTA_TREASURY_PRIVATE_KEY":SHASTA_PAYOUT_FALLBACK_KEY?"TRON_TESTNET_PAYOUT_PRIVATE_KEY":"NONE";
-  const [mainnetHdRootCheck,shastaHdRootCheck]=await Promise.all([
-   hdRootFingerprintStatus(admin,"TRON MAINNET",MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE),
-   hdRootFingerprintStatus(admin,"TRON TESTNET",SHASTA_HD_MNEMONIC,SHASTA_HD_PASSPHRASE)
-  ]);
+const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim())
+    &&normalizedMnemonic(MAINNET_WITHDRAWAL_HD_MNEMONIC)!==normalizedMnemonic(MAINNET_HD_MNEMONIC)
+    &&normalizedMnemonic(MAINNET_WITHDRAWAL_HD_MNEMONIC)!==normalizedMnemonic(SHASTA_HD_MNEMONIC);
+   const withdrawalPayoutModeEnabled=String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"").trim().toUpperCase()==="EPHEMERAL_HD";
+   const [mainnetHdRootCheck,shastaHdRootCheck,withdrawalPayoutHdCheck]=await Promise.all([
+    hdRootFingerprintStatus(admin,"TRON MAINNET",MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE),
+    hdRootFingerprintStatus(admin,"TRON TESTNET",SHASTA_HD_MNEMONIC,SHASTA_HD_PASSPHRASE),
+    withdrawalPayoutSeedDistinct?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE):Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false})
+   ]);
   // Diagnostics disclose only presence/status and selected alias names, never key values or derived addresses.
   const keyDiagnostics={
    mainnet_primary_alias_present:Boolean(MAINNET_TREASURY_KEY_ALIAS),
@@ -198,14 +229,22 @@ Deno.serve(async(req:Request)=>{
    shasta_hd_passphrase_alias_conflict:shastaHdPassphraseAliasConflict,
    mainnet_shasta_selected_keys_distinct:mainnetShastaSelectedKeysDistinct,
    mainnet_shasta_treasury_addresses_distinct:treasuryAddressesDistinct,
+    mainnet_withdrawal_payout_wallet_mode:String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"DISABLED").trim().toUpperCase(),
+    mainnet_withdrawal_payout_hd_mnemonic_present:Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()),
+    mainnet_withdrawal_payout_hd_seed_distinct_from_deposit_and_shasta:withdrawalPayoutSeedDistinct,
+    mainnet_withdrawal_payout_hd_root_derivation_valid:withdrawalPayoutHdCheck.rootDerivationValid,
+    mainnet_withdrawal_payout_hd_child_derivation_valid:withdrawalPayoutHdCheck.childDerivationValid,
+    mainnet_withdrawal_payout_hd_root_fingerprint_consistent:withdrawalPayoutHdCheck.rootFingerprintConsistent,
   };
   const payoutKeysSafelySeparated= !mainnetAliasConflict&&!shastaAliasConflict
    &&mainnetShastaSelectedKeysDistinct&&treasuryAddressesDistinct&&shastaRulesConfigOk
    &&mainnetSignerCheck.matches&&shastaSignerCheck.matches;
-  const networkSecretsSafelySeparated=payoutKeysSafelySeparated
-   &&!mainnetHdMnemonicAliasConflict&&!shastaHdMnemonicAliasConflict
-   &&!mainnetHdPassphraseAliasConflict&&!shastaHdPassphraseAliasConflict
-   &&mainnetShastaHdMnemonicsDistinct;
+   const withdrawalPayoutWalletReady=withdrawalPayoutModeEnabled&&withdrawalPayoutFeeCapValid&&withdrawalPayoutSeedDistinct
+    &&withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid&&withdrawalPayoutHdCheck.rootFingerprintConsistent;
+   const networkSecretsSafelySeparated=payoutKeysSafelySeparated
+    &&!mainnetHdMnemonicAliasConflict&&!shastaHdMnemonicAliasConflict
+    &&!mainnetHdPassphraseAliasConflict&&!shastaHdPassphraseAliasConflict
+    &&mainnetShastaHdMnemonicsDistinct&&withdrawalPayoutWalletReady;
   const environment=String(prod.environment||"PRE_PRODUCTION").toUpperCase();
   const liveDeposits=system.live_deposits===true, realPayouts=system.real_payouts===true, goLive=system.production_go_live_approved===true;
   const productionLiveDeposits=prod.live_deposits_enabled===true, productionRealPayouts=prod.real_payouts_enabled===true, productionGoLive=prod.go_live_approved===true;
@@ -214,6 +253,8 @@ Deno.serve(async(req:Request)=>{
   const secrets={
    supabase_service_role:Boolean(SERVICE_KEY),trongrid_api:Boolean(TRONGRID_KEY),cron_secret:Boolean(CRON_SECRET),
    mainnet_payout_key:Boolean(MAINNET_PAYOUT_KEY),testnet_payout_key:Boolean(TESTNET_PAYOUT_KEY),
+    mainnet_withdrawal_payout_hd_mnemonic:Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()),
+    mainnet_withdrawal_payout_mode:withdrawalPayoutModeEnabled,
    ai_review_endpoint:Boolean(AI_ENDPOINT),ai_review_api_key:Boolean(AI_KEY),ai_review_model:Boolean(AI_MODEL),telegram_bot_token:Boolean(TELEGRAM_TOKEN),telegram_chat:Boolean(TELEGRAM_CHAT_ID),telegram_approvers:TELEGRAM_APPROVER_IDS.length>0
   };
    const unresolvedPayoutResult=await admin.from("withdrawal_requests").select("id,status,amount,net_amount,created_at,payout_started_at,payout_txid").in("status",["APPROVED","PROCESSING"]).is("payout_txid",null).order("created_at",{ascending:true}).limit(200);
@@ -221,11 +262,11 @@ Deno.serve(async(req:Request)=>{
    const unresolvedPayoutsClear=!unresolvedPayoutResult.error&&unresolvedPayouts.length===0;
   const mainnetBaseConfigOk=system.mode==="MAINNET"&&network==="TRON MAINNET"&&/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(receiving)&&mainnetUsdtContractOk;
    // Separate current gate status from static prerequisites so an OFF/LOCKED environment can pass preflight.
-   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&networkSecretsSafelySeparated&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers&&runtimeEnabled&&unresolvedPayoutsClear;
+   const mainnetPayoutEnablementReady=mainnetBaseConfigOk&&networkSecretsSafelySeparated&&withdrawalPayoutWalletReady&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers&&runtimeEnabled&&unresolvedPayoutsClear;
    const mainnetPayoutGateOk=environment==="PRODUCTION"&&mainnetBaseConfigOk&&realPayouts&&productionRealPayouts&&goLive&&productionGoLive&&!payoutsLocked&&runtimeEnabled;
    const mainnetDepositEnablementReady=mainnetBaseConfigOk&&secrets.trongrid_api&&secrets.cron_secret&&runtimeEnabled&&mainnetPayoutEnablementReady;
    const mainnetMonitoringReady=mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&mainnetPayoutGateOk&&secrets.trongrid_api&&secrets.cron_secret&&mainnetPayoutEnablementReady;
-   const mainnetPayoutOperational=mainnetPayoutGateOk&&networkSecretsSafelySeparated&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers;
+   const mainnetPayoutOperational=mainnetPayoutGateOk&&networkSecretsSafelySeparated&&withdrawalPayoutWalletReady&&secrets.trongrid_api&&secrets.mainnet_payout_key&&secrets.telegram_bot_token&&secrets.telegram_chat&&secrets.telegram_approvers;
 
   
    if(action==="mainnet_wallet_preflight"){
@@ -405,6 +446,6 @@ Deno.serve(async(req:Request)=>{
    mainnet_base_config_ok:mainnetBaseConfigOk,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_deposit_gate_ok:mainnetBaseConfigOk&&liveDeposits&&productionLiveDeposits&&mainnetPayoutGateOk&&mainnetDepositEnablementReady,mainnet_payout_gate_ok:mainnetPayoutGateOk,
    server_side_secrets_required:true,cron_secret_required_for_monitoring:true
   };
-   return json({readiness,secrets,key_diagnostics:keyDiagnostics,payout_keys_safely_separated:payoutKeysSafelySeparated,network_secrets_safely_separated:networkSecretsSafelySeparated,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,mainnet_wallet_preflight_available:true,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
+   return json({readiness,secrets,key_diagnostics:keyDiagnostics,payout_keys_safely_separated:payoutKeysSafelySeparated,network_secrets_safely_separated:networkSecretsSafelySeparated,mainnet_usdt_contract_ok:mainnetUsdtContractOk,mainnet_monitoring_ready:mainnetMonitoringReady,mainnet_deposit_enablement_ready:mainnetDepositEnablementReady,mainnet_payout_enablement_ready:mainnetPayoutEnablementReady,mainnet_payout_operational:mainnetPayoutOperational,mainnet_withdrawal_payout_wallet_ready:withdrawalPayoutWalletReady,mainnet_withdrawal_payout_fee_cap_valid:withdrawalPayoutFeeCapValid,mainnet_withdrawal_payout_wallet_mode:String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"DISABLED").trim().toUpperCase(),mainnet_wallet_preflight_available:true,unresolved_payouts:unresolvedPayouts.map((x:any)=>({id:x.id,status:x.status,amount:x.amount,net_amount:x.net_amount,created_at:x.created_at,payout_started_at:x.payout_started_at})),unresolved_payouts_clear:unresolvedPayoutsClear,checked_at:new Date().toISOString()});
  }catch(error){return json({error:String((error as Error)?.message||error).slice(0,500)},500);}
 });

@@ -1,0 +1,55 @@
+name: AegisPay Per-Withdrawal Payout Journal Tests
+
+on:
+  pull_request:
+    paths:
+      - 'database/migrations/20261025190000_per_withdrawal_payout_journal.sql'
+      - 'scripts/sql-tests/withdrawal_payout_journal_*.sql'
+      - '.github/workflows/withdrawal-payout-journal-tests.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'database/migrations/20261025190000_per_withdrawal_payout_journal.sql'
+      - 'scripts/sql-tests/withdrawal_payout_journal_*.sql'
+      - '.github/workflows/withdrawal-payout-journal-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  payout-journal:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: aegispay_test
+          POSTGRES_USER: aegispay_test
+          POSTGRES_PASSWORD: local-test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U aegispay_test -d aegispay_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: 5432
+      PGDATABASE: aegispay_test
+      PGUSER: aegispay_test
+      PGPASSWORD: local-test-password
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Verify disposable PostgreSQL
+        run: |
+          psql --version
+          pg_isready -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" -d "$PGDATABASE"
+      - name: Create fixture
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/withdrawal_payout_journal_fixture.sql
+      - name: Apply payout journal migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261025190000_per_withdrawal_payout_journal.sql
+      - name: Verify grants, RLS, sequence and idempotency
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/withdrawal_payout_journal_assertions.sql

@@ -46,6 +46,12 @@ const must=[
   'database/migrations/20261015_ai_support_live_chat.sql',
   'database/migrations/20261017150927_hd_deposit_wallets_20261016120000.sql',
   'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
+  'database/migrations/20261025190000_per_withdrawal_payout_journal.sql',
+  'scripts/sql-tests/withdrawal_payout_journal_fixture.sql',
+  'scripts/sql-tests/withdrawal_payout_journal_assertions.sql',
+  '.github/workflows/withdrawal-payout-journal-tests.yml',
+  'supabase/functions/_shared/withdrawal-payout-wallet.ts',
+  'supabase/functions/_shared/withdrawal-payout-wallet_test.ts',
   'supabase/functions/get-deposit-address/index.ts',
   'supabase/functions/_shared/auth-login-error.ts','supabase/functions/_shared/auth-login-error_test.ts',
   'supabase/functions/_shared/tron-hd-wallet.ts',
@@ -701,6 +707,23 @@ assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigratio
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
 assert(depositMonitorSource.includes('deposit.receiving_address')&&depositVerifySource.includes('DEPOSIT_RECIPIENT_MISMATCH'),'Deposit verification must use assigned recipient');
 assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('signerAddress !== configuredTreasury'),'Payout must fail closed on signer/treasury mismatch');
+const withdrawalPayoutPolicy=fs.readFileSync('supabase/functions/_shared/withdrawal-payout-wallet.ts','utf8');
+const withdrawalPayoutPolicyTests=fs.readFileSync('supabase/functions/_shared/withdrawal-payout-wallet_test.ts','utf8');
+const withdrawalPayoutJournalMigration=fs.readFileSync('database/migrations/20261025190000_per_withdrawal_payout_journal.sql','utf8');
+assert(payoutSource.includes('TRON_MAINNET_WITHDRAWAL_PAYOUT_MODE')&&payoutSource.includes('TRON_MAINNET_WITHDRAWAL_HD_MNEMONIC')&&payoutSource.includes('WITHDRAWAL_PAYOUT_HD_NOT_READY'),'Mainnet payout must fail closed unless per-withdrawal HD mode and its dedicated seed are configured.');
+const mainnetEphemeralPayoutStart=payoutSource.indexOf('if (ephemeralPayout) {',payoutSource.indexOf('let txid = ""'));
+const mainnetEphemeralPayoutEnd=payoutSource.indexOf('} else {',mainnetEphemeralPayoutStart);
+assert(mainnetEphemeralPayoutStart>=0&&mainnetEphemeralPayoutEnd>mainnetEphemeralPayoutStart,'Mainnet payout path must be isolated from the testnet direct-transfer branch.');
+const mainnetEphemeralPayoutSource=payoutSource.slice(mainnetEphemeralPayoutStart,mainnetEphemeralPayoutEnd);
+assert(mainnetEphemeralPayoutSource.includes('treasuryContract.transfer(senderIdentity.address, amountRaw)')&&mainnetEphemeralPayoutSource.includes('senderContract.transfer(withdrawal.destination_address, amountRaw)')&&mainnetEphemeralPayoutSource.includes('hasExpectedUsdtTransfer(payoutInfo, usdtContract, senderIdentity.address, withdrawal.destination_address, amountRaw)'),'Customer payout must originate from the unique withdrawal HD sender and validate the exact on-chain transfer receipt.');
+assert(mainnetEphemeralPayoutSource.includes('senderContract.transfer(withdrawal.destination_address, amountRaw)')&&mainnetEphemeralPayoutSource.includes('treasuryContract.transfer(senderIdentity.address, amountRaw)')&&mainnetEphemeralPayoutSource.includes('withdrawal_payout_journal'),'Per-withdrawal sender mode must fund the one-time sender and pay the user from that sender with a journal.');
+assert(payoutSource.includes('status: payoutMayHaveBeenBroadcast ? "RECONCILIATION_REQUIRED" : "FAILED_BEFORE_BROADCAST"')&&payoutSource.includes('PAYOUT_STAGE_REQUIRES_RECONCILIATION'),'Uncertain broadcasts must remain journalled for reconciliation rather than being blindly retried.');
+assert(mainnetEphemeralPayoutEnd>mainnetEphemeralPayoutStart&&payoutSource.slice(mainnetEphemeralPayoutEnd).includes('} else {')&&payoutSource.slice(mainnetEphemeralPayoutEnd).includes('contract.transfer(withdrawal.destination_address, amountRaw)'),'The existing direct-transfer branch must remain outside the ephemeral sender branch for non-production testnet/demo use only.');
+assert(payoutSource.includes('/wallet/estimateenergy')&&payoutSource.includes('getEnergyFee')&&payoutSource.includes('estimatePayoutFeeReserveSun')&&payoutSource.includes('PAYOUT_FEE_RESERVE_NOT_VISIBLE'),'Payout sender must estimate TRC20 energy, bound fee reserves, and verify the required TRX is present before signing.');
+assert(withdrawalPayoutPolicy.includes('EPHEMERAL_HD')&&withdrawalPayoutPolicy.includes('distinctFromDepositSeed')&&withdrawalPayoutPolicy.includes('distinctFromShastaSeed')&&withdrawalPayoutPolicy.includes('FEE_RESERVE_EXCEEDED')&&withdrawalPayoutPolicyTests.includes('payout energy reserve includes safety buffer'),'Withdrawal payout seed separation and dynamic energy-fee reserve must be unit-tested.');
+assert(withdrawalPayoutJournalMigration.includes('ENABLE ROW LEVEL SECURITY')&&withdrawalPayoutJournalMigration.includes('FROM PUBLIC, anon, authenticated')&&withdrawalPayoutJournalMigration.includes('TO service_role')&&withdrawalPayoutJournalMigration.includes('next_tron_withdrawal_payout_index')&&withdrawalPayoutJournalMigration.includes('withdrawal_id uuid NOT NULL UNIQUE'),'Per-withdrawal payout journal must be idempotent, service-role-only, and use a separate monotonic index.');
+assert(productionReadinessFunction.includes('mainnet_withdrawal_payout_hd_seed_distinct_from_deposit_and_shasta')&&productionReadinessFunction.includes('withdrawalPayoutWalletReady')&&productionReadinessFunction.includes('WITHDRAWAL_PAYOUT_MODE')&&adminAuth.includes('Withdrawal Payout HD Seed')&&adminAuth.includes('Withdrawal Payout Mode'),'Master Admin readiness must display status-only diagnostics for the separate withdrawal HD seed and mode.');
+
 
 const sweepWorker=fs.readFileSync('supabase/functions/sweep-deposit-wallets/index.ts','utf8');
 const sweepHelper=fs.readFileSync('supabase/functions/_shared/tron-sweep.ts','utf8');
