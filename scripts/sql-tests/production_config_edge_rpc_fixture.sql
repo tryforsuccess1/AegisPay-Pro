@@ -34,6 +34,23 @@ CREATE TABLE public.audit_events (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+-- The legacy RPC exists in production but remains unavailable to authenticated clients.
+CREATE OR REPLACE FUNCTION public.set_production_config(
+  p_environment text,
+  p_live_deposits_enabled boolean,
+  p_real_payouts_enabled boolean,
+  p_go_live_approved boolean,
+  p_payouts_locked boolean
+)
+RETURNS jsonb
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO ''
+AS $fn$ SELECT '{}'::jsonb $fn$;
+
+REVOKE ALL PRIVILEGES ON FUNCTION public.set_production_config(text,boolean,boolean,boolean,boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_production_config(text,boolean,boolean,boolean,boolean) TO service_role;
+
 CREATE OR REPLACE FUNCTION public.app_runtime_enabled()
 RETURNS boolean
 LANGUAGE sql
