@@ -306,6 +306,15 @@
     };
     states.set(form, state);
 
+    // Start loading the public Turnstile API as soon as a manual login form
+    // is attached, instead of waiting for the Login click. Token generation
+    // and server-side validation still use the existing protected flow.
+    if (manual) {
+      loadApi().catch(function () {
+        // requireToken() retries the load and surfaces a safe user-facing error.
+      });
+    }
+
     function currentValues() {
       return credentialInputs(form).map(function (input) { return String(input.value || ''); }).join('\u0000');
     }
