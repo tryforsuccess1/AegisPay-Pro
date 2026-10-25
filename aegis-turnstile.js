@@ -19,7 +19,7 @@
   var apiPromise = null;
   var API_LOAD_TIMEOUT_MS = 10000;
   var VERIFY_RETRY_LIMIT = 1;
-  var VERIFY_RETRY_DELAY_MS = 1000;
+  var VERIFY_RETRY_DELAY_MS = 500;
   var VERIFY_ATTEMPT_TIMEOUT_MS = 30000;
 
   function preconnectCloudflare() {
