@@ -48,6 +48,7 @@ const must=[
   'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
   'database/migrations/20261025190000_per_withdrawal_payout_journal.sql',
   'database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql',
+  'database/migrations/20261026190000_bind_shasta_test_withdrawal_destination.sql',
   'scripts/sql-tests/withdrawal_payout_journal_fixture.sql',
   'scripts/sql-tests/withdrawal_payout_journal_assertions.sql',
   '.github/workflows/withdrawal-payout-journal-tests.yml',
@@ -716,7 +717,13 @@ const shastaTestWithdrawalMigration=fs.readFileSync('database/migrations/2026102
 assert(payoutSource.includes('isAllowlistedShastaTestUser')&&payoutSource.includes('isAllowlistedShastaTestWithdrawal')&&payoutSource.includes('shastaTestWithdrawalAllowed')&&payoutSource.includes('SHASTA_TEST_WITHDRAWAL_NOT_READY'),'Shasta payout routing must require a separate allowlist entry for the exact withdrawal and must not fall through to Mainnet.');
 assert(shastaTestModeSource.includes('shasta_test_withdrawals')&&shastaTestModeSource.includes('testWithdrawalAllowlisted'),'Shasta payout helper must enforce explicit per-withdrawal authorization.');
 assert(payoutSource.includes('finalShastaTestUserAllowed')&&payoutSource.includes('finalShastaWithdrawalAllowed'),'Final Shasta broadcast gate must revalidate the user and exact withdrawal allowlists.');
-assert(shastaTestModeTests.includes('exact withdrawal ID in the service-only allowlist')&&shastaTestModeTests.includes('isAllowlistedShastaTestWithdrawal'),'Shasta routing must regression-test exact-withdrawal allowlisting.');
+assert(shastaTestModeTests.includes('exact withdrawal ID and exact allowlisted recipient address')&&shastaTestModeTests.includes('isAllowlistedShastaTestWithdrawal'),'Shasta routing must regression-test exact-withdrawal and exact-recipient allowlisting.');
+assert(shastaTestModeSource.includes('expectedDestinationAddress')&&shastaTestModeSource.includes('destination_address'),'Shasta payout helper must bind the allowlisted row to the exact recipient address.');
+const shastaRecipientMigration=fs.readFileSync('database/migrations/20261026190000_bind_shasta_test_withdrawal_destination.sql','utf8');
+assert(shastaRecipientMigration.includes('ADD COLUMN IF NOT EXISTS destination_address')&&shastaRecipientMigration.includes('shasta_test_withdrawals_destination_address_format'),'Shasta test withdrawal recipient binding must be stored and format constrained in the database.');
+assert(payoutSource.includes('String(payoutTarget.destination_address || "")')&&payoutSource.includes('String(withdrawal.destination_address || "")'),'Shasta recipient must be revalidated both before payout preparation and at final broadcast validation.');
+const shastaTelegramSource=fs.readFileSync('supabase/functions/telegram-withdrawal/index.ts','utf8');
+assert(shastaTelegramSource.includes('isExplicitlyAllowlistedShastaDestination')&&shastaTelegramSource.includes('TRON_SHASTA_TEST_PAYOUTS_ENABLED')&&shastaTelegramSource.includes('ISOLATED TRON SHASTA TESTNET ONLY'),'Telegram review may permit a wallet mismatch only for an explicitly bound Shasta test recipient under closed production gates.');
 assert(shastaTestWithdrawalMigration.includes('ENABLE ROW LEVEL SECURITY')&&shastaTestWithdrawalMigration.includes('FROM PUBLIC, anon, authenticated')&&shastaTestWithdrawalMigration.includes('TO service_role')&&shastaTestWithdrawalMigration.includes('DEFAULT false'),'Per-withdrawal Shasta test authorization must default disabled and remain service-role-only.');
 const withdrawalPayoutPolicy=fs.readFileSync('supabase/functions/_shared/withdrawal-payout-wallet.ts','utf8');
 const withdrawalPayoutPolicyTests=fs.readFileSync('supabase/functions/_shared/withdrawal-payout-wallet_test.ts','utf8');

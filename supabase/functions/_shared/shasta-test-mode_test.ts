@@ -33,11 +33,16 @@ function fakeWithdrawalAllowlistAdmin(data: unknown, error: unknown = null) {
   } as any;
 }
 
-Deno.test("Shasta routing needs the exact withdrawal ID in the service-only allowlist", async () => {
+Deno.test("Shasta routing requires the exact withdrawal ID and exact allowlisted recipient address", async () => {
   const id = "9bb6aa54-c060-4fa6-837e-82460a5894c0";
-  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin({ withdrawal_id: id }), id, true), true);
-  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(null), id, true), false);
-  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin({ withdrawal_id: id }, { message: "db unavailable" }), id, true), false);
-  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin({ withdrawal_id: id }), id, false), false);
-  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin({ withdrawal_id: id }), "not-a-uuid", true), false);
+  const recipient = "TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi";
+  const permit = { withdrawal_id: id, destination_address: recipient };
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(permit), id, true, recipient), true);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin({ ...permit, destination_address: "TH7NgA7G17X4hm88SPL9TPptnmsSx7PbMR" }), id, true, recipient), false);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin({ withdrawal_id: id, destination_address: null }), id, true, recipient), false);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(null), id, true, recipient), false);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(permit, { message: "db unavailable" }), id, true, recipient), false);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(permit), id, false, recipient), false);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(permit), "not-a-uuid", true, recipient), false);
+  assertEquals(await isAllowlistedShastaTestWithdrawal(fakeWithdrawalAllowlistAdmin(permit), id, true, recipient.toLowerCase()), false);
 });

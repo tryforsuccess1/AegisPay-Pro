@@ -74,16 +74,22 @@ export async function isAllowlistedShastaTestWithdrawal(
   admin: SettingsAdmin,
   withdrawalId: string,
   enabled: boolean,
+  expectedDestinationAddress: string,
 ): Promise<boolean> {
-  if (!enabled || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(withdrawalId)) {
+  const destination = typeof expectedDestinationAddress === "string" ? expectedDestinationAddress : "";
+  if (
+    !enabled ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(withdrawalId) ||
+    !TRON_ADDRESS_RE.test(destination)
+  ) {
     return false;
   }
   const { data, error } = await admin.from("shasta_test_withdrawals")
-    .select("withdrawal_id")
+    .select("withdrawal_id,destination_address")
     .eq("withdrawal_id", withdrawalId)
     .eq("enabled", true)
     .maybeSingle();
-  return !error && Boolean(data);
+  return !error && Boolean(data) && String(data.destination_address || "") === destination;
 }
 
 /**
