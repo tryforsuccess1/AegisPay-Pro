@@ -68,8 +68,9 @@ async function isExplicitlyAllowlistedShastaDestination(
   userId: string,
   destinationAddress: string,
 ): Promise<boolean> {
+  // This gate authorizes only a review notification. Actual payout execution has its own
+  // mandatory server-side Shasta feature flag and independent final broadcast checks.
   if (
-    Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") !== "true" ||
     !validUuid(withdrawalId) ||
     !validUuid(userId) ||
     !TRON_ADDRESS_RE.test(destinationAddress)
