@@ -491,6 +491,7 @@ assert(adminAuth.includes('Run Locked Mainnet HD Preflight')&&adminAuth.includes
 assert(productionReadinessFunction.includes('mainnet_wallet_preflight_available:true')&&adminAuth.includes('d.mainnet_wallet_preflight_available===true')&&adminAuth.includes('Preflight backend not deployed yet'),'Master Admin must hide the preflight action until the deployed backend advertises its availability.');
 assert(productionReadinessFunction.includes('PRODUCTION_DEPOSITS_REQUIRE_PAYOUT_READINESS')&&productionReadinessFunction.includes('mainnetDepositEnablementReady'),'Mainnet deposits must not be enabled before production payout readiness');
 assert(adminAuth.includes('Unreconciled Payouts')&&adminAuth.includes('REAL USDT MAINNET PAYOUT')&&adminAuth.includes('ai-support'),'Master Admin must show payout reconciliation blockers, confirm real payouts and support AI cases');
+assert(adminAuth.includes("const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET'&&currentMode.real_payouts===true;"),'Master Admin must label a payout as Mainnet only when the system real-payout gate is enabled.');
 const goLiveGuard=fs.readFileSync('database/migrations/20261011_block_unreconciled_payout_go_live.sql','utf8');
 assert(goLiveGuard.includes("status IN ('APPROVED','PROCESSING') AND payout_txid IS NULL"),'Database go-live guard must block unreconciled approved/processing payouts');
 const tronValidator=fs.readFileSync('database/migrations/20261011_exact_integer_tron_address_decode.sql','utf8');
