@@ -4,12 +4,14 @@ on:
   pull_request:
     paths:
       - 'database/migrations/20261025190000_per_withdrawal_payout_journal.sql'
+      - 'database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql'
       - 'scripts/sql-tests/withdrawal_payout_journal_*.sql'
       - '.github/workflows/withdrawal-payout-journal-tests.yml'
   push:
     branches: [main]
     paths:
       - 'database/migrations/20261025190000_per_withdrawal_payout_journal.sql'
+      - 'database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql'
       - 'scripts/sql-tests/withdrawal_payout_journal_*.sql'
       - '.github/workflows/withdrawal-payout-journal-tests.yml'
   workflow_dispatch:
@@ -51,5 +53,7 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/withdrawal_payout_journal_fixture.sql
       - name: Apply payout journal migration
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261025190000_per_withdrawal_payout_journal.sql
-      - name: Verify grants, RLS, sequence and idempotency
+      - name: Apply explicit Shasta test-withdrawal allowlist migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql
+      - name: Verify journal and test-withdrawal allowlist grants, RLS, sequence and idempotency
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/withdrawal_payout_journal_assertions.sql

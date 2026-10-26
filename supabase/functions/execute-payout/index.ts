@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 import { checkWithdrawalPayoutHdConfig, estimatePayoutFeeReserveSun } from "../_shared/withdrawal-payout-wallet.ts";
+import { isAllowlistedShastaTestUser, isAllowlistedShastaTestWithdrawal, isIsolatedShastaPayoutEligible, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -217,6 +218,15 @@ let payoutJournalStarted = false;
       aiApprovedClientPayout = true;
     }
 
+    // Load the payout target once so Shasta routing can be tied to its owner; a feature flag alone must never route an ordinary withdrawal to testnet.
+    const { data: payoutTarget, error: payoutTargetError } = await admin
+      .from("withdrawal_requests")
+      .select("id,user_id,destination_address")
+      .eq("id", withdrawalId)
+      .maybeSingle();
+    if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
+    if (!payoutTarget) return json({ error: "Withdrawal request not found. No transaction was sent." }, 404);
+
     const { data: appEnabled, error: runtimeError } = await admin.rpc("app_runtime_enabled");
     if (runtimeError) return json({ error: "Unable to confirm AegisPay runtime status." }, 503);
     if (appEnabled !== true) return json({ error: "AegisPay is paused by Master Admin." }, 423);
@@ -224,16 +234,43 @@ let payoutJournalStarted = false;
     const { data: modeRow } = await admin.from("platform_settings")
       .select("value_json").eq("key", "system_mode").maybeSingle();
     const systemMode = modeRow?.value_json || {};
-    const { data: networkRow } = await admin.from("platform_settings")
+    const { data: networkRow, error: networkError } = await admin.from("platform_settings")
       .select("value_json").eq("key", "deposit_rules").maybeSingle();
-    const network = String(networkRow?.value_json?.network || "").toUpperCase();
+    if (networkError) return json({ error: "Unable to confirm configured payout network." }, 503);
+    // Shasta routing requires both the explicit server-side flag and a row-level test-user allowlist.
+    // loadShastaTestRules also fails closed unless all production-money gates remain closed and the two networks are configured distinctly.
+    const shastaTestPayoutsEnabled = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true";
+    const shastaTestUserAllowed = await isAllowlistedShastaTestUser(
+      admin,
+      String(payoutTarget.user_id || ""),
+      shastaTestPayoutsEnabled,
+    );
+    // Test-user status alone is not enough: allowlist the exact withdrawal separately,
+    // so another ordinary request from the same account can never be silently routed to Shasta.
+    const shastaTestWithdrawalAllowed = await isAllowlistedShastaTestWithdrawal(
+      admin,
+      withdrawalId,
+      shastaTestPayoutsEnabled,
+    );
+    const shastaRules = shastaTestUserAllowed && shastaTestWithdrawalAllowed
+      ? await loadShastaTestRules(admin, shastaTestPayoutsEnabled)
+      : null;
+    const isolatedShasta = isIsolatedShastaPayoutEligible(
+      shastaTestPayoutsEnabled,
+      systemMode.mode,
+      shastaTestUserAllowed,
+      shastaTestWithdrawalAllowed,
+      shastaRules,
+    );
+    const payoutNetworkRow = isolatedShasta ? { value_json: shastaRules } : networkRow;
+    const network = String(payoutNetworkRow?.value_json?.network || "").toUpperCase();
 
     const { data: productionRow, error: productionError } = await admin.from("platform_settings")
       .select("value_json").eq("key", "production_config").maybeSingle();
     if (productionError) return json({ error: "Unable to confirm production payout gate." }, 503);
     const productionConfig = productionRow?.value_json || {};
 
-    const testnet = systemMode.mode === "TESTNET_DEMO" && systemMode.testnet_payouts === true && network === "TRON TESTNET";
+    const testnet = (systemMode.mode === "TESTNET_DEMO" && systemMode.testnet_payouts === true && network === "TRON TESTNET") || isolatedShasta;
     const mainnet = systemMode.mode === "MAINNET"
       && systemMode.real_payouts === true
       && systemMode.production_go_live_approved === true
@@ -242,6 +279,14 @@ let payoutJournalStarted = false;
       && productionConfig.real_payouts_enabled === true
       && productionConfig.payouts_locked === false
       && String(productionConfig.environment || "").toUpperCase() === "PRODUCTION";
+
+    // A withdrawal explicitly marked for Shasta testing must never fall through to Mainnet.
+    if (shastaTestWithdrawalAllowed && !isolatedShasta) {
+      return json({
+        error: "This withdrawal is marked for isolated Shasta testing, but its test payout gates are not ready. No payout was sent.",
+        code: "SHASTA_TEST_WITHDRAWAL_NOT_READY",
+      }, 403);
+    }
 
     if (mainnet) {
       const payoutHdConfig = checkWithdrawalPayoutHdConfig(
@@ -294,14 +339,14 @@ let payoutJournalStarted = false;
     if (!testnet && !mainnet) return json({ error: "The selected TRON network is not enabled for payouts." }, 403);
     const payoutKey = testnet ? TESTNET_PAYOUT_KEY : MAINNET_PAYOUT_KEY;
     if (!payoutKey) return json({ error: testnet ? "TRON_TESTNET_PAYOUT_PRIVATE_KEY is not configured." : "TRON_PAYOUT_PRIVATE_KEY is not configured." }, 503);
-    const tokenContract = String(networkRow?.value_json?.token_contract || "");
+    const tokenContract = String(payoutNetworkRow?.value_json?.token_contract || "");
     if (testnet && tokenContract !== SHASTA_USDT) return json({ error: "The testnet USDT contract does not match the supported Shasta token." }, 403);
     if (mainnet && tokenContract && tokenContract !== MAINNET_USDT) return json({ error: "The configured token is not the supported TRON mainnet USDT contract." }, 403);
     const chain = testnet ? "https://api.shasta.trongrid.io" : "https://api.trongrid.io";
     const usdtContract = testnet ? SHASTA_USDT : MAINNET_USDT;
 
     // Fail closed before claiming a withdrawal if the configured treasury and signer do not match.
-    const configuredTreasury = String(networkRow?.value_json?.receiving_address || "").trim();
+    const configuredTreasury = String(payoutNetworkRow?.value_json?.receiving_address || "").trim();
     const signerAddress = String(TronWeb.address.fromPrivateKey(payoutKey) || "");
     if (!configuredTreasury || signerAddress !== configuredTreasury) {
       return json({ error: "Payout signer does not match the configured treasury address. No transaction was sent.", code: "PAYOUT_TREASURY_MISMATCH" }, 409);
@@ -309,13 +354,6 @@ let payoutJournalStarted = false;
 
     // Validate the exact case-sensitive recipient before claiming the payout. TRON addresses
     // use Base58Check and changing letter case can redirect or invalidate a transfer.
-    const { data: payoutTarget, error: payoutTargetError } = await admin
-      .from("withdrawal_requests")
-      .select("id,destination_address")
-      .eq("id", withdrawalId)
-      .maybeSingle();
-    if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
-    if (!payoutTarget) return json({ error: "Withdrawal request not found. No transaction was sent." }, 404);
     const { data: destinationValid, error: destinationValidationError } = await admin.rpc("is_valid_tron_address", {
       p_address: String(payoutTarget.destination_address || "")
     });
@@ -369,7 +407,19 @@ let payoutJournalStarted = false;
     if (testnet) {
       const { data: currentMode, error: currentModeError } = await admin.from("platform_settings")
         .select("value_json").eq("key", "system_mode").maybeSingle();
-      if (currentModeError || currentMode?.value_json?.mode !== "TESTNET_DEMO" || currentMode?.value_json?.testnet_payouts !== true) {
+      if (currentModeError) throw new Error("Unable to revalidate testnet payout mode.");
+      if (isolatedShasta) {
+        const { data: currentShasta, error: currentShastaError } = await admin.from("platform_settings")
+          .select("value_json").eq("key", "shasta_testnet_rules").maybeSingle();
+        const currentRules = currentShasta?.value_json || {};
+        if (currentShastaError || Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") !== "true" ||
+            currentMode?.value_json?.mode !== "MAINNET" ||
+            String(currentRules.network || "").toUpperCase() !== "TRON TESTNET" ||
+            String(currentRules.token_contract || "") !== SHASTA_USDT ||
+            String(currentRules.receiving_address || "").trim() !== configuredTreasury) {
+          throw new Error("Isolated Shasta test payouts were disabled or their rules changed before broadcast.");
+        }
+      } else if (currentMode?.value_json?.mode !== "TESTNET_DEMO" || currentMode?.value_json?.testnet_payouts !== true) {
         throw new Error("Testnet payouts were disabled before the transfer could be broadcast.");
       }
     }
@@ -558,6 +608,52 @@ let payoutJournalStarted = false;
           throw new Error("Production payout gate closed immediately before final broadcast.");
         }
       }
+      // Revalidate isolated Shasta configuration immediately before the customer's USDT broadcast.
+      // Mainnet remains locked; this gate is strictly limited to the Shasta test path.
+      if (isolatedShasta) {
+        const finalShastaEnabled = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true";
+        const [
+          { data: finalShastaModeRow, error: finalShastaModeError },
+          { data: finalShastaRulesRow, error: finalShastaRulesError },
+          { data: finalShastaProductionRow, error: finalShastaProductionError },
+          { data: finalShastaRuntime, error: finalShastaRuntimeError },
+          finalShastaTestUserAllowed,
+          finalShastaWithdrawalAllowed,
+          finalValidatedShastaRules,
+        ] = await Promise.all([
+          admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
+          admin.from("platform_settings").select("value_json").eq("key", "shasta_testnet_rules").maybeSingle(),
+          admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+          admin.rpc("app_runtime_enabled"),
+          isAllowlistedShastaTestUser(admin, String(withdrawal.user_id || ""), finalShastaEnabled),
+          isAllowlistedShastaTestWithdrawal(admin, String(withdrawal.id || withdrawalId || ""), finalShastaEnabled),
+          loadShastaTestRules(admin, finalShastaEnabled),
+        ]);
+        const finalShastaMode = finalShastaModeRow?.value_json || {};
+        const finalShastaRules = finalShastaRulesRow?.value_json || {};
+        const finalShastaProduction = finalShastaProductionRow?.value_json || {};
+        if (
+          finalShastaModeError || finalShastaRulesError || finalShastaProductionError || finalShastaRuntimeError ||
+          !finalShastaEnabled ||
+          !finalShastaTestUserAllowed ||
+          !finalShastaWithdrawalAllowed ||
+          !finalValidatedShastaRules ||
+          String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() !== "EPHEMERAL_HD" ||
+          finalShastaMode.mode !== "MAINNET" ||
+          String(finalShastaRules.network || "").toUpperCase() !== "TRON TESTNET" ||
+          String(finalShastaRules.token_contract || "") !== SHASTA_USDT ||
+          String(finalShastaRules.receiving_address || "").trim() !== configuredTreasury ||
+          finalValidatedShastaRules.token_contract !== SHASTA_USDT ||
+          String(finalValidatedShastaRules.receiving_address || "").trim() !== configuredTreasury ||
+          finalShastaRuntime !== true ||
+          finalShastaProduction.payouts_locked !== true ||
+          finalShastaProduction.real_payouts_enabled !== false ||
+          finalShastaProduction.live_deposits_enabled !== false
+        ) {
+          throw new Error("Isolated Shasta payout gate or allowlist changed/could not be verified immediately before broadcast.");
+        }
+      }
+
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAYOUT_SUBMITTED", payout_submitted_at: new Date().toISOString() });
       const payoutTxid = safeTxid(await senderContract.transfer(withdrawal.destination_address, amountRaw).send({
         feeLimit: Math.floor(selectedPayoutMaxFeeTrx * 1_000_000), callValue: 0, shouldPollResponse: true,

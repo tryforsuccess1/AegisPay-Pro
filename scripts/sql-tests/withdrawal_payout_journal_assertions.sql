@@ -5,6 +5,7 @@ DECLARE
   v_second bigint;
   v_user uuid;
   v_withdrawal uuid;
+  v_test_withdrawal uuid;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -63,7 +64,46 @@ BEGIN
   IF (SELECT count(*) FROM public.withdrawal_payout_journal WHERE withdrawal_id=v_withdrawal) <> 1 THEN
     RAISE EXCEPTION 'One journal row per withdrawal must be enforced';
   END IF;
-  RAISE NOTICE 'Per-withdrawal payout journal assertions passed';
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname='shasta_test_withdrawals' AND c.relrowsecurity
+  ) THEN RAISE EXCEPTION 'shasta_test_withdrawals must have RLS enabled'; END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname='public' AND tablename='shasta_test_withdrawals'
+      AND policyname='shasta_test_withdrawals_deny_client_access'
+      AND cmd='ALL' AND roles @> ARRAY['anon'::name,'authenticated'::name]
+      AND coalesce(qual,'')='false' AND coalesce(with_check,'')='false'
+  ) THEN RAISE EXCEPTION 'shasta_test_withdrawals must have a deny-all client RLS policy'; END IF;
+  IF has_table_privilege('anon','public.shasta_test_withdrawals','SELECT')
+     OR has_table_privilege('anon','public.shasta_test_withdrawals','INSERT')
+     OR has_table_privilege('authenticated','public.shasta_test_withdrawals','SELECT')
+     OR has_table_privilege('authenticated','public.shasta_test_withdrawals','INSERT')
+     OR has_table_privilege('authenticated','public.shasta_test_withdrawals','UPDATE') THEN
+    RAISE EXCEPTION 'Client roles must not access the Shasta test-withdrawal allowlist';
+  END IF;
+  IF NOT has_table_privilege('service_role','public.shasta_test_withdrawals','SELECT')
+     OR NOT has_table_privilege('service_role','public.shasta_test_withdrawals','INSERT')
+     OR NOT has_table_privilege('service_role','public.shasta_test_withdrawals','UPDATE')
+     OR NOT has_table_privilege('service_role','public.shasta_test_withdrawals','DELETE') THEN
+    RAISE EXCEPTION 'service_role must be the only application role with test-withdrawal allowlist access';
+  END IF;
+
+  INSERT INTO public.withdrawal_requests(user_id) VALUES (v_user) RETURNING id INTO v_test_withdrawal;
+  INSERT INTO public.shasta_test_withdrawals(withdrawal_id, reason)
+    VALUES (v_test_withdrawal, 'isolated Shasta test fixture');
+  IF (SELECT enabled FROM public.shasta_test_withdrawals WHERE withdrawal_id=v_test_withdrawal) IS DISTINCT FROM false THEN
+    RAISE EXCEPTION 'Shasta test-withdrawal allowlist must default to disabled';
+  END IF;
+  UPDATE public.shasta_test_withdrawals SET enabled=true, updated_at=now()
+    WHERE withdrawal_id=v_test_withdrawal;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.shasta_test_withdrawals
+    WHERE withdrawal_id=v_test_withdrawal AND enabled=true
+  ) THEN RAISE EXCEPTION 'Explicitly enabled test-withdrawal allowlist row should be found'; END IF;
+
+  RAISE NOTICE 'Per-withdrawal payout journal and Shasta allowlist assertions passed';
 END;
 $tests$;
 
