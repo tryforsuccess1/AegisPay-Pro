@@ -265,7 +265,7 @@ function locations(){
 function reviewCard(kind,item){
   const user=item.user?item.user.name+' · '+item.user.email:'Unknown account';
   const currentMode=state.settings.system_mode||{};
-  const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET';
+  const mainnetLive=String(currentMode.mode||'').toUpperCase()==='MAINNET'&&currentMode.real_payouts===true;
   if(kind==='deposits'){
     return '<article class="aa-review-card"><div class="aa-review-top"><div><span class="aa-badge aa-badge-cyan">DEPOSIT</span><h3>'+money(item.grossAmount)+' USDT</h3><p>'+esc(user)+'</p></div><span class="aa-status">'+esc(item.status||'PENDING')+'</span></div>'+
       '<div class="aa-detail-grid"><span>Tier<b>'+esc(item.tierId||'—')+'</b></span><span>TXID<b class="aa-mono">'+esc(item.txid||'—')+'</b></span><span>AI Review<b>'+esc(item.aiReviewStatus||'—')+'</b></span><span>AI Confidence<b>'+esc(item.aiConfidence==null?'n/a':item.aiConfidence)+'</b></span><span>AI Reason<b>'+esc(item.aiReviewReason||'—')+'</b></span><span>Policy<b>'+esc(item.aiPolicyVersion||'—')+'</b></span><span>Submitted<b>'+esc(date(item.createdAt||item.submittedAt))+'</b></span></div>'+
