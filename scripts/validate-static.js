@@ -48,6 +48,7 @@ const must=[
   'database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql',
   'database/migrations/20261025190000_per_withdrawal_payout_journal.sql',
   'database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql',
+  'database/migrations/20261026190000_bind_shasta_test_withdrawal_destination.sql',
   'scripts/sql-tests/withdrawal_payout_journal_fixture.sql',
   'scripts/sql-tests/withdrawal_payout_journal_assertions.sql',
   '.github/workflows/withdrawal-payout-journal-tests.yml',
