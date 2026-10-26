@@ -839,7 +839,7 @@ async function userRemove(el){
   });
 }
 async function walletChange(el){
-  const wallet=String(window.prompt('New TRC20 withdrawal wallet address','')||'').trim().toUpperCase();
+  const wallet=String(window.prompt('New TRC20 withdrawal wallet address','')||'').trim();
   if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet)){state.error='Enter a valid TRC20 wallet address.';render();return;}
   await setBusy(async function(){
     const r=await service.invokeFunction('admin-account-ops',{body:{action:'wallet',userId:el.dataset.id,wallet}});
