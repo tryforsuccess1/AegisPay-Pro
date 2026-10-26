@@ -507,6 +507,7 @@ assert(walletAiGuard.includes('WITHDRAWAL_WALLET_INVALID_CASE_OR_CHECKSUM'),'Wit
 assert(!client.includes('withdrawWallet.value.trim().toUpperCase()'),'Client wallet linking must preserve original TRON Base58 case');
 assert(payoutSource.includes('INVALID_WITHDRAWAL_DESTINATION')&&payoutSource.includes('is_valid_tron_address'),'Payout source must reject invalid exact-case recipient addresses');
 assert((payoutSource.match(/is_valid_tron_address/g)||[]).length===1,'Payout source must contain one exact-case recipient validation guard, not duplicate copies');
+assert(payoutSource.includes('PAYOUT_NETWORK_DISABLED')&&payoutSource.includes('TRON_SHASTA_TEST_PAYOUTS_ENABLED=true')&&payoutSource.includes('No payout was sent.'),'Disabled payout networks must explain the gated Shasta test prerequisites and explicitly confirm no payout was sent.');
 const destinationGuard=payoutSource.indexOf('const { data: destinationValid');
 assert(destinationGuard>=0&&destinationGuard<payoutSource.indexOf('// Atomic claim: only one invocation can transition an approved request to PROCESSING'),'Payout recipient must be validated before the atomic payout claim');
 const depositMonitorSource=fs.readFileSync('supabase/functions/monitor-deposits/index.ts','utf8');
