@@ -6,6 +6,9 @@ const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const BOT = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
 const CHAT = Deno.env.get("TELEGRAM_CHAT_ID") || "";
 const APPROVERS = (Deno.env.get("TELEGRAM_APPROVER_IDS") || "").split(/[\s,]+/).filter((x) => /^[0-9]{1,20}$/.test(x));
+const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+const TRON_MAINNET_USDT_CONTRACT = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+const TRON_SHASTA_USDT_CONTRACT = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -52,6 +55,84 @@ async function isRunning(admin: ReturnType<typeof client>) {
   const { data, error } = await admin.rpc("app_runtime_enabled");
   if (error) throw new Error("Unable to confirm AegisPay runtime status.");
   return data === true;
+}
+
+/**
+ * A profile-wallet mismatch is allowed only for an explicitly allowlisted, exact
+ * Shasta test recipient while every live-money/production gate stays locked.
+ * This is a review-message exception only; it never changes the user's profile.
+ */
+async function isExplicitlyAllowlistedShastaDestination(
+  admin: ReturnType<typeof client>,
+  withdrawalId: string,
+  userId: string,
+  destinationAddress: string,
+): Promise<boolean> {
+  if (
+    Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") !== "true" ||
+    !validUuid(withdrawalId) ||
+    !validUuid(userId) ||
+    !TRON_ADDRESS_RE.test(destinationAddress)
+  ) return false;
+
+  const [
+    { data: withdrawalPermit, error: withdrawalPermitError },
+    { data: userPermit, error: userPermitError },
+    { data: shastaRow, error: shastaError },
+    { data: modeRow, error: modeError },
+    { data: productionRow, error: productionError },
+    { data: mainnetRow, error: mainnetError },
+  ] = await Promise.all([
+    admin.from("shasta_test_withdrawals")
+      .select("withdrawal_id,destination_address")
+      .eq("withdrawal_id", withdrawalId)
+      .eq("enabled", true)
+      .maybeSingle(),
+    admin.from("shasta_test_users")
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("enabled", true)
+      .maybeSingle(),
+    admin.from("platform_settings").select("value_json").eq("key", "shasta_testnet_rules").maybeSingle(),
+    admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
+    admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+    admin.from("platform_settings").select("value_json").eq("key", "deposit_rules").maybeSingle(),
+  ]);
+
+  if (
+    withdrawalPermitError || userPermitError || shastaError || modeError || productionError || mainnetError ||
+    !withdrawalPermit || !userPermit || !shastaRow?.value_json || !modeRow?.value_json ||
+    !productionRow?.value_json || !mainnetRow?.value_json
+  ) return false;
+
+  // Recipient matching is exact and case-sensitive because TRON addresses are case-sensitive.
+  if (String(withdrawalPermit.destination_address || "") !== destinationAddress) return false;
+
+  const shasta = shastaRow.value_json;
+  const mode = modeRow.value_json;
+  const production = productionRow.value_json;
+  const mainnet = mainnetRow.value_json;
+  const validShastaRules =
+    String(shasta.network || "").toUpperCase() === "TRON TESTNET" &&
+    String(shasta.token_contract || "").trim() === TRON_SHASTA_USDT_CONTRACT &&
+    TRON_ADDRESS_RE.test(String(shasta.receiving_address || ""));
+  const paymentGatesClosed =
+    String(mode.mode || "").toUpperCase() === "MAINNET" &&
+    mode.real_payouts === false &&
+    mode.live_deposits === false &&
+    mode.production_go_live_approved === false &&
+    String(production.environment || "").toUpperCase() === "PRE_PRODUCTION" &&
+    production.payouts_locked === true &&
+    production.real_payouts_enabled === false &&
+    production.live_deposits_enabled === false &&
+    production.go_live_approved === false;
+  const separateMainnetRules =
+    String(mainnet.network || "").toUpperCase() === "TRON MAINNET" &&
+    String(mainnet.token_contract || "").trim() === TRON_MAINNET_USDT_CONTRACT &&
+    TRON_ADDRESS_RE.test(String(mainnet.receiving_address || "")) &&
+    String(mainnet.receiving_address || "").trim() !== String(shasta.receiving_address || "").trim();
+
+  return validShastaRules && paymentGatesClosed && separateMainnetRules;
 }
 async function authenticatedActor(req: Request, admin: ReturnType<typeof client>) {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
@@ -138,8 +219,15 @@ async function sendWithdrawal(admin: ReturnType<typeof client>, withdrawalId: st
   if (!u || !["ACTIVE","NORMAL"].includes(String(u.status || "").toUpperCase())) {
     throw new Error("Client account is not active.");
   }
+  let isolatedShastaDestination = false;
   if (!u.destination_address || String(u.destination_address) !== String(w.destination_address)) {
-    throw new Error("Withdrawal wallet validation failed.");
+    isolatedShastaDestination = await isExplicitlyAllowlistedShastaDestination(
+      admin,
+      String(w.id || withdrawalId),
+      String(w.user_id || ""),
+      String(w.destination_address || ""),
+    );
+    if (!isolatedShastaDestination) throw new Error("Withdrawal wallet validation failed.");
   }
   if (!kyc) throw new Error("KYC is not verified.");
   if (!Number.isFinite(Number(w.amount)) || Number(w.amount) <= 0) {
@@ -151,7 +239,9 @@ async function sendWithdrawal(admin: ReturnType<typeof client>, withdrawalId: st
     "\nFee: " + Number(w.fee_amount).toFixed(2) + " USDT" +
     "\nNet payout: " + Number(w.net_amount).toFixed(2) + " USDT" +
     "\nTRON wallet: " + String(w.destination_address).slice(0, 60) +
+    "\nNetwork scope: " + (isolatedShastaDestination ? "ISOLATED TRON SHASTA TESTNET ONLY" : "standard approved withdrawal") +
     "\nValidation: PASSED" +
+    (isolatedShastaDestination ? " (exact test recipient is allowlisted)" : "") +
     "\nMaster Admin: " + String(w.panel_decision || "PENDING");
   const sent = await telegram("sendMessage", {
     chat_id: CHAT, text,
