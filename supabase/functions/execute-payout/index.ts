@@ -251,6 +251,7 @@ let payoutJournalStarted = false;
       admin,
       withdrawalId,
       shastaTestPayoutsEnabled,
+      String(payoutTarget.destination_address || ""),
     );
     const shastaRules = shastaTestUserAllowed && shastaTestWithdrawalAllowed
       ? await loadShastaTestRules(admin, shastaTestPayoutsEnabled)
@@ -626,7 +627,12 @@ let payoutJournalStarted = false;
           admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
           admin.rpc("app_runtime_enabled"),
           isAllowlistedShastaTestUser(admin, String(withdrawal.user_id || ""), finalShastaEnabled),
-          isAllowlistedShastaTestWithdrawal(admin, String(withdrawal.id || withdrawalId || ""), finalShastaEnabled),
+          isAllowlistedShastaTestWithdrawal(
+            admin,
+            String(withdrawal.id || withdrawalId || ""),
+            finalShastaEnabled,
+            String(withdrawal.destination_address || ""),
+          ),
           loadShastaTestRules(admin, finalShastaEnabled),
         ]);
         const finalShastaMode = finalShastaModeRow?.value_json || {};
