@@ -116,13 +116,12 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "withdrawal") {
-      const scoped = createClient(SUPABASE_URL, SERVICE_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false },
-        global: { headers: { Authorization: "Bearer " + token } },
-      });
-      const { data, error } = await scoped.rpc("finalize_withdrawal", {
+      // The caller JWT was verified above and mapped to an active Master Admin.
+      // Keep this privileged mutation behind the service-role-only RPC.
+      const { data, error } = await admin.rpc("finalize_withdrawal_as_admin", {
         p_request_id: id,
         p_approve: decision === "approve",
+        p_actor_user_id: actor.id,
       });
       if (error) return json({ error: error.message || "Withdrawal review failed." }, 400);
       return json({
