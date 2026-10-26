@@ -337,7 +337,18 @@ let payoutJournalStarted = false;
     if (systemMode.mode === "MAINNET" && network === "TRON MAINNET" && systemMode.real_payouts === true && !mainnet) {
       return json({ error: "Production payout gate is locked. Complete the Phase 3 go-live checks before enabling real payouts." }, 403);
     }
-    if (!testnet && !mainnet) return json({ error: "The selected TRON network is not enabled for payouts." }, 403);
+    if (!testnet && !mainnet) {
+      const isolatedShastaCandidate = String(systemMode.mode || "").toUpperCase() === "MAINNET"
+        && systemMode.real_payouts !== true
+        && network === "TRON MAINNET";
+      return json({
+        error: isolatedShastaCandidate
+          ? "Mainnet payouts are locked, and an isolated Shasta test payout is not currently eligible. Verify TRON_SHASTA_TEST_PAYOUTS_ENABLED=true, the test-user allowlist, the exact withdrawal/destination allowlist, and Shasta configuration. No payout was sent."
+          : "The selected TRON network is not enabled for payouts. No payout was sent.",
+        code: "PAYOUT_NETWORK_DISABLED",
+        noPayoutSent: true,
+      }, 403);
+    }
     const payoutKey = testnet ? TESTNET_PAYOUT_KEY : MAINNET_PAYOUT_KEY;
     if (!payoutKey) return json({ error: testnet ? "TRON_TESTNET_PAYOUT_PRIVATE_KEY is not configured." : "TRON_PAYOUT_PRIVATE_KEY is not configured." }, 503);
     const tokenContract = String(payoutNetworkRow?.value_json?.token_contract || "");
