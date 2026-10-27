@@ -12,7 +12,10 @@
 
 :root{--ff:"Plus Jakarta Sans","Noto Sans Arabic","Noto Sans Devanagari",system-ui,sans-serif;--bg:#faf5ec;--s1:#fff;--s2:#f3ebdd;--mut:#8a7a68;--tx:#4a3a2c;--hd:#2b1d12;--p1:#f06a4d;--p2:#c94b8a;--line:rgba(60,40,20,.1);--ok:#1a9a6e;--warn:#d98a1a;--red:#d63a4a;--cs:0 8px 24px -14px rgba(120,70,30,.4);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 *{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
-html,body{min-height:100%}
+html,body{min-height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch}
+/* Hide visible document scrollbars while preserving native wheel, trackpad and finger scrolling. */
+html,body,#app{scrollbar-width:none!important;-ms-overflow-style:none!important}
+html::-webkit-scrollbar,body::-webkit-scrollbar,#app::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}
 body{background:radial-gradient(520px 320px at 92% -4%,rgba(255,154,118,.3),transparent),radial-gradient(420px 300px at -10% 42%,rgba(201,75,138,.08),transparent),var(--bg);color:var(--tx);font-family:var(--ff);display:flex;justify-content:center;font-variant-numeric:tabular-nums}
 #app{width:100%;max-width:430px;padding:16px 16px 112px}
 svg.i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -5031,7 +5034,7 @@ window.openAegisSupport=openAegisSupport;
 
 window.__aegisDataGoBound=true;document.addEventListener('click',function(e){const el=e.target.closest('[data-go]');if(!el||el.hasAttribute('onclick'))return;const route=el.getAttribute('data-go');if(route){e.preventDefault();window.go(route)}});
 window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return await openAegisSupport();if(id==='home')return liveHome();if(id==='topup'||id==='deposit')return liveTopup();if(id==='vip')return liveVip();if(id==='kyc')return liveKyc();if(id==='withdraw')return liveWithdraw();if(id==='referral'||id==='refs')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account'||id==='profile')return liveAccount();if(id==='notifications'||id==='notes')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
-async function bootLive(){let qs;try{qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,'').replace(/^\?/,''));
+async function bootLive(){let qs,requestedReturnPage='';try{qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,'').replace(/^\?/,''));
 if(qs.get('shop_purchase')==='confirmed'){
   const shopTaskId=String(qs.get('task')||'').trim();
   const shopProductId=String(qs.get('product')||'').trim();
@@ -5112,12 +5115,20 @@ if(qs.get('reset')==='1' || qs.has('code') || qs.get('type')==='recovery' || has
   return;
 }
 if(qs.get('auth-preview')==='1'){window.go((qs.get('signup')==='1'||referralLinkCode)?'signup':'login');return}
-const requestedReturnPage=normalizeAegisReturnPage(qs.get('aegisReturnPage'));
+requestedReturnPage=normalizeAegisReturnPage(qs.get('aegisReturnPage'));
 let s=await db.auth.getSession();
 if(!s.data.session&&requestedReturnPage){
-  for(let attempt=0;attempt<5&&!s.data.session;attempt++){
+  // Returning from the cross-origin Shop can race the Auth SDK's local-session hydration.
+  // Allow a longer restore window, then explicitly try the persisted refresh token before showing Login.
+  for(let attempt=0;attempt<20&&!s.data.session;attempt++){
     await new Promise(resolve=>setTimeout(resolve,250));
     s=await db.auth.getSession();
+  }
+  if(!s.data.session){
+    try{
+      const refreshed=await db.auth.refreshSession();
+      if(!refreshed.error&&refreshed.data&&refreshed.data.session)s={data:{session:refreshed.data.session}};
+    }catch(_){}
   }
 }
 if(s.data.session){
@@ -5133,7 +5144,23 @@ if(s.data.session){
     return liveHome();
   }
 }
-window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){window.__aegisAuthBootstrapComplete=true;window.go('login');if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0)}}
+window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('signup')==='1')?'signup':'login')}catch(e){
+  window.__aegisAuthBootstrapComplete=true;
+  let sessionRestoredForReturn=false;
+  if(requestedReturnPage){
+    try{const restoredSession=await db.auth.getSession();sessionRestoredForReturn=!!restoredSession.data.session}catch(_){}
+  }
+  if(requestedReturnPage&&sessionRestoredForReturn){
+    // Keep a valid signed-in user out of Login when a transient profile/data request fails on return.
+    // The original aegisReturnPage stays in the URL so Retry can resume the same screen.
+    app.innerHTML='<div class="card" role="alert" style="margin-top:22vh;padding:24px;text-align:center"><h3>Could not restore your previous screen</h3><p class="mu" style="margin:12px 0 18px">Your session is still available, but this page could not finish loading. Retry to reopen your previous screen.</p><button class="btn" type="button" id="restorePortalRouteRetry">Try Again</button></div>';
+    const retry=document.getElementById('restorePortalRouteRetry');
+    if(retry)retry.onclick=()=>location.reload();
+  }else{
+    window.go('login');
+  }
+  if(qs&&(qs.get('reset')==='1'||qs.has('code')||qs.get('type')==='recovery'))setTimeout(()=>uiNotice(e&&e.message?e.message:'Password reset link could not be verified. Please request a new reset link.','error'),0);
+}}
 
 /* AEGISPAY PHASE 2 — PREMIUM CLIENT UX */
 (function(){

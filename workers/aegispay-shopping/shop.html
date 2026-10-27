@@ -367,7 +367,7 @@ $('q').value=q;$('q').oninput=e=>{q=e.target.value.toLowerCase();shown=12;render
 $('sort').onchange=e=>{sort=e.target.value;render()};
 loadRealAmazonPhotos();
 $('more').onclick=()=>{shown+=12;render()};
-$('backb').onclick=()=>{if(safeReturn){location.replace(safeReturn.toString());return;}if(history.length>1){history.back();return;}if(params.get('from')==='aegispay'){location.replace('https://aegispay-pro.pages.dev/app/');return;}location.replace('https://aegispay-pro.pages.dev/');};
+$('backb').onclick=()=>{if(safeReturn){location.replace(safeReturn.toString());return;}if(history.length>1){history.back();return;}if(params.get('from')==='aegispay'){location.replace('https://aegispay-web.aegispay.workers.dev/app/');return;}location.replace('https://aegispay-pro.pages.dev/');};
 render();
 document.documentElement.dataset.shopReady = 'true';
 document.documentElement.dataset.shopProductCount = String(ITEMS.length);
