@@ -6,6 +6,9 @@ DECLARE
   v_user uuid;
   v_withdrawal uuid;
   v_test_withdrawal uuid;
+  v_fixed_withdrawal_1 uuid;
+  v_fixed_withdrawal_2 uuid;
+  v_rows integer;
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
@@ -103,7 +106,82 @@ BEGIN
     WHERE withdrawal_id=v_test_withdrawal AND enabled=true
   ) THEN RAISE EXCEPTION 'Explicitly enabled test-withdrawal allowlist row should be found'; END IF;
 
-  RAISE NOTICE 'Per-withdrawal payout journal and Shasta allowlist assertions passed';
+  -- The fixed Wallet 3 registry is service-role-only and starts with the one expected Shasta address.
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relname='withdrawal_payout_wallets' AND c.relrowsecurity
+  ) THEN RAISE EXCEPTION 'withdrawal_payout_wallets must have RLS enabled'; END IF;
+  IF has_table_privilege('anon','public.withdrawal_payout_wallets','SELECT')
+     OR has_table_privilege('anon','public.withdrawal_payout_wallets','INSERT')
+     OR has_table_privilege('authenticated','public.withdrawal_payout_wallets','SELECT')
+     OR has_table_privilege('authenticated','public.withdrawal_payout_wallets','INSERT')
+     OR has_table_privilege('authenticated','public.withdrawal_payout_wallets','UPDATE') THEN
+    RAISE EXCEPTION 'Client roles must not access fixed payout wallet registry';
+  END IF;
+  IF NOT has_table_privilege('service_role','public.withdrawal_payout_wallets','SELECT')
+     OR NOT has_table_privilege('service_role','public.withdrawal_payout_wallets','INSERT')
+     OR NOT has_table_privilege('service_role','public.withdrawal_payout_wallets','UPDATE')
+     OR NOT has_table_privilege('service_role','public.withdrawal_payout_wallets','DELETE') THEN
+    RAISE EXCEPTION 'service_role is missing fixed wallet registry privileges';
+  END IF;
+  IF (SELECT count(*) FROM public.withdrawal_payout_wallets
+      WHERE network='TRON TESTNET'
+        AND address='TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi'
+        AND status='AVAILABLE' AND active_withdrawal_id IS NULL) <> 1 THEN
+    RAISE EXCEPTION 'Exactly one available fixed Shasta Wallet 3 must be registered';
+  END IF;
+
+  -- The one fixed address (derivation index 0) is reusable across different withdrawal journal rows.
+  INSERT INTO public.withdrawal_requests(user_id) VALUES (v_user) RETURNING id INTO v_fixed_withdrawal_1;
+  INSERT INTO public.withdrawal_payout_journal(
+    withdrawal_id,user_id,network,wallet_mode,derivation_index,address,root_fingerprint,destination_address,
+    net_amount_raw,status,idempotency_key
+  ) VALUES (
+    v_fixed_withdrawal_1,v_user,'TRON TESTNET','FIXED_WALLET',0,
+    'TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi',repeat('b',64),
+    'TBaT2g857qeSM4VunBhvQgXN2W5QeT9oWW',45000000,'PREPARED',
+    'withdrawal:'||v_fixed_withdrawal_1::text
+  );
+  INSERT INTO public.withdrawal_requests(user_id) VALUES (v_user) RETURNING id INTO v_fixed_withdrawal_2;
+  INSERT INTO public.withdrawal_payout_journal(
+    withdrawal_id,user_id,network,wallet_mode,derivation_index,address,root_fingerprint,destination_address,
+    net_amount_raw,status,idempotency_key
+  ) VALUES (
+    v_fixed_withdrawal_2,v_user,'TRON TESTNET','FIXED_WALLET',0,
+    'TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi',repeat('b',64),
+    'TBaT2g857qeSM4VunBhvQgXN2W5QeT9oWW',45000000,'PREPARED',
+    'withdrawal:'||v_fixed_withdrawal_2::text
+  );
+  IF (SELECT count(*) FROM public.withdrawal_payout_journal
+      WHERE wallet_mode='FIXED_WALLET'
+        AND address='TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi'
+        AND derivation_index=0) <> 2 THEN
+    RAISE EXCEPTION 'Fixed Wallet 3 must be reusable while each withdrawal gets its own journal row';
+  END IF;
+
+  -- Only one withdrawal may hold Wallet 3 at a time.
+  UPDATE public.withdrawal_payout_wallets
+    SET status='IN_USE', active_withdrawal_id=v_fixed_withdrawal_1,
+        lock_started_at=now(), updated_at=now()
+    WHERE network='TRON TESTNET' AND address='TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi'
+      AND status='AVAILABLE' AND active_withdrawal_id IS NULL;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 1 THEN RAISE EXCEPTION 'The fixed wallet must be lockable by one withdrawal'; END IF;
+
+  UPDATE public.withdrawal_payout_wallets
+    SET status='IN_USE', active_withdrawal_id=v_fixed_withdrawal_2,
+        lock_started_at=now(), updated_at=now()
+    WHERE network='TRON TESTNET' AND address='TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi'
+      AND status='AVAILABLE' AND active_withdrawal_id IS NULL;
+  GET DIAGNOSTICS v_rows = ROW_COUNT;
+  IF v_rows <> 0 THEN RAISE EXCEPTION 'A second withdrawal must not acquire a busy fixed wallet'; END IF;
+
+  UPDATE public.withdrawal_payout_wallets
+    SET status='AVAILABLE', active_withdrawal_id=NULL, lock_started_at=NULL,
+        last_released_at=now(), updated_at=now()
+    WHERE network='TRON TESTNET' AND active_withdrawal_id=v_fixed_withdrawal_1;
+
+  RAISE NOTICE 'Per-withdrawal payout journal, fixed Wallet 3 and Shasta allowlist assertions passed';
 END;
 $tests$;
 
