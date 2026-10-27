@@ -332,10 +332,16 @@ let payoutJournalStarted = false;
         MAINNET_DEPOSIT_HD_MNEMONIC,
       );
       if (!payoutHdConfig.ready) {
+        const configSummary = [
+          "modeEnabled=" + payoutHdConfig.modeEnabled,
+          "dedicatedSeedPresent=" + payoutHdConfig.mnemonicPresent,
+          "differentFromShastaDeposit=" + payoutHdConfig.distinctFromDepositSeed,
+          "differentFromMainnetDeposit=" + payoutHdConfig.distinctFromShastaSeed,
+        ].join(", ");
         return json({
-          error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent.",
+          error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent. Config checks: " + configSummary,
           code: "SHASTA_WITHDRAWAL_PAYOUT_HD_NOT_READY",
-          // Safe diagnostics only: never return or log seed/private-key material.
+          // Safe diagnostics only: booleans only; never expose seed/private-key material.
           configChecks: {
             modeEnabled: payoutHdConfig.modeEnabled,
             mnemonicPresent: payoutHdConfig.mnemonicPresent,
