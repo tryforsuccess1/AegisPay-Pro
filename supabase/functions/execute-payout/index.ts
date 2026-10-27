@@ -291,6 +291,16 @@ let payoutJournalStarted = false;
       && productionConfig.payouts_locked === false
       && String(productionConfig.environment || "").toUpperCase() === "PRODUCTION";
 
+    // All Shasta test payouts must use the explicitly allowlisted fixed Wallet 3 route.
+    // This blocks legacy TESTNET_DEMO/EPHEMERAL_HD paths from deriving more sender wallets.
+    if (testnet && network === "TRON TESTNET" && !isolatedShasta) {
+      return json({
+        error: "Shasta withdrawals require the exact isolated test allowlist and the fixed Wallet 3 mode. No payout was sent.",
+        code: "SHASTA_FIXED_WALLET_ISOLATION_REQUIRED",
+        noPayoutSent: true,
+      }, 403);
+    }
+
     // A withdrawal explicitly marked for Shasta testing must never fall through to Mainnet.
     if (shastaTestWithdrawalAllowed && !isolatedShasta) {
       return json({
@@ -347,39 +357,6 @@ let payoutJournalStarted = false;
         return json({ error: "The fixed Shasta withdrawal fee cap is invalid. No payout was sent.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
       }
       fixedWalletPayout = true;
-      selectedPayoutMaxFeeTrx = SHASTA_WITHDRAWAL_MAX_FEE_TRX;
-    } else if (testnet && String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() === "EPHEMERAL_HD") {
-      const payoutHdConfig = checkWithdrawalPayoutHdConfig(
-        SHASTA_WITHDRAWAL_PAYOUT_MODE,
-        SHASTA_WITHDRAWAL_HD_MNEMONIC,
-        SHASTA_HD_MNEMONIC,
-        MAINNET_DEPOSIT_HD_MNEMONIC,
-      );
-      if (!payoutHdConfig.ready) {
-        const configSummary = [
-          "modeEnabled=" + payoutHdConfig.modeEnabled,
-          "dedicatedSeedPresent=" + payoutHdConfig.mnemonicPresent,
-          "differentFromShastaDeposit=" + payoutHdConfig.distinctFromDepositSeed,
-          "differentFromMainnetDeposit=" + payoutHdConfig.distinctFromShastaSeed,
-        ].join(", ");
-        return json({
-          error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent. Config checks: " + configSummary,
-          code: "SHASTA_WITHDRAWAL_PAYOUT_HD_NOT_READY",
-          configChecks: {
-            modeEnabled: payoutHdConfig.modeEnabled,
-            mnemonicPresent: payoutHdConfig.mnemonicPresent,
-            distinctFromShastaDepositSeed: payoutHdConfig.distinctFromDepositSeed,
-            distinctFromMainnetDepositSeed: payoutHdConfig.distinctFromShastaSeed,
-          },
-        }, 503);
-      }
-      if (!TRONGRID_KEY) return json({ error: "TRONGrid API key is required for per-withdrawal testnet payout verification.", code: "PAYOUT_TRONGRID_REQUIRED" }, 503);
-      if (!Number.isFinite(SHASTA_WITHDRAWAL_MAX_FEE_TRX) || SHASTA_WITHDRAWAL_MAX_FEE_TRX < 3 || SHASTA_WITHDRAWAL_MAX_FEE_TRX > 100) {
-        return json({ error: "The Shasta per-withdrawal payout fee cap is invalid.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
-      }
-      ephemeralPayout = true;
-      selectedPayoutHdMnemonic = SHASTA_WITHDRAWAL_HD_MNEMONIC;
-      selectedPayoutHdPassphrase = SHASTA_WITHDRAWAL_HD_PASSPHRASE;
       selectedPayoutMaxFeeTrx = SHASTA_WITHDRAWAL_MAX_FEE_TRX;
     }
 
