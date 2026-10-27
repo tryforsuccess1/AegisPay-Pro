@@ -1,9 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
-import { deriveTronHdIdentity } from "./_shared/tron-hd-wallet.ts";
-import { checkWithdrawalPayoutHdConfig, estimatePayoutFeeReserveSun } from "./_shared/withdrawal-payout-wallet.ts";
-import { isAllowlistedShastaTestUser, isAllowlistedShastaTestWithdrawal, isIsolatedShastaPayoutEligible, loadShastaTestRules } from "./_shared/shasta-test-mode.ts";
+import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
+import { checkWithdrawalPayoutHdConfig, estimatePayoutFeeReserveSun } from "../_shared/withdrawal-payout-wallet.ts";
+import { isAllowlistedShastaTestUser, isAllowlistedShastaTestWithdrawal, isIsolatedShastaPayoutEligible, loadShastaTestRules } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
