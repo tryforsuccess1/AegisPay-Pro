@@ -48,16 +48,15 @@ assert.match(html, /index<4\?'eager':'lazy'/, 'The first four product images mus
 assert.ok(html.includes('fetchpriority="${index<4?\'high\':\'auto\'}"'), 'Above-the-fold real product images must receive high fetch priority.');
 
 // Regression coverage for Shop round-trip authentication and native scroll gestures.
-
-assert.match(client, /requestedReturnPage=normalizeAegisReturnPage\\(qs.get\\('aegisReturnPage'\\)\\)/, 'A Shop return URL must preserve the requested client screen.');
-assert.match(client, /attempt<20&&!s\\.data\\.session/, 'Cross-origin Shop return must allow enough time for persisted Auth-session hydration.');
-assert.match(client, /db\\.auth\\.refreshSession\\(\\)/, 'Return routing must attempt persisted-session refresh before falling back to Login.');
-assert.match(client, /requestedReturnPage&&sessionRestoredForReturn/, 'A transient data/profile failure must not force a still-authenticated returning client to Login.');
-assert.match(client, /id="restorePortalRouteRetry"/, 'A signed-in client with a recoverable route error must receive a retry control.');
-assert.match(client, /window\\.__aegisCurrentRoute=route;/, 'Client route state must track the latest in-app navigation.');
-assert.match(client, /html,body,#app\\{scrollbar-width:none!important;-ms-overflow-style:none!important\\}/, 'Visible document scrollbars must be hidden.');
-assert.match(client, /overflow-y:auto;-webkit-overflow-scrolling:touch/, 'Vertical scrolling must remain enabled for native touch gestures.');
-assert.match(client, /html::-webkit-scrollbar,body::-webkit-scrollbar,#app::-webkit-scrollbar/, 'WebKit scrollbars must be hidden without disabling scrolling.');
-assert.doesNotMatch(client, /html,body\\{[^}]*overflow-y:hidden/, 'Root vertical scrolling must never be disabled.');
-assert.match(html, /location\\.replace\\(safeReturn\\.toString\\(\\)\\)/, 'Shop Back must prioritize its validated original client URL.');
-assert.match(html, /aegispay-web\\.aegispay\\.workers\\.dev\\/app\\//, 'Shop fallback must target the stable Client portal URL.');
+assert.ok(client.includes("requestedReturnPage=normalizeAegisReturnPage(qs.get('aegisReturnPage'))"), 'A Shop return URL must preserve the requested client screen.');
+assert.ok(client.includes("for(let attempt=0;attempt<20&&!s.data.session;attempt++)"), 'Cross-origin Shop return must allow enough time for persisted Auth-session hydration.');
+assert.ok(client.includes("db.auth.refreshSession()"), 'Return routing must attempt persisted-session refresh before falling back to Login.');
+assert.ok(client.includes("requestedReturnPage&&sessionRestoredForReturn"), 'A transient data/profile failure must not force a still-authenticated returning client to Login.');
+assert.ok(client.includes('id="restorePortalRouteRetry"'), 'A signed-in client with a recoverable route error must receive a retry control.');
+assert.ok(client.includes("window.__aegisCurrentRoute=route;"), 'Client route state must track the latest in-app navigation.');
+assert.ok(client.includes("html,body,#app{scrollbar-width:none!important;-ms-overflow-style:none!important}"), 'Visible document scrollbars must be hidden.');
+assert.ok(client.includes("overflow-y:auto;-webkit-overflow-scrolling:touch"), 'Vertical scrolling must remain enabled for native touch gestures.');
+assert.ok(client.includes("html::-webkit-scrollbar,body::-webkit-scrollbar,#app::-webkit-scrollbar"), 'WebKit scrollbars must be hidden without disabling scrolling.');
+assert.ok(!client.includes("html,body{min-height:100%;overflow-y:hidden"), 'Root vertical scrolling must never be disabled.');
+assert.ok(html.includes("location.replace(safeReturn.toString())"), 'Shop Back must prioritize its validated original client URL.');
+assert.ok(html.includes("https://aegispay-web.aegispay.workers.dev/app/"), 'Shop fallback must target the stable Client portal URL.');
