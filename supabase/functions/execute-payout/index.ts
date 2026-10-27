@@ -881,7 +881,7 @@ let payoutJournalStarted = false;
         { data: finalShastaRulesRow, error: finalShastaRulesError },
         { data: finalShastaProductionRow, error: finalShastaProductionError },
         { data: finalShastaLockRow, error: finalShastaLockError },
-        finalShastaRuntime,
+        { data: finalShastaRuntime, error: finalShastaRuntimeError },
         finalShastaTestUserAllowed,
         finalShastaWithdrawalAllowed,
         finalValidatedShastaRules,
@@ -900,7 +900,7 @@ let payoutJournalStarted = false;
       const finalShastaRules = finalShastaRulesRow?.value_json || {};
       const finalShastaProduction = finalShastaProductionRow?.value_json || {};
       if (
-        finalShastaModeError || finalShastaRulesError || finalShastaProductionError || finalShastaLockError ||
+        finalShastaModeError || finalShastaRulesError || finalShastaProductionError || finalShastaLockError || finalShastaRuntimeError ||
         !finalShastaEnabled || !finalShastaTestUserAllowed || !finalShastaWithdrawalAllowed || !finalValidatedShastaRules ||
         String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() !== "FIXED_WALLET" ||
         finalShastaMode.mode !== "MAINNET" ||
