@@ -171,7 +171,7 @@ assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApproval
 assert(manualTestnetApprovalSql.includes('manual_approved_by=v_actor.id')&&manualTestnetApprovalSql.includes('CREATE TRIGGER guard_shasta_deposit_verification')&&manualTestnetApprovalSql.includes('Manual test credits require all live-money gates to remain closed')&&manualTestnetApprovalSql.includes('MANUAL_APPROVED'),'Database trigger must independently validate and audit the only manual-approval exception.');
 assert(masterAdmin.includes('admin-auth.js?v=20261023-p0-key-diagnostics-ui'),'Master Admin must request the P0 key-diagnostics UI asset.');
 const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
-assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v52-persist-deposit-address'"),'Service worker cache must be bumped for simple admin approval assets.');
+assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v53-shop-return-touch-scroll'"),'Service worker cache must be bumped for Shop-return and scroll fixes.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
