@@ -793,7 +793,7 @@ let payoutJournalStarted = false;
       const fixedWalletFingerprint = await sha256Hex("aegispay-fixed-shasta-wallet:" + SHASTA_FIXED_WITHDRAWAL_ADDRESS);
       const { data: existingJournal, error: existingJournalError } = await admin
         .from("withdrawal_payout_journal")
-        .select("id,user_id,network,wallet_mode,derivation_index,address,root_fingerprint,destination_address,net_amount_raw,status,idempotency_key,payout_txid,payout_submitted_at,usdt_funding_txid,trx_activation_txid,last_error_code")
+        .select("id,user_id,network,wallet_mode,derivation_index,address,root_fingerprint,destination_address,net_amount_raw,status,idempotency_key,payout_txid,payout_submitted_at,usdt_funding_txid,trx_activation_txid,trx_fee_topup_txid,last_error_code")
         .eq("withdrawal_id", withdrawal.id)
         .maybeSingle();
       if (existingJournalError) throw new Error("FIXED_SHASTA_PAYOUT_JOURNAL_READ_FAILED");
