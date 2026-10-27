@@ -62,6 +62,12 @@ REVOKE ALL ON TABLE public.withdrawal_payout_wallets FROM PUBLIC;
 REVOKE ALL ON TABLE public.withdrawal_payout_wallets FROM anon, authenticated;
 GRANT ALL ON TABLE public.withdrawal_payout_wallets TO service_role;
 
+CREATE POLICY withdrawal_payout_wallets_deny_client_access
+  ON public.withdrawal_payout_wallets
+  FOR ALL TO anon, authenticated
+  USING (false)
+  WITH CHECK (false);
+
 INSERT INTO public.withdrawal_payout_wallets (network, address, status)
 VALUES ('TRON TESTNET', 'TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi', 'AVAILABLE')
 ON CONFLICT (network) DO NOTHING;
