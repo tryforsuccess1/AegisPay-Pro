@@ -397,6 +397,80 @@ const server = http.createServer((req, res) => {
       assert.ok(dimension.documentWidth <= dimension.width, 'Horizontal overflow at viewport width ' + width + ': ' + JSON.stringify(dimension));
       viewportResults.push(width);
     }
+    // Mobile touch regression: hidden scrollbars must not disable native vertical touch scrolling.
+    const touchContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      serviceWorkers: 'block',
+      reducedMotion: 'reduce'
+    });
+    await touchContext.addInitScript(() => {
+      const widgets = new Map();
+      let nextWidget = 0;
+      window.turnstile = {
+        render: (_container, options) => {
+          const id = 'touch-smoke-' + (++nextWidget);
+          widgets.set(id, options || {});
+          return id;
+        },
+        execute: id => {
+          const options = widgets.get(id);
+          if (options && typeof options.callback === 'function') options.callback('touch-smoke-token');
+        },
+        reset: () => {}
+      };
+    });
+    const touchPage = await touchContext.newPage();
+    await touchPage.goto('http://127.0.0.1:4173/client.html', { waitUntil: 'domcontentloaded' });
+    const touchBefore = await touchPage.evaluate(() => {
+      const fixture = document.createElement('div');
+      fixture.id = 'mobile-touch-scroll-fixture';
+      fixture.style.cssText = 'height:250vh;width:100%;opacity:0;pointer-events:none;position:relative;z-index:-1';
+      document.body.appendChild(fixture);
+      window.scrollTo(0, 0);
+      const root = document.scrollingElement;
+      return {
+        htmlScrollbar: getComputedStyle(document.documentElement).scrollbarWidth,
+        bodyScrollbar: getComputedStyle(document.body).scrollbarWidth,
+        appScrollbar: getComputedStyle(document.querySelector('#app')).scrollbarWidth,
+        htmlOverflowY: getComputedStyle(document.documentElement).overflowY,
+        bodyOverflowY: getComputedStyle(document.body).overflowY,
+        touchAction: getComputedStyle(document.documentElement).touchAction,
+        before: root.scrollTop,
+        maxScroll: root.scrollHeight - root.clientHeight,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight
+      };
+    });
+    assert.equal(touchBefore.htmlScrollbar, 'none', 'Mobile Client must hide the visible root scrollbar.');
+    assert.equal(touchBefore.bodyScrollbar, 'none', 'Mobile Client must hide the visible body scrollbar.');
+    assert.equal(touchBefore.appScrollbar, 'none', 'Mobile Client must hide the visible app scrollbar.');
+    assert.notEqual(touchBefore.htmlOverflowY, 'hidden', 'Root vertical overflow must remain enabled for touch scrolling.');
+    assert.notEqual(touchBefore.bodyOverflowY, 'hidden', 'Body vertical overflow must remain enabled for touch scrolling.');
+    assert.ok(touchBefore.maxScroll > 500, 'Mobile touch regression requires an actually scrollable document: ' + JSON.stringify(touchBefore));
+
+    const touchCdp = await touchContext.newCDPSession(touchPage);
+    await touchCdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ id: 1, x: 16, y: 750, radiusX: 1, radiusY: 1, force: 1 }]
+    });
+    await touchCdp.send('Input.dispatchTouchEvent', {
+      type: 'touchMove',
+      touchPoints: [{ id: 1, x: 16, y: 390, radiusX: 1, radiusY: 1, force: 1 }]
+    });
+    await touchCdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await new Promise(resolve => setTimeout(resolve, 120));
+    const touchAfter = await touchPage.evaluate(() => ({
+      scrollTop: document.scrollingElement.scrollTop,
+      maxScroll: document.scrollingElement.scrollHeight - document.scrollingElement.clientHeight
+    }));
+    assert.ok(touchAfter.scrollTop > touchBefore.before + 10,
+      'A finger-style upward touch gesture must scroll the Client document even while scrollbars are hidden: ' + JSON.stringify({ before: touchBefore, after: touchAfter }));
+    await touchContext.close();
+    console.log('Mobile touch-scroll smoke passed: hidden root scrollbars with native vertical touch movement at ' + touchBefore.viewportWidth + 'x' + touchBefore.viewportHeight + ' viewport.');
+
     const adminPage = await context.newPage();
     await adminPage.setViewportSize({ width: 390, height: 844 });
     const adminErrors = [];
