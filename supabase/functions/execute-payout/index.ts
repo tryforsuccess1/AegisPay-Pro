@@ -231,7 +231,7 @@ let payoutJournalStarted = false;
     // Load the payout target once so Shasta routing can be tied to its owner; a feature flag alone must never route an ordinary withdrawal to testnet.
     const { data: payoutTarget, error: payoutTargetError } = await admin
       .from("withdrawal_requests")
-      .select("id,user_id,destination_address")
+      .select("id,user_id,destination_address,net_amount,status,panel_decision,telegram_decision,payout_txid,payout_started_at,balance_deducted")
       .eq("id", withdrawalId)
       .maybeSingle();
     if (payoutTargetError) return json({ error: "Unable to verify the withdrawal destination. No transaction was sent." }, 500);
@@ -440,15 +440,51 @@ let payoutJournalStarted = false;
     if (ephemeralPayout || fixedWalletPayout) {
       const { data: existingJournal, error: existingJournalError } = await admin
         .from("withdrawal_payout_journal")
-        .select("status,payout_txid")
+        .select("id,user_id,network,wallet_mode,derivation_index,address,root_fingerprint,destination_address,net_amount_raw,status,idempotency_key,payout_txid,payout_submitted_at,usdt_funding_txid,trx_activation_txid,trx_fee_topup_txid,last_error_code")
         .eq("withdrawal_id", withdrawalId)
         .maybeSingle();
       if (existingJournalError) return json({ error: "Unable to confirm payout journal state. No payout was sent.", code: "PAYOUT_JOURNAL_UNAVAILABLE" }, 503);
-      if (existingJournal) return json({
-        error: "This withdrawal already has a per-withdrawal payout journal. Reconcile its on-chain stages before any retry.",
+
+      // Permit a retry only for this exact fixed Wallet 3 journal after a separate reconciliation
+      // recorded proof that no customer USDT payout was submitted. Every ambiguous journal stays blocked.
+      let safeReconciledJournalResume = false;
+      if (existingJournal && fixedWalletPayout && payoutTarget.status === "APPROVED" &&
+          payoutTarget.panel_decision === "APPROVED" &&
+          payoutTarget.telegram_decision === "APPROVED" &&
+          payoutTarget.payout_txid == null &&
+          payoutTarget.payout_started_at == null &&
+          payoutTarget.balance_deducted === true) {
+        try {
+          const expectedNetRaw = usdtUnits(payoutTarget.net_amount);
+          const expectedFingerprint = await sha256Hex("aegispay-fixed-shasta-wallet:" + SHASTA_FIXED_WITHDRAWAL_ADDRESS);
+          safeReconciledJournalResume =
+            existingJournal.user_id === payoutTarget.user_id &&
+            existingJournal.network === "TRON TESTNET" &&
+            existingJournal.wallet_mode === "FIXED_WALLET" &&
+            Number(existingJournal.derivation_index) === 0 &&
+            existingJournal.address === SHASTA_FIXED_WITHDRAWAL_ADDRESS &&
+            existingJournal.root_fingerprint === expectedFingerprint &&
+            existingJournal.destination_address === String(payoutTarget.destination_address || "") &&
+            String(existingJournal.net_amount_raw) === String(expectedNetRaw) &&
+            existingJournal.idempotency_key === "withdrawal:" + withdrawalId &&
+            existingJournal.status === "FAILED_BEFORE_BROADCAST" &&
+            existingJournal.last_error_code === "FIXED_WALLET_RECONCILED_NO_PAYOUT_SUBMITTED" &&
+            !existingJournal.payout_txid &&
+            !existingJournal.payout_submitted_at &&
+            !existingJournal.usdt_funding_txid &&
+            !existingJournal.trx_activation_txid &&
+            (!existingJournal.trx_fee_topup_txid || /^[a-fA-F0-9]{64}$/.test(String(existingJournal.trx_fee_topup_txid)));
+        } catch {
+          safeReconciledJournalResume = false;
+        }
+      }
+      if (existingJournal && !safeReconciledJournalResume) return json({
+        error: "This withdrawal already has a payout journal that is not eligible for automatic retry. Reconcile its on-chain stages before any retry.",
         code: "PAYOUT_JOURNAL_RECONCILIATION_REQUIRED",
         status: existingJournal.status,
         txidRecorded: Boolean(existingJournal.payout_txid),
+        payoutSubmissionRecorded: Boolean(existingJournal.payout_submitted_at),
+        noPayoutSent: true,
       }, 409);
     }
 
