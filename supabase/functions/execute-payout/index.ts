@@ -817,7 +817,8 @@ let payoutJournalStarted = false;
           !existingJournal.payout_txid &&
           !existingJournal.payout_submitted_at &&
           !existingJournal.usdt_funding_txid &&
-          !existingJournal.trx_activation_txid;
+          !existingJournal.trx_activation_txid &&
+          (!existingJournal.trx_fee_topup_txid || /^[a-fA-F0-9]{64}$/.test(String(existingJournal.trx_fee_topup_txid)));
         if (!safeToResume) {
           // Keep both withdrawal and wallet locked if the previous outcome is not provably safe.
           payoutMayHaveBeenBroadcast = true;
@@ -872,8 +873,10 @@ let payoutJournalStarted = false;
       // A previous attempt may have funded Wallet 3 with TRX but failed before customer payout.
       // Confirm that known top-up before considering any additional fee top-up.
       if (existingJournal?.trx_fee_topup_txid) {
-        payoutMayHaveBeenBroadcast = true;
+        // This is a treasury fee-reserve transfer to Wallet 3, not the customer's USDT payout.
+        // Confirm the known TXID and then treat the withdrawal itself as still unbroadcast.
         await waitForTransactionInfo(treasuryTron, String(existingJournal.trx_fee_topup_txid));
+        payoutMayHaveBeenBroadcast = false;
       }
       const requestedRaw = BigInt(amountRaw);
       const currentToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
@@ -897,6 +900,7 @@ let payoutJournalStarted = false;
         }
         const fundedToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
         if (fundedToken < requestedRaw) throw new Error("FIXED_SHASTA_USDT_FUNDING_BALANCE_MISMATCH");
+        payoutMayHaveBeenBroadcast = false;
       }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDED", funded_at: new Date().toISOString() });
 
@@ -927,6 +931,7 @@ let payoutJournalStarted = false;
         if (BigInt(String(await senderTron.trx.getBalance(SHASTA_FIXED_WITHDRAWAL_ADDRESS))) < feeReserve.reserveSun) {
           throw new Error("FIXED_SHASTA_TRX_FEE_RESERVE_NOT_VISIBLE");
         }
+        payoutMayHaveBeenBroadcast = false;
       }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "FEE_READY" });
 
