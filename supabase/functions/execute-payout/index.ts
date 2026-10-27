@@ -869,6 +869,12 @@ let payoutJournalStarted = false;
       });
       const treasuryContract = await treasuryTron.contract().at(usdtContract);
       const senderContract = await senderTron.contract().at(usdtContract);
+      // A previous attempt may have funded Wallet 3 with TRX but failed before customer payout.
+      // Confirm that known top-up before considering any additional fee top-up.
+      if (existingJournal?.trx_fee_topup_txid) {
+        payoutMayHaveBeenBroadcast = true;
+        await waitForTransactionInfo(treasuryTron, String(existingJournal.trx_fee_topup_txid));
+      }
       const requestedRaw = BigInt(amountRaw);
       const currentToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
 
