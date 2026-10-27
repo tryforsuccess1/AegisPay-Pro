@@ -712,7 +712,9 @@ assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint
 assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
 assert(depositMonitorSource.includes('deposit.receiving_address')&&depositVerifySource.includes('DEPOSIT_RECIPIENT_MISMATCH'),'Deposit verification must use assigned recipient');
-assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('signerAddress !== configuredTreasury'),'Payout must fail closed on signer/treasury mismatch');
+assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('treasurySignerAddress !== configuredTreasury'),'Payout must fail closed on treasury signer/address mismatch');
+assert(payoutSource.includes('senderSignerAddress !== SHASTA_FIXED_WITHDRAWAL_ADDRESS')&&payoutSource.includes('SHASTA_FIXED_WALLET_ADDRESS_MISMATCH'),'Fixed Shasta Wallet 3 private key must match the pinned public address and fail closed if it does not.');
+assert(payoutSource.includes('SHASTA_FIXED_WALLET_ISOLATION_REQUIRED')&&payoutSource.includes('TRON_SHASTA_WITHDRAWAL_PAYOUT_MODE=FIXED_WALLET'),'Shasta payouts must use the isolated fixed Wallet 3 mode and must not create ephemeral Shasta senders.');
 const shastaTestModeSource=fs.readFileSync('supabase/functions/_shared/shasta-test-mode.ts','utf8');
 const shastaTestModeTests=fs.readFileSync('supabase/functions/_shared/shasta-test-mode_test.ts','utf8');
 const shastaTestWithdrawalMigration=fs.readFileSync('database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql','utf8');
