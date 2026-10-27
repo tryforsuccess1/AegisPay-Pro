@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { isActiveMasterAdmin } from "./active-master-admin.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -26,7 +27,7 @@ Deno.serve(async (req: Request) => {
     if (authError || !auth.user) return json({ error: "Invalid authentication token." }, 401);
     const { data: actor } = await admin.from("users").select("id,role,status")
       .eq("auth_user_id", auth.user.id).maybeSingle();
-    if (!actor || actor.role !== "MASTER ADMIN" || ["BLOCKED","SUSPENDED","DELETED"].includes(String(actor.status).toUpperCase())) {
+    if (!isActiveMasterAdmin(actor)) {
       return json({ error: "Master Admin access required." }, 403);
     }
     // Internal Master Admin review remains available even when client operations are paused.
