@@ -9,6 +9,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
 const TESTNET_PAYOUT_KEY = Deno.env.get("TRON_SHASTA_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_TESTNET_PAYOUT_PRIVATE_KEY") || "";
+const SHASTA_WITHDRAWAL_PRIVATE_KEY = Deno.env.get("TRON_SHASTA_WITHDRAWAL_PRIVATE_KEY") || "";
+const SHASTA_FIXED_WITHDRAWAL_ADDRESS = "TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi";
 const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY");
 const MAINNET_WITHDRAWAL_PAYOUT_MODE = Deno.env.get("TRON_MAINNET_WITHDRAWAL_PAYOUT_MODE") || "DISABLED";
 const MAINNET_WITHDRAWAL_HD_MNEMONIC = Deno.env.get("TRON_MAINNET_WITHDRAWAL_HD_MNEMONIC") || "";
@@ -135,6 +137,11 @@ async function estimateUsdtTransferEnergy(
   return { energyRequired, energyFeeSun };
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
+  return Array.from(digest).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function updateWithdrawalPayoutJournal(admin: any, withdrawalId: string, patch: Record<string, unknown>) {
   const { error } = await admin.from("withdrawal_payout_journal").update({
     ...patch,
@@ -164,6 +171,9 @@ let withdrawalId: string | null = null;
 let claimedWithdrawal: any = null;
 let payoutMayHaveBeenBroadcast = false;
 let ephemeralPayout = false;
+let fixedWalletPayout = false;
+let fixedWalletLocked = false;
+let fixedWalletLockId: string | null = null;
 let selectedPayoutHdMnemonic = "";
 let selectedPayoutHdPassphrase = "";
 let selectedPayoutMaxFeeTrx = 80;
@@ -281,6 +291,16 @@ let payoutJournalStarted = false;
       && productionConfig.payouts_locked === false
       && String(productionConfig.environment || "").toUpperCase() === "PRODUCTION";
 
+    // All Shasta test payouts must use the explicitly allowlisted fixed Wallet 3 route.
+    // This blocks legacy TESTNET_DEMO/EPHEMERAL_HD paths from deriving more sender wallets.
+    if (testnet && network === "TRON TESTNET" && !isolatedShasta) {
+      return json({
+        error: "Shasta withdrawals require the exact isolated test allowlist and the fixed Wallet 3 mode. No payout was sent.",
+        code: "SHASTA_FIXED_WALLET_ISOLATION_REQUIRED",
+        noPayoutSent: true,
+      }, 403);
+    }
+
     // A withdrawal explicitly marked for Shasta testing must never fall through to Mainnet.
     if (shastaTestWithdrawalAllowed && !isolatedShasta) {
       return json({
@@ -314,23 +334,29 @@ let payoutJournalStarted = false;
       selectedPayoutMaxFeeTrx = MAINNET_WITHDRAWAL_MAX_FEE_TRX;
     }
 
-    if (testnet && String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() === "EPHEMERAL_HD") {
-      const payoutHdConfig = checkWithdrawalPayoutHdConfig(
-        SHASTA_WITHDRAWAL_PAYOUT_MODE,
-        SHASTA_WITHDRAWAL_HD_MNEMONIC,
-        SHASTA_HD_MNEMONIC,
-        MAINNET_DEPOSIT_HD_MNEMONIC,
-      );
-      if (!payoutHdConfig.ready) {
-        return json({ error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent.", code: "SHASTA_WITHDRAWAL_PAYOUT_HD_NOT_READY" }, 503);
+    // Isolated Shasta tests must use the one configured Wallet 3; never derive another sender.
+    if (isolatedShasta) {
+      if (String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() !== "FIXED_WALLET") {
+        return json({
+          error: "Isolated Shasta payouts require TRON_SHASTA_WITHDRAWAL_PAYOUT_MODE=FIXED_WALLET. No payout was sent.",
+          code: "SHASTA_FIXED_WALLET_MODE_REQUIRED",
+          noPayoutSent: true,
+        }, 503);
       }
-      if (!TRONGRID_KEY) return json({ error: "TRONGrid API key is required for per-withdrawal testnet payout verification.", code: "PAYOUT_TRONGRID_REQUIRED" }, 503);
+      if (!SHASTA_WITHDRAWAL_PRIVATE_KEY) {
+        return json({
+          error: "TRON_SHASTA_WITHDRAWAL_PRIVATE_KEY is missing. No payout was sent.",
+          code: "SHASTA_FIXED_WALLET_KEY_MISSING",
+          noPayoutSent: true,
+        }, 503);
+      }
+      if (!TRONGRID_KEY) {
+        return json({ error: "TRONGrid API key is required for fixed Shasta withdrawal verification. No payout was sent.", code: "PAYOUT_TRONGRID_REQUIRED" }, 503);
+      }
       if (!Number.isFinite(SHASTA_WITHDRAWAL_MAX_FEE_TRX) || SHASTA_WITHDRAWAL_MAX_FEE_TRX < 3 || SHASTA_WITHDRAWAL_MAX_FEE_TRX > 100) {
-        return json({ error: "The Shasta per-withdrawal payout fee cap is invalid.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
+        return json({ error: "The fixed Shasta withdrawal fee cap is invalid. No payout was sent.", code: "PAYOUT_FEE_CAP_INVALID" }, 503);
       }
-      ephemeralPayout = true;
-      selectedPayoutHdMnemonic = SHASTA_WITHDRAWAL_HD_MNEMONIC;
-      selectedPayoutHdPassphrase = SHASTA_WITHDRAWAL_HD_PASSPHRASE;
+      fixedWalletPayout = true;
       selectedPayoutMaxFeeTrx = SHASTA_WITHDRAWAL_MAX_FEE_TRX;
     }
 
@@ -349,19 +375,53 @@ let payoutJournalStarted = false;
         noPayoutSent: true,
       }, 403);
     }
-    const payoutKey = testnet ? TESTNET_PAYOUT_KEY : MAINNET_PAYOUT_KEY;
-    if (!payoutKey) return json({ error: testnet ? "TRON_TESTNET_PAYOUT_PRIVATE_KEY is not configured." : "TRON_PAYOUT_PRIVATE_KEY is not configured." }, 503);
+    const treasuryKey = testnet ? TESTNET_PAYOUT_KEY : MAINNET_PAYOUT_KEY;
+    const payoutKey = fixedWalletPayout ? SHASTA_WITHDRAWAL_PRIVATE_KEY : treasuryKey;
+    if (!treasuryKey) return json({ error: testnet ? "TRON_SHASTA_TREASURY_PRIVATE_KEY is not configured." : "TRON_PAYOUT_PRIVATE_KEY is not configured." }, 503);
+    if (!payoutKey) return json({
+      error: fixedWalletPayout ? "TRON_SHASTA_WITHDRAWAL_PRIVATE_KEY is not configured." : (testnet ? "TRON_TESTNET_PAYOUT_PRIVATE_KEY is not configured." : "TRON_PAYOUT_PRIVATE_KEY is not configured."),
+      code: fixedWalletPayout ? "SHASTA_FIXED_WALLET_KEY_MISSING" : "PAYOUT_SIGNER_MISSING",
+    }, 503);
     const tokenContract = String(payoutNetworkRow?.value_json?.token_contract || "");
     if (testnet && tokenContract !== SHASTA_USDT) return json({ error: "The testnet USDT contract does not match the supported Shasta token." }, 403);
     if (mainnet && tokenContract && tokenContract !== MAINNET_USDT) return json({ error: "The configured token is not the supported TRON mainnet USDT contract." }, 403);
     const chain = testnet ? "https://api.shasta.trongrid.io" : "https://api.trongrid.io";
     const usdtContract = testnet ? SHASTA_USDT : MAINNET_USDT;
 
-    // Fail closed before claiming a withdrawal if the configured treasury and signer do not match.
+    // Treasury key must match treasury address. Fixed Wallet 3 uses a separate pinned key.
     const configuredTreasury = String(payoutNetworkRow?.value_json?.receiving_address || "").trim();
-    const signerAddress = String(TronWeb.address.fromPrivateKey(payoutKey) || "");
-    if (!configuredTreasury || signerAddress !== configuredTreasury) {
-      return json({ error: "Payout signer does not match the configured treasury address. No transaction was sent.", code: "PAYOUT_TREASURY_MISMATCH" }, 409);
+    let treasurySignerAddress = "";
+    let senderSignerAddress = "";
+    try {
+      treasurySignerAddress = String(TronWeb.address.fromPrivateKey(treasuryKey) || "");
+      senderSignerAddress = String(TronWeb.address.fromPrivateKey(payoutKey) || "");
+    } catch {
+      return json({ error: "Configured payout signing key is invalid. No transaction was sent.", code: fixedWalletPayout ? "SHASTA_FIXED_WALLET_KEY_INVALID" : "PAYOUT_SIGNER_INVALID" }, 503);
+    }
+    if (!configuredTreasury || treasurySignerAddress !== configuredTreasury) {
+      return json({ error: "Treasury signer does not match the configured treasury address. No transaction was sent.", code: "PAYOUT_TREASURY_MISMATCH" }, 409);
+    }
+    if (fixedWalletPayout) {
+      if (senderSignerAddress !== SHASTA_FIXED_WITHDRAWAL_ADDRESS ||
+          senderSignerAddress === configuredTreasury ||
+          senderSignerAddress === String(payoutTarget.destination_address || "").trim()) {
+        return json({
+          error: "Wallet 3 private key must derive to the configured fixed Shasta withdrawal address, distinct from treasury and recipient. No payout was sent.",
+          code: "SHASTA_FIXED_WALLET_ADDRESS_MISMATCH",
+          expectedWallet3Address: SHASTA_FIXED_WITHDRAWAL_ADDRESS,
+          derivedAddressMatches: senderSignerAddress === SHASTA_FIXED_WITHDRAWAL_ADDRESS,
+          noPayoutSent: true,
+        }, 409);
+      }
+      const { data: walletConfig, error: walletConfigError } = await admin
+        .from("withdrawal_payout_wallets")
+        .select("id,address,status,active_withdrawal_id")
+        .eq("network", "TRON TESTNET")
+        .maybeSingle();
+      if (walletConfigError || !walletConfig || String(walletConfig.address || "").trim() !== SHASTA_FIXED_WITHDRAWAL_ADDRESS) {
+        return json({ error: "The fixed Shasta Wallet 3 registry is missing or does not match the configured address. No payout was sent.", code: "SHASTA_FIXED_WALLET_REGISTRY_MISMATCH", noPayoutSent: true }, 503);
+      }
+      fixedWalletLockId = String(walletConfig.id);
     }
 
     // Validate the exact case-sensitive recipient before claiming the payout. TRON addresses
@@ -377,7 +437,7 @@ let payoutJournalStarted = false;
       }, 409);
     }
 
-    if (ephemeralPayout) {
+    if (ephemeralPayout || fixedWalletPayout) {
       const { data: existingJournal, error: existingJournalError } = await admin
         .from("withdrawal_payout_journal")
         .select("status,payout_txid")
@@ -390,6 +450,30 @@ let payoutJournalStarted = false;
         status: existingJournal.status,
         txidRecorded: Boolean(existingJournal.payout_txid),
       }, 409);
+    }
+
+    // Reserve Wallet 3 before claiming the withdrawal. If busy or awaiting reconciliation,
+    // do not claim the request or initiate any new on-chain transaction.
+    if (fixedWalletPayout) {
+      const lockAt = new Date().toISOString();
+      const { data: walletLock, error: walletLockError } = await admin
+        .from("withdrawal_payout_wallets")
+        .update({
+          status: "IN_USE",
+          active_withdrawal_id: withdrawalId,
+          lock_started_at: lockAt,
+          updated_at: lockAt,
+        })
+        .eq("id", fixedWalletLockId)
+        .eq("network", "TRON TESTNET")
+        .eq("address", SHASTA_FIXED_WITHDRAWAL_ADDRESS)
+        .eq("status", "AVAILABLE")
+        .is("active_withdrawal_id", null)
+        .select("id")
+        .maybeSingle();
+      if (walletLockError) return json({ error: "Unable to reserve fixed Shasta Wallet 3. No payout was sent.", code: "SHASTA_FIXED_WALLET_LOCK_FAILED" }, 503);
+      if (!walletLock) return json({ error: "Fixed Shasta Wallet 3 is busy or awaiting reconciliation. No new payout was started.", code: "SHASTA_FIXED_WALLET_BUSY", noPayoutSent: true }, 409);
+      fixedWalletLocked = true;
     }
 
     // Atomic claim: only one invocation can transition an approved request to PROCESSING.
@@ -410,8 +494,19 @@ let payoutJournalStarted = false;
       .select("id,user_id,net_amount,destination_address,panel_decision,telegram_decision")
       .maybeSingle();
 
-    if (claimError) return json({ error: "Unable to lock the approved withdrawal." }, 500);
-    if (!withdrawal) {
+    if (claimError || !withdrawal) {
+      if (fixedWalletLocked && fixedWalletLockId) {
+        const releasedAt = new Date().toISOString();
+        await admin.from("withdrawal_payout_wallets").update({
+          status: "AVAILABLE",
+          active_withdrawal_id: null,
+          lock_started_at: null,
+          last_released_at: releasedAt,
+          updated_at: releasedAt,
+        }).eq("id", fixedWalletLockId).eq("active_withdrawal_id", withdrawalId).eq("status", "IN_USE");
+        fixedWalletLocked = false;
+      }
+      if (claimError) return json({ error: "Unable to lock the approved withdrawal." }, 500);
       return json({ error: "Withdrawal is unavailable or has already been claimed." }, 409);
     }
     claimedWithdrawal = withdrawal;
@@ -525,7 +620,7 @@ let payoutJournalStarted = false;
       const treasuryTron = new TronWeb({
         fullHost: chain,
         headers: { "TRON-PRO-API-KEY": TRONGRID_KEY },
-        privateKey: payoutKey,
+        privateKey: treasuryKey,
       });
       const senderTron = new TronWeb({
         fullHost: chain,
@@ -680,6 +775,167 @@ let payoutJournalStarted = false;
       const payoutInfo = await waitForTransactionInfo(senderTron, payoutTxid);
       if (!hasExpectedUsdtTransfer(payoutInfo, usdtContract, senderIdentity.address, withdrawal.destination_address, amountRaw)) throw new Error("WITHDRAWAL_PAYOUT_RECEIPT_MISMATCH");
       txid = payoutTxid;
+    } else if (fixedWalletPayout) {
+      if (!fixedWalletLockId || !fixedWalletLocked || senderSignerAddress !== SHASTA_FIXED_WITHDRAWAL_ADDRESS) {
+        throw new Error("SHASTA_FIXED_WALLET_LOCK_OR_KEY_INVALID");
+      }
+
+      const { data: heldWallet, error: heldWalletError } = await admin
+        .from("withdrawal_payout_wallets")
+        .select("id,address,status,active_withdrawal_id")
+        .eq("id", fixedWalletLockId)
+        .eq("address", SHASTA_FIXED_WITHDRAWAL_ADDRESS)
+        .eq("status", "IN_USE")
+        .eq("active_withdrawal_id", withdrawal.id)
+        .maybeSingle();
+      if (heldWalletError || !heldWallet) throw new Error("SHASTA_FIXED_WALLET_LOCK_NOT_HELD");
+
+      const fixedWalletFingerprint = await sha256Hex("aegispay-fixed-shasta-wallet:" + SHASTA_FIXED_WITHDRAWAL_ADDRESS);
+      const { data: journalRow, error: journalInsertError } = await admin.from("withdrawal_payout_journal").insert({
+        withdrawal_id: withdrawal.id,
+        user_id: withdrawal.user_id,
+        network: "TRON TESTNET",
+        wallet_mode: "FIXED_WALLET",
+        derivation_index: 0,
+        address: SHASTA_FIXED_WITHDRAWAL_ADDRESS,
+        root_fingerprint: fixedWalletFingerprint,
+        destination_address: withdrawal.destination_address,
+        net_amount_raw: amountRaw,
+        status: "PREPARED",
+        idempotency_key: "withdrawal:" + withdrawal.id,
+      }).select("id").single();
+      if (journalInsertError || !journalRow) throw new Error("FIXED_SHASTA_PAYOUT_JOURNAL_CREATE_FAILED");
+      payoutJournalStarted = true;
+
+      const treasuryTron = new TronWeb({
+        fullHost: chain,
+        headers: { "TRON-PRO-API-KEY": TRONGRID_KEY },
+        privateKey: treasuryKey,
+      });
+      const senderTron = new TronWeb({
+        fullHost: chain,
+        headers: { "TRON-PRO-API-KEY": TRONGRID_KEY },
+        privateKey: SHASTA_WITHDRAWAL_PRIVATE_KEY,
+      });
+      const treasuryContract = await treasuryTron.contract().at(usdtContract);
+      const senderContract = await senderTron.contract().at(usdtContract);
+      const requestedRaw = BigInt(amountRaw);
+      const currentToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
+
+      // Reuse the fixed Wallet 3. Only top up the shortfall; never derive another address.
+      if (currentToken < requestedRaw) {
+        const shortfallRaw = (requestedRaw - currentToken).toString();
+        const treasuryToken = BigInt(String(await treasuryContract.balanceOf(configuredTreasury).call()));
+        if (treasuryToken < BigInt(shortfallRaw)) throw new Error("SHASTA_TREASURY_USDT_BALANCE_INSUFFICIENT");
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDING_SUBMITTED" });
+        payoutMayHaveBeenBroadcast = true;
+        const fundingResult = await treasuryContract.transfer(SHASTA_FIXED_WITHDRAWAL_ADDRESS, shortfallRaw).send({
+          feeLimit: 100_000_000, callValue: 0, shouldPollResponse: true,
+        });
+        const fundingTxid = safeTxid(fundingResult);
+        if (!/^[a-fA-F0-9]{64}$/.test(fundingTxid)) throw new Error("FIXED_SHASTA_USDT_FUNDING_TXID_MISSING");
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { usdt_funding_txid: fundingTxid });
+        const fundingInfo = await waitForTransactionInfo(treasuryTron, fundingTxid);
+        if (!hasExpectedUsdtTransfer(fundingInfo, usdtContract, configuredTreasury, SHASTA_FIXED_WITHDRAWAL_ADDRESS, shortfallRaw)) {
+          throw new Error("FIXED_SHASTA_USDT_FUNDING_RECEIPT_MISMATCH");
+        }
+        const fundedToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
+        if (fundedToken < requestedRaw) throw new Error("FIXED_SHASTA_USDT_FUNDING_BALANCE_MISMATCH");
+      }
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDED", funded_at: new Date().toISOString() });
+
+      const energyEstimate = await estimateUsdtTransferEnergy(
+        chain, usdtContract, SHASTA_FIXED_WITHDRAWAL_ADDRESS, withdrawal.destination_address, amountRaw,
+      );
+      const feeReserve = estimatePayoutFeeReserveSun(
+        energyEstimate.energyRequired, energyEstimate.energyFeeSun, selectedPayoutMaxFeeTrx,
+      );
+      if (!feeReserve.ok) throw new Error(feeReserve.code);
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, {
+        estimated_energy: feeReserve.estimatedEnergy,
+        estimated_fee_sun: feeReserve.reserveSun.toString(),
+      });
+
+      const currentSun = BigInt(String(await senderTron.trx.getBalance(SHASTA_FIXED_WITHDRAWAL_ADDRESS)));
+      if (currentSun < feeReserve.reserveSun) {
+        const topupSun = feeReserve.reserveSun - currentSun;
+        const treasurySun = BigInt(String(await treasuryTron.trx.getBalance(configuredTreasury)));
+        if (treasurySun < topupSun + 1_000_000n) throw new Error("SHASTA_TREASURY_TRX_BALANCE_INSUFFICIENT");
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "TRX_FEE_TOPUP_SUBMITTED" });
+        payoutMayHaveBeenBroadcast = true;
+        const topupResult = await treasuryTron.trx.sendTrx(SHASTA_FIXED_WITHDRAWAL_ADDRESS, Number(topupSun));
+        const topupTxid = safeTxid(topupResult);
+        if (!/^[a-fA-F0-9]{64}$/.test(topupTxid)) throw new Error("FIXED_SHASTA_TRX_FEE_TXID_MISSING");
+        await updateWithdrawalPayoutJournal(admin, withdrawal.id, { trx_fee_topup_txid: topupTxid });
+        await waitForTransactionInfo(treasuryTron, topupTxid);
+        if (BigInt(String(await senderTron.trx.getBalance(SHASTA_FIXED_WITHDRAWAL_ADDRESS))) < feeReserve.reserveSun) {
+          throw new Error("FIXED_SHASTA_TRX_FEE_RESERVE_NOT_VISIBLE");
+        }
+      }
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "FEE_READY" });
+
+      // Revalidate all Shasta gates and the one fixed-wallet lock immediately before payout.
+      const finalShastaEnabled = Deno.env.get("TRON_SHASTA_TEST_PAYOUTS_ENABLED") === "true";
+      const [
+        { data: finalShastaModeRow, error: finalShastaModeError },
+        { data: finalShastaRulesRow, error: finalShastaRulesError },
+        { data: finalShastaProductionRow, error: finalShastaProductionError },
+        { data: finalShastaLockRow, error: finalShastaLockError },
+        { data: finalShastaRuntime, error: finalShastaRuntimeError },
+        finalShastaTestUserAllowed,
+        finalShastaWithdrawalAllowed,
+        finalValidatedShastaRules,
+      ] = await Promise.all([
+        admin.from("platform_settings").select("value_json").eq("key", "system_mode").maybeSingle(),
+        admin.from("platform_settings").select("value_json").eq("key", "shasta_testnet_rules").maybeSingle(),
+        admin.from("platform_settings").select("value_json").eq("key", "production_config").maybeSingle(),
+        admin.from("withdrawal_payout_wallets").select("id,address,status,active_withdrawal_id")
+          .eq("id", fixedWalletLockId).maybeSingle(),
+        admin.rpc("app_runtime_enabled"),
+        isAllowlistedShastaTestUser(admin, String(withdrawal.user_id || ""), finalShastaEnabled),
+        isAllowlistedShastaTestWithdrawal(admin, String(withdrawal.id || withdrawalId || ""), finalShastaEnabled, String(withdrawal.destination_address || "")),
+        loadShastaTestRules(admin, finalShastaEnabled),
+      ]);
+      const finalShastaMode = finalShastaModeRow?.value_json || {};
+      const finalShastaRules = finalShastaRulesRow?.value_json || {};
+      const finalShastaProduction = finalShastaProductionRow?.value_json || {};
+      if (
+        finalShastaModeError || finalShastaRulesError || finalShastaProductionError || finalShastaLockError || finalShastaRuntimeError ||
+        !finalShastaEnabled || !finalShastaTestUserAllowed || !finalShastaWithdrawalAllowed || !finalValidatedShastaRules ||
+        String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() !== "FIXED_WALLET" ||
+        finalShastaMode.mode !== "MAINNET" ||
+        String(finalShastaRules.network || "").toUpperCase() !== "TRON TESTNET" ||
+        String(finalShastaRules.token_contract || "") !== SHASTA_USDT ||
+        String(finalShastaRules.receiving_address || "").trim() !== configuredTreasury ||
+        finalValidatedShastaRules.token_contract !== SHASTA_USDT ||
+        String(finalValidatedShastaRules.receiving_address || "").trim() !== configuredTreasury ||
+        finalShastaRuntime !== true ||
+        finalShastaProduction.payouts_locked !== true ||
+        finalShastaProduction.real_payouts_enabled !== false ||
+        finalShastaProduction.live_deposits_enabled !== false ||
+        !finalShastaLockRow ||
+        finalShastaLockRow.address !== SHASTA_FIXED_WITHDRAWAL_ADDRESS ||
+        finalShastaLockRow.status !== "IN_USE" ||
+        finalShastaLockRow.active_withdrawal_id !== withdrawal.id
+      ) {
+        throw new Error("Fixed Wallet 3 payout gates, authorization, or wallet lock could not be verified immediately before broadcast.");
+      }
+
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, {
+        status: "PAYOUT_SUBMITTED",
+        payout_submitted_at: new Date().toISOString(),
+      });
+      payoutMayHaveBeenBroadcast = true;
+      const fixedPayoutTxid = safeTxid(await senderContract.transfer(withdrawal.destination_address, amountRaw).send({
+        feeLimit: Math.floor(selectedPayoutMaxFeeTrx * 1_000_000), callValue: 0, shouldPollResponse: true,
+      }));
+      if (!/^[a-fA-F0-9]{64}$/.test(fixedPayoutTxid)) throw new Error("FIXED_SHASTA_PAYOUT_TXID_MISSING");
+      await updateWithdrawalPayoutJournal(admin, withdrawal.id, { payout_txid: fixedPayoutTxid });
+      const fixedPayoutInfo = await waitForTransactionInfo(senderTron, fixedPayoutTxid);
+      if (!hasExpectedUsdtTransfer(
+        fixedPayoutInfo, usdtContract, SHASTA_FIXED_WITHDRAWAL_ADDRESS, withdrawal.destination_address, amountRaw,
+      )) throw new Error("FIXED_SHASTA_PAYOUT_RECEIPT_MISMATCH");
+      txid = fixedPayoutTxid;
     } else {
       // Testnet/demo payout behavior remains unchanged.
       payoutMayHaveBeenBroadcast = true;
@@ -718,7 +974,7 @@ let payoutJournalStarted = false;
       }, 202);
     }
 
-    if (ephemeralPayout && payoutJournalStarted) {
+    if ((ephemeralPayout || fixedWalletPayout) && payoutJournalStarted) {
       try {
         await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "PAID", payout_txid: txid, paid_at: new Date().toISOString(), last_error_code: null });
       } catch {
@@ -727,27 +983,82 @@ let payoutJournalStarted = false;
           last_error_code: "PAYOUT_CONFIRMED_JOURNAL_FINALIZE_FAILED",
           updated_at: new Date().toISOString(),
         }).eq("withdrawal_id", withdrawal.id);
-        return json({ status: "PAID", txid, journalReconciliationRequired: true }, 202);
+        if (fixedWalletPayout && fixedWalletLocked && fixedWalletLockId) {
+          await admin.from("withdrawal_payout_wallets").update({
+            status: "RECONCILIATION_REQUIRED",
+            updated_at: new Date().toISOString(),
+          }).eq("id", fixedWalletLockId).eq("active_withdrawal_id", withdrawal.id).eq("status", "IN_USE");
+        }
+        return json({ status: "PAID", txid, journalReconciliationRequired: true, fixedWalletLockReconciliationRequired: fixedWalletPayout }, 202);
       }
+    }
+
+    if (fixedWalletPayout && fixedWalletLocked && fixedWalletLockId) {
+      const releasedAt = new Date().toISOString();
+      const { data: releasedWallet, error: releaseWalletError } = await admin.from("withdrawal_payout_wallets").update({
+        status: "AVAILABLE",
+        active_withdrawal_id: null,
+        lock_started_at: null,
+        last_released_at: releasedAt,
+        updated_at: releasedAt,
+      }).eq("id", fixedWalletLockId).eq("active_withdrawal_id", withdrawal.id).eq("status", "IN_USE")
+        .select("id").maybeSingle();
+      if (releaseWalletError || !releasedWallet) {
+        await admin.from("withdrawal_payout_wallets").update({
+          status: "RECONCILIATION_REQUIRED",
+          updated_at: new Date().toISOString(),
+        }).eq("id", fixedWalletLockId).eq("active_withdrawal_id", withdrawal.id);
+        await admin.from("withdrawal_payout_journal").update({
+          status: "RECONCILIATION_REQUIRED",
+          last_error_code: "FIXED_WALLET_RELEASE_FAILED",
+          updated_at: new Date().toISOString(),
+        }).eq("withdrawal_id", withdrawal.id);
+        return json({ status: "PAID", txid, fixedWalletLockReconciliationRequired: true }, 202);
+      }
+      fixedWalletLocked = false;
     }
 
     const { error: auditError } = await admin.from("audit_events").insert({
       actor_user_id: profile.id,
       target_user_id: withdrawal.user_id,
       event_type: "WITHDRAWAL_PAID",
-      description: ephemeralPayout ? "TRON USDT payout sent via per-withdrawal HD sender wallet" : "TRON USDT payout submitted by payout service",
+      description: fixedWalletPayout
+        ? "TRON USDT payout sent via the fixed, preconfigured Shasta Wallet 3"
+        : ephemeralPayout
+        ? "TRON USDT payout sent via per-withdrawal HD sender wallet"
+        : "TRON USDT payout submitted by payout service",
       reference_id: withdrawal.id,
     });
 
     return json({ status: "PAID", txid, auditLogged: !auditError });
   } catch (error) {
-    const detail = ephemeralPayout ? "Per-withdrawal payout stage failed; reconcile the journal before any retry." : errorMessage(error);
-    if (admin && withdrawalId && ephemeralPayout && payoutJournalStarted) {
+    const detail = (ephemeralPayout || fixedWalletPayout)
+      ? "Journaled payout stage failed; reconcile the journal before any retry."
+      : errorMessage(error);
+    if (admin && withdrawalId && (ephemeralPayout || fixedWalletPayout) && payoutJournalStarted) {
       await admin.from("withdrawal_payout_journal").update({
         status: payoutMayHaveBeenBroadcast ? "RECONCILIATION_REQUIRED" : "FAILED_BEFORE_BROADCAST",
         last_error_code: payoutMayHaveBeenBroadcast ? "PAYOUT_STAGE_REQUIRES_RECONCILIATION" : "PAYOUT_FAILED_BEFORE_BROADCAST",
         updated_at: new Date().toISOString(),
       }).eq("withdrawal_id", withdrawalId);
+    }
+    if (admin && fixedWalletPayout && fixedWalletLocked && fixedWalletLockId && withdrawalId) {
+      const lockUpdatedAt = new Date().toISOString();
+      if (payoutMayHaveBeenBroadcast) {
+        await admin.from("withdrawal_payout_wallets").update({
+          status: "RECONCILIATION_REQUIRED",
+          updated_at: lockUpdatedAt,
+        }).eq("id", fixedWalletLockId).eq("active_withdrawal_id", withdrawalId).eq("status", "IN_USE");
+      } else {
+        await admin.from("withdrawal_payout_wallets").update({
+          status: "AVAILABLE",
+          active_withdrawal_id: null,
+          lock_started_at: null,
+          last_released_at: lockUpdatedAt,
+          updated_at: lockUpdatedAt,
+        }).eq("id", fixedWalletLockId).eq("active_withdrawal_id", withdrawalId).eq("status", "IN_USE");
+        fixedWalletLocked = false;
+      }
     }
     if (admin && withdrawalId) {
       if (payoutMayHaveBeenBroadcast) {

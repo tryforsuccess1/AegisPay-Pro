@@ -49,6 +49,7 @@ const must=[
   'database/migrations/20261025190000_per_withdrawal_payout_journal.sql',
   'database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql',
   'database/migrations/20261026190000_bind_shasta_test_withdrawal_destination.sql',
+  'database/migrations/20261028_fixed_shasta_withdrawal_wallet.sql',
   'scripts/sql-tests/withdrawal_payout_journal_fixture.sql',
   'scripts/sql-tests/withdrawal_payout_journal_assertions.sql',
   '.github/workflows/withdrawal-payout-journal-tests.yml',
@@ -712,7 +713,9 @@ assert(!hdWalletEndpoint.includes('return json({ privateKey')&&!hdWalletEndpoint
 assert(hdWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&hdWalletMigration.includes('FROM PUBLIC, anon, authenticated')&&hdWalletMigration.includes('TO service_role'),'HD mapping must be private to privileged backend roles');
 assert(depositSubmitSource.includes('deposit_wallet_id: depositWallet.id')&&depositSubmitSource.includes('receiving_address: receivingAddress'),'New deposits must snapshot their assigned HD recipient');
 assert(depositMonitorSource.includes('deposit.receiving_address')&&depositVerifySource.includes('DEPOSIT_RECIPIENT_MISMATCH'),'Deposit verification must use assigned recipient');
-assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('signerAddress !== configuredTreasury'),'Payout must fail closed on signer/treasury mismatch');
+assert(payoutSource.includes('PAYOUT_TREASURY_MISMATCH')&&payoutSource.includes('treasurySignerAddress !== configuredTreasury'),'Payout must fail closed on treasury signer/address mismatch');
+assert(payoutSource.includes('senderSignerAddress !== SHASTA_FIXED_WITHDRAWAL_ADDRESS')&&payoutSource.includes('SHASTA_FIXED_WALLET_ADDRESS_MISMATCH'),'Fixed Shasta Wallet 3 private key must match the pinned public address and fail closed if it does not.');
+assert(payoutSource.includes('SHASTA_FIXED_WALLET_ISOLATION_REQUIRED')&&payoutSource.includes('TRON_SHASTA_WITHDRAWAL_PAYOUT_MODE=FIXED_WALLET'),'Shasta payouts must use the isolated fixed Wallet 3 mode and must not create ephemeral Shasta senders.');
 const shastaTestModeSource=fs.readFileSync('supabase/functions/_shared/shasta-test-mode.ts','utf8');
 const shastaTestModeTests=fs.readFileSync('supabase/functions/_shared/shasta-test-mode_test.ts','utf8');
 const shastaTestWithdrawalMigration=fs.readFileSync('database/migrations/20261025220500_shasta_test_withdrawal_allowlist.sql','utf8');
@@ -742,6 +745,12 @@ assert(mainnetEphemeralPayoutEnd>mainnetEphemeralPayoutStart&&payoutSource.slice
 assert(payoutSource.includes('/wallet/estimateenergy')&&payoutSource.includes('getEnergyFee')&&payoutSource.includes('estimatePayoutFeeReserveSun')&&payoutSource.includes('PAYOUT_FEE_RESERVE_NOT_VISIBLE'),'Payout sender must estimate TRC20 energy, bound fee reserves, and verify the required TRX is present before signing.');
 assert(withdrawalPayoutPolicy.includes('EPHEMERAL_HD')&&withdrawalPayoutPolicy.includes('distinctFromDepositSeed')&&withdrawalPayoutPolicy.includes('distinctFromShastaSeed')&&withdrawalPayoutPolicy.includes('FEE_RESERVE_EXCEEDED')&&withdrawalPayoutPolicyTests.includes('payout energy reserve includes safety buffer'),'Withdrawal payout seed separation and dynamic energy-fee reserve must be unit-tested.');
 assert(withdrawalPayoutJournalMigration.includes('ENABLE ROW LEVEL SECURITY')&&withdrawalPayoutJournalMigration.includes('FROM PUBLIC, anon, authenticated')&&withdrawalPayoutJournalMigration.includes('TO service_role')&&withdrawalPayoutJournalMigration.includes('next_tron_withdrawal_payout_index')&&withdrawalPayoutJournalMigration.includes('withdrawal_id uuid NOT NULL UNIQUE'),'Per-withdrawal payout journal must be idempotent, service-role-only, and use a separate monotonic index.');
+const fixedWalletMigration=fs.readFileSync('database/migrations/20261028_fixed_shasta_withdrawal_wallet.sql','utf8');
+assert(fixedWalletMigration.includes('wallet_mode')&&fixedWalletMigration.includes('withdrawal_payout_wallets')&&fixedWalletMigration.includes('TKAJDPrY1utabzYAecHFogXiTRLkaxDdRi')&&fixedWalletMigration.includes('ENABLE ROW LEVEL SECURITY')&&fixedWalletMigration.includes('FROM PUBLIC')&&fixedWalletMigration.includes('FROM anon, authenticated')&&fixedWalletMigration.includes('withdrawal_payout_wallets_deny_client_access')&&fixedWalletMigration.includes('USING (false)')&&fixedWalletMigration.includes('WITH CHECK (false)'),'Fixed Wallet 3 migration must register only the approved Shasta sender address and keep its lock registry backend-only with deny-client RLS.');
+const fixedWalletPayoutStart=payoutSource.indexOf('} else if (fixedWalletPayout) {',payoutSource.indexOf('let txid = ""'));
+const fixedWalletPayoutEnd=payoutSource.indexOf('} else {',fixedWalletPayoutStart);
+const fixedWalletPayoutSource=payoutSource.slice(fixedWalletPayoutStart,fixedWalletPayoutEnd);
+assert(fixedWalletPayoutStart>=0&&fixedWalletPayoutEnd>fixedWalletPayoutStart&&!fixedWalletPayoutSource.includes('deriveTronHdIdentity')&&fixedWalletPayoutSource.includes('senderContract.transfer(withdrawal.destination_address, amountRaw)')&&fixedWalletPayoutSource.includes('treasuryContract.transfer(SHASTA_FIXED_WITHDRAWAL_ADDRESS, shortfallRaw)')&&fixedWalletPayoutSource.includes('SHASTA_FIXED_WITHDRAWAL_ADDRESS'),'Fixed Shasta payout branch must reuse Wallet 3, fund only token shortfall, and not derive another sender address.');
 assert(productionReadinessFunction.includes('mainnet_withdrawal_payout_hd_seed_distinct_from_deposit_and_shasta')&&productionReadinessFunction.includes('withdrawalPayoutWalletReady')&&productionReadinessFunction.includes('WITHDRAWAL_PAYOUT_MODE')&&adminAuth.includes('Withdrawal Payout HD Seed')&&adminAuth.includes('Withdrawal Payout Mode'),'Master Admin readiness must display status-only diagnostics for the separate withdrawal HD seed and mode.');
 
 
