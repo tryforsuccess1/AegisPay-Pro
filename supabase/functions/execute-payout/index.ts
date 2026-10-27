@@ -332,7 +332,17 @@ let payoutJournalStarted = false;
         MAINNET_DEPOSIT_HD_MNEMONIC,
       );
       if (!payoutHdConfig.ready) {
-        return json({ error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent.", code: "SHASTA_WITHDRAWAL_PAYOUT_HD_NOT_READY" }, 503);
+        return json({
+          error: "Per-withdrawal Shasta sender-wallet mode requires a dedicated testnet HD seed. No payout was sent.",
+          code: "SHASTA_WITHDRAWAL_PAYOUT_HD_NOT_READY",
+          // Safe diagnostics only: never return or log seed/private-key material.
+          configChecks: {
+            modeEnabled: payoutHdConfig.modeEnabled,
+            mnemonicPresent: payoutHdConfig.mnemonicPresent,
+            distinctFromShastaDepositSeed: payoutHdConfig.distinctFromDepositSeed,
+            distinctFromMainnetDepositSeed: payoutHdConfig.distinctFromShastaSeed,
+          },
+        }, 503);
       }
       if (!TRONGRID_KEY) return json({ error: "TRONGrid API key is required for per-withdrawal testnet payout verification.", code: "PAYOUT_TRONGRID_REQUIRED" }, 503);
       if (!Number.isFinite(SHASTA_WITHDRAWAL_MAX_FEE_TRX) || SHASTA_WITHDRAWAL_MAX_FEE_TRX < 3 || SHASTA_WITHDRAWAL_MAX_FEE_TRX > 100) {
