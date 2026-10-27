@@ -314,6 +314,16 @@ let payoutJournalStarted = false;
       selectedPayoutMaxFeeTrx = MAINNET_WITHDRAWAL_MAX_FEE_TRX;
     }
 
+    // Isolated Shasta payouts must always use a dedicated per-withdrawal sender wallet.
+    // Never silently fall back to sending from the Shasta treasury when HD mode is disabled or misconfigured.
+    if (isolatedShasta && String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() !== "EPHEMERAL_HD") {
+      return json({
+        error: "Isolated Shasta test payouts require TRON_SHASTA_WITHDRAWAL_PAYOUT_MODE=EPHEMERAL_HD. No payout was sent.",
+        code: "SHASTA_EPHEMERAL_PAYOUT_MODE_REQUIRED",
+        noPayoutSent: true,
+      }, 503);
+    }
+
     if (testnet && String(SHASTA_WITHDRAWAL_PAYOUT_MODE || "").trim().toUpperCase() === "EPHEMERAL_HD") {
       const payoutHdConfig = checkWithdrawalPayoutHdConfig(
         SHASTA_WITHDRAWAL_PAYOUT_MODE,
