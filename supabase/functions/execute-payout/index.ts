@@ -791,20 +791,71 @@ let payoutJournalStarted = false;
       if (heldWalletError || !heldWallet) throw new Error("SHASTA_FIXED_WALLET_LOCK_NOT_HELD");
 
       const fixedWalletFingerprint = await sha256Hex("aegispay-fixed-shasta-wallet:" + SHASTA_FIXED_WITHDRAWAL_ADDRESS);
-      const { data: journalRow, error: journalInsertError } = await admin.from("withdrawal_payout_journal").insert({
-        withdrawal_id: withdrawal.id,
-        user_id: withdrawal.user_id,
-        network: "TRON TESTNET",
-        wallet_mode: "FIXED_WALLET",
-        derivation_index: 0,
-        address: SHASTA_FIXED_WITHDRAWAL_ADDRESS,
-        root_fingerprint: fixedWalletFingerprint,
-        destination_address: withdrawal.destination_address,
-        net_amount_raw: amountRaw,
-        status: "PREPARED",
-        idempotency_key: "withdrawal:" + withdrawal.id,
-      }).select("id").single();
-      if (journalInsertError || !journalRow) throw new Error("FIXED_SHASTA_PAYOUT_JOURNAL_CREATE_FAILED");
+      const { data: existingJournal, error: existingJournalError } = await admin
+        .from("withdrawal_payout_journal")
+        .select("id,user_id,network,wallet_mode,derivation_index,address,root_fingerprint,destination_address,net_amount_raw,status,idempotency_key,payout_txid,payout_submitted_at,usdt_funding_txid,trx_activation_txid,trx_fee_topup_txid,last_error_code")
+        .eq("withdrawal_id", withdrawal.id)
+        .maybeSingle();
+      if (existingJournalError) throw new Error("FIXED_SHASTA_PAYOUT_JOURNAL_READ_FAILED");
+
+      let journalRow: any = null;
+      if (existingJournal) {
+        // Only resume a row explicitly reconciled as having no customer payout submission.
+        // Any other old journal remains fail-closed and requires manual reconciliation.
+        const safeToResume =
+          existingJournal.user_id === withdrawal.user_id &&
+          existingJournal.network === "TRON TESTNET" &&
+          existingJournal.wallet_mode === "FIXED_WALLET" &&
+          Number(existingJournal.derivation_index) === 0 &&
+          existingJournal.address === SHASTA_FIXED_WITHDRAWAL_ADDRESS &&
+          existingJournal.root_fingerprint === fixedWalletFingerprint &&
+          existingJournal.destination_address === withdrawal.destination_address &&
+          String(existingJournal.net_amount_raw) === String(amountRaw) &&
+          existingJournal.idempotency_key === "withdrawal:" + withdrawal.id &&
+          existingJournal.status === "FAILED_BEFORE_BROADCAST" &&
+          existingJournal.last_error_code === "FIXED_WALLET_RECONCILED_NO_PAYOUT_SUBMITTED" &&
+          !existingJournal.payout_txid &&
+          !existingJournal.payout_submitted_at &&
+          !existingJournal.usdt_funding_txid &&
+          !existingJournal.trx_activation_txid &&
+          (!existingJournal.trx_fee_topup_txid || /^[a-fA-F0-9]{64}$/.test(String(existingJournal.trx_fee_topup_txid)));
+        if (!safeToResume) {
+          // Keep both withdrawal and wallet locked if the previous outcome is not provably safe.
+          payoutMayHaveBeenBroadcast = true;
+          throw new Error("FIXED_SHASTA_EXISTING_JOURNAL_REQUIRES_RECONCILIATION");
+        }
+        const { data: resumedJournal, error: resumeError } = await admin
+          .from("withdrawal_payout_journal")
+          .update({ status: "PREPARED", last_error_code: null, updated_at: new Date().toISOString() })
+          .eq("id", existingJournal.id)
+          .eq("withdrawal_id", withdrawal.id)
+          .eq("status", "FAILED_BEFORE_BROADCAST")
+          .eq("last_error_code", "FIXED_WALLET_RECONCILED_NO_PAYOUT_SUBMITTED")
+          .is("payout_txid", null)
+          .is("payout_submitted_at", null)
+          .is("usdt_funding_txid", null)
+          .select("id")
+          .maybeSingle();
+        if (resumeError || !resumedJournal) throw new Error("FIXED_SHASTA_JOURNAL_RESUME_FAILED");
+        journalRow = resumedJournal;
+      } else {
+        const { data: newJournal, error: journalInsertError } = await admin.from("withdrawal_payout_journal").insert({
+          withdrawal_id: withdrawal.id,
+          user_id: withdrawal.user_id,
+          network: "TRON TESTNET",
+          wallet_mode: "FIXED_WALLET",
+          derivation_index: 0,
+          address: SHASTA_FIXED_WITHDRAWAL_ADDRESS,
+          root_fingerprint: fixedWalletFingerprint,
+          destination_address: withdrawal.destination_address,
+          net_amount_raw: amountRaw,
+          status: "PREPARED",
+          idempotency_key: "withdrawal:" + withdrawal.id,
+        }).select("id").single();
+        if (journalInsertError || !newJournal) throw new Error("FIXED_SHASTA_PAYOUT_JOURNAL_CREATE_FAILED");
+        journalRow = newJournal;
+      }
+      if (!journalRow) throw new Error("FIXED_SHASTA_PAYOUT_JOURNAL_CREATE_FAILED");
       payoutJournalStarted = true;
 
       const treasuryTron = new TronWeb({
@@ -819,6 +870,14 @@ let payoutJournalStarted = false;
       });
       const treasuryContract = await treasuryTron.contract().at(usdtContract);
       const senderContract = await senderTron.contract().at(usdtContract);
+      // A previous attempt may have funded Wallet 3 with TRX but failed before customer payout.
+      // Confirm that known top-up before considering any additional fee top-up.
+      if (existingJournal?.trx_fee_topup_txid) {
+        // This is a treasury fee-reserve transfer to Wallet 3, not the customer's USDT payout.
+        // Confirm the known TXID and then treat the withdrawal itself as still unbroadcast.
+        await waitForTransactionInfo(treasuryTron, String(existingJournal.trx_fee_topup_txid));
+        payoutMayHaveBeenBroadcast = false;
+      }
       const requestedRaw = BigInt(amountRaw);
       const currentToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
 
@@ -841,6 +900,7 @@ let payoutJournalStarted = false;
         }
         const fundedToken = BigInt(String(await senderContract.balanceOf(SHASTA_FIXED_WITHDRAWAL_ADDRESS).call()));
         if (fundedToken < requestedRaw) throw new Error("FIXED_SHASTA_USDT_FUNDING_BALANCE_MISMATCH");
+        payoutMayHaveBeenBroadcast = false;
       }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "USDT_FUNDED", funded_at: new Date().toISOString() });
 
@@ -871,6 +931,7 @@ let payoutJournalStarted = false;
         if (BigInt(String(await senderTron.trx.getBalance(SHASTA_FIXED_WITHDRAWAL_ADDRESS))) < feeReserve.reserveSun) {
           throw new Error("FIXED_SHASTA_TRX_FEE_RESERVE_NOT_VISIBLE");
         }
+        payoutMayHaveBeenBroadcast = false;
       }
       await updateWithdrawalPayoutJournal(admin, withdrawal.id, { status: "FEE_READY" });
 
