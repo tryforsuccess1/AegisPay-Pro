@@ -550,6 +550,8 @@ function productionReadiness(){
     diagItem('Withdrawal payout mode',keyDiagnostics.mainnet_withdrawal_payout_wallet_mode)+
     diagItem('Withdrawal payout HD seed present',aliasPresence(keyDiagnostics.mainnet_withdrawal_payout_hd_mnemonic_present))+
     diagItem('Withdrawal payout seed distinct',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_seed_distinct_from_deposit_and_shasta))+
+    diagItem('Withdrawal seed matches Mainnet deposit',keyDiagnostics.mainnet_withdrawal_payout_hd_seed_matches_mainnet_deposit===true?'MATCH':keyDiagnostics.mainnet_withdrawal_payout_hd_seed_matches_mainnet_deposit===false?'NO MATCH':'NOT REPORTED')+
+    diagItem('Withdrawal seed matches Shasta',keyDiagnostics.mainnet_withdrawal_payout_hd_seed_matches_shasta===true?'MATCH':keyDiagnostics.mainnet_withdrawal_payout_hd_seed_matches_shasta===false?'NO MATCH':'NOT REPORTED')+
     diagItem('Withdrawal payout HD root derivation',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_root_derivation_valid))+
     diagItem('Withdrawal payout HD child derivation',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_child_derivation_valid))+
     diagItem('Withdrawal payout root fingerprint consistency',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_root_fingerprint_consistent))+
