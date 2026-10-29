@@ -14,6 +14,7 @@ const depositCreditMigration = readFileSync(new URL("../database/migrations/2026
 const perDepositMigration = readFileSync(new URL("../database/migrations/20261024144103_per_deposit_tron_addresses_20261024.sql", import.meta.url), "utf8");
 const monitorRotationMigration = readFileSync(new URL("../database/migrations/20261024173503_deposit_monitor_queue_rotation_20261024.sql", import.meta.url), "utf8");
 const shastaTestModeSource = readFileSync(new URL("../supabase/functions/_shared/shasta-test-mode.ts", import.meta.url), "utf8");
+const mainnetSweeperFunction = readFileSync(new URL("../supabase/functions/sweep-mainnet-deposit-wallets/index.ts", import.meta.url), "utf8");
 
 test("embedded QR encoder produces a valid SVG for a TRON wallet without network access", () => {
   const start = client.indexOf("var qrcode = function()");
@@ -174,4 +175,22 @@ test("treasury settings remain server/admin-only and deposit responses expose on
   assert.doesNotMatch(addressFunction, /derivationPath/);
   assert.match(addressFunction, /return json\(\{ address: inserted\.address, network, tokenContract: inserted\.token_contract, depositRequestId: inserted\.deposit_request_id, depositWalletId: inserted\.id, created: true \}\)/);
   assert.doesNotMatch(addressFunction, /return json\(\{[^}]*treasury\s*:/s);
+});
+
+
+test("Mainnet deposit sweep is independently gated, treasury-validated, and journal/reconciliation-backed", () => {
+  assert.match(mainnetSweeperFunction, /AEGIS_ENABLE_MAINNET_SWEEP.*=== "true"/);
+  assert.match(mainnetSweeperFunction, /MAINNET_SWEEP_DISABLED/);
+  assert.match(mainnetSweeperFunction, /TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t/);
+  assert.match(mainnetSweeperFunction, /https:\/\/api\.trongrid\.io/);
+  assert.match(mainnetSweeperFunction, /verify_deposit_monitor_cron_secret/);
+  assert.match(mainnetSweeperFunction, /production\.payouts_locked === false/);
+  assert.match(mainnetSweeperFunction, /mode\.real_payouts === true/);
+  assert.match(mainnetSweeperFunction, /mode\.live_deposits === true/);
+  assert.match(mainnetSweeperFunction, /TREASURY_KEY_MISMATCH/);
+  assert.match(mainnetSweeperFunction, /WITHDRAWAL_PAYOUT|deposit_wallet_sweep_items/);
+  assert.match(mainnetSweeperFunction, /deposit_wallet_sweeps/);
+  assert.match(mainnetSweeperFunction, /FAILED_REVIEW/);
+  assert.doesNotMatch(mainnetSweeperFunction, /api\.shasta\.trongrid\.io/);
+  assert.doesNotMatch(mainnetSweeperFunction, /TRON_SHASTA_TREASURY_PRIVATE_KEY|TRON_TESTNET_PAYOUT_PRIVATE_KEY/);
 });
