@@ -182,7 +182,7 @@ function captureAuthOptions(adminPortal){
   const window={
     AEGIS_ADMIN_PORTAL:adminPortal,
     AegisSupabaseClient:null,
-    supabase:{createClient:function(_url,_key,options){captured=options;return {created:true};}}
+    supabase:{createClient:function(_url,_key,options){captured=options;return {created:true,auth:{}};}}
   };
   const document={readyState:'complete',addEventListener:function(){}};
   vm.runInNewContext(supabaseClientSource,{window,document});
