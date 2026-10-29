@@ -254,7 +254,7 @@ async function visit(page, url, expectedSelector) {
         'Fallback Admin browser must remain on workers.dev.');
       assert.equal(await fallbackAdminPage.locator('#aaLoginForm').count(), 1,
         'Fallback Master Admin browser must render exactly one live login form.');
-      assert.equal(await fallbackAdminPage.locator('#aaLoginForm button[type="submit"]').isVisible(), true,
+      assert.equal(await fallbackAdminPage.locator('#aaLoginForm button[data-action="admin-login-submit"]').isVisible(), true,
         'Fallback Master Admin login action must be visible.');
 
     }
@@ -338,7 +338,7 @@ async function visit(page, url, expectedSelector) {
     const adminControls = await adminPage.evaluate(() => ({
       usernameType: document.querySelector('#aaUsername')?.type,
       passwordType: document.querySelector('#aaPassword')?.type,
-      submitHeight: Math.round(document.querySelector('#aaLoginForm button[type="submit"]')?.getBoundingClientRect().height || 0),
+      submitHeight: Math.round(document.querySelector('#aaLoginForm button[data-action="admin-login-submit"]')?.getBoundingClientRect().height || 0),
       themeHeight: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().height || 0),
       themeWidth: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().width || 0)
     }));
@@ -349,12 +349,23 @@ async function visit(page, url, expectedSelector) {
     assert.ok(Math.abs(adminControls.themeWidth - adminControls.themeHeight) <= 1,
       'Live Master Admin theme button must be square: ' + JSON.stringify(adminControls));
 
-    const adminSubmit = adminPage.locator('#aaLoginForm button[type="submit"]');
+    const adminSubmit = adminPage.locator('#aaLoginForm button[data-action="admin-login-submit"]');
     const adminVerify = adminPage.locator('#aaLoginForm .aegis-turnstile-verify-button');
     assert.equal(await adminVerify.count(), 0, 'Live Master Admin login must not show a separate human-verification button.');
-    assert.equal(await adminSubmit.isDisabled(), true, 'Live Master Admin Login must wait for both credentials.');
+    assert.equal(await adminSubmit.isDisabled(), false, 'Live Master Admin Login must remain clickable so missing credentials produce a visible message.');
+
+    // An empty click should show an accessible centered dialog and must not execute Turnstile or start sign-in.
+    await adminSubmit.click();
+    const emptyLoginDialog = adminPage.locator('#aa-dialog-overlay');
+    await emptyLoginDialog.waitFor({ state: 'visible', timeout: 5000 });
+    assert.match(await adminPage.locator('#aa-dialog-message').textContent(), /Enter your Admin ID/,
+      'Empty Master Admin Login click must explain which required field is missing.');
+    assert.equal(await adminPage.evaluate(() => window.__turnstileMockStats.executeCount), 0,
+      'Turnstile must not execute before required credentials are present.');
+    await adminPage.locator('[data-dialog-ok]').click();
+    await emptyLoginDialog.waitFor({ state: 'detached', timeout: 5000 });
     assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 0, executeCount: 0, resetCount: 0 },
-      'Live Master Admin Turnstile must not load or execute before Login is clicked.');
+      'Empty Login click must not load or execute Turnstile.');
 
     // Intercept the username-login edge call so test credentials never reach the backend.
     let adminAuthRequest = null;
@@ -388,7 +399,7 @@ async function visit(page, url, expectedSelector) {
     await adminPage.locator('#aaUsername').fill('live-smoke-admin');
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-live-smoke');
     assert.equal(await adminVerify.count(), 0, 'The separate verification button must remain removed on Master Admin login.');
-    assert.equal(await adminSubmit.isDisabled(), false, 'Live Master Admin Login should enable after both credentials.');
+    assert.equal(await adminSubmit.isDisabled(), false, 'Live Master Admin Login should stay clickable after both credentials.');
     await adminSubmit.click();
     await adminPage.waitForFunction(() => window.__turnstileMockStats.executeCount === 1, null, { timeout: 10000 });
     assert.ok(adminAuthRequest, 'Clicking Master Admin Login should continue to username auth after CAPTCHA verification.');
