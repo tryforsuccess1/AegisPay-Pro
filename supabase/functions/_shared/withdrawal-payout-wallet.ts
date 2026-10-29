@@ -1,6 +1,8 @@
 export type WithdrawalPayoutHdConfig = {
   modeEnabled: boolean;
   mnemonicPresent: boolean;
+  matchesDepositSeed: boolean;
+  matchesShastaSeed: boolean;
   distinctFromDepositSeed: boolean;
   distinctFromShastaSeed: boolean;
   ready: boolean;
@@ -21,11 +23,15 @@ export function checkWithdrawalPayoutHdConfig(
   const shasta = normalizePhrase(shastaMnemonic);
   const modeEnabled = String(mode || "").trim().toUpperCase() === "EPHEMERAL_HD";
   const mnemonicPresent = payout.length > 0;
-  const distinctFromDepositSeed = mnemonicPresent && deposit.length > 0 && payout !== deposit;
-  const distinctFromShastaSeed = mnemonicPresent && shasta.length > 0 && payout !== shasta;
+  const matchesDepositSeed = mnemonicPresent && deposit.length > 0 && payout === deposit;
+  const matchesShastaSeed = mnemonicPresent && shasta.length > 0 && payout === shasta;
+  const distinctFromDepositSeed = mnemonicPresent && deposit.length > 0 && !matchesDepositSeed;
+  const distinctFromShastaSeed = mnemonicPresent && shasta.length > 0 && !matchesShastaSeed;
   return {
     modeEnabled,
     mnemonicPresent,
+    matchesDepositSeed,
+    matchesShastaSeed,
     distinctFromDepositSeed,
     distinctFromShastaSeed,
     ready: modeEnabled && mnemonicPresent && distinctFromDepositSeed && distinctFromShastaSeed,
