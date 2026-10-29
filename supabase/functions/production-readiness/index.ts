@@ -61,7 +61,7 @@ function safeHdDerivationErrorCode(error:unknown):string {
   return "TRONWEB_HD_DERIVATION_REJECTED";
 }
 async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
-  const normalized=String(mnemonic||"").trim().replace(/\\s+/g," ");
+  const normalized=String(mnemonic||"").trim().replace(/\s+/g," ");
   const wordCount=normalized?normalized.split(" ").filter(Boolean).length:0;
   const failed={rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
   if(!normalized)return {...failed,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount};
