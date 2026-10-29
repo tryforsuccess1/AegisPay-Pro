@@ -63,7 +63,7 @@ function safeHdDerivationErrorCode(error:unknown):string {
 async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
   const normalized=String(mnemonic||"").trim().replace(/\s+/g," ");
   const wordCount=normalized?normalized.split(" ").filter(Boolean).length:0;
-  const failed={rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
+  const failed:{rootDerivationValid:boolean;childDerivationValid:boolean;rootFingerprintConsistent:boolean;errorCode:string;wordCount:number}={rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:"UNKNOWN",wordCount};
   if(!normalized)return {...failed,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount};
   let root:any=null,child:any=null;
   try {
