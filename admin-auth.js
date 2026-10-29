@@ -1111,9 +1111,18 @@ async function runMainnetHdPreflight(){
         payoutAndMonitoringPrerequisitesReady:'Payout/monitoring prerequisites: TRONGrid, Telegram approvals, runtime, withdrawal HD wallet, and reconciled payout TXIDs',
         configuredMainnetHdMnemonicPresent:'Mainnet HD mnemonic must be configured'
       };
-      const failedChecks=Object.entries(state.mainnetHdPreflight.checks||{})
-        .filter(function(entry){return entry[1]!==true;})
-        .map(function(entry){return '• '+(failedCheckLabels[entry[0]]||entry[0])+': '+String(entry[1]);});
+      const prerequisiteKeys=[
+        'gatesIntentionallyClosed',
+        'officialMainnetUsdtContract',
+        'treasurySignerMatchesConfiguredAddress',
+        'networkSecretsSeparated',
+        'payoutAndMonitoringPrerequisitesReady',
+        'configuredMainnetHdMnemonicPresent'
+      ];
+      const prerequisiteChecks=state.mainnetHdPreflight.checks||{};
+      const failedChecks=prerequisiteKeys
+        .filter(function(key){return prerequisiteChecks[key]!==true;})
+        .map(function(key){return '• '+(failedCheckLabels[key]||key)+': '+String(prerequisiteChecks[key]);});
       preflightNotice=(state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.')
         +(failedChecks.length?'\n\nExact checks needing attention:\n'+failedChecks.join('\n'):'\n\nNo individual failed check was returned. Open Production Readiness diagnostics for the server-side prerequisite summary.');
       preflightTone='warning';
