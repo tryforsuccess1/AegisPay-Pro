@@ -397,6 +397,17 @@ async function visit(page, url, expectedSelector) {
     assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 0 },
       'Master Admin Turnstile should initialize and execute on Login click; the admin login render replaces the form before the detached widget reset.');
 
+    // Auth errors now use the centered, themed modal. Acknowledge the mocked
+    // login failure before testing the background theme control.
+    const adminDialog = adminPage.locator('#aa-dialog-overlay');
+    await adminDialog.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await adminPage.locator('#aa-dialog-card').getAttribute('aria-modal'), 'true',
+      'Master Admin messages must appear in a centered accessible modal.');
+    assert.equal(await adminPage.locator('[data-dialog-ok]').textContent(), 'OK',
+      'Centered notification modal must provide an OK dismissal button.');
+    await adminPage.locator('[data-dialog-ok]').click();
+    await adminDialog.waitFor({ state: 'detached', timeout: 5000 });
+
     const adminModeBefore = await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode'));
     await adminPage.locator('.aa-theme-toggle').click();
     assert.notEqual(await adminPage.evaluate(() => document.documentElement.getAttribute('data-mode')), adminModeBefore,
