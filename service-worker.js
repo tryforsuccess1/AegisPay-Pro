@@ -1,9 +1,9 @@
-const CACHE='aegispay-shell-v53-shop-return-touch-scroll';
+const CACHE='aegispay-shell-v54-centered-feedback-modal';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
   ? ['./','./index.html','./home.html','./supabase-sdk.js','./supabase-client.js','./supabase-service.js','./aegis-auth-redirect.js','./aegis-turnstile.js','./app-update.js','./aegispay-logo.svg','./manifest.webmanifest']
-  : ['./','./index.html','./app/','./app/index.html','./app/home.html','./master-admin.html','./shop-catalog.js','./supabase-sdk.js','./supabase-client.js','./aegis-auth-redirect.js','./aegis-turnstile.js','./app-update.js','./admin-auth.js','./aegispay-logo.svg','./manifest.webmanifest','./app/supabase-sdk.js','./app/supabase-client.js','./app/supabase-service.js','./app/aegis-auth-redirect.js','./app/aegis-turnstile.js','./app/app-update.js','./app/aegispay-logo.svg','./app/manifest.webmanifest'];
+  : ['./','./index.html','./app/','./app/index.html','./app/home.html','./master-admin.html','./shop-catalog.js','./supabase-sdk.js','./supabase-client.js','./aegis-auth-redirect.js','./aegis-turnstile.js','./app-update.js','./admin-auth.js','./ui-feedback.js','./aegispay-logo.svg','./manifest.webmanifest','./app/supabase-sdk.js','./app/supabase-client.js','./app/supabase-service.js','./app/aegis-auth-redirect.js','./app/aegis-turnstile.js','./app/app-update.js','./app/aegispay-logo.svg','./app/manifest.webmanifest'];
 
 self.addEventListener('install',event=>{
   event.waitUntil(
