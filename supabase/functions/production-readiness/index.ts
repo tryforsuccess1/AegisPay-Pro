@@ -48,21 +48,50 @@ function signerAddressCheck(privateKey:string, configuredAddress:string) {
   return {status:"INVALID_PRIVATE_KEY",matches:false};
  }
 }
+function safeHdDerivationErrorCode(error:unknown):string {
+  // Return a coarse code only; never return or log the mnemonic, passphrase,
+  // derived address, private key, or the library's raw exception text.
+  const message=String((error as Error)?.message||error||"").toLowerCase();
+  if(/mnemonic|phrase|wordlist|word list|checksum|invalid entropy|invalid word/.test(message))
+    return "MNEMONIC_OR_WORDLIST_REJECTED";
+  if(/invalid tron path|derivation path|path provided/.test(message))
+    return "DERIVATION_PATH_REJECTED";
+  if(/private key|address does not match|valid child account|derived tron address/.test(message))
+    return "DERIVED_KEY_VALIDATION_FAILED";
+  return "TRONWEB_HD_DERIVATION_REJECTED";
+}
 async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
-  if(!String(mnemonic||"").trim())return {rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
+  const normalized=String(mnemonic||"").trim().replace(/\\s+/g," ");
+  const wordCount=normalized?normalized.split(" ").filter(Boolean).length:0;
+  const failed={rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
+  if(!normalized)return {...failed,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount};
   let root:any=null,child:any=null;
   try {
-    root=await deriveTronHdIdentity(mnemonic,passphrase,0);
-    child=await deriveTronHdIdentity(mnemonic,passphrase,1);
+    try {
+      root=await deriveTronHdIdentity(normalized,passphrase,0);
+    } catch(error) {
+      return {...failed,errorCode:safeHdDerivationErrorCode(error),wordCount};
+    }
+    const rootValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(root.address||""));
+    if(!rootValid)return {...failed,errorCode:"DERIVED_ROOT_ADDRESS_INVALID",wordCount};
+    try {
+      child=await deriveTronHdIdentity(normalized,passphrase,1);
+    } catch(error) {
+      return {rootDerivationValid:true,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:safeHdDerivationErrorCode(error),wordCount};
+    }
+    const childValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(child.address||""))
+      &&/^[a-fA-F0-9]{64}$/.test(String(child.privateKey||""))
+      &&TronWeb.address.fromPrivateKey(child.privateKey)===child.address;
+    const fingerprintConsistent=Boolean(root.rootFingerprint)&&root.rootFingerprint===child.rootFingerprint;
     return {
-      rootDerivationValid:/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(root.address||"")),
-      childDerivationValid:/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(child.address||""))
-        &&/^[a-fA-F0-9]{64}$/.test(String(child.privateKey||""))
-        &&TronWeb.address.fromPrivateKey(child.privateKey)===child.address,
-      rootFingerprintConsistent:Boolean(root.rootFingerprint)&&root.rootFingerprint===child.rootFingerprint,
+      rootDerivationValid:true,
+      childDerivationValid:childValid,
+      rootFingerprintConsistent:fingerprintConsistent,
+      errorCode:!childValid?"DERIVED_KEY_VALIDATION_FAILED":!fingerprintConsistent?"ROOT_FINGERPRINT_MISMATCH":"OK",
+      wordCount,
     };
-  } catch {
-    return {rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false};
+  } catch(error) {
+    return {...failed,errorCode:safeHdDerivationErrorCode(error),wordCount};
   } finally {
     root=null;child=null;
   }
@@ -235,6 +264,8 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
     mainnet_withdrawal_payout_hd_root_derivation_valid:withdrawalPayoutHdCheck.rootDerivationValid,
     mainnet_withdrawal_payout_hd_child_derivation_valid:withdrawalPayoutHdCheck.childDerivationValid,
     mainnet_withdrawal_payout_hd_root_fingerprint_consistent:withdrawalPayoutHdCheck.rootFingerprintConsistent,
+    mainnet_withdrawal_payout_hd_error_code:withdrawalPayoutHdCheck.errorCode,
+    mainnet_withdrawal_payout_hd_word_count:withdrawalPayoutHdCheck.wordCount,
   };
   const payoutKeysSafelySeparated= !mainnetAliasConflict&&!shastaAliasConflict
    &&mainnetShastaSelectedKeysDistinct&&treasuryAddressesDistinct&&shastaRulesConfigOk
