@@ -209,7 +209,7 @@ function loginView(){
           '<form id="aaLoginForm">'+
             '<label class="aa-field aa-auth-field"><span>Username / Admin ID</span><div class="aa-auth-input"><span class="aa-auth-input-icon">'+ico('users',18)+'</span><input id="aaUsername" type="text" inputmode="text" autocomplete="username" placeholder="Enter your Admin ID" required></div></label>'+
             '<label class="aa-field aa-auth-field"><span>Password</span><div class="aa-auth-input"><span class="aa-auth-input-icon">'+ico('shield',18)+'</span><input id="aaPassword" type="password" autocomplete="current-password" placeholder="Enter your password" required></div></label>'+
-            '<button class="aa-primary aa-wide" type="submit">Login <span class="aa-arrow">→</span></button>'+
+            '<button class="aa-primary aa-wide" type="button" data-action="admin-login-submit">Login <span class="aa-arrow">→</span></button>'+
           '</form>')+
       '</section>'+
     '</div>'+
@@ -1240,6 +1240,26 @@ root.addEventListener('pointercancel',function(e){const button=e.target.closest(
 root.addEventListener('click',function(e){
   const el=e.target.closest('[data-action]');if(!el)return;
   const action=el.dataset.action;
+  if(action==='admin-login-submit'){
+    const usernameInput=root.querySelector('#aaUsername');
+    const passwordInput=root.querySelector('#aaPassword');
+    const form=root.querySelector('#aaLoginForm');
+    const username=String(usernameInput&&usernameInput.value||'').trim();
+    const password=String(passwordInput&&passwordInput.value||'');
+    if(!username){
+      showAdminDialog({kind:'alert',title:'Admin sign-in',message:'Enter your Admin ID before continuing.',tone:'warning'});
+      if(usernameInput)usernameInput.focus();
+      return;
+    }
+    if(!password){
+      showAdminDialog({kind:'alert',title:'Admin sign-in',message:'Enter your password before continuing.',tone:'warning'});
+      if(passwordInput)passwordInput.focus();
+      return;
+    }
+    if(form&&typeof form.requestSubmit==='function')form.requestSubmit();
+    else if(form)form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+    return;
+  }
   if(action==='theme'){toggleAdminTheme(el);return;}
   if(action==='tab'){state.tab=el.dataset.tab;state.error='';render();return;}
   if(action==='refresh'){setBusy(refreshData);return;}
