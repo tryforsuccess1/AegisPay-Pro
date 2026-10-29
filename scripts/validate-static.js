@@ -7,7 +7,7 @@ const appVersionManifest=JSON.parse(fs.readFileSync('app-version.json','utf8'));
 assert(packageManifest.version===appVersionManifest.versionName,'package.json and app-version.json must use the same candidate version');
 
 const must=[
-  'client.html','master-admin.html','admin-auth.js','aegis-turnstile.js','scripts/client-browser-smoke.cjs',
+  'client.html','master-admin.html','admin-auth.js','aegis-turnstile.js','ui-feedback.js','scripts/client-browser-smoke.cjs',
   'supabase-client.js','supabase-service.js','aegis-auth-redirect.js','app-update.js',
    'service-worker.js','manifest.webmanifest','_headers','aegispay-logo.svg','_redirects','app-version.json','package.json',
   'database/migrations/20261003_private_verification_storage_policies.sql','database/migrations/20261004_restore_baseline_demo_configuration.sql',
@@ -171,8 +171,11 @@ assert(manualTestnetApprovalSql.includes("d.network")&&manualTestnetApprovalSql.
 assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApprovalSql.includes("real_payouts")&&manualTestnetApprovalSql.includes("payouts_locked")&&manualTestnetApprovalSql.includes('REVOKE ALL ON FUNCTION'),'Manual test credits must require closed live-money gates and service-role-only execution.');
 assert(manualTestnetApprovalSql.includes('manual_approved_by=v_actor.id')&&manualTestnetApprovalSql.includes('CREATE TRIGGER guard_shasta_deposit_verification')&&manualTestnetApprovalSql.includes('Manual test credits require all live-money gates to remain closed')&&manualTestnetApprovalSql.includes('MANUAL_APPROVED'),'Database trigger must independently validate and audit the only manual-approval exception.');
 assert(masterAdmin.includes('admin-auth.js?v=20261023-p0-key-diagnostics-ui'),'Master Admin must request the P0 key-diagnostics UI asset.');
+const uiFeedbackSource=fs.readFileSync('ui-feedback.js','utf8');
+assert(masterAdmin.includes('ui-feedback.js?v=20261029-centered-modal'),'Master Admin must load the canonical centered UI feedback helper.');
+assert(uiFeedbackSource.includes('aegis-feedback-backdrop')&&uiFeedbackSource.includes('window.alert = function')&&uiFeedbackSource.includes('aegis-click-feedback'),'UI feedback helper must show centered OK-dismissible messages and physical click feedback.');
 const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
-assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v53-shop-return-touch-scroll'"),'Service worker cache must be bumped for Shop-return and scroll fixes.');
+assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v54-centered-feedback-modal'"),'Service worker cache must be bumped for centered feedback modal and current shell fixes.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
@@ -215,7 +218,7 @@ assert(shopWorkerPage.includes("index<4?'eager':'lazy'")&&shopWorkerPage.include
 const startupSource=client.slice(client.indexOf('async function initData(){'),client.indexOf('\nfunction top(',client.indexOf('async function initData(){')));
 assert(startupSource.includes('const [userResult,s,t]=await Promise.all([')&&startupSource.includes('void refreshNotificationCount();'),'Authenticated startup must load profile-related data concurrently and refresh the notification count without blocking page rendering.');
 assert(client.includes('async function refreshClientProfile()')&&client.includes('await refreshClientProfile(); await liveShop();')&&client.includes("await refreshClientProfile();\n   await liveShop();"),'Shop tier/task/cycle actions must refresh only the changed profile before reloading Shop data.');
-assert(serviceWorker.includes("const CACHE='aegispay-shell-v53-shop-return-touch-scroll'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
+assert(serviceWorker.includes("const CACHE='aegispay-shell-v54-centered-feedback-modal'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./ui-feedback.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
 assert(serviceWorker.includes('const update=fetch(event.request,{cache:\'no-store\',redirect:\'follow\'})')&&serviceWorker.includes('caches.match(cacheKey).then(cached=>cached||update.catch')&&serviceWorker.includes('cacheUrl.search=\'\';'),'Static shell requests must be served from cache first, refresh in the background with followed redirects, and avoid caching URL query tokens.');
 assert(serviceWorker.includes("['code','access_token','refresh_token','token_hash','error','error_description']")&&serviceWorker.includes('const shouldStore=!authSensitive&&!isAuthCallback'),'OAuth and recovery URLs must never be stored as distinct cached requests.');
 assert(client.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})")&&masterAdmin.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})"),'Web client and Master Admin must register the non-blocking app-shell cache after page load.');
