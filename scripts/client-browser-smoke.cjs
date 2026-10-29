@@ -483,10 +483,10 @@ const server = http.createServer((req, res) => {
     const adminControls = await adminPage.evaluate(() => ({
       usernameType: document.querySelector('#aaUsername')?.type,
       passwordType: document.querySelector('#aaPassword')?.type,
-      submitHeight: Math.round(document.querySelector('#aaLoginForm button[type="submit"]')?.getBoundingClientRect().height || 0),
+      submitHeight: Math.round(document.querySelector('#aaLoginForm button[data-action="admin-login-submit"]')?.getBoundingClientRect().height || 0),
       themeHeight: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().height || 0),
       themeWidth: Math.round(document.querySelector('.aa-theme-toggle')?.getBoundingClientRect().width || 0),
-      loginBackground: getComputedStyle(document.querySelector('#aaLoginForm button[type="submit"]')).backgroundImage,
+      loginBackground: getComputedStyle(document.querySelector('#aaLoginForm button[data-action="admin-login-submit"]')).backgroundImage,
       brandMarkViewBox: document.querySelector('.aa-auth-brand .aa-logo-mark')?.getAttribute('viewBox'),
       brandPaths: Array.from(document.querySelectorAll('.aa-auth-brand .aa-logo-mark path')).map(path => path.getAttribute('d'))
     }));
@@ -499,10 +499,19 @@ const server = http.createServer((req, res) => {
     assert.ok(adminControls.themeHeight >= 40, 'Master Admin theme button should have a 40px minimum touch target.');
     assert.ok(Math.abs(adminControls.themeWidth - adminControls.themeHeight) <= 1, 'Master Admin icon control should be square: ' + JSON.stringify(adminControls));
 
-    const adminSubmit = adminPage.locator('#aaLoginForm button[type="submit"]');
+    const adminSubmit = adminPage.locator('#aaLoginForm button[data-action="admin-login-submit"]');
     const adminVerify = adminPage.locator('#aaLoginForm .aegis-turnstile-verify-button');
     assert.equal(await adminVerify.count(), 0, 'Master Admin login must not show a separate human-verification button.');
-    assert.equal(await adminSubmit.isDisabled(), true, 'Master Admin Login must wait for valid credentials.');
+    assert.equal(await adminSubmit.isDisabled(), false, 'Master Admin Login must remain clickable so missing credentials can be explained.');
+    await adminSubmit.click();
+    const emptyAdminDialog = adminPage.locator('#aa-dialog-overlay');
+    await emptyAdminDialog.waitFor({ state: 'visible', timeout: 5000 });
+    assert.match(await adminPage.locator('#aa-dialog-message').textContent(), /Enter your Admin ID/,
+      'Empty Master Admin Login click must show a visible required-field message.');
+    await adminPage.locator('[data-dialog-ok]').click();
+    await emptyAdminDialog.waitFor({ state: 'detached', timeout: 5000 });
+    assert.deepEqual(await adminPage.evaluate(() => window.__turnstileMockStats), {renderCount: 0,executeCount: 0,resetCount: 0},
+      'Empty login click must not load or execute Cloudflare Turnstile.');
     await adminPage.locator('#aaUsername').fill('smoke-admin');
     await adminPage.locator('#aaPassword').fill('not-a-real-password-for-smoke-tests');
     assert.equal(await adminVerify.count(), 0, 'The separate verification button must remain removed on Master Admin login.');
