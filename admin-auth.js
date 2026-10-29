@@ -553,6 +553,8 @@ function productionReadiness(){
     diagItem('Withdrawal payout HD root derivation',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_root_derivation_valid))+
     diagItem('Withdrawal payout HD child derivation',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_child_derivation_valid))+
     diagItem('Withdrawal payout root fingerprint consistency',diagMark(keyDiagnostics.mainnet_withdrawal_payout_hd_root_fingerprint_consistent))+
+    diagItem('Withdrawal HD diagnostic code',keyDiagnostics.mainnet_withdrawal_payout_hd_error_code)+
+    diagItem('Withdrawal HD mnemonic word count',keyDiagnostics.mainnet_withdrawal_payout_hd_word_count)+
     '</div></section>';
   return '<section class="aa-panel">'+
     '<div class="aa-panel-head"><div><h2>Production Readiness</h2><p>Phase 3 controls are enforced server-side. Secret values are never exposed.</p></div><span class="aa-count">'+(payoutReady?'READY':'LOCKED')+'</span></div>'+
