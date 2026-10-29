@@ -454,12 +454,15 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
        },200);
      }
 
-     const {data:nextIndexValue,error:indexError}=await admin.rpc("next_tron_deposit_address_index");
+     // This is a withdrawal sender preflight, so reserve from the withdrawal sequence,
+     // not the deposit-address sequence. Shared-root deployments derive inside reserved
+     // account /3, leaving the user's existing /0 through /3 accounts untouched.
+     const {data:nextIndexValue,error:indexError}=await admin.rpc("next_tron_withdrawal_payout_index");
      const candidateIndex=Number(nextIndexValue);
      if(indexError||!Number.isSafeInteger(candidateIndex)||candidateIndex<1||candidateIndex>=2147483648){
        return json({
          status:"BLOCKED",
-         error:"Could not safely reserve a unique HD derivation index for the preflight.",
+         error:"Could not safely reserve a unique withdrawal HD derivation index for the preflight.",
          checks,
          candidateIndexConsumed:false,
          walletRowCreated:false,
@@ -468,12 +471,12 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
        },503);
      }
 
-     const {data:indexRows,error:indexLookupError}=await admin.from("deposit_wallets")
-       .select("id").eq("network","TRON MAINNET").eq("derivation_index",candidateIndex).limit(1);
+     const {data:indexRows,error:indexLookupError}=await admin.from("withdrawal_payout_journal")
+       .select("id").eq("derivation_index",candidateIndex).limit(1);
      if(indexLookupError||((indexRows||[]).length>0)){
        return json({
          status:"BLOCKED",
-         error:"The reserved HD index could not be confirmed unique for Mainnet; no wallet row was created.",
+         error:"The reserved withdrawal index could not be confirmed unique; no wallet row was created.",
          checks,
          candidateIndexConsumed:true,
          walletRowCreated:false,
@@ -484,17 +487,34 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
 
      let rootIdentity:any=null, candidateIdentity:any=null;
      try{
-       rootIdentity=await deriveTronHdIdentity(MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE,0);
-       candidateIdentity=await deriveTronHdIdentity(MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE,candidateIndex);
-       checks.rootDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(rootIdentity.address||""));
-       checks.childDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(candidateIdentity.address||""))&&/^[a-fA-F0-9]{64}$/.test(String(candidateIdentity.privateKey||""));
-       checks.rootFingerprintConsistent=Boolean(rootIdentity.rootFingerprint)&&rootIdentity.rootFingerprint===candidateIdentity.rootFingerprint;
-       checks.derivedAddressMatchesPrivateKey=Boolean(candidateIdentity.address&&candidateIdentity.privateKey)&&TronWeb.address.fromPrivateKey(candidateIdentity.privateKey)===candidateIdentity.address;
-       checks.candidateAddressUnique=candidateIdentity.address!==receiving;
+       const sharedRoot=withdrawalPayoutSharedBranchReady;
+       if(sharedRoot) {
+         rootIdentity=await deriveTronHdIdentity(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE,MAINNET_WITHDRAWAL_HD_PARENT_INDEX);
+         candidateIdentity=await deriveTronHdBranchIdentity(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE,MAINNET_WITHDRAWAL_HD_PARENT_INDEX,candidateIndex);
+         checks.rootDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(rootIdentity.address||""))
+           &&String(rootIdentity.address||"")===MAINNET_WITHDRAWAL_HD_PARENT_ADDRESS;
+         const parentDigest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(rootIdentity.address||"")));
+         const parentFingerprint=Array.from(new Uint8Array(parentDigest)).map((byte)=>byte.toString(16).padStart(2,"0")).join("");
+         checks.rootFingerprintConsistent=Boolean(candidateIdentity.rootFingerprint)&&candidateIdentity.rootFingerprint===parentFingerprint;
+       } else {
+         rootIdentity=await deriveTronHdIdentity(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE,0);
+         candidateIdentity=await deriveTronHdIdentity(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE,candidateIndex);
+         checks.rootDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(rootIdentity.address||""));
+         checks.rootFingerprintConsistent=Boolean(rootIdentity.rootFingerprint)&&rootIdentity.rootFingerprint===candidateIdentity.rootFingerprint;
+       }
+       checks.childDerivationValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(candidateIdentity.address||""))
+         &&/^[a-fA-F0-9]{64}$/.test(String(candidateIdentity.privateKey||""));
+       checks.derivedAddressMatchesPrivateKey=Boolean(candidateIdentity.address&&candidateIdentity.privateKey)
+         &&TronWeb.address.fromPrivateKey(candidateIdentity.privateKey)===candidateIdentity.address;
+       checks.candidateAddressUnique=candidateIdentity.address!==receiving
+         &&(!sharedRoot||candidateIdentity.address!==MAINNET_WITHDRAWAL_HD_PARENT_ADDRESS);
+       const [{data:addressRows,error:addressLookupError},{data:journalAddressRows,error:journalAddressError}]=await Promise.all([
+         admin.from("deposit_wallets").select("id").eq("network","TRON MAINNET").eq("address",candidateIdentity.address).limit(1),
+         admin.from("withdrawal_payout_journal").select("id").eq("address",candidateIdentity.address).limit(1)
+       ]);
+       checks.candidateAddressUnique=checks.candidateAddressUnique&&!addressLookupError&&!journalAddressError
+         &&((addressRows||[]).length===0)&&((journalAddressRows||[]).length===0);
        checks.candidateIndexUnique=true;
-       const {data:addressRows,error:addressLookupError}=await admin.from("deposit_wallets")
-         .select("id").eq("network","TRON MAINNET").eq("address",candidateIdentity.address).limit(1);
-       checks.candidateAddressUnique=checks.candidateAddressUnique&&!addressLookupError&&((addressRows||[]).length===0);
      }catch{
        // Do not include derivation exceptions: they may contain implementation details.
        checks.childDerivationValid=false;
