@@ -6,8 +6,14 @@ const OTHER_SEED = "legal winner thank year wave sausage worth useful legal winn
 
 Deno.test("per-withdrawal payout mode requires a separate seed from deposit and Shasta", () => {
   assertEquals(checkWithdrawalPayoutHdConfig("DISABLED", OTHER_SEED, MAINNET_SEED, "shasta seed").ready, false);
-  assertEquals(checkWithdrawalPayoutHdConfig("EPHEMERAL_HD", MAINNET_SEED, MAINNET_SEED, OTHER_SEED).ready, false);
-  assertEquals(checkWithdrawalPayoutHdConfig("EPHEMERAL_HD", OTHER_SEED, MAINNET_SEED, OTHER_SEED).ready, false);
+  const sameAsMainnet = checkWithdrawalPayoutHdConfig("EPHEMERAL_HD", MAINNET_SEED, MAINNET_SEED, OTHER_SEED);
+  assertEquals(sameAsMainnet.ready, false);
+  assertEquals(sameAsMainnet.matchesDepositSeed, true);
+  assertEquals(sameAsMainnet.matchesShastaSeed, false);
+  const sameAsShasta = checkWithdrawalPayoutHdConfig("EPHEMERAL_HD", OTHER_SEED, MAINNET_SEED, OTHER_SEED);
+  assertEquals(sameAsShasta.ready, false);
+  assertEquals(sameAsShasta.matchesDepositSeed, false);
+  assertEquals(sameAsShasta.matchesShastaSeed, true);
   const ready = checkWithdrawalPayoutHdConfig("EPHEMERAL_HD", OTHER_SEED, MAINNET_SEED, "shasta seed");
   assertEquals(ready.ready, true);
   assertEquals(ready.distinctFromDepositSeed, true);
