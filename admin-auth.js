@@ -1109,7 +1109,22 @@ async function runMainnetHdPreflight(){
         treasurySignerMatchesConfiguredAddress:'Mainnet signer key must match the configured treasury address',
         networkSecretsSeparated:'Mainnet, Shasta, and withdrawal HD secrets must be safely separated and valid',
         payoutAndMonitoringPrerequisitesReady:'Payout/monitoring prerequisites: TRONGrid, Telegram approvals, runtime, withdrawal HD wallet, and reconciled payout TXIDs',
-        configuredMainnetHdMnemonicPresent:'Mainnet HD mnemonic must be configured'
+        configuredMainnetHdMnemonicPresent:'Mainnet deposit HD mnemonic must be configured',
+        tronGridApiConfigured:'TRONGrid API key configured',
+        cronSecretConfigured:'Cron secret configured for deposit monitoring',
+        mainnetPayoutSignerConfigured:'Mainnet payout signer key is present',
+        telegramBotConfigured:'Telegram bot token configured',
+        telegramChatConfigured:'Telegram withdrawal chat configured',
+        telegramApproversConfigured:'Telegram approver IDs configured',
+        runtimeEnabled:'AegisPay runtime enabled',
+        noUnreconciledPayouts:'All approved/processing/paid withdrawals have a payout TXID',
+        mainnetWithdrawalPayoutHdSeedConfigured:'Dedicated Mainnet withdrawal payout HD seed configured',
+        mainnetWithdrawalPayoutModeEnabled:'Mainnet withdrawal payout mode set to EPHEMERAL_HD',
+        mainnetWithdrawalPayoutHdSeedDistinct:'Dedicated payout HD seed differs from deposit and Shasta HD seeds',
+        mainnetWithdrawalPayoutFeeCapValid:'Withdrawal payout fee cap within supported limits',
+        mainnetWithdrawalPayoutHdDerivationValid:'Withdrawal HD root/child derivation and fingerprint valid',
+        mainnetAndShastaSignerKeysDistinct:'Mainnet and Shasta payout signer keys are distinct',
+        mainnetAndShastaHdMnemonicsDistinct:'Mainnet and Shasta HD mnemonics are distinct'
       };
       const prerequisiteKeys=[
         'gatesIntentionallyClosed',
@@ -1117,7 +1132,22 @@ async function runMainnetHdPreflight(){
         'treasurySignerMatchesConfiguredAddress',
         'networkSecretsSeparated',
         'payoutAndMonitoringPrerequisitesReady',
-        'configuredMainnetHdMnemonicPresent'
+        'configuredMainnetHdMnemonicPresent',
+        'tronGridApiConfigured',
+        'cronSecretConfigured',
+        'mainnetPayoutSignerConfigured',
+        'telegramBotConfigured',
+        'telegramChatConfigured',
+        'telegramApproversConfigured',
+        'runtimeEnabled',
+        'noUnreconciledPayouts',
+        'mainnetWithdrawalPayoutHdSeedConfigured',
+        'mainnetWithdrawalPayoutModeEnabled',
+        'mainnetWithdrawalPayoutHdSeedDistinct',
+        'mainnetWithdrawalPayoutFeeCapValid',
+        'mainnetWithdrawalPayoutHdDerivationValid',
+        'mainnetAndShastaSignerKeysDistinct',
+        'mainnetAndShastaHdMnemonicsDistinct'
       ];
       const prerequisiteChecks=state.mainnetHdPreflight.checks||{};
       const failedChecks=prerequisiteKeys
