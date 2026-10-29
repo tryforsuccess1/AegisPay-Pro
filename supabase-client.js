@@ -28,7 +28,7 @@ function init(){
       );
       window.AegisSupabaseReady=!!(window.AegisSupabaseClient&&window.AegisSupabaseClient.auth);
       if(window.AegisSupabaseReady){
-        window.dispatchEvent(new Event('aegis-supabase-ready'));
+        if(window.dispatchEvent)window.dispatchEvent(new Event('aegis-supabase-ready'));
         return true;
       }
     }
@@ -44,7 +44,7 @@ function loadFallback(index){
   if(index===0)fallbackStarted=true;
   if(index>=fallbackUrls.length){
     window.AEGIS_SUPABASE_SDK_FAILED=true;
-    window.dispatchEvent(new Event('aegis-supabase-ready'));
+    if(window.dispatchEvent)window.dispatchEvent(new Event('aegis-supabase-ready'));
     return;
   }
   var script=document.createElement('script');
