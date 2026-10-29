@@ -1115,7 +1115,7 @@ async function runMainnetHdPreflight(){
         .filter(function(entry){return entry[1]!==true;})
         .map(function(entry){return '• '+(failedCheckLabels[entry[0]]||entry[0])+': '+String(entry[1]);});
       preflightNotice=(state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.')
-        +(failedChecks.length?'\\n\\nExact checks needing attention:\\n'+failedChecks.join('\\n'):'\\n\\nNo individual failed check was returned. Open Production Readiness diagnostics for the server-side prerequisite summary.');
+        +(failedChecks.length?'\n\nExact checks needing attention:\n'+failedChecks.join('\n'):'\n\nNo individual failed check was returned. Open Production Readiness diagnostics for the server-side prerequisite summary.');
       preflightTone='warning';
     }else if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='PASS'){
       preflightNotice='Mainnet HD preflight passed. No wallet record was created and no funds were moved. Production flags remain OFF and the payout lock remains CLOSED.';
