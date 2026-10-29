@@ -172,7 +172,7 @@ assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApproval
 assert(manualTestnetApprovalSql.includes('manual_approved_by=v_actor.id')&&manualTestnetApprovalSql.includes('CREATE TRIGGER guard_shasta_deposit_verification')&&manualTestnetApprovalSql.includes('Manual test credits require all live-money gates to remain closed')&&manualTestnetApprovalSql.includes('MANUAL_APPROVED'),'Database trigger must independently validate and audit the only manual-approval exception.');
 assert(masterAdmin.includes('admin-auth.js?v=20261029-seed-relation-audit-v1'),'Master Admin must request the Admin login click-feedback and detailed preflight UI asset.');
 const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
-assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v54-supabase-sdk-fallback-admin-retry'"),'Service worker cache must be bumped for Shop-return and scroll fixes.');
+assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v55-unique-address-treasury-privacy'"),'Service worker cache must be bumped for Shop-return and scroll fixes.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
