@@ -74,6 +74,7 @@ jobs:
           cp client.html site/client.html
           cp master-admin.html site/master-admin.html
           cp admin-auth.js site/admin-auth.js
+          cp ui-feedback.js site/ui-feedback.js
           cp client.html site/app/index.html
           cp client.html site/app/home.html
           cp _redirects site/_redirects
