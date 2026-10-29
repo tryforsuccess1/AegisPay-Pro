@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
         return json({ error: "The active deposit request belongs to a different network. No new address was issued. Do not send funds; contact support to recover the in-progress request.", code: "DEPOSIT_REQUEST_NETWORK_CHANGED" }, 409);
       }
       if (current.wallet_root_fingerprint !== rootFingerprint) return json({ error: "The configured HD root does not match this user's existing address record. Restore the original root secret before issuing addresses.", code: "HD_WALLET_ROOT_MISMATCH" }, 409);
-      return json({ address: current.address, network, tokenContract: current.token_contract, depositRequestId: current.deposit_request_id, depositWalletId: current.id, derivationPath: `m/44'/195'/0'/0/${current.derivation_index}`, created: false });
+      return json({ address: current.address, network, tokenContract: current.token_contract, depositRequestId: current.deposit_request_id, depositWalletId: current.id, created: false });
     }
 
     const { count: recentAddressCount, error: rateCountError } = await admin.from("deposit_wallets")
@@ -198,12 +198,12 @@ Deno.serve(async (req) => {
       const { data: raced, error: racedError } = await admin.from("deposit_wallets").select("id,address,network,derivation_index,wallet_root_fingerprint,token_contract,deposit_request_id")
         .eq("user_id", profile.id).eq("network", network).eq("deposit_request_id", requestId).maybeSingle();
       if (racedError) return json({ error: "Unable to recover the existing deposit request safely." }, 503);
-      if (raced && raced.wallet_root_fingerprint === rootFingerprint) return json({ address: raced.address, network, tokenContract: raced.token_contract, depositRequestId: raced.deposit_request_id, depositWalletId: raced.id, derivationPath: `m/44'/195'/0'/0/${raced.derivation_index}`, created: false });
+      if (raced && raced.wallet_root_fingerprint === rootFingerprint) return json({ address: raced.address, network, tokenContract: raced.token_contract, depositRequestId: raced.deposit_request_id, depositWalletId: raced.id, created: false });
       if (rateLimited) return json({ error: "You have reached the limit of 10 new deposit addresses in 24 hours. Continue with your existing deposit request or contact support.", code: "DEPOSIT_ADDRESS_RATE_LIMIT" }, 429);
       return json({ error: "Unable to safely assign a unique deposit address." }, 409);
     }
     await admin.from("audit_events").insert({ actor_user_id: profile.id, target_user_id: profile.id, event_type: "DEPOSIT_ADDRESS_ASSIGNED", description: "Assigned a unique TRON HD address for one deposit request.", reference_id: inserted.id });
-    return json({ address: inserted.address, network, tokenContract: inserted.token_contract, depositRequestId: inserted.deposit_request_id, depositWalletId: inserted.id, derivationPath: identity.derivationPath, created: true });
+    return json({ address: inserted.address, network, tokenContract: inserted.token_contract, depositRequestId: inserted.deposit_request_id, depositWalletId: inserted.id, created: true });
   } catch {
     return json({ error: "Unable to create or load the deposit address. No funds were moved." }, 500);
   }

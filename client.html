@@ -3481,7 +3481,7 @@ async function initData(){
  // Load independent startup data together; unread notifications refresh in the background.
  const [userResult,s,t]=await Promise.all([
   db.auth.getUser(),
-  db.from('platform_settings').select('key,value_json').in('key',['deposit_rules','withdrawal_rules','app_runtime','production_config','system_mode']),
+  db.from('platform_settings').select('key,value_json').eq('key','app_runtime'),
   db.from('vip_tiers').select('id,name,deposit_amount,initial_profit,display_order,enabled').eq('enabled',true).order('display_order')
  ]);
  authUser=userResult.data&&userResult.data.user||null;
@@ -3704,14 +3704,12 @@ async function getMyDepositAddress(){
  return details.address;
 }
 async function liveTopup(){
- const d=settings.deposit_rules||{};
  let wallet='',addressError=null,walletDetails=null;
  try{walletDetails=await getCurrentDepositRequestDetails();wallet=walletDetails.address;}catch(e){addressError=e}
+ const d={network:String(walletDetails&&walletDetails.network||'TRON MAINNET')};
  const shastaTestnetAllowed=String(walletDetails&&walletDetails.network||'').toUpperCase()==='TRON TESTNET'&&String(walletDetails&&walletDetails.tokenContract||'').trim()==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
- const production=settings.production_config||{},system=settings.system_mode||{};
- const paymentsPaused=String(production.environment||'').toUpperCase()==='PRE_PRODUCTION'||
-  production.live_deposits_enabled!==true||system.live_deposits!==true;
- const minDeposit=Math.max(10,Number(d.minimum_amount||d.minimum_deposit||d.min_deposit||10)||10);
+ const paymentsPaused=!walletDetails;
+ const minDeposit=10;
  const [ledgerResult,submissionResult]=await Promise.all([
   db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(100),
   db.from('deposit_submissions').select('id,gross_amount,status,ai_review_status,created_at,txid,network').eq('user_id',profile.id).order('created_at',{ascending:false}).limit(25)
@@ -5297,9 +5295,7 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
 
   liveTopup=async function(){
     app.innerHTML=top('Deposit USDT')+'<div class="p2-card" role="status" aria-live="polite"><div class="p2-head"><h2>Preparing secure deposit</h2><span>Shasta / USDT TRC20</span></div><p class="mu" style="font-size:12px;line-height:1.6">Loading your assigned receiving wallet and generating its QR code on this device. Please wait here and do not send funds until the matching address and QR are visible.</p><div class="pbar" aria-hidden="true"><i style="width:65%"></i></div></div>'+nav('hidden');
-    const d=settings.deposit_rules||{},available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0)),activeTier=tiers.find(function(t){return String(t.id)===String(profile.selected_tier_id||'');});
-    const depositMode=settings.system_mode||{},productionConfig=settings.production_config||{};
-    const depositsAllowed=depositMode.mode==='MAINNET'&&depositMode.live_deposits===true&&depositMode.real_payouts===true&&depositMode.production_go_live_approved===true&&String(productionConfig.environment||'').toUpperCase()==='PRODUCTION'&&productionConfig.live_deposits_enabled===true&&productionConfig.real_payouts_enabled===true&&productionConfig.go_live_approved===true&&productionConfig.payouts_locked===false;
+    const d={},available=Math.max(0,Number(profile.current_platform_balance||0)-Number(profile.withdrawal_held||0)),activeTier=tiers.find(function(t){return String(t.id)===String(profile.selected_tier_id||'');});
     let wallet='',walletDetails=null,addressError=null;
      const depositRequestStorageKey=getDepositRequestStorageKey();
      let depositRequestId='';
@@ -5307,6 +5303,8 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     const network=String(walletDetails&&walletDetails.network||'').toUpperCase();
     const tokenContract=String(walletDetails&&walletDetails.tokenContract||'').trim();
     const shastaTestnetAllowed=network==='TRON TESTNET'&&tokenContract==='TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs';
+    // The server issues an address only after its own network/readiness checks pass.
+    const depositsAllowed=!!walletDetails;
     const addressFailureCode=String(addressError&&addressError.code||'');
     const shastaDiagnosticCodes=new Set(['SHASTA_TEST_MODE_BLOCKED','TESTNET_SECRET_REUSE_BLOCKED']);
     if(!walletDetails&&shastaDiagnosticCodes.has(addressFailureCode)){

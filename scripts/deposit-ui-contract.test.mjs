@@ -32,7 +32,7 @@ test("embedded QR encoder produces a valid SVG for a TRON wallet without network
 });
 
 test("service-worker cache version is bumped so deployed deposit UI fixes reach mobile clients", () => {
-  assert.match(serviceWorker, /aegispay-shell-v54-supabase-sdk-fallback-admin-retry/);
+  assert.match(serviceWorker, /aegispay-shell-v55-unique-address-treasury-privacy/);
   assert.doesNotMatch(serviceWorker, /aegispay-shell-v52-persist-deposit-address/);
 });
 
@@ -158,4 +158,20 @@ test("one unresolved submission per deposit wallet is enforced in code and datab
   assert.ok(depositCreditMigration.includes("deposit_submissions_one_pending_per_wallet_uq"));
   assert.ok(depositCreditMigration.includes("shasta_testnet_rules"));
   assert.ok(depositCreditMigration.includes("network differs from current settings"));
+});
+
+
+test("treasury settings remain server/admin-only and deposit responses expose only request-scoped address data", () => {
+  const treasuryPrivacyMigration = readFileSync(new URL("../database/migrations/20261029210000_hide_treasury_from_authenticated_clients.sql", import.meta.url), "utf8");
+  assert.match(treasuryPrivacyMigration, /DROP POLICY IF EXISTS settings_authenticated_read ON public\.platform_settings/i);
+  assert.match(treasuryPrivacyMigration, /key = 'app_runtime'/i);
+  assert.match(treasuryPrivacyMigration, /private\.current_app_role\(\) = 'MASTER ADMIN'/i);
+  assert.doesNotMatch(treasuryPrivacyMigration, /key = ANY\s*\(ARRAY\[[^\]]*deposit_rules/i);
+  assert.match(client, /\.from\('platform_settings'\)\.select\('key,value_json'\)\.eq\('key','app_runtime'\)/);
+  assert.doesNotMatch(client, /settings\.deposit_rules/);
+  assert.doesNotMatch(client, /settings\.system_mode/);
+  assert.doesNotMatch(client, /settings\.production_config/);
+  assert.doesNotMatch(addressFunction, /derivationPath/);
+  assert.match(addressFunction, /return json\(\{ address: inserted\.address, network, tokenContract: inserted\.token_contract, depositRequestId: inserted\.deposit_request_id, depositWalletId: inserted\.id, created: true \}\)/);
+  assert.doesNotMatch(addressFunction, /return json\(\{[^}]*treasury\s*:/s);
 });
