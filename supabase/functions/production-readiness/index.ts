@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
+import { checkWithdrawalPayoutHdConfig } from "../_shared/withdrawal-payout-wallet.ts";
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL"), SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY=Deno.env.get("TRONGRID_API_KEY"), CRON_SECRET=Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
@@ -201,15 +202,34 @@ Deno.serve(async(req:Request)=>{
   const treasuryAddressesDistinct=Boolean(receiving&&shastaReceiving)&&receiving!==shastaReceiving;
   const mainnetKeySourceAlias=MAINNET_TREASURY_KEY_ALIAS?"TRON_MAINNET_TREASURY_PRIVATE_KEY":MAINNET_PAYOUT_FALLBACK_KEY?"TRON_PAYOUT_PRIVATE_KEY":"NONE";
   const shastaKeySourceAlias=SHASTA_TREASURY_KEY_ALIAS?"TRON_SHASTA_TREASURY_PRIVATE_KEY":SHASTA_PAYOUT_FALLBACK_KEY?"TRON_TESTNET_PAYOUT_PRIVATE_KEY":"NONE";
-const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim())
-    &&normalizedMnemonic(MAINNET_WITHDRAWAL_HD_MNEMONIC)!==normalizedMnemonic(MAINNET_HD_MNEMONIC)
-    &&normalizedMnemonic(MAINNET_WITHDRAWAL_HD_MNEMONIC)!==normalizedMnemonic(SHASTA_HD_MNEMONIC);
-   const withdrawalPayoutModeEnabled=String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"").trim().toUpperCase()==="EPHEMERAL_HD";
+const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
+    MAINNET_WITHDRAWAL_PAYOUT_MODE,
+    MAINNET_WITHDRAWAL_HD_MNEMONIC,
+    MAINNET_HD_MNEMONIC,
+    SHASTA_HD_MNEMONIC,
+   );
+   const withdrawalPayoutSeedPresent=withdrawalPayoutHdConfig.mnemonicPresent;
+   const withdrawalPayoutSeedMatchesMainnet=withdrawalPayoutHdConfig.matchesDepositSeed;
+   const withdrawalPayoutSeedMatchesShasta=withdrawalPayoutHdConfig.matchesShastaSeed;
+   const withdrawalPayoutSeedDistinct=withdrawalPayoutHdConfig.distinctFromDepositSeed
+    &&withdrawalPayoutHdConfig.distinctFromShastaSeed;
+   const withdrawalPayoutModeEnabled=withdrawalPayoutHdConfig.modeEnabled;
    const [mainnetHdRootCheck,shastaHdRootCheck,withdrawalPayoutHdCheck]=await Promise.all([
     hdRootFingerprintStatus(admin,"TRON MAINNET",MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE),
     hdRootFingerprintStatus(admin,"TRON TESTNET",SHASTA_HD_MNEMONIC,SHASTA_HD_PASSPHRASE),
-    withdrawalPayoutSeedDistinct?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE):Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:"SEED_MISSING_OR_NOT_DISTINCT",wordCount:0})
+    withdrawalPayoutSeedPresent
+      ?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE)
+      :Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount:0})
    ]);
+   // Report the concrete seed relation before the generic derivation status. Only
+   // booleans, a coarse status code and word count are returned—never secret text.
+   const withdrawalPayoutHdDiagnosticCode=!withdrawalPayoutSeedPresent
+    ?"WITHDRAWAL_SEED_MISSING"
+    :withdrawalPayoutSeedMatchesMainnet
+      ?"WITHDRAWAL_SEED_MATCHES_MAINNET_DEPOSIT"
+      :withdrawalPayoutSeedMatchesShasta
+        ?"WITHDRAWAL_SEED_MATCHES_SHASTA_TESTNET"
+        :withdrawalPayoutHdCheck.errorCode;
   // Diagnostics disclose only presence/status and selected alias names, never key values or derived addresses.
   const keyDiagnostics={
    mainnet_primary_alias_present:Boolean(MAINNET_TREASURY_KEY_ALIAS),
@@ -259,12 +279,14 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
    mainnet_shasta_selected_keys_distinct:mainnetShastaSelectedKeysDistinct,
    mainnet_shasta_treasury_addresses_distinct:treasuryAddressesDistinct,
     mainnet_withdrawal_payout_wallet_mode:String(MAINNET_WITHDRAWAL_PAYOUT_MODE||"DISABLED").trim().toUpperCase(),
-    mainnet_withdrawal_payout_hd_mnemonic_present:Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()),
+    mainnet_withdrawal_payout_hd_mnemonic_present:withdrawalPayoutSeedPresent,
     mainnet_withdrawal_payout_hd_seed_distinct_from_deposit_and_shasta:withdrawalPayoutSeedDistinct,
+    mainnet_withdrawal_payout_hd_seed_matches_mainnet_deposit:withdrawalPayoutSeedMatchesMainnet,
+    mainnet_withdrawal_payout_hd_seed_matches_shasta:withdrawalPayoutSeedMatchesShasta,
     mainnet_withdrawal_payout_hd_root_derivation_valid:withdrawalPayoutHdCheck.rootDerivationValid,
     mainnet_withdrawal_payout_hd_child_derivation_valid:withdrawalPayoutHdCheck.childDerivationValid,
     mainnet_withdrawal_payout_hd_root_fingerprint_consistent:withdrawalPayoutHdCheck.rootFingerprintConsistent,
-    mainnet_withdrawal_payout_hd_error_code:withdrawalPayoutHdCheck.errorCode,
+    mainnet_withdrawal_payout_hd_error_code:withdrawalPayoutHdDiagnosticCode,
     mainnet_withdrawal_payout_hd_word_count:withdrawalPayoutHdCheck.wordCount,
   };
   const payoutKeysSafelySeparated= !mainnetAliasConflict&&!shastaAliasConflict
