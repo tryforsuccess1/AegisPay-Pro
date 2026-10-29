@@ -525,7 +525,7 @@ assert(depositSubmitSource.includes(telegramApproverSplitter) && depositMonitorS
 const depositSafetyMigration=fs.readFileSync('database/migrations/20261013_gate_mainnet_deposits_on_payout_readiness.sql','utf8');
 const depositEnablementMigration=fs.readFileSync('database/migrations/20261013_fix_deposit_enablement_gate_and_txid_uniqueness.sql','utf8');
 assert(depositEnablementMigration.includes("v_contract = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'")&&depositEnablementMigration.includes('Live mainnet deposits require approved PRODUCTION mode'),'Direct production-config RPC must enforce the official USDT contract and payout-readiness gate');
-assert(client.includes('Deposits temporarily paused')&&client.includes('settings.production_config'),'Client must hide the Mainnet deposit wallet until payout readiness is approved');
+assert(client.includes('Deposits temporarily paused')&&client.includes('const depositsAllowed=!!walletDetails'),'Client must rely on the server-issued, readiness-gated deposit address instead of reading privileged production settings');
 assert(depositSubmitSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositSubmitSource.includes('payoutCredentialsReady'),'Deposit submission must fail closed when production payouts are not ready');
 assert(depositMonitorSource.includes('MAINNET_DEPOSITS_PAUSED')&&depositMonitorSource.includes('production.payouts_locked === false'),'Deposit monitor must not credit Mainnet deposits while payouts are locked');
 assert(depositVerifySource.includes('MAINNET_DEPOSITS_PAUSED')&&depositVerifySource.includes('production.payouts_locked === false')&&depositVerifySource.includes('payoutCredentialsReady'),'Direct Mainnet deposit verification must enforce the same production payout-readiness gate');
