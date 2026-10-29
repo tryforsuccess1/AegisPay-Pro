@@ -147,6 +147,7 @@ def syncAdminAegisPayWebAssets = tasks.register('syncAdminAegisPayWebAssets', Co
     from(webRoot) {
         include 'master-admin.html'
         include 'admin-auth.js'
+        include 'ui-feedback.js'
         include 'shop-catalog.js'
         include 'supabase-client.js'
         include 'supabase-service.js'
