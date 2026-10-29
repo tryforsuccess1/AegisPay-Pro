@@ -1289,7 +1289,32 @@ async function boot(){
   // Render the logged-out form once while checking the session. Re-rendering an
   // unchanged login form would replace the user's Turnstile widget during startup.
   render();
-  if(!service||!service.isAvailable()){state.error='Supabase service unavailable.';render();return;}
+  if(!service||!service.isAvailable()){
+    // The SDK may be loading from the backup CDN after the primary script failed.
+    // Wait briefly for the client-ready event rather than failing the login screen immediately.
+    await new Promise(function(resolve){
+      let completed=false;
+      let timer;
+      function finish(){
+        if(completed)return;
+        completed=true;
+        window.removeEventListener('aegis-supabase-ready',check);
+        if(timer)clearTimeout(timer);
+        resolve();
+      }
+      function check(){if(service&&service.isAvailable())finish();}
+      window.addEventListener('aegis-supabase-ready',check);
+      timer=setTimeout(finish,12000);
+      check();
+    });
+  }
+  if(!service||!service.isAvailable()){
+    state.error=window.AEGIS_SUPABASE_SDK_FAILED
+      ? 'Supabase client could not load. Please check your internet connection and refresh the page.'
+      : 'Supabase service unavailable.';
+    render();
+    return;
+  }
   let shouldRender=false;
   try{
     const session=await service.session();
