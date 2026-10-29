@@ -299,7 +299,23 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
        derivedAddressMatchesPrivateKey:false,
        candidateAddressUnique:false,
        candidateIndexUnique:false,
-       gatesStillClosedAfterCheck:false
+       gatesStillClosedAfterCheck:false,
+       // Diagnostic booleans: presence/status only, never secret values.
+       tronGridApiConfigured:Boolean(TRONGRID_KEY),
+       cronSecretConfigured:Boolean(CRON_SECRET),
+       mainnetPayoutSignerConfigured:Boolean(MAINNET_PAYOUT_KEY),
+       telegramBotConfigured:Boolean(TELEGRAM_TOKEN),
+       telegramChatConfigured:Boolean(TELEGRAM_CHAT_ID),
+       telegramApproversConfigured:TELEGRAM_APPROVER_IDS.length>0,
+       runtimeEnabled,
+       noUnreconciledPayouts:unresolvedPayoutsClear,
+       mainnetWithdrawalPayoutHdSeedConfigured:Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()),
+       mainnetWithdrawalPayoutModeEnabled:withdrawalPayoutModeEnabled,
+       mainnetWithdrawalPayoutHdSeedDistinct:withdrawalPayoutSeedDistinct,
+       mainnetWithdrawalPayoutFeeCapValid:withdrawalPayoutFeeCapValid,
+       mainnetWithdrawalPayoutHdDerivationValid:Boolean(withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid&&withdrawalPayoutHdCheck.rootFingerprintConsistent),
+       mainnetAndShastaSignerKeysDistinct:payoutKeysSafelySeparated,
+       mainnetAndShastaHdMnemonicsDistinct:mainnetShastaHdMnemonicsDistinct
      };
      if(!gatesIntentionallyClosed||!prerequisitesReady){
        return json({
@@ -310,7 +326,7 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
          walletRowCreated:false,
          walletAddressReturned:false,
          fundsMoved:false
-       },409);
+       },200);
      }
 
      const {data:nextIndexValue,error:indexError}=await admin.rpc("next_tron_deposit_address_index");
