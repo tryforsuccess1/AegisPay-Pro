@@ -73,7 +73,7 @@ jobs:
           test -s "$ADMIN_APK"
           cp client.html site/client.html
           cp master-admin.html site/master-admin.html
-          cp admin-auth.js site/admin-auth.js
+          cp admin-auth.js ui-feedback.js site/admin-auth.js
           cp client.html site/app/index.html
           cp client.html site/app/home.html
           cp _redirects site/_redirects
