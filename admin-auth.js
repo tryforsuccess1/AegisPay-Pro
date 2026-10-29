@@ -59,6 +59,93 @@ function ico(name,size=18){
 function esc(v){
   return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+
+const adminDialogQueue=[];
+let adminDialogActive=false;
+function ensureAdminUiEnhancements(){
+  if(document.getElementById('aa-admin-ui-enhancements'))return;
+  const style=document.createElement('style');
+  style.id='aa-admin-ui-enhancements';
+  style.textContent="\nbutton:not(:disabled){transition:transform .12s cubic-bezier(.2,.8,.2,1),filter .12s ease,box-shadow .12s ease;transform:translateY(0);-webkit-tap-highlight-color:transparent}\nbutton:not(:disabled):active,button.aa-button-pressed{transform:translateY(2px) scale(.985)!important;filter:brightness(.97);box-shadow:inset 0 2px 7px rgba(55,30,18,.22)!important}\nbutton:disabled{cursor:wait!important;opacity:.74}\n#aa-global-busy{position:fixed;top:88px;left:50%;transform:translateX(-50%);z-index:9000;display:flex;align-items:center;gap:10px;max-width:calc(100vw - 28px);padding:11px 16px;border:1px solid rgba(201,75,138,.18);border-radius:999px;background:#fffdfa;color:#4a3a2c;box-shadow:0 14px 36px rgba(70,35,20,.18);font:700 12px/1.2 Inter,system-ui,sans-serif;pointer-events:none;white-space:nowrap}\n#aa-global-busy .aa-busy-spinner{width:16px;height:16px;flex:none;border:2px solid rgba(201,75,138,.22);border-top-color:#c94932;border-right-color:#c94b8a;border-radius:50%;animation:aaBusySpin .7s linear infinite}\n@keyframes aaBusySpin{to{transform:rotate(360deg)}}\n#aa-dialog-overlay{position:fixed;inset:0;z-index:12000;display:grid;place-items:center;padding:20px;background:rgba(43,29,18,.44);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);animation:aaDialogFade .16s ease-out}\n#aa-dialog-card{width:min(100%,500px);max-height:min(84vh,720px);overflow:auto;padding:25px 24px 22px;border:1px solid rgba(201,75,138,.18);border-radius:24px;background:#fffdfa;color:#4a3a2c;box-shadow:0 30px 90px rgba(40,22,13,.28),0 3px 12px rgba(201,75,138,.08);animation:aaDialogRise .18s cubic-bezier(.2,.8,.2,1)}\n.aa-dialog-heading{display:flex;align-items:flex-start;gap:14px;margin-bottom:15px}\n.aa-dialog-mark{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;border-radius:16px;background:linear-gradient(135deg,#ff9a76,#f06a4d 55%,#c94b8a);color:#fff;box-shadow:0 10px 24px rgba(201,75,138,.18)}\n.aa-dialog-mark .aa-icon{width:21px;height:21px}\n.aa-dialog-copy{min-width:0;flex:1}\n#aa-dialog-title{margin:2px 0 8px;color:#2b1d12;font:800 19px/1.25 Inter,system-ui,sans-serif;letter-spacing:-.35px}\n#aa-dialog-message{margin:0;color:#6f5b4a;font:500 13px/1.65 Inter,system-ui,sans-serif;white-space:pre-wrap;overflow-wrap:anywhere;max-height:min(42vh,360px);overflow:auto}\n#aa-dialog-input{display:block;width:100%;min-height:46px;margin:18px 0 0;padding:11px 13px;border:1px solid rgba(60,40,20,.18);border-radius:13px;background:#fff;color:#4a3a2c;font:500 14px Inter,system-ui,sans-serif;outline:none}\n#aa-dialog-input:focus{border-color:#f06a4d;box-shadow:0 0 0 3px rgba(240,106,77,.13)}\n.aa-dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:23px}\n.aa-dialog-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-width:96px;min-height:43px;padding:0 17px;border:1px solid transparent;border-radius:13px;font:800 12px Inter,system-ui,sans-serif;cursor:pointer;transition:transform .12s ease,filter .12s ease,box-shadow .12s ease}\n.aa-dialog-button:active{transform:translateY(2px) scale(.985)}\n.aa-dialog-ok{background:linear-gradient(135deg,#c94932,#b83b7d);color:#fff;box-shadow:0 12px 24px -15px #c94932,inset 0 1px 0 rgba(255,255,255,.22)}\n.aa-dialog-cancel{background:#fff6ee;border-color:rgba(60,40,20,.12);color:#6f5b4a}\n.aa-dialog-button:focus-visible{outline:3px solid rgba(201,75,138,.45);outline-offset:3px}\n@keyframes aaDialogFade{from{opacity:0}to{opacity:1}}\n@keyframes aaDialogRise{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}\nhtml[data-mode=\"dark\"] #aa-global-busy{background:#241e1a;color:#e6d9cc;border-color:rgba(217,96,156,.25);box-shadow:0 14px 36px rgba(0,0,0,.45)}\nhtml[data-mode=\"dark\"] #aa-dialog-overlay{background:rgba(8,6,5,.66)}\nhtml[data-mode=\"dark\"] #aa-dialog-card{background:#1c1816;color:#e6d9cc;border-color:rgba(217,96,156,.24);box-shadow:0 30px 90px rgba(0,0,0,.6)}\nhtml[data-mode=\"dark\"] #aa-dialog-title{color:#f7ece0}\nhtml[data-mode=\"dark\"] #aa-dialog-message{color:#c8b7a8}\nhtml[data-mode=\"dark\"] #aa-dialog-input{background:#272120;color:#e6d9cc;border-color:rgba(255,235,220,.15)}\nhtml[data-mode=\"dark\"] .aa-dialog-cancel{background:#272120;border-color:rgba(255,235,220,.12);color:#e6d9cc}\n@media(max-width:560px){#aa-dialog-overlay{padding:14px}#aa-dialog-card{padding:20px 17px 17px;border-radius:21px}#aa-dialog-title{font-size:17px}.aa-dialog-actions{margin-top:19px}.aa-dialog-button{flex:1;min-width:0}#aa-global-busy{top:78px;font-size:11px}}\n@media(prefers-reduced-motion:reduce){#aa-dialog-overlay,#aa-dialog-card{animation:none}button:not(:disabled){transition:none}#aa-global-busy .aa-busy-spinner{animation-duration:1.5s}}\n";
+  document.head.appendChild(style);
+}
+function showAdminDialog(options){
+  const opts=options||{};
+  const kind=['alert','confirm','prompt'].includes(opts.kind)?opts.kind:'alert';
+  const item={
+    kind:kind,
+    title:String(opts.title||(kind==='confirm'?'Confirm action':kind==='prompt'?'Enter details':'AegisPay notification')),
+    message:String(opts.message==null?'':opts.message),
+    defaultValue:opts.defaultValue==null?'':String(opts.defaultValue),
+    confirmText:String(opts.confirmText||(kind==='confirm'?'Confirm':kind==='prompt'?'Continue':'OK')),
+    cancelText:String(opts.cancelText||'Cancel'),
+    inputType:opts.inputType==='number'?'number':'text',
+    tone:opts.tone==='success'?'success':opts.tone==='warning'?'warning':'error',
+    resolve:null
+  };
+  return new Promise(function(resolve){item.resolve=resolve;adminDialogQueue.push(item);pumpAdminDialogQueue();});
+}
+function pumpAdminDialogQueue(){
+  if(adminDialogActive||!adminDialogQueue.length)return;
+  ensureAdminUiEnhancements();
+  adminDialogActive=true;
+  const item=adminDialogQueue.shift();
+  const previousFocus=document.activeElement;
+  const iconName=item.kind==='confirm'||item.tone==='warning'?'shield':item.kind==='prompt'?'users':item.tone==='success'?'check':'x';
+  const overlay=document.createElement('div');
+  overlay.id='aa-dialog-overlay';
+  overlay.innerHTML=
+    '<section id="aa-dialog-card" role="'+(item.kind==='alert'?'alertdialog':'dialog')+'" aria-modal="true" aria-labelledby="aa-dialog-title" aria-describedby="aa-dialog-message">'+
+      '<div class="aa-dialog-heading"><div class="aa-dialog-mark">'+ico(iconName,21)+'</div>'+
+        '<div class="aa-dialog-copy"><h2 id="aa-dialog-title">'+esc(item.title)+'</h2><p id="aa-dialog-message">'+esc(item.message)+'</p></div></div>'+
+      (item.kind==='prompt'?'<input id="aa-dialog-input" type="'+item.inputType+'" value="'+esc(item.defaultValue)+'" aria-label="'+esc(item.message||'Enter a value')+'" autocomplete="off">':'')+
+      '<div class="aa-dialog-actions">'+
+        (item.kind==='alert'?'':'<button type="button" class="aa-dialog-button aa-dialog-cancel" data-dialog-cancel>'+esc(item.cancelText)+'</button>')+
+        '<button type="button" class="aa-dialog-button aa-dialog-ok" data-dialog-ok>'+esc(item.confirmText)+'</button>'+
+      '</div></section>';
+  document.body.appendChild(overlay);
+  const okButton=overlay.querySelector('[data-dialog-ok]');
+  const cancelButton=overlay.querySelector('[data-dialog-cancel]');
+  const input=overlay.querySelector('#aa-dialog-input');
+  let settled=false;
+  function finish(value){
+    if(settled)return;settled=true;overlay.remove();adminDialogActive=false;item.resolve(value);
+    if(previousFocus&&previousFocus.isConnected&&typeof previousFocus.focus==='function'){
+      try{previousFocus.focus({preventScroll:true});}catch(_){previousFocus.focus();}
+    }
+    window.setTimeout(pumpAdminDialogQueue,0);
+  }
+  okButton.addEventListener('click',function(){finish(item.kind==='prompt'?(input?input.value:null):true);});
+  if(cancelButton)cancelButton.addEventListener('click',function(){finish(item.kind==='confirm'?false:null);});
+  overlay.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&item.kind!=='alert'){e.preventDefault();finish(item.kind==='confirm'?false:null);return;}
+    if(e.key==='Enter'&&item.kind!=='alert'&&e.target.tagName!=='TEXTAREA'){e.preventDefault();okButton.click();return;}
+    if(e.key==='Tab'){
+      const focusables=Array.from(overlay.querySelectorAll('button,input')).filter(function(el){return !el.disabled;});
+      if(!focusables.length)return;
+      const first=focusables[0],last=focusables[focusables.length-1];
+      if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+      else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+    }
+  });
+  if(input){input.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();okButton.click();}});input.focus();input.select();}
+  else if(cancelButton)cancelButton.focus();else okButton.focus();
+}
+function syncAdminBusyUi(){
+  if(!root)return;
+  let indicator=document.getElementById('aa-global-busy');
+  if(state.busy){
+    root.setAttribute('aria-busy','true');
+    root.querySelectorAll('button').forEach(function(button){button.disabled=true;});
+    if(!indicator){
+      indicator=document.createElement('div');indicator.id='aa-global-busy';indicator.setAttribute('role','status');indicator.setAttribute('aria-live','polite');
+      indicator.innerHTML='<span class="aa-busy-spinner" aria-hidden="true"></span><span>Processing securely…</span>';
+      document.body.appendChild(indicator);
+    }
+  }else{root.removeAttribute('aria-busy');if(indicator)indicator.remove();}
+}
+
 function money(v){return Number(v||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function date(v){try{return new Date(v).toLocaleString();}catch(e){return v||'—';}}
 function initials(name){return String(name||'A').trim().slice(0,1).toUpperCase()||'A';}
@@ -553,7 +640,7 @@ function telegram(){
   '</main>';
 }
 
-function fieldError(){return state.error?'<div class="aa-alert aa-alert-error">'+ico('x',15)+'<span>'+esc(state.error)+'</span></div>':'';}
+function fieldError(){return '';}
 function empty(title,sub){return '<div class="aa-empty"><div class="aa-empty-icon">'+ico('grid',20)+'</div><strong>'+esc(title)+'</strong><small>'+esc(sub)+'</small></div>'; }
 
 function content(){
@@ -585,7 +672,12 @@ function appView(){
 }
 
 function render(){
+  const pendingNotice=String(state.error||'').trim();
+  state.error='';
+  ensureAdminUiEnhancements();
   root.innerHTML=state.profile?appView():loginView();
+  syncAdminBusyUi();
+  if(pendingNotice)showAdminDialog({kind:'alert',title:state.profile?'AegisPay needs attention':'Sign-in message',message:pendingNotice,tone:'error'});
 }
 
 async function login(e){
@@ -715,7 +807,7 @@ async function setBusy(fn){
 
 async function runtime(){
   const next=!state.enabled;
-  if(!next&&!window.confirm('Pause all client access and operations now?'))return;
+  if(!next&&!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('Pause all client access and operations now?')})))return;
   await setBusy(async function(){
     await service.setAppRuntimeEnabled(next);state.enabled=next;await refreshData();
   });
@@ -735,7 +827,7 @@ async function review(el){
       const mode=state.settings.system_mode||{};
       const mainnetLive=String(mode.mode||'').toUpperCase()==='MAINNET'&&mode.real_payouts===true;
       const amount=Number(el.dataset.amount||0),destination=String(el.dataset.destination||'');
-      if(mainnetLive&&!window.confirm('REAL USDT MAINNET PAYOUT\nThis will broadcast '+amount.toFixed(2)+' USDT gross for this approved withdrawal to:\n'+destination+'\n\nOnly continue if this exact client request and destination have been reconciled and authorized. Continue?')){
+      if(mainnetLive&&!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('REAL USDT MAINNET PAYOUT\nThis will broadcast '+amount.toFixed(2)+' USDT gross for this approved withdrawal to:\n'+destination+'\n\nOnly continue if this exact client request and destination have been reconciled and authorized. Continue?')}))){
         await refreshData();return;
       }
       const p=await service.invokeFunction('execute-payout',{body:{withdrawalId:id}});
@@ -750,10 +842,10 @@ async function reconcileInvalidWithdrawal(el){
   const id=String(el.dataset.id||''),amount=Number(el.dataset.amount||0),net=Number(el.dataset.net||0),destination=String(el.dataset.destination||'');
   if(!id||!Number.isFinite(amount)||amount<=0){state.error='Invalid withdrawal reconciliation details.';render();return;}
   const confirmation='CANCEL UNBROADCAST INVALID-WALLET WITHDRAWAL\n\nRequest: '+id+'\nGross balance to restore: '+amount.toFixed(2)+' USDT\nPreviously expected net payout: '+net.toFixed(2)+' USDT\nStored destination: '+destination+'\n\nThis will mark the approved request FAILED and restore the full gross amount to the client balance. The database will allow it only if the stored address fails Base58Check, there is no TXID or payout-start timestamp, and the original balance deduction is still recorded. No transfer will be sent, and this will NOT enable production payouts.\n\nProceed only after confirming with the client that this request should be cancelled and the wallet must be corrected before they submit again.';
-  if(!window.confirm(confirmation))return;
-  const reason=window.prompt('Reconciliation reason (required for audit):','Client must confirm an exact-case TRON wallet; cancelled before broadcast and gross amount restored.');
+  if(!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:(confirmation)})))return;
+  const reason=(await showAdminDialog({kind:'prompt',title:'Enter details',message:('Reconciliation reason (required for audit):'),defaultValue:('Client must confirm an exact-case TRON wallet; cancelled before broadcast and gross amount restored.')}));
   if(reason===null)return;
-  if(reason.trim().length<10){window.alert('Please enter a clear reason of at least 10 characters.');return;}
+  if(reason.trim().length<10){(await showAdminDialog({kind:'alert',title:'AegisPay notification',message:('Please enter a clear reason of at least 10 characters.')}));return;}
   let done=null;
   await setBusy(async function(){
     const r=await service.invokeFunction('admin-account-ops',{body:{
@@ -764,12 +856,12 @@ async function reconcileInvalidWithdrawal(el){
     done=r.data;
     await refreshData();
   });
-  if(done)window.alert('Reconciliation completed. '+money(done.refund_amount)+' USDT gross has been restored to the client balance. The old request is marked FAILED. Confirm the client’s correct wallet before any new request; production payout gates remain unchanged.');
+  if(done)(await showAdminDialog({kind:'alert',title:'AegisPay notification',message:('Reconciliation completed. '+money(done.refund_amount)+' USDT gross has been restored to the client balance. The old request is marked FAILED. Confirm the client’s correct wallet before any new request; production payout gates remain unchanged.')}));
 }
 async function payout(el){
   const mode=state.settings.system_mode||{};
   const mainnetLive=String(mode.mode||'').toUpperCase()==='MAINNET'&&mode.real_payouts===true;
-  if(mainnetLive&&!window.confirm('REAL USDT MAINNET PAYOUT\nAmount: '+Number(el.dataset.amount||0).toFixed(2)+' USDT gross\nDestination: '+String(el.dataset.destination||'')+'\n\nThis action can broadcast an irreversible mainnet transfer. Confirm the TXID/history has been reconciled and this payout is authorized. Continue?'))return;
+  if(mainnetLive&&!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('REAL USDT MAINNET PAYOUT\nAmount: '+Number(el.dataset.amount||0).toFixed(2)+' USDT gross\nDestination: '+String(el.dataset.destination||'')+'\n\nThis action can broadcast an irreversible mainnet transfer. Confirm the TXID/history has been reconciled and this payout is authorized. Continue?')})))return;
   await setBusy(async function(){
     const r=await service.invokeFunction('execute-payout',{body:{withdrawalId:el.dataset.id}});
     if(r.error)throw r.error;
@@ -801,7 +893,7 @@ async function userStatus(el){
 async function balanceAdjust(el){
   const type=String(el.dataset.type||'CREDIT').toUpperCase();
   const label=type==='CREDIT'?'Add Credit':'Remove Credit';
-  const amount=Number(window.prompt(label+' — amount in USDT','55'));
+  const amount=Number((await showAdminDialog({kind:'prompt',title:'Enter details',message:(label+' — amount in USDT'),defaultValue:('55')})));
   if(!Number.isFinite(amount)||amount<=0){state.error='Enter a positive USDT amount.';render();return;}
   await setBusy(async function(){
     const reason=type==='CREDIT'?'MASTER ADMIN CREDIT':'MASTER ADMIN REVERSAL';
@@ -817,9 +909,9 @@ async function balanceAdjust(el){
 async function profileEdit(el){
   const u=state.users.find(function(x){return x.id===el.dataset.id;});
   if(!u)return;
-  const name=window.prompt('Full name',u.name||'');
+  const name=(await showAdminDialog({kind:'prompt',title:'Enter details',message:('Full name'),defaultValue:(u.name||'')}));
   if(name===null)return;
-  const username=window.prompt('Username',u.username||'');
+  const username=(await showAdminDialog({kind:'prompt',title:'Enter details',message:('Username'),defaultValue:(u.username||'')}));
   if(username===null)return;
   await setBusy(async function(){
     const r=await service.invokeFunction('admin-account-ops',{body:{action:'profile',userId:el.dataset.id,name:name.trim(),username:username.trim().toLowerCase()}});
@@ -831,7 +923,7 @@ async function profileEdit(el){
 async function userRemove(el){
   const u=state.users.find(function(x){return x.id===el.dataset.id;});
   if(!u)return;
-  if(!window.confirm('Remove '+(u.name||'this user')+' from active client accounts?'))return;
+  if(!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('Remove '+(u.name||'this user')+' from active client accounts?')})))return;
   await setBusy(async function(){
     const r=await service.invokeFunction('admin-account-ops',{body:{action:'remove',userId:el.dataset.id}});
     if(r.error)throw r.error;
@@ -839,7 +931,7 @@ async function userRemove(el){
   });
 }
 async function walletChange(el){
-  const wallet=String(window.prompt('New TRC20 withdrawal wallet address','')||'').trim();
+  const wallet=String((await showAdminDialog({kind:'prompt',title:'Enter details',message:('New TRC20 withdrawal wallet address'),defaultValue:('')}))||'').trim();
   if(!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(wallet)){state.error='Enter a valid TRC20 wallet address.';render();return;}
   await setBusy(async function(){
     const r=await service.invokeFunction('admin-account-ops',{body:{action:'wallet',userId:el.dataset.id,wallet}});
@@ -906,7 +998,7 @@ async function saveWithdrawalAILimit(){
 async function toggleWithdrawalAI(){
   const current=state.settings.withdrawal_ai||{};
   const enabled=current.enabled!==true;
-  if(enabled&&!window.confirm('Turn ON automatic withdrawal eligibility approvals? Only strict low-risk policy checks can pass; low-confidence, high-risk and payout-gate cases stay in the Master Admin queue.'))return;
+  if(enabled&&!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('Turn ON automatic withdrawal eligibility approvals? Only strict low-risk policy checks can pass; low-confidence, high-risk and payout-gate cases stay in the Master Admin queue.')})))return;
   const cap=Number(document.getElementById('setWithdrawalAICap')?.value||current.max_auto_approve_usdt||100);
   await setBusy(async function(){
     const r=await service.invokeFunction('withdrawal-ai-review',{body:{
@@ -991,10 +1083,10 @@ async function updateSupportCase(el){
   if(!id||!['IN_PROGRESS','RESOLVED','CLOSED'].includes(status))return;
   let resolution='';
   if(status==='RESOLVED'||status==='CLOSED'){
-    resolution=window.prompt('Enter the resolution note for this support case:',status==='RESOLVED'?'Reviewed and resolved by Master Admin':'Case closed after review');
+    resolution=(await showAdminDialog({kind:'prompt',title:'Enter details',message:('Enter the resolution note for this support case:'),defaultValue:(status==='RESOLVED'?'Reviewed and resolved by Master Admin':'Case closed after review')}));
     if(resolution===null)return;
     resolution=resolution.trim();
-    if(!resolution){window.alert('Please enter a resolution note.');return;}
+    if(!resolution){(await showAdminDialog({kind:'alert',title:'AegisPay notification',message:('Please enter a resolution note.')}));return;}
   }
   await setBusy(async function(){
     const r=await service.invokeFunction('ai-support',{body:{action:'admin_update_case',caseId:id,status:status,resolution:resolution}});
@@ -1004,16 +1096,25 @@ async function updateSupportCase(el){
   });
 }
 async function runMainnetHdPreflight(){
-  if(!window.confirm('Run the locked Mainnet HD wallet preflight? It will consume one derivation index so that the candidate is never reused, but will not create a wallet record, reveal an address/private key, or send funds. Production flags must remain OFF and payout lock CLOSED.'))return;
+  if(!(await showAdminDialog({kind:'confirm',title:'Run locked Mainnet HD preflight?',message:'This check consumes one derivation index so the candidate is never reused. It will not create a wallet record, reveal an address/private key, or send funds. Production flags must remain OFF and the payout lock CLOSED.',confirmText:'Run preflight',cancelText:'Cancel',tone:'warning'})))return;
+  let preflightNotice=null,preflightTone='warning';
   await setBusy(async function(){
     const r=await service.invokeFunction('production-readiness',{body:{action:'mainnet_wallet_preflight'}});
     if(r.error)throw r.error;
     state.mainnetHdPreflight=r.data||null;
     if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='BLOCKED'){
-      state.error=state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.';
+      preflightNotice=state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.';
+      preflightTone='warning';
+    }else if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='PASS'){
+      preflightNotice='Mainnet HD preflight passed. No wallet record was created and no funds were moved. Production flags remain OFF and the payout lock remains CLOSED.';
+      preflightTone='success';
+    }else if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='FAIL'){
+      preflightNotice='Mainnet HD preflight failed. Review the failed checks shown in Production Readiness before proceeding.';
+      preflightTone='error';
     }
     await refreshData();
   });
+  if(preflightNotice)await showAdminDialog({kind:'alert',title:preflightTone==='success'?'Preflight complete':preflightTone==='warning'?'Preflight blocked':'Preflight failed',message:preflightNotice,tone:preflightTone});
 }
 
 async function saveProductionConfig(e){
@@ -1031,11 +1132,11 @@ async function saveProductionConfig(e){
         if(unresolved.length)throw new Error('Live payouts are blocked: '+unresolved.length+' approved/processing withdrawal(s) have no TXID. Reconcile the oldest request ('+unresolved[0].id+') for '+money(unresolved[0].net_amount)+' USDT net before enabling production payouts.');
         throw new Error('Production payout operations are not ready. Configure the required server-side secrets and complete the readiness checks before enabling real payouts.');
       }
-      if(!window.confirm('You are changing a production payout control. Continue only after server-side payout secrets and operational smoke tests are verified.'))return;
+      if(!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('You are changing a production payout control. Continue only after server-side payout secrets and operational smoke tests are verified.')})))return;
     } else if(!locked&&goLive){
-      if(!window.confirm('You are opening the production payout lock or approving go-live. Real payout execution will remain server-gated until the full readiness check passes. Continue?'))return;
+      if(!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('You are opening the production payout lock or approving go-live. Real payout execution will remain server-gated until the full readiness check passes. Continue?')})))return;
     }
-    if(payouts&&!window.confirm('FINAL CONFIRMATION: enable REAL PAYOUT execution?'))return;
+    if(payouts&&!(await showAdminDialog({kind:'confirm',title:'Confirm action',message:('FINAL CONFIRMATION: enable REAL PAYOUT execution?')})))return;
     const r=await service.invokeFunction('production-readiness',{body:{
       action:'update',
       environment:env,
@@ -1082,6 +1183,9 @@ root.addEventListener('submit',function(e){
 root.addEventListener('keydown',function(e){
   if(e.target&&e.target.id==='aaSupportChatInput'&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();const button=root.querySelector('[data-action="support-chat-send"]');if(button)sendSupportChatMessage(button);}
 });
+root.addEventListener('pointerdown',function(e){const button=e.target.closest('button');if(button&&!button.disabled)button.classList.add('aa-button-pressed');});
+root.addEventListener('pointerup',function(e){const button=e.target.closest('button');if(button)window.setTimeout(function(){button.classList.remove('aa-button-pressed');},90);});
+root.addEventListener('pointercancel',function(e){const button=e.target.closest('button');if(button)button.classList.remove('aa-button-pressed');});
 root.addEventListener('click',function(e){
   const el=e.target.closest('[data-action]');if(!el)return;
   const action=el.dataset.action;
