@@ -1103,7 +1103,19 @@ async function runMainnetHdPreflight(){
     if(r.error)throw r.error;
     state.mainnetHdPreflight=r.data||null;
     if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='BLOCKED'){
-      preflightNotice=state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.';
+      const failedCheckLabels={
+        gatesIntentionallyClosed:'Environment must be PRE_PRODUCTION; live deposits, real payouts, and go-live approval OFF; payout lock CLOSED',
+        officialMainnetUsdtContract:'Official TRON Mainnet USDT contract and Mainnet receiving configuration',
+        treasurySignerMatchesConfiguredAddress:'Mainnet signer key must match the configured treasury address',
+        networkSecretsSeparated:'Mainnet, Shasta, and withdrawal HD secrets must be safely separated and valid',
+        payoutAndMonitoringPrerequisitesReady:'Payout/monitoring prerequisites: TRONGrid, Telegram approvals, runtime, withdrawal HD wallet, and reconciled payout TXIDs',
+        configuredMainnetHdMnemonicPresent:'Mainnet HD mnemonic must be configured'
+      };
+      const failedChecks=Object.entries(state.mainnetHdPreflight.checks||{})
+        .filter(function(entry){return entry[1]!==true;})
+        .map(function(entry){return '• '+(failedCheckLabels[entry[0]]||entry[0])+': '+String(entry[1]);});
+      preflightNotice=(state.mainnetHdPreflight.error||'Preflight is blocked; no wallet was created.')
+        +(failedChecks.length?'\\n\\nExact checks needing attention:\\n'+failedChecks.join('\\n'):'\\n\\nNo individual failed check was returned. Open Production Readiness diagnostics for the server-side prerequisite summary.');
       preflightTone='warning';
     }else if(state.mainnetHdPreflight&&state.mainnetHdPreflight.status==='PASS'){
       preflightNotice='Mainnet HD preflight passed. No wallet record was created and no funds were moved. Production flags remain OFF and the payout lock remains CLOSED.';
