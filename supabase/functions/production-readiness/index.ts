@@ -208,7 +208,7 @@ const withdrawalPayoutSeedDistinct=Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()
    const [mainnetHdRootCheck,shastaHdRootCheck,withdrawalPayoutHdCheck]=await Promise.all([
     hdRootFingerprintStatus(admin,"TRON MAINNET",MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE),
     hdRootFingerprintStatus(admin,"TRON TESTNET",SHASTA_HD_MNEMONIC,SHASTA_HD_PASSPHRASE),
-    withdrawalPayoutSeedDistinct?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE):Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false})
+    withdrawalPayoutSeedDistinct?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE):Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:"SEED_MISSING_OR_NOT_DISTINCT",wordCount:0})
    ]);
   // Diagnostics disclose only presence/status and selected alias names, never key values or derived addresses.
   const keyDiagnostics={
