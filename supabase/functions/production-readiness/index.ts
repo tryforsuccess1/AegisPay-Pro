@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
-import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
+import { deriveTronHdBranchIdentity, deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 import { checkWithdrawalPayoutHdConfig } from "../_shared/withdrawal-payout-wallet.ts";
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL"), SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY=Deno.env.get("TRONGRID_API_KEY"), CRON_SECRET=Deno.env.get("AEGIS_CRON_SECRET");
@@ -61,13 +61,67 @@ function safeHdDerivationErrorCode(error:unknown):string {
     return "DERIVED_KEY_VALIDATION_FAILED";
   return "TRONWEB_HD_DERIVATION_REJECTED";
 }
-async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
-  const normalized=String(mnemonic||"").trim().replace(/\s+/g," ");
+const MAINNET_WITHDRAWAL_HD_PARENT_INDEX = 3;
+const MAINNET_WITHDRAWAL_HD_PARENT_ADDRESS = "TF3zkmiFcctpx7c2J9TZZBSV8Vnnd1NWy";
+type WithdrawalPayoutHdStatus = {
+  rootDerivationValid: boolean;
+  childDerivationValid: boolean;
+  rootFingerprintConsistent: boolean;
+  parentAddressMatches: boolean | null;
+  errorCode: string;
+  wordCount: number;
+  strategy: "DEDICATED_ROOT" | "SHARED_MAINNET_ROOT_BRANCH_3" | "UNKNOWN";
+};
+async function withdrawalPayoutHdStatus(
+  mnemonic:string,
+  passphrase:string,
+  sharedMainnetRoot:boolean,
+):Promise<WithdrawalPayoutHdStatus> {
+  const normalized=String(mnemonic||"").trim().replace(/\\s+/g," ");
   const wordCount=normalized?normalized.split(" ").filter(Boolean).length:0;
-  const failed:{rootDerivationValid:boolean;childDerivationValid:boolean;rootFingerprintConsistent:boolean;errorCode:string;wordCount:number}={rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:"UNKNOWN",wordCount};
+  const failed:WithdrawalPayoutHdStatus={
+    rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,
+    parentAddressMatches:sharedMainnetRoot?false:null,errorCode:"UNKNOWN",wordCount,
+    strategy:sharedMainnetRoot?"SHARED_MAINNET_ROOT_BRANCH_3":"DEDICATED_ROOT",
+  };
   if(!normalized)return {...failed,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount};
   let root:any=null,child:any=null;
   try {
+    if(sharedMainnetRoot) {
+      try {
+        root=await deriveTronHdIdentity(normalized,passphrase,MAINNET_WITHDRAWAL_HD_PARENT_INDEX);
+      } catch(error) {
+        return {...failed,errorCode:safeHdDerivationErrorCode(error),wordCount};
+      }
+      const parentAddressMatches=String(root.address||"")===MAINNET_WITHDRAWAL_HD_PARENT_ADDRESS;
+      const rootValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(root.address||""))&&parentAddressMatches;
+      if(!rootValid) {
+        return {...failed,parentAddressMatches,errorCode:"WITHDRAWAL_BRANCH_PARENT_ADDRESS_MISMATCH",wordCount};
+      }
+      try {
+        child=await deriveTronHdBranchIdentity(normalized,passphrase,MAINNET_WITHDRAWAL_HD_PARENT_INDEX,1);
+      } catch(error) {
+        return {
+          ...failed,rootDerivationValid:true,parentAddressMatches,childDerivationValid:false,
+          errorCode:safeHdDerivationErrorCode(error),wordCount,
+        };
+      }
+      const childValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(child.address||""))
+        &&/^[a-fA-F0-9]{64}$/.test(String(child.privateKey||""))
+        &&TronWeb.address.fromPrivateKey(child.privateKey)===child.address;
+      const digest=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(String(root.address)));
+      const expectedParentFingerprint=Array.from(new Uint8Array(digest)).map((byte)=>byte.toString(16).padStart(2,"0")).join("");
+      const fingerprintConsistent=Boolean(child.rootFingerprint)&&child.rootFingerprint===expectedParentFingerprint;
+      return {
+        rootDerivationValid:true,
+        childDerivationValid:childValid,
+        rootFingerprintConsistent:fingerprintConsistent,
+        parentAddressMatches,
+        errorCode:!childValid?"DERIVED_KEY_VALIDATION_FAILED":!fingerprintConsistent?"ROOT_FINGERPRINT_MISMATCH":"SHARED_MAINNET_ROOT_BRANCH_READY",
+        wordCount,
+        strategy:"SHARED_MAINNET_ROOT_BRANCH_3",
+      };
+    }
     try {
       root=await deriveTronHdIdentity(normalized,passphrase,0);
     } catch(error) {
@@ -78,7 +132,7 @@ async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
     try {
       child=await deriveTronHdIdentity(normalized,passphrase,1);
     } catch(error) {
-      return {rootDerivationValid:true,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:safeHdDerivationErrorCode(error),wordCount};
+      return { ...failed,rootDerivationValid:true,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:safeHdDerivationErrorCode(error),wordCount };
     }
     const childValid=/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(String(child.address||""))
       &&/^[a-fA-F0-9]{64}$/.test(String(child.privateKey||""))
@@ -88,8 +142,10 @@ async function withdrawalPayoutHdStatus(mnemonic:string,passphrase:string) {
       rootDerivationValid:true,
       childDerivationValid:childValid,
       rootFingerprintConsistent:fingerprintConsistent,
+      parentAddressMatches:null,
       errorCode:!childValid?"DERIVED_KEY_VALIDATION_FAILED":!fingerprintConsistent?"ROOT_FINGERPRINT_MISMATCH":"OK",
       wordCount,
+      strategy:"DEDICATED_ROOT",
     };
   } catch(error) {
     return {...failed,errorCode:safeHdDerivationErrorCode(error),wordCount};
@@ -213,23 +269,37 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
    const withdrawalPayoutSeedMatchesShasta=withdrawalPayoutHdConfig.matchesShastaSeed;
    const withdrawalPayoutSeedDistinct=withdrawalPayoutHdConfig.distinctFromDepositSeed
     &&withdrawalPayoutHdConfig.distinctFromShastaSeed;
+   const withdrawalPayoutSharedMainnetRoot=withdrawalPayoutSeedPresent
+    &&withdrawalPayoutSeedMatchesMainnet&&!withdrawalPayoutSeedMatchesShasta;
    const withdrawalPayoutModeEnabled=withdrawalPayoutHdConfig.modeEnabled;
    const [mainnetHdRootCheck,shastaHdRootCheck,withdrawalPayoutHdCheck]=await Promise.all([
     hdRootFingerprintStatus(admin,"TRON MAINNET",MAINNET_HD_MNEMONIC,MAINNET_HD_PASSPHRASE),
     hdRootFingerprintStatus(admin,"TRON TESTNET",SHASTA_HD_MNEMONIC,SHASTA_HD_PASSPHRASE),
     withdrawalPayoutSeedPresent
-      ?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE)
-      :Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount:0})
+      ?withdrawalPayoutHdStatus(MAINNET_WITHDRAWAL_HD_MNEMONIC,MAINNET_WITHDRAWAL_HD_PASSPHRASE,withdrawalPayoutSharedMainnetRoot)
+      :Promise.resolve({rootDerivationValid:false,childDerivationValid:false,rootFingerprintConsistent:false,parentAddressMatches:null,errorCode:"MNEMONIC_SECRET_EMPTY",wordCount:0,strategy:"UNKNOWN" as const})
    ]);
-   // Report the concrete seed relation before the generic derivation status. Only
-   // booleans, a coarse status code and word count are returned—never secret text.
+   const withdrawalPayoutDedicatedRootReady=withdrawalPayoutSeedDistinct
+    &&withdrawalPayoutHdCheck.strategy==="DEDICATED_ROOT"
+    &&withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid
+    &&withdrawalPayoutHdCheck.rootFingerprintConsistent;
+   const withdrawalPayoutSharedBranchReady=withdrawalPayoutSharedMainnetRoot
+    &&withdrawalPayoutHdCheck.strategy==="SHARED_MAINNET_ROOT_BRANCH_3"
+    &&withdrawalPayoutHdCheck.parentAddressMatches===true
+    &&withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid
+    &&withdrawalPayoutHdCheck.rootFingerprintConsistent;
+   const withdrawalPayoutStrategyReady=withdrawalPayoutDedicatedRootReady||withdrawalPayoutSharedBranchReady;
+   // Only status codes/booleans/word count are exposed. Root sharing is explicit:
+   // the existing Mainnet root is reused under the reserved /3 account branch.
    const withdrawalPayoutHdDiagnosticCode=!withdrawalPayoutSeedPresent
     ?"WITHDRAWAL_SEED_MISSING"
-    :withdrawalPayoutSeedMatchesMainnet
-      ?"WITHDRAWAL_SEED_MATCHES_MAINNET_DEPOSIT"
-      :withdrawalPayoutSeedMatchesShasta
-        ?"WITHDRAWAL_SEED_MATCHES_SHASTA_TESTNET"
-        :withdrawalPayoutHdCheck.errorCode;
+    :withdrawalPayoutSeedMatchesShasta
+      ?"WITHDRAWAL_SEED_MATCHES_SHASTA_TESTNET"
+      :withdrawalPayoutSharedBranchReady
+        ?"SHARED_MAINNET_ROOT_BRANCH_READY"
+        :withdrawalPayoutSharedMainnetRoot
+          ?withdrawalPayoutHdCheck.errorCode
+          :withdrawalPayoutHdCheck.errorCode;
   // Diagnostics disclose only presence/status and selected alias names, never key values or derived addresses.
   const keyDiagnostics={
    mainnet_primary_alias_present:Boolean(MAINNET_TREASURY_KEY_ALIAS),
@@ -283,6 +353,9 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
     mainnet_withdrawal_payout_hd_seed_distinct_from_deposit_and_shasta:withdrawalPayoutSeedDistinct,
     mainnet_withdrawal_payout_hd_seed_matches_mainnet_deposit:withdrawalPayoutSeedMatchesMainnet,
     mainnet_withdrawal_payout_hd_seed_matches_shasta:withdrawalPayoutSeedMatchesShasta,
+    mainnet_withdrawal_payout_hd_strategy:withdrawalPayoutSharedBranchReady?"SHARED_MAINNET_ROOT_BRANCH_3":withdrawalPayoutDedicatedRootReady?"DEDICATED_WITHDRAWAL_ROOT":"NOT_READY",
+    mainnet_withdrawal_payout_hd_parent_address_matches:withdrawalPayoutHdCheck.parentAddressMatches,
+    mainnet_withdrawal_payout_hd_strategy_ready:withdrawalPayoutStrategyReady,
     mainnet_withdrawal_payout_hd_root_derivation_valid:withdrawalPayoutHdCheck.rootDerivationValid,
     mainnet_withdrawal_payout_hd_child_derivation_valid:withdrawalPayoutHdCheck.childDerivationValid,
     mainnet_withdrawal_payout_hd_root_fingerprint_consistent:withdrawalPayoutHdCheck.rootFingerprintConsistent,
@@ -292,8 +365,7 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
   const payoutKeysSafelySeparated= !mainnetAliasConflict&&!shastaAliasConflict
    &&mainnetShastaSelectedKeysDistinct&&treasuryAddressesDistinct&&shastaRulesConfigOk
    &&mainnetSignerCheck.matches&&shastaSignerCheck.matches;
-   const withdrawalPayoutWalletReady=withdrawalPayoutModeEnabled&&withdrawalPayoutFeeCapValid&&withdrawalPayoutSeedDistinct
-    &&withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid&&withdrawalPayoutHdCheck.rootFingerprintConsistent;
+   const withdrawalPayoutWalletReady=withdrawalPayoutModeEnabled&&withdrawalPayoutFeeCapValid&&withdrawalPayoutStrategyReady;
    const networkSecretsSafelySeparated=payoutKeysSafelySeparated
     &&!mainnetHdMnemonicAliasConflict&&!shastaHdMnemonicAliasConflict
     &&!mainnetHdPassphraseAliasConflict&&!shastaHdPassphraseAliasConflict
@@ -364,7 +436,7 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
        noUnreconciledPayouts:unresolvedPayoutsClear,
        mainnetWithdrawalPayoutHdSeedConfigured:Boolean(MAINNET_WITHDRAWAL_HD_MNEMONIC.trim()),
        mainnetWithdrawalPayoutModeEnabled:withdrawalPayoutModeEnabled,
-       mainnetWithdrawalPayoutHdSeedDistinct:withdrawalPayoutSeedDistinct,
+       mainnetWithdrawalPayoutHdStrategyReady:withdrawalPayoutStrategyReady,
        mainnetWithdrawalPayoutFeeCapValid:withdrawalPayoutFeeCapValid,
        mainnetWithdrawalPayoutHdDerivationValid:Boolean(withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid&&withdrawalPayoutHdCheck.rootFingerprintConsistent),
        mainnetAndShastaSignerKeysDistinct:payoutKeysSafelySeparated,
