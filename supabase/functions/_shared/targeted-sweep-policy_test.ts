@@ -15,6 +15,7 @@ const source = {
   network: "TRON TESTNET",
   tokenContract: token,
   receivingAddress: address,
+  senderAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz",
 };
 const transfer = {
   txid,
@@ -27,6 +28,12 @@ const transfer = {
   from: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz",
   blockTimestamp: 1793210000000,
 };
+function expectCode(input: Parameters<typeof validateTargetedDepositSweep>[0], expected: string) {
+  const result = validateTargetedDepositSweep(input);
+  assertEquals(result.ok, false);
+  if (!result.ok) assertEquals(result.code, expected);
+}
+
 function base(overrides: Record<string, unknown> = {}) {
   return {
     walletId,
@@ -81,36 +88,38 @@ Deno.test("targets only the verified 500 USDT deposit when wallet has 1,500 USDT
 });
 
 Deno.test("rejects a source that is not VERIFIED or not TronGrid verified", () => {
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, status: "PENDING" } })).code, "DEPOSIT_NOT_VERIFIED_BY_TRONGRID");
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, verificationSource: "Manual" } })).code, "DEPOSIT_NOT_VERIFIED_BY_TRONGRID");
+  expectCode(base({ source: { ...source, status: "PENDING" } }), "DEPOSIT_NOT_VERIFIED_BY_TRONGRID");
+  expectCode(base({ source: { ...source, verificationSource: "Manual" } }), "DEPOSIT_NOT_VERIFIED_BY_TRONGRID");
 });
 
 Deno.test("rejects source identity, network, token, and receiving-address mismatches", () => {
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, txid: "b".repeat(64) } })).code, "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, walletId: "another-wallet" } })).code, "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, network: "TRON MAINNET" } })).code, "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" } })).code, "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ source: { ...source, receivingAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz" } })).code, "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ network: "TRON MAINNET" })).code, "TARGET_NETWORK_OR_TOKEN_INVALID");
-  assertEquals(validateTargetedDepositSweep(base({ tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" })).code, "TARGET_NETWORK_OR_TOKEN_INVALID");
+  expectCode(base({ source: { ...source, txid: "b".repeat(64) } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, walletId: "another-wallet" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, network: "TRON MAINNET" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, receivingAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, senderAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz".replace("TY", "TZ") } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, from: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz".replace("TY", "TZ") }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ network: "TRON MAINNET" }), "TARGET_NETWORK_OR_TOKEN_INVALID");
+  expectCode(base({ tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" }), "TARGET_NETWORK_OR_TOKEN_INVALID");
 });
 
 Deno.test("rejects invalid, missing, duplicate, or mismatched on-chain transfers", () => {
-  assertEquals(validateTargetedDepositSweep(base({ targetTxid: "bad" })).code, "TARGET_TXID_INVALID");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [] })).code, "TARGET_TRANSFER_NOT_UNIQUELY_CONFIRMED");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [transfer, transfer] })).code, "TARGET_TRANSFER_NOT_UNIQUELY_CONFIRMED");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [{ ...transfer, success: false }] })).code, "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [{ ...transfer, type: "Approval" }] })).code, "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [{ ...transfer, decimals: 18 }] })).code, "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [{ ...transfer, to: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz" }] })).code, "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [{ ...transfer, contract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" }] })).code, "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
-  assertEquals(validateTargetedDepositSweep(base({ transfers: [{ ...transfer, rawAmount: "100000001" }] })).code, "TARGET_TRANSFER_AMOUNT_MISMATCH");
+  expectCode(base({ targetTxid: "bad" }), "TARGET_TXID_INVALID");
+  expectCode(base({ transfers: [] }), "TARGET_TRANSFER_NOT_UNIQUELY_CONFIRMED");
+  expectCode(base({ transfers: [transfer, transfer] }), "TARGET_TRANSFER_NOT_UNIQUELY_CONFIRMED");
+  expectCode(base({ transfers: [{ ...transfer, success: false }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, type: "Approval" }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, decimals: 18 }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, to: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz" }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, contract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, rawAmount: "100000001" }] }), "TARGET_TRANSFER_AMOUNT_MISMATCH");
 });
 
 Deno.test("rejects insufficient balance, repeated source, and unresolved sweep journal", () => {
-  assertEquals(validateTargetedDepositSweep(base({ balanceRaw: "99999999" })).code, "TOKEN_BALANCE_BELOW_TARGET_AMOUNT");
-  assertEquals(validateTargetedDepositSweep(base({ alreadySwept: true })).code, "TARGET_DEPOSIT_ALREADY_SWEPT");
-  assertEquals(validateTargetedDepositSweep(base({ pendingSweep: true })).code, "WALLET_HAS_PENDING_SWEEP");
+  expectCode(base({ balanceRaw: "99999999" }), "TOKEN_BALANCE_BELOW_TARGET_AMOUNT");
+  expectCode(base({ alreadySwept: true }), "TARGET_DEPOSIT_ALREADY_SWEPT");
+  expectCode(base({ pendingSweep: true }), "WALLET_HAS_PENDING_SWEEP");
 });
 
 Deno.test("surplus unverified faucet balance and other deposits never increase target amount", () => {
