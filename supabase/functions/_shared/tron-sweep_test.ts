@@ -95,6 +95,9 @@ Deno.test("sweep fallback simulation requires successful TVM execution", () => {
   assertEquals(isSuccessfulSweepSimulation({ result: { result: false }, transaction: { ret: [{ ret: "SUCCESS" }] } }), false);
   assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [] } }), false);
   assertEquals(isSuccessfulSweepSimulation({ result: { result: true } }), false);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [{}] } }), false);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [{ ret: "SUCCESS" }, { ret: "FAILED" }] } }), false);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [{ ret: "success" }] } }), true);
   assertEquals(isSuccessfulSweepSimulation(null), false);
 });
 
