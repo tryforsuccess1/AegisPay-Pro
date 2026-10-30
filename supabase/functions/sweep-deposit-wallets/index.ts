@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, getAvailableBandwidth, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
 import { loadShastaTestRules, shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -191,9 +191,12 @@ async function hasSufficientResources(client: any, address: string) {
   const balance = Number(trxBalance);
   if (!Number.isFinite(balance) || balance < 0) return { ok: false, code: "TRX_BALANCE_UNAVAILABLE" };
   const energy = Math.max(0, Number(resources?.EnergyLimit || 0) - Number(resources?.EnergyUsed || 0));
-  const stakedBandwidth = Math.max(0, Number(resources?.NetLimit || 0) - Number(resources?.NetUsed || 0));
-  const freeBandwidth = Math.max(0, Number(resources?.freeNetLimit || 0) - Number(resources?.freeNetUsed || 0));
-  const bandwidth = stakedBandwidth + freeBandwidth;
+  const bandwidth = getAvailableBandwidth(
+    Number(resources?.NetLimit ?? 0),
+    Number(resources?.NetUsed ?? 0),
+    Number(resources?.freeNetLimit ?? 0),
+    Number(resources?.freeNetUsed ?? 0),
+  );
   if (hasEnoughSweepResources(balance, energy, bandwidth, MIN_TRX_FOR_SWEEP_SUN, MIN_ENERGY_FOR_SWEEP, MIN_BANDWIDTH_FOR_SWEEP, MIN_TRX_WITH_ENERGY_SUN)) {
     return { ok: true, code: balance >= MIN_TRX_FOR_SWEEP_SUN ? "TRX_FEE_RESERVE_READY" : "ENERGY_AND_BANDWIDTH_READY" };
   }
