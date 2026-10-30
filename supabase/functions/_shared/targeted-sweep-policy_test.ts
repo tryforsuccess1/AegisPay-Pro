@@ -5,6 +5,8 @@ const walletId = "wallet-100";
 const address = "TY2u8sfvVN4UeS19dMw7udrqGrznk4L3yc";
 const txid = "90ddb11963ef7ac9a45172ff95d0acd736febaff6dc245615b7807c8daeaf73c";
 const token = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
+const sender100 = "TH7NgA7G17X4hm88SPL9TPptnmsSx7PbMR";
+const sender500 = "TCkcBVw2iKVVtWakjrDCCaBXz75RJxTjt7";
 const source = {
   id: "deposit-100",
   txid,
@@ -15,7 +17,7 @@ const source = {
   network: "TRON TESTNET",
   tokenContract: token,
   receivingAddress: address,
-  senderAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz",
+  senderAddress: sender100,
 };
 const transfer = {
   txid,
@@ -25,7 +27,7 @@ const transfer = {
   success: true,
   decimals: 6,
   type: "Transfer",
-  from: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz",
+  from: sender100,
   blockTimestamp: 1793210000000,
 };
 function expectCode(input: Parameters<typeof validateTargetedDepositSweep>[0], expected: string) {
@@ -75,12 +77,14 @@ Deno.test("targets only the verified 500 USDT deposit when wallet has 1,500 USDT
       rawAmount: "500000000",
       walletId: "wallet-500",
       receivingAddress: fiveHundredAddress,
+      senderAddress: sender500,
     },
     transfers: [{
       ...transfer,
       txid: fiveHundredTxid,
       rawAmount: "500000000",
       to: fiveHundredAddress,
+      from: sender500,
     }],
   }));
   assertEquals(result.ok, true);
@@ -98,8 +102,8 @@ Deno.test("rejects source identity, network, token, and receiving-address mismat
   expectCode(base({ source: { ...source, network: "TRON MAINNET" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
   expectCode(base({ source: { ...source, tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
   expectCode(base({ source: { ...source, receivingAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  expectCode(base({ source: { ...source, senderAddress: address } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  expectCode(base({ transfers: [{ ...transfer, from: address }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
+  expectCode(base({ source: { ...source, senderAddress: sender500 } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ transfers: [{ ...transfer, from: sender500 }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
   expectCode(base({ network: "TRON MAINNET" }), "TARGET_NETWORK_OR_TOKEN_INVALID");
   expectCode(base({ tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" }), "TARGET_NETWORK_OR_TOKEN_INVALID");
 });
