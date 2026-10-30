@@ -56,6 +56,21 @@ export function hasEnoughSweepResources(
       && availableBandwidth >= minimumBandwidth);
 }
 
+export function getAvailableBandwidth(
+  netLimit: number,
+  netUsed: number,
+  freeNetLimit: number,
+  freeNetUsed: number,
+): number {
+  const values = [netLimit, netUsed, freeNetLimit, freeNetUsed];
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) return 0;
+  const stakedBandwidth = Math.max(0, netLimit - netUsed);
+  const freeBandwidth = Math.max(0, freeNetLimit - freeNetUsed);
+  // TRON does not combine the staked/delegated and free Bandwidth pools
+  // to cover one transaction. Use the strongest single source only.
+  return Math.max(stakedBandwidth, freeBandwidth);
+}
+
 function hexTail(value: unknown): string {
   return String(value || "").replace(/^0x/i, "").toLowerCase().slice(-40);
 }
