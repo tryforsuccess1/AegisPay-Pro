@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals, assertRejects } from "jsr:@std/assert@1.0.14";
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, getAvailableBandwidth, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
 
 const txid = "a".repeat(64);
 const signed = { txID: txid, raw_data: { expiration: 2_000_000_000_000 }, signature: ["test-signature"] };
@@ -63,6 +63,13 @@ Deno.test("resource guard requires TRX reserve or energy plus bandwidth", () => 
   assertEquals(hasEnoughSweepResources(minimumTrxWithResources, minimumEnergy, minimumBandwidth, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), true);
   assertEquals(hasEnoughSweepResources(Number.NaN, 200_000, 2_000, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
   assertEquals(hasEnoughSweepResources(minimumTrxWithResources, 200_000, Number.NaN, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
+});
+
+Deno.test("TRON Bandwidth sources are checked independently and never added together", () => {
+  assertEquals(getAvailableBandwidth(500, 0, 600, 0), 600);
+  assertEquals(getAvailableBandwidth(1_200, 200, 600, 100), 1_000);
+  assertEquals(getAvailableBandwidth(0, 0, 600, 100), 500);
+  assertEquals(getAvailableBandwidth(Number.NaN, 0, 600, 0), 0);
 });
 
 Deno.test("successful receipt requires an exact contract, recipient and raw amount", () => {
