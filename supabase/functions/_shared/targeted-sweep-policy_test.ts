@@ -24,6 +24,8 @@ const transfer = {
   success: true,
   decimals: 6,
   type: "Transfer",
+  from: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz",
+  blockTimestamp: 1793210000000,
 };
 function base(overrides: Record<string, unknown> = {}) {
   return {
