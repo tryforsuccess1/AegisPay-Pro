@@ -236,6 +236,7 @@ async function getTargetedSafeSnapshot(
   const { data: previousItems, error: previousItemsError } = await admin.from("deposit_wallet_sweep_items")
     .select("sweep_id").eq("deposit_submission_id", String(source.id)).limit(100);
   if (previousItemsError) throw new Error("TARGET_PRIOR_SWEEP_ITEMS_LOOKUP_FAILED");
+  if ((previousItems || []).length >= 100) throw new Error("TARGET_PRIOR_SWEEP_HISTORY_LIMIT_REACHED");
   const previousSweepIds = [...new Set((previousItems || [])
     .map((item: any) => String(item.sweep_id || ""))).filter(Boolean)];
   let previousSweeps: any[] = [];
@@ -244,6 +245,7 @@ async function getTargetedSafeSnapshot(
       .select("id,status").in("id", previousSweepIds).limit(100);
     if (error) throw new Error("TARGET_PRIOR_SWEEP_STATUS_LOOKUP_FAILED");
     previousSweeps = data || [];
+    if (previousSweeps.length !== previousSweepIds.length) throw new Error("TARGET_PRIOR_SWEEP_STATUS_INCOMPLETE");
   }
   const otherPreviousSweeps = previousSweeps.filter((row) => String(row.id) !== String(currentSweepId || ""));
   const alreadySwept = otherPreviousSweeps.some((row) => String(row.status).toUpperCase() === "CONFIRMED");
@@ -653,6 +655,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
   let requestBody: Record<string, unknown> = {};
   const requestBodyText = await req.text().catch(() => "");
+  if (requestBodyText.length > 4096) return json({ error: "Request body is too large." }, 413);
   if (requestBodyText.trim()) {
     try {
       const parsed = JSON.parse(requestBodyText);
