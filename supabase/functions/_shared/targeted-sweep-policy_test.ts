@@ -102,7 +102,8 @@ Deno.test("rejects source identity, network, token, and receiving-address mismat
   expectCode(base({ source: { ...source, network: "TRON MAINNET" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
   expectCode(base({ source: { ...source, tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
   expectCode(base({ source: { ...source, receivingAddress: "TYNkpWrgPcqsZMeK2HzEnhkM6smp3nLcdz" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
-  expectCode(base({ source: { ...source, senderAddress: sender500 } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, senderAddress: "not-a-tron-address" } }), "VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
+  expectCode(base({ source: { ...source, senderAddress: sender500 } }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
   expectCode(base({ transfers: [{ ...transfer, from: sender500 }] }), "TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
   expectCode(base({ network: "TRON MAINNET" }), "TARGET_NETWORK_OR_TOKEN_INVALID");
   expectCode(base({ tokenContract: "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t" }), "TARGET_NETWORK_OR_TOKEN_INVALID");
