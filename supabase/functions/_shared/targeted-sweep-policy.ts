@@ -21,6 +21,8 @@ type Transfer = {
   success?: boolean | null;
   decimals: number;
   type: string;
+  from: string;
+  blockTimestamp: number;
 };
 
 export type TargetedSweepInput = {
@@ -90,7 +92,9 @@ export function validateTargetedDepositSweep(input: TargetedSweepInput): Targete
     || String(transfer.to || "") !== input.walletAddress
     || String(transfer.contract || "") !== SHASTA_USDT_CONTRACT
     || Number(transfer.decimals) !== 6
-    || String(transfer.type || "").toLowerCase() !== "transfer") {
+    || String(transfer.type || "").toLowerCase() !== "transfer"
+    || !ADDRESS_RE.test(String(transfer.from || ""))
+    || !Number.isSafeInteger(transfer.blockTimestamp) || transfer.blockTimestamp <= 0) {
     return fail("TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
   }
   if (String(transfer.rawAmount || "") !== amountRaw) {
