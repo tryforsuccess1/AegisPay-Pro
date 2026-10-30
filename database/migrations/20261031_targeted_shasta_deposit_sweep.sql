@@ -20,5 +20,10 @@ CREATE UNIQUE INDEX IF NOT EXISTS deposit_wallet_sweeps_wallet_target_txid_uidx
   ON public.deposit_wallet_sweeps (deposit_wallet_id, lower(target_deposit_txid))
   WHERE target_deposit_txid IS NOT NULL;
 
+-- Enforce one unresolved journal per wallet even when two cron/manual calls race.
+CREATE UNIQUE INDEX IF NOT EXISTS deposit_wallet_sweeps_one_pending_per_wallet_uidx
+  ON public.deposit_wallet_sweeps (deposit_wallet_id)
+  WHERE status IN ('PREPARED','SIGNED','BROADCAST','FAILED_REVIEW');
+
 COMMENT ON COLUMN public.deposit_wallet_sweeps.target_deposit_txid IS
   'Optional exact Shasta deposit TXID selected for a targeted test sweep; NULL preserves legacy full-snapshot journal behavior.';
