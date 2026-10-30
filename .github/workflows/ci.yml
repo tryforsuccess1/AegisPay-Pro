@@ -3,7 +3,7 @@ name: AegisPay CI
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feat/shasta-targeted-verified-deposit-sweep-20261031]
 
 concurrency:
   group: aegispay-ci-${{ github.ref }}
