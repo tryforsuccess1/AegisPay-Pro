@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals, assertRejects } from "jsr:@std/assert@1.0.14";
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, getAvailableBandwidth, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, getAvailableBandwidth, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
 
 const txid = "a".repeat(64);
 const signed = { txID: txid, raw_data: { expiration: 2_000_000_000_000 }, signature: ["test-signature"] };
@@ -70,6 +70,13 @@ Deno.test("TRON Bandwidth sources are checked independently and never added toge
   assertEquals(getAvailableBandwidth(1_200, 200, 600, 100), 1_000);
   assertEquals(getAvailableBandwidth(0, 0, 600, 100), 500);
   assertEquals(getAvailableBandwidth(Number.NaN, 0, 600, 0), 0);
+});
+
+Deno.test("estimated transaction Bandwidth includes protobuf result and signature overhead", () => {
+  assertEquals(estimateSweepBandwidth("aa".repeat(200)), 334);
+  assertEquals(estimateSweepBandwidth("aa".repeat(200), 2), 401);
+  assertEquals(estimateSweepBandwidth("abc"), 0);
+  assertEquals(estimateSweepBandwidth("zz"), 0);
 });
 
 Deno.test("successful receipt requires an exact contract, recipient and raw amount", () => {
