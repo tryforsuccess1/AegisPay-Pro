@@ -43,7 +43,7 @@ BEGIN
   END IF;
 
   INSERT INTO public.deposit_wallets(user_id,network,address,derivation_index,wallet_root_fingerprint,token_contract)
-  VALUES ('11111111-1111-4111-8111-111111111111','TRON TESTNET','T'||repeat('5',33),2,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
+  VALUES ('66666666-6666-4666-8666-666666666666','TRON TESTNET','T'||repeat('5',33),2,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
   RETURNING id INTO v_target_wallet;
 
   INSERT INTO public.deposit_wallet_sweeps(
@@ -88,7 +88,7 @@ BEGIN
   IF NOT v_failed THEN RAISE EXCEPTION 'malformed target TXID accepted'; END IF;
 
   INSERT INTO public.deposit_wallets(user_id,network,address,derivation_index,wallet_root_fingerprint,token_contract)
-  VALUES ('11111111-1111-4111-8111-111111111111','TRON TESTNET','T'||repeat('6',33),3,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
+  VALUES ('77777777-7777-4777-8777-777777777777','TRON TESTNET','T'||repeat('6',33),3,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
   RETURNING id INTO v_pending_wallet;
 
   INSERT INTO public.deposit_wallet_sweeps(
@@ -113,7 +113,7 @@ BEGIN
   IF NOT v_failed THEN RAISE EXCEPTION 'multiple unresolved sweep journals accepted for one wallet'; END IF;
 
   INSERT INTO public.deposit_wallets(user_id,network,address,derivation_index,wallet_root_fingerprint,token_contract)
-  VALUES ('11111111-1111-4111-8111-111111111111','TRON TESTNET','T'||repeat('7',33),4,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
+  VALUES ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','TRON TESTNET','T'||repeat('7',33),4,repeat('c',64),'TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs')
   RETURNING id INTO v_legacy_wallet;
 
   -- NULL target remains valid for the pre-existing full-snapshot journal flow.
