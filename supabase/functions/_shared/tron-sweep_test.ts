@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals, assertRejects } from "jsr:@std/assert@1.0.14";
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, getAvailableBandwidth, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
 
 const txid = "a".repeat(64);
 const signed = { txID: txid, raw_data: { expiration: 2_000_000_000_000 }, signature: ["test-signature"] };
@@ -70,6 +70,23 @@ Deno.test("TRON Bandwidth sources are checked independently and never added toge
   assertEquals(getAvailableBandwidth(1_200, 200, 600, 100), 1_000);
   assertEquals(getAvailableBandwidth(0, 0, 600, 100), 500);
   assertEquals(getAvailableBandwidth(Number.NaN, 0, 600, 0), 0);
+});
+
+Deno.test("sweep Energy estimate applies a bounded safety multiplier and fails closed on invalid input", () => {
+  assertEquals(estimateSweepEnergyRequirement(65_000), 84_500);
+  assertEquals(estimateSweepEnergyRequirement(65_000, 1.5), 97_500);
+  assertEquals(estimateSweepEnergyRequirement(0), 0);
+  assertEquals(estimateSweepEnergyRequirement(1_000_001), 0);
+  assertEquals(estimateSweepEnergyRequirement(65_000, 0.9), 0);
+  assertEquals(estimateSweepEnergyRequirement(65_000, 2.1), 0);
+});
+
+Deno.test("sweep fee limit derives from chain Energy price and fails closed above cap", () => {
+  assertEquals(estimateSweepFeeLimitSun(65_000, 420, 100_000_000), 38_855_000);
+  assertEquals(estimateSweepFeeLimitSun(65_000, 420, 30_000_000), 0);
+  assertEquals(estimateSweepFeeLimitSun(65_000, 0, 100_000_000), 0);
+  assertEquals(estimateSweepFeeLimitSun(0, 420, 100_000_000), 0);
+  assertEquals(estimateSweepFeeLimitSun(65_000, 420, 100_000_000, 1.35, Number.NaN), 0);
 });
 
 Deno.test("estimated transaction Bandwidth includes protobuf result and signature overhead", () => {
