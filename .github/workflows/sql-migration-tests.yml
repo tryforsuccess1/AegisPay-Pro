@@ -18,7 +18,7 @@ on:
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
   push:
-    branches: [main]
+    branches: [main, feat/shasta-targeted-verified-deposit-sweep-20261031]
     paths:
       - 'database/migrations/**'
       - 'supabase/functions/monitor-deposits/index.ts'
