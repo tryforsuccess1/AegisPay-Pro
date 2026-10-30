@@ -1,5 +1,7 @@
 # AegisPay Production Readiness
 
+> **Superseding note — 2026-10-30:** The 2026-10-19 snapshot below is historical. The current audit is [PROJECT_STATUS_2026-10-30.md](PROJECT_STATUS_2026-10-30.md). By owner decision, native Supabase Leaked Password Protection is accepted/deferred while the project remains on the Free plan; it is not an active release blocker by itself. The Advisor warning may remain visible. Current Cloudflare Turnstile/Auth CAPTCHA verification and remaining QA are recorded in the current audit.
+
 ## Current verified snapshot — 2026-10-19
 
 - Canonical repository: `tryforsuccess1/AegisPay-Pro`; latest verified `main` commit: `5443f27348f7b5a7b771d850457fcb4f3bc94409` (`Finalize post-merge production audit snapshot`).
@@ -9,7 +11,7 @@
 - Current Android candidate: Build 46 / v2.6.7, release channel `test`. Automated APK builds pass; install/update and authentication still require a physical-device check.
 - Supabase project `wtcspnrmsoisroavojop` reports `ACTIVE_HEALTHY`. All 21 public tables have RLS enabled; no public table in the current schema query lacked RLS. Three deposit/sweep journal tables intentionally have no client policies and deny direct `anon`/`authenticated` access.
 - A fresh function inventory found 43 public `SECURITY DEFINER` functions; all have an explicit `search_path` setting, none is executable by `anon`, and nine remain executable by `authenticated` for reviewed owner-scoped Client flows. The five legacy administrative RPCs are no longer directly executable by client roles. SQL-migration and legacy SECURITY DEFINER permission tests passed on the migration-alignment commit: [SQL migration tests](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39176591066), [legacy RPC permission tests](https://github.com/tryforsuccess1/AegisPay-Pro/actions/runs/39176591031).
-- Remaining Supabase Security Advisor findings: three informational RLS-enabled/no-policy notices on service-only deposit/sweep tables; nine warnings for client-callable SECURITY DEFINER functions; and native Auth leaked-password protection reported disabled. The custom signup/password-reset functions do check compromised passwords, but native Auth protection is a separate setting. Performance Advisor reports 20 unused-index notices; indexes were not removed without workload evidence.
+- Remaining Supabase Security Advisor findings in this historical 2026-10-19 snapshot included native Auth leaked-password protection disabled. As of 2026-10-30, the owner accepts/deferred this Free-plan limitation; it is not an active release blocker by itself. Custom signup/password-reset functions check compromised passwords, but this is not equivalent to native Auth protection across every password-change path. Performance Advisor reports unused-index notices; indexes are not removed without workload evidence.
 - CAPTCHA remains **not fully verified**. The client Turnstile site key matches the Cloudflare account widget and the widget allowlists the canonical Pages and Android WebView domains. Auth logs contained 24 `POST /token` events with `captcha_failed` / HTTP 400 between `2026-10-18T23:01:12Z` and `2026-10-18T23:33:14Z`; the last was after the rollout timestamp. No additional `captcha_failed` entries appeared in the separately queried interval `2026-10-19T00:00:00Z`–`2026-10-19T11:26:00Z`. The matching Supabase Auth-side secret cannot be read through this audit connection, and CI uses a CAPTCHA mock. A real interactive sign-in is still required before marking CAPTCHA pass.
 - Financial controls remain closed: `environment=PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, and `payouts_locked=true`. `system_mode=MAINNET` alone does not enable transactions. Confirmed counts: zero HD deposit wallets, zero deposit submissions, zero sweep journal records/items, zero approved/processing withdrawals missing payout TXIDs, and zero open withdrawals.
 - The cycle-settlement and mainnet-deposit-monitor cron jobs are active; both returned successful results at `2026-10-19 11:28 UTC`. The monitor cron evaluates the broad payment gates and safely skips dispatch while they are closed; this does not prove on-chain transaction reconciliation.
@@ -59,7 +61,7 @@
 
 The pre-auth `resolve_login_email` RPC was removed from anon/authenticated grants on 2026-10-09 because it returned registered emails from usernames. Username login now uses the `username-login` Edge Function: it performs a generic credential check server-side, rate-limits attempts and returns session tokens only after password verification. The reviewed authenticated SECURITY DEFINER RPCs still require function-by-function review; `get_production_readiness` and `set_production_config` are Master Admin-gated despite authenticated EXECUTE grants. The stale one-argument `link_withdrawal_wallet(text)` overload remains unavailable to client roles.
 
-Leaked Password Protection is still disabled and is a production prerequisite.
+Leaked Password Protection is still disabled. Owner decision on 2026-10-30: accept/defer this Free-plan limitation; do not list it as an active production blocker while the project remains on Free. Revisit if the plan or security requirements change.
 
 Public table grants were hardened to least privilege on 2026-10-03:
 - sensitive tables no longer grant write privileges to `anon` or `authenticated`;
@@ -73,8 +75,9 @@ Supabase Performance Advisor reports 12 currently unused indexes. With the prese
 
 ## Current production blockers
 
-1. Operator-side: enable Leaked Password Protection in Supabase Auth when available on the current plan.
-2. Configure and verify the required server-side TRONGrid, monitoring, AI, Telegram and payout secrets for the intended production network.
-3. Complete controlled end-to-end verification for deposit evidence, on-chain confirmation, Shop/tasks, 18-hour settlement, KYC and withdrawal dual approval before changing the Phase 3 environment to PRODUCTION.
-4. Verify production Auth redirect/provider/SMTP settings on a physical client device.
-5. Configure release signing and perform physical APK update verification.
+1. Configure and verify the required server-side TRONGrid, monitoring, AI, Telegram and payout secrets for the intended production network without exposing secret values.
+2. Complete controlled end-to-end verification for deposit evidence, on-chain confirmation, Shop/tasks, 18-hour settlement, KYC and withdrawal dual approval before changing the Phase 3 environment to PRODUCTION.
+3. Verify production Auth redirect/provider/SMTP settings and successful Turnstile flow on a physical client device.
+4. Configure release signing and perform physical APK update verification.
+
+Native Supabase Leaked Password Protection is an accepted/deferred Free-plan limitation, not an active blocker under the current owner decision.

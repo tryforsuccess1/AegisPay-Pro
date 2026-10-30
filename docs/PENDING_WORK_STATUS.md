@@ -1,5 +1,7 @@
 # AegisPay Pending Work Status
 
+> **Superseded status notice — 2026-10-30:** The 2026-10-18 snapshot below is historical. Use [PROJECT_STATUS_2026-10-30.md](PROJECT_STATUS_2026-10-30.md) for the current verified state. The owner has accepted/deferred native Supabase Leaked Password Protection while remaining on the Free plan. The Advisor warning may remain visible, but this is not an active Phase 1 task or a go-live blocker by itself. Turnstile and custom breached-password checks are complementary controls, not a claim that native protection is enabled.
+
 Last aligned: 2026-10-18
 
 ## Current verified snapshot — 2026-10-18
@@ -9,8 +11,8 @@ Last aligned: 2026-10-18
 - Verified Pages deployment `b3df2d5d-06d6-4370-9860-7c0bde9ebab4` succeeded for the app-code baseline. Canonical URLs: https://aegispay-pro.pages.dev/ , https://aegispay-pro.pages.dev/app/ , https://aegispay-pro.pages.dev/admin/.
 - The current production artifact has a generated `stable` Build 43 / 2.6.4 manifest. Its Client APK SHA-256 `78170d3ece8dc62221113361b7426538132deee4cde543b94c63b835f0156663` and Master Admin APK SHA-256 `ff4fb0683a8b9f88d884f2191a76454ed9638e420122bc09a7900673528193ee` were independently compared with the artifact files and aliases and match the generated manifest. The signing certificate fingerprint matches the previous Build 42 release. Physical-device install/update verification is still outstanding.
 - `username-login` is deployed ACTIVE v9 with distinct CAPTCHA and rate-limit failures; wrong credentials remain generic to avoid account enumeration. A static test, Deno unit tests and the live smoke-tested deployment passed.
-- Password signup/reset policy is 12–128 chars in client and controlled server functions. Sign-in does not reject a password merely for being shorter than 12; a correct older 8-character password is still technically accepted by the sign-in code. Native Supabase minimum-password setting and leaked-password protection remain operator-side configuration items.
-- Turnstile widget exists and current auth clients pass its tokens to Supabase Auth. The native Supabase Auth CAPTCHA enforcement toggle and auth redirect allowlist are not confirmed active; connected tools do not provide a Supabase Auth settings write action. The resend-verification and shared Master Admin reset helper retain the old Worker redirect until the allowlist is confirmed for Pages.
+- Password signup/reset policy is 12–128 chars in the client and controlled server functions. Sign-in does not reject a password merely for being shorter than 12; a correct older 8-character password is still technically accepted. Native Supabase Leaked Password Protection remains disabled on the Free plan and was accepted/deferred by the owner on 2026-10-30; it is not an active Phase 1 task.
+- The Cloudflare Turnstile widget is active in Managed mode and allowlists the Pages portal, stable Worker portal, Android WebView and Shasta test UI hosts. The client site key matches the Cloudflare widget. Supabase Auth logs on 2026-10-29 recorded 36 rejected password-grant requests with missing/invalid CAPTCHA responses, evidence that the Auth-side CAPTCHA gate is enforcing token checks. A successful human sign-in/recovery smoke test and Auth redirect allowlist QA remain outstanding.
 - Mainnet money flows remain closed: `production_config.environment=PRE_PRODUCTION`, `live_deposits_enabled=false`, `real_payouts_enabled=false`, `go_live_approved=false`, `payouts_locked=true`; `system_mode` says `MAINNET` but `live_deposits=false`, `real_payouts=false` and `production_go_live_approved=false`. Verified counts remain: `deposit_wallets=0`, `deposit_submissions=0`, `deposit_wallet_sweeps=0`, unresolved approved withdrawals `0`. No per-user deposit address or on-chain transfer was created by this work.
 - HD wallet and sweep code is deployed fail-closed. The sweep implementation is Shasta-testnet-only; isolated project secrets, dedicated test-only seed/signer, TRON test resources, cron credential and on-chain end-to-end reconciliation must be configured and tested before production readiness.
 - Remaining owner-side prerequisites: native Supabase Auth settings/redirect allowlist, Meta provider credentials, physical-device checks, and any isolated funded testnet setup. No live payment flags were changed.
@@ -48,8 +50,8 @@ Last aligned: 2026-10-18
   `database/migrations/20261005_security_rpc_grants_hardening.sql`
 - Anonymous execution exposure for `admin_set_withdrawal_wallet` and `link_withdrawal_wallet` was removed.
 - Live RPC drift was corrected: the canonical two-argument `link_withdrawal_wallet(text,text)` is now executable by `authenticated`, while the stale one-argument overload is no longer executable by client roles.
-- Security Advisor now shows 8 intentional authenticated SECURITY DEFINER findings plus the leaked-password protection warning.
-- Leaked-password protection is still disabled and remains a production security gate.
+- Security Advisor now shows 8 intentional authenticated SECURITY DEFINER findings plus the leaked-password protection warning, which the owner accepted/deferred on the Free plan on 2026-10-30.
+- Native Supabase Leaked Password Protection remains disabled on Free plan and is an owner-accepted/deferred risk as of 2026-10-30; the Security Advisor warning is acknowledged, not marked technically fixed.
 - Master Admin wallet changes were moved from direct RPC execution to the authenticated `admin-account-ops` Edge Function (v2).
 - `admin_set_withdrawal_wallet(uuid,text)` EXECUTE was revoked from `authenticated`; direct client RPC access is now blocked.
 - Authenticated client smoke-check confirmed the current user resolves to app role `USER`, sees only the expected RLS-scoped user row, and can read the Shop catalog/runtime settings.
@@ -69,7 +71,7 @@ Last aligned: 2026-10-18
 ## Pending sequence
 
 ### Phase 1 — Production-safe application foundation
-1. Operator-side: enable Supabase leaked-password protection when available on the current plan.
+1. Leaked-password protection: accepted/deferred by owner on 2026-10-30 while remaining on the Supabase Free plan; it is not an active task for the current release.
 2. Complete TESTNET_DEMO end-to-end auth/KYC/deposit/withdrawal/referral/task transition tests.
 3. Complete controlled Master Admin queue/review/account-operation transition tests.
 4. Run a final Security Advisor review after all production configuration is settled.
