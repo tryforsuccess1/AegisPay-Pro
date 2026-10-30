@@ -353,6 +353,16 @@ Deno.serve(async (req: Request) => {
     if (/\b(error|bug|crash|not working|failed|stuck)\b/.test(q)) return "TECHNICAL";
     return "GENERAL";
   };
+  function redactTelegramPreview(value: string, maxChars = 650) {
+    return String(value || "").trim()
+      .replace(/\b(password|passcode|pin|otp|2fa code|verification code)\b\s*(?:is|:|=|-)?\s*[^\s,;]+/gi, "$1: [redacted]")
+      .replace(/\b(seed phrase|recovery phrase|private key)\b\s*(?:is|:|=|-)?\s*[\s\S]{0,240}/gi, "$1: [redacted]")
+      .replace(/\b[A-Fa-f0-9]{64}\b/g, "[transaction hash hidden]")
+      .replace(/\bT[1-9A-HJ-NP-Za-km-z]{33}\b/g, "[wallet address hidden]")
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[email hidden]")
+      .slice(0, maxChars) || "[No text preview available]";
+  }
+
   async function notifySupport(admin: ReturnType<typeof createClient<any>>, profile: any, caseRow: any) {
     const bot = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
     const chat = Deno.env.get("TELEGRAM_CHAT_ID") || "";
@@ -366,10 +376,10 @@ Deno.serve(async (req: Request) => {
           (representativeRequest ? "AegisPay Customer Representative Request" : "AegisPay AI Support Escalation") + "\n" +
           "Action required: Please contact this client and review the issue.\n" +
           "Case ID: " + caseRow.id + "\nCategory: " + caseRow.category +
-          "\nClient: " + String(profile.name || profile.email || profile.id).slice(0, 100) +
+          "\nClient: " + String(profile.name || "Client").replace(/\bAli\s+Shahid\b/gi, "Client").slice(0, 80) +
           "\nContact email: " + String(profile.email || "Not available").slice(0, 120) +
           "\nStatus: " + String(caseRow.status || "OPEN") +
-          "\nIssue:\n" + String(caseRow.user_message || "").slice(-900) +
+          "\nIssue:\n" + redactTelegramPreview(caseRow.user_message || "", 650) +
           "\n\nMaster Admin: open AI Support Cases to review and resolve."
         }),
         signal: AbortSignal.timeout(4500)
