@@ -56,6 +56,18 @@ export function hasEnoughSweepResources(
       && availableBandwidth >= minimumBandwidth);
 }
 
+export function isSuccessfulSweepSimulation(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const response = payload as {
+    result?: { result?: unknown } | null;
+    transaction?: { ret?: Array<{ ret?: unknown }> | null } | null;
+  };
+  if (response.result?.result !== true) return false;
+  const executionResults = response.transaction?.ret;
+  if (!Array.isArray(executionResults) || executionResults.length === 0) return false;
+  return executionResults.every((item) => String(item?.ret || "").toUpperCase() === "SUCCESS");
+}
+
 export function estimateSweepBandwidth(rawDataHex: string, signatureCount = 1): number {
   const hex = String(rawDataHex || "").replace(/^0x/i, "");
   if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex)
