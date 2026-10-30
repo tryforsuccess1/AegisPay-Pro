@@ -72,6 +72,8 @@ jobs:
         run: deno test --node-modules-dir=auto supabase/functions/_shared/shasta-test-mode_test.ts
       - name: Test HD sweep idempotency and transaction recovery state machine
         run: deno test --node-modules-dir=auto supabase/functions/_shared/tron-sweep_test.ts
+      - name: Test exact Shasta deposit-target sweep policy
+        run: deno test supabase/functions/_shared/targeted-sweep-policy_test.ts
       - name: Bundle authenticated AI Worker without deploying
         run: npx --yes wrangler@4 deploy --config workers/aegispay-web/wrangler.jsonc --dry-run --outdir=/tmp/aegispay-web-ai-bundle
       - name: Bundle Shop Worker without deploying
