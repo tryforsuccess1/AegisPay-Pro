@@ -197,7 +197,7 @@ async function getTargetedSafeSnapshot(
 
   const beforeBalance = await getTokenBalance(client, wallet.address);
   const { data: source, error: sourceError } = await admin.from("deposit_submissions")
-    .select("id,user_id,deposit_wallet_id,txid,status,raw_amount,verification_source,network,token_contract,receiving_address")
+    .select("id,user_id,deposit_wallet_id,txid,status,raw_amount,verification_source,network,token_contract,receiving_address,sender_address")
     .eq("deposit_wallet_id", wallet.id)
     .eq("user_id", wallet.user_id)
     .eq("txid", targetTxid)
@@ -268,6 +268,7 @@ async function getTargetedSafeSnapshot(
       network: String(source.network || ""),
       tokenContract: String(source.token_contract || ""),
       receivingAddress: String(source.receiving_address || ""),
+      senderAddress: String(source.sender_address || ""),
     },
     transfers: matchingTransfers,
     alreadySwept,
