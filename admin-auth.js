@@ -582,7 +582,7 @@ function productionReadiness(){
       '<span>Cron Secret<b>'+esc(secretMark(secrets.cron_secret))+'</b></span>'+
       '<span>Mainnet Payout Key<b>'+esc(secretMark(secrets.mainnet_payout_key))+'</b></span>'+
       '<span>Withdrawal Payout HD Seed<b>'+esc(secretMark(secrets.mainnet_withdrawal_payout_hd_mnemonic))+'</b></span>'+
-      '<span>Withdrawal Payout Mode<b>'+esc(secretMark(secrets.mainnet_withdrawal_payout_mode))+'</b></span>'+
+      '<span>Withdrawal Payout Mode<b>'+esc(keyDiagnostics.mainnet_withdrawal_payout_wallet_mode||'NOT REPORTED')+'</b></span>'+
       '<span>AI Review Config<b>'+esc(secretMark(secrets.ai_review_endpoint&&secrets.ai_review_api_key&&secrets.ai_review_model))+'</b></span>'+
       '<span>Telegram Bot<b>'+esc(secretMark(secrets.telegram_bot_token))+'</b></span>'+
       '<span>Telegram Chat<b>'+esc(secretMark(secrets.telegram_chat))+'</b></span>'+
