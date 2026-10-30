@@ -56,6 +56,14 @@ export function hasEnoughSweepResources(
       && availableBandwidth >= minimumBandwidth);
 }
 
+export function estimateSweepBandwidth(rawDataHex: string, signatureCount = 1): number {
+  const hex = String(rawDataHex || "").replace(/^0x/i, "");
+  if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex)
+    || !Number.isSafeInteger(signatureCount) || signatureCount < 1 || signatureCount > 10) return 0;
+  // TronWeb's signed-transaction estimate: raw_data bytes + protobuf/result allowance + signatures.
+  return hex.length / 2 + 3 + 64 + (67 * signatureCount);
+}
+
 export function getAvailableBandwidth(
   netLimit: number,
   netUsed: number,
