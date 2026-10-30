@@ -18,11 +18,12 @@ const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const NETWORK = "TRON TESTNET";
 const TOKEN = "TG3XXyExBkPp9nzdajDZsozEu4BkaSJozs";
 const HOST = "https://api.shasta.trongrid.io";
-const MAX_WALLETS_PER_RUN = 10;
+const MAX_WALLETS_PER_RUN = 1;
 const MAX_INBOUND_TXS = 200;
 const FEE_LIMIT_SUN = 100_000_000;
 const MIN_TRX_FOR_SWEEP_SUN = 120_000_000;
 const MIN_ENERGY_FOR_SWEEP = 100_000;
+const MIN_BANDWIDTH_FOR_SWEEP = 1_000;
 const MIN_TRX_WITH_ENERGY_SUN = 1_000_000;
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -190,10 +191,13 @@ async function hasSufficientResources(client: any, address: string) {
   const balance = Number(trxBalance);
   if (!Number.isFinite(balance) || balance < 0) return { ok: false, code: "TRX_BALANCE_UNAVAILABLE" };
   const energy = Math.max(0, Number(resources?.EnergyLimit || 0) - Number(resources?.EnergyUsed || 0));
-  if (hasEnoughSweepResources(balance, energy, MIN_TRX_FOR_SWEEP_SUN, MIN_ENERGY_FOR_SWEEP, MIN_TRX_WITH_ENERGY_SUN)) {
+  const stakedBandwidth = Math.max(0, Number(resources?.NetLimit || 0) - Number(resources?.NetUsed || 0));
+  const freeBandwidth = Math.max(0, Number(resources?.freeNetLimit || 0) - Number(resources?.freeNetUsed || 0));
+  const bandwidth = stakedBandwidth + freeBandwidth;
+  if (hasEnoughSweepResources(balance, energy, bandwidth, MIN_TRX_FOR_SWEEP_SUN, MIN_ENERGY_FOR_SWEEP, MIN_BANDWIDTH_FOR_SWEEP, MIN_TRX_WITH_ENERGY_SUN)) {
     return { ok: true, code: balance >= MIN_TRX_FOR_SWEEP_SUN ? "TRX_FEE_RESERVE_READY" : "ENERGY_AND_BANDWIDTH_READY" };
   }
-  return { ok: false, code: "NEEDS_TESTNET_TRX_OR_ENERGY" };
+  return { ok: false, code: "NEEDS_TESTNET_TRX_ENERGY_AND_BANDWIDTH" };
 }
 
 async function markConfirmed(admin: Admin, row: SweepRow, txid: string) {
