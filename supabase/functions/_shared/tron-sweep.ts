@@ -42,13 +42,66 @@ export function classifySweepAction(row: SweepRowState, _nowMs = Date.now()): Sw
 export function hasEnoughSweepResources(
   trxBalanceSun: number,
   availableEnergy: number,
+  availableBandwidth: number,
   minimumTrxSun: number,
   minimumEnergy: number,
-  minimumTrxWithEnergySun: number,
+  minimumBandwidth: number,
+  minimumTrxWithResourcesSun: number,
 ): boolean {
-  if (!Number.isFinite(trxBalanceSun) || !Number.isFinite(availableEnergy) || trxBalanceSun < 0 || availableEnergy < 0) return false;
+  const values = [trxBalanceSun, availableEnergy, availableBandwidth, minimumTrxSun, minimumEnergy, minimumBandwidth, minimumTrxWithResourcesSun];
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) return false;
   return trxBalanceSun >= minimumTrxSun ||
-    (trxBalanceSun >= minimumTrxWithEnergySun && availableEnergy >= minimumEnergy);
+    (trxBalanceSun >= minimumTrxWithResourcesSun
+      && availableEnergy >= minimumEnergy
+      && availableBandwidth >= minimumBandwidth);
+}
+
+export function estimateSweepBandwidth(rawDataHex: string, signatureCount = 1): number {
+  const hex = String(rawDataHex || "").replace(/^0x/i, "");
+  if (!/^(?:[0-9a-fA-F]{2})+$/.test(hex)
+    || !Number.isSafeInteger(signatureCount) || signatureCount < 1 || signatureCount > 10) return 0;
+  // TronWeb's signed-transaction estimate: raw_data bytes + protobuf/result allowance + signatures.
+  return hex.length / 2 + 3 + 64 + (67 * signatureCount);
+}
+
+
+export function estimateSweepEnergyRequirement(energyRequired: number, safetyMultiplier = 1.3): number {
+  if (!Number.isSafeInteger(energyRequired) || energyRequired <= 0 || energyRequired > 1_000_000
+    || !Number.isFinite(safetyMultiplier) || safetyMultiplier < 1 || safetyMultiplier > 2) return 0;
+  const buffered = Math.ceil(energyRequired * safetyMultiplier);
+  return Number.isSafeInteger(buffered) && buffered > 0 && buffered <= 2_000_000 ? buffered : 0;
+}
+
+export function estimateSweepFeeLimitSun(
+  energyRequired: number,
+  energyFeeSun: number,
+  maxFeeLimitSun: number,
+  safetyMultiplier = 1.35,
+  overheadSun = 2_000_000,
+): number {
+  const values = [energyRequired, energyFeeSun, maxFeeLimitSun, overheadSun];
+  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)
+    || energyRequired <= 0 || energyRequired > 1_000_000
+    || energyFeeSun <= 0 || energyFeeSun > 1_000_000
+    || maxFeeLimitSun < 3_000_000
+    || !Number.isFinite(safetyMultiplier) || safetyMultiplier < 1 || safetyMultiplier > 2) return 0;
+  const estimate = Math.max(3_000_000, Math.ceil(energyRequired * energyFeeSun * safetyMultiplier + overheadSun));
+  return Number.isSafeInteger(estimate) && estimate <= maxFeeLimitSun ? estimate : 0;
+}
+
+export function getAvailableBandwidth(
+  netLimit: number,
+  netUsed: number,
+  freeNetLimit: number,
+  freeNetUsed: number,
+): number {
+  const values = [netLimit, netUsed, freeNetLimit, freeNetUsed];
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) return 0;
+  const stakedBandwidth = Math.max(0, netLimit - netUsed);
+  const freeBandwidth = Math.max(0, freeNetLimit - freeNetUsed);
+  // TRON does not combine the staked/delegated and free Bandwidth pools
+  // to cover one transaction. Use the strongest single source only.
+  return Math.max(stakedBandwidth, freeBandwidth);
 }
 
 function hexTail(value: unknown): string {

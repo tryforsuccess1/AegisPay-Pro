@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
 import { shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -18,11 +18,12 @@ const TRONGRID_KEY = Deno.env.get("TRONGRID_API_KEY") || "";
 const NETWORK = "TRON MAINNET";
 const TOKEN = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
 const HOST = "https://api.trongrid.io";
-const MAX_WALLETS_PER_RUN = 10;
+const MAX_WALLETS_PER_RUN = 1;
 const MAX_INBOUND_TXS = 200;
 const FEE_LIMIT_SUN = 100_000_000;
 const MIN_TRX_FOR_SWEEP_SUN = 120_000_000;
 const MIN_ENERGY_FOR_SWEEP = 100_000;
+const MIN_BANDWIDTH_FOR_SWEEP = 1_000;
 const MIN_TRX_WITH_ENERGY_SUN = 1_000_000;
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -182,7 +183,69 @@ async function getSafeSnapshot(admin: Admin, client: any, wallet: WalletRow) {
   if (beforeBalance !== afterBalance) throw new Error("BALANCE_CHANGED_DURING_SNAPSHOT");
   return { ok: true as const, empty: false as const, balanceRaw: afterBalance, transfers: unsweptTransfers, sources };
 }
-async function hasSufficientResources(client: any, address: string) {
+async function estimateUsdtTransferEnergy(senderAddress: string, destinationAddress: string, amountRaw: string) {
+  const headers: Record<string, string> = { "Content-Type": "application/json", accept: "application/json" };
+  if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
+  const amount = BigInt(amountRaw);
+  if (amount <= 0n || amount >= (1n << 256n)) throw new Error("SWEEP_ENERGY_ESTIMATE_AMOUNT_INVALID");
+  const destinationHex = TronWeb.address.toHex(destinationAddress).replace(/^41/i, "");
+  const requestBody = {
+    owner_address: TronWeb.address.toHex(senderAddress),
+    contract_address: TronWeb.address.toHex(TOKEN),
+    function_selector: "transfer(address,uint256)",
+    parameter: destinationHex.padStart(64, "0") + amount.toString(16).padStart(64, "0"),
+    visible: false,
+  };
+  let estimatedEnergy = 0;
+  try {
+    const response = await fetch(HOST + "/wallet/estimateenergy", {
+      method: "POST", headers, body: JSON.stringify(requestBody), signal: AbortSignal.timeout(10_000),
+    });
+    if (response.ok) {
+      const payload = await response.json().catch(() => null);
+      const value = Number(payload?.energy_required);
+      if (payload?.result?.result === true && Number.isSafeInteger(value) && value > 0 && value <= 1_000_000) {
+        estimatedEnergy = value;
+      }
+    }
+  } catch { /* Fall back to the generally available constant-contract simulation. */ }
+  if (!estimatedEnergy) {
+    try {
+      const response = await fetch(HOST + "/wallet/triggerconstantcontract", {
+        method: "POST", headers, body: JSON.stringify(requestBody), signal: AbortSignal.timeout(10_000),
+      });
+      if (response.ok) {
+        const payload = await response.json().catch(() => null);
+        const value = Number(payload?.energy_used);
+        if (payload?.result?.result === true && Number.isSafeInteger(value) && value > 0 && value <= 1_000_000) {
+          estimatedEnergy = value;
+        }
+      }
+    } catch { /* No static estimate is used when node simulation is unavailable. */ }
+  }
+  if (!estimatedEnergy) throw new Error("SWEEP_ENERGY_SIMULATION_UNAVAILABLE");
+  const paramsResponse = await fetch(HOST + "/wallet/getchainparameters", {
+    method: "POST", headers, body: "{}", signal: AbortSignal.timeout(10_000),
+  });
+  if (!paramsResponse.ok) throw new Error("SWEEP_CHAIN_FEE_PARAMETERS_UNAVAILABLE");
+  const params = await paramsResponse.json().catch(() => null);
+  const entries = Array.isArray(params?.chainParameter) ? params.chainParameter : [];
+  const energyFeeSun = Number(entries.find((entry: any) => entry?.key === "getEnergyFee")?.value);
+  if (!Number.isSafeInteger(energyFeeSun) || energyFeeSun <= 0 || energyFeeSun > 1_000_000) {
+    throw new Error("SWEEP_CHAIN_ENERGY_FEE_INVALID");
+  }
+  const requiredEnergy = Math.max(MIN_ENERGY_FOR_SWEEP, estimateSweepEnergyRequirement(estimatedEnergy, 1.3));
+  const feeLimitSun = estimateSweepFeeLimitSun(estimatedEnergy, energyFeeSun, FEE_LIMIT_SUN, 1.35, 2_000_000);
+  if (!requiredEnergy || !feeLimitSun) throw new Error("SWEEP_ENERGY_FEE_LIMIT_EXCEEDED");
+  return { estimatedEnergy, requiredEnergy, energyFeeSun, feeLimitSun };
+}
+
+async function hasSufficientResources(client: any, address: string, requiredEnergy: number, requiredBandwidth: number, feeLimitSun: number) {
+  if (!Number.isSafeInteger(requiredEnergy) || requiredEnergy <= 0 ||
+      !Number.isSafeInteger(requiredBandwidth) || requiredBandwidth <= 0 ||
+      !Number.isSafeInteger(feeLimitSun) || feeLimitSun < 3_000_000 || feeLimitSun > FEE_LIMIT_SUN) {
+    return { ok: false, code: "SWEEP_RESOURCE_REQUIREMENT_INVALID" };
+  }
   const [trxBalance, resources] = await Promise.all([
     client.trx.getBalance(address),
     client.trx.getAccountResources(address),
@@ -190,10 +253,16 @@ async function hasSufficientResources(client: any, address: string) {
   const balance = Number(trxBalance);
   if (!Number.isFinite(balance) || balance < 0) return { ok: false, code: "TRX_BALANCE_UNAVAILABLE" };
   const energy = Math.max(0, Number(resources?.EnergyLimit || 0) - Number(resources?.EnergyUsed || 0));
-  if (hasEnoughSweepResources(balance, energy, MIN_TRX_FOR_SWEEP_SUN, MIN_ENERGY_FOR_SWEEP, MIN_TRX_WITH_ENERGY_SUN)) {
-    return { ok: true, code: balance >= MIN_TRX_FOR_SWEEP_SUN ? "TRX_FEE_RESERVE_READY" : "ENERGY_AND_BANDWIDTH_READY" };
+  const bandwidth = getAvailableBandwidth(
+    Number(resources?.NetLimit ?? 0),
+    Number(resources?.NetUsed ?? 0),
+    Number(resources?.freeNetLimit ?? 0),
+    Number(resources?.freeNetUsed ?? 0),
+  );
+  if (hasEnoughSweepResources(balance, energy, bandwidth, MIN_TRX_FOR_SWEEP_SUN, requiredEnergy, requiredBandwidth, MIN_TRX_WITH_ENERGY_SUN)) {
+    return { ok: true, code: balance >= MIN_TRX_FOR_SWEEP_SUN ? "TRX_FEE_RESERVE_READY" : "ESTIMATED_ENERGY_AND_BANDWIDTH_READY" };
   }
-  return { ok: false, code: "NEEDS_MAINNET_TRX_OR_ENERGY" };
+  return { ok: false, code: "NEEDS_ESTIMATED_TRX_ENERGY_AND_BANDWIDTH" };
 }
 
 async function markConfirmed(admin: Admin, row: SweepRow, txid: string) {
@@ -311,16 +380,20 @@ async function signAndPersist(admin: Admin, client: any, wallet: WalletRow, row:
     }).sort((a: any, b: any) => a.txid.localeCompare(b.txid));
     if (JSON.stringify(actual) !== JSON.stringify(expected)) return markReview(admin, row, "SOURCE_JOURNAL_CONFLICT");
   }
-  const resources = await hasSufficientResources(client, wallet.address);
-  if (!resources.ok) return { walletId: wallet.id, sweepId: row.id, status: resources.code };
   let transaction: any;
   try {
+    const energyEstimate = await estimateUsdtTransferEnergy(wallet.address, treasury, snapshot.balanceRaw);
     const ext = await client.transactionBuilder.triggerSmartContract(
-      TOKEN, "transfer(address,uint256)", { feeLimit: FEE_LIMIT_SUN, callValue: 0 },
+      TOKEN, "transfer(address,uint256)", { feeLimit: energyEstimate.feeLimitSun, callValue: 0 },
       [{ type: "address", value: treasury }, { type: "uint256", value: snapshot.balanceRaw }],
       wallet.address,
     );
     if (!ext?.result?.result || !ext?.transaction) return markReview(admin, row, "TRC20_TRANSFER_BUILD_FAILED");
+    const bandwidthEstimate = estimateSweepBandwidth(String(ext.transaction.raw_data_hex || ""));
+    if (!bandwidthEstimate) return markReview(admin, row, "TRC20_BANDWIDTH_ESTIMATE_UNAVAILABLE");
+    const requiredBandwidth = Math.max(MIN_BANDWIDTH_FOR_SWEEP, Math.ceil(bandwidthEstimate * 1.1));
+    const resources = await hasSufficientResources(client, wallet.address, energyEstimate.requiredEnergy, requiredBandwidth, energyEstimate.feeLimitSun);
+    if (!resources.ok) return { walletId: wallet.id, sweepId: row.id, status: resources.code };
     const signed = await client.trx.sign(ext.transaction, await deriveTronHdIdentity(MAINNET_HD_MNEMONIC, MAINNET_HD_PASSPHRASE, Number(wallet.derivation_index)).then((x) => x.privateKey));
     const txid = String(signed?.txID || "");
     const expiration = Number(signed?.raw_data?.expiration || 0);
