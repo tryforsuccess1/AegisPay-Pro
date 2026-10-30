@@ -4059,7 +4059,7 @@ async function activityHistory(type){
  if(type==='withdrawal'){title='Withdrawal History';items=(w.data||[]).map(x=>({label:'Withdrawal · USDT',date:x.created_at,amount:'−'+Number(x.amount).toFixed(2),status:x.status||'Debit'}));}
  if(type==='profit'){title='Task Profit History';items=(l.data||[]).filter(x=>Number(x.amount)>0&&/profit|task/i.test((x.description||'')+' '+(x.entry_type||''))).map(x=>({label:x.description||'Task Profit',date:x.created_at,amount:'+'+Number(x.amount).toFixed(2),status:'Profit'}));}
  if(type==='referral'){title='Referral Rewards History';items=(r.data||[]).map(x=>({label:'Referral Reward · Level '+x.referral_level,date:x.created_at,amount:'+'+Number(x.platform_reward||0).toFixed(2),status:'Reward'}));}
- app.innerHTML=top(title,'activity')+'<div class="card" style="padding:4px 16px">'+(items.length?items.map(x=>'<div class="row"><div>'+esc(x.label)+'<small>'+new Date(x.date).toLocaleString()+'</small></div><em class="up">'+x.amount+'<small>'+esc(x.status)+'</small></em></div>').join(''):'<div class="mu" style="padding:16px 0;text-align:center">No history available yet.</div>')+'</div>'+nav('hidden');
+ app.innerHTML=top(title,'activity')+'<div class="card" style="padding:4px 16px">'+(items.length?items.map(x=>'<div class="row"><div>'+esc(clientPaymentCopy(x.label))+'<small>'+new Date(x.date).toLocaleString()+'</small></div><em class="up">'+x.amount+'<small>'+esc(clientPaymentStatus(x.status))+'</small></em></div>').join(''):'<div class="mu" style="padding:16px 0;text-align:center">No history available yet.</div>')+'</div>'+nav('hidden');
 }
 
 async function liveReferral(){
