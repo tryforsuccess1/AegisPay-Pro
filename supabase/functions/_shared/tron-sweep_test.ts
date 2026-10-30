@@ -50,12 +50,19 @@ Deno.test("confirmed and failed-review rows cannot initiate new transfers", () =
   assertEquals(classifySweepAction({ status: "FAILED_REVIEW" }), "MANUAL_REVIEW");
 });
 
-Deno.test("resource guard requires conservative TRX or both energy and bandwidth reserve", () => {
-  assertEquals(hasEnoughSweepResources(119_999_999, 0, 120_000_000, 100_000, 1_000_000), false);
-  assertEquals(hasEnoughSweepResources(120_000_000, 0, 120_000_000, 100_000, 1_000_000), true);
-  assertEquals(hasEnoughSweepResources(1_000_000, 99_999, 120_000_000, 100_000, 1_000_000), false);
-  assertEquals(hasEnoughSweepResources(1_000_000, 100_000, 120_000_000, 100_000, 1_000_000), true);
-  assertEquals(hasEnoughSweepResources(Number.NaN, 200_000, 120_000_000, 100_000, 1_000_000), false);
+Deno.test("resource guard requires TRX reserve or energy plus bandwidth", () => {
+  const minimumTrx = 120_000_000;
+  const minimumEnergy = 100_000;
+  const minimumBandwidth = 1_000;
+  const minimumTrxWithResources = 1_000_000;
+
+  assertEquals(hasEnoughSweepResources(119_999_999, 0, 0, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
+  assertEquals(hasEnoughSweepResources(minimumTrx, 0, 0, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), true);
+  assertEquals(hasEnoughSweepResources(minimumTrxWithResources, minimumEnergy, minimumBandwidth - 1, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
+  assertEquals(hasEnoughSweepResources(minimumTrxWithResources, minimumEnergy - 1, minimumBandwidth, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
+  assertEquals(hasEnoughSweepResources(minimumTrxWithResources, minimumEnergy, minimumBandwidth, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), true);
+  assertEquals(hasEnoughSweepResources(Number.NaN, 200_000, 2_000, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
+  assertEquals(hasEnoughSweepResources(minimumTrxWithResources, 200_000, Number.NaN, minimumTrx, minimumEnergy, minimumBandwidth, minimumTrxWithResources), false);
 });
 
 Deno.test("successful receipt requires an exact contract, recipient and raw amount", () => {
