@@ -353,6 +353,16 @@ Deno.serve(async (req: Request) => {
     if (/\b(error|bug|crash|not working|failed|stuck)\b/.test(q)) return "TECHNICAL";
     return "GENERAL";
   };
+  function redactTelegramPreview(value: string, maxChars = 650) {
+    return String(value || "").trim()
+      .replace(/\b(password|passcode|pin|otp|2fa code|verification code)\b\s*(?:is|:|=|-)?\s*[^\s,;]+/gi, "$1: [redacted]")
+      .replace(/\b(seed phrase|recovery phrase|private key)\b\s*(?:is|:|=|-)?\s*[\s\S]{0,240}/gi, "$1: [redacted]")
+      .replace(/\b[A-Fa-f0-9]{64}\b/g, "[transaction hash hidden]")
+      .replace(/\bT[1-9A-HJ-NP-Za-km-z]{33}\b/g, "[wallet address hidden]")
+      .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[email hidden]")
+      .slice(0, maxChars) || "[No text preview available]";
+  }
+
   async function notifySupport(admin: ReturnType<typeof createClient<any>>, profile: any, caseRow: any) {
     const bot = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
     const chat = Deno.env.get("TELEGRAM_CHAT_ID") || "";
@@ -366,10 +376,9 @@ Deno.serve(async (req: Request) => {
           (representativeRequest ? "AegisPay Customer Representative Request" : "AegisPay AI Support Escalation") + "\n" +
           "Action required: Please contact this client and review the issue.\n" +
           "Case ID: " + caseRow.id + "\nCategory: " + caseRow.category +
-          "\nClient: " + String(profile.name || profile.email || profile.id).slice(0, 100) +
-          "\nContact email: " + String(profile.email || "Not available").slice(0, 120) +
+          "\nClient: " + String(profile.name || "Client").replace(/\bAli\s+Shahid\b/gi, "Client").slice(0, 80) +
           "\nStatus: " + String(caseRow.status || "OPEN") +
-          "\nIssue:\n" + String(caseRow.user_message || "").slice(-900) +
+          "\nIssue:\n" + redactTelegramPreview(caseRow.user_message || "", 650) +
           "\n\nMaster Admin: open AI Support Cases to review and resolve."
         }),
         signal: AbortSignal.timeout(4500)
@@ -378,6 +387,33 @@ Deno.serve(async (req: Request) => {
       return Boolean(res.ok && body?.ok);
     } catch (_) { return false; }
   }
+  async function notifyAiChat(profile: any, message: string, category: string) {
+    const bot = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
+    const chat = Deno.env.get("TELEGRAM_CHAT_ID") || "";
+    if (!bot || !chat) return false;
+    const preview = redactTelegramPreview(message, 650);
+    const client = String(profile?.name || "Client")
+      .replace(/\bAli\s+Shahid\b/gi, "Client")
+      .replace(/\bMASTER[_\s-]*ADMIN\b/gi, "Client")
+      .slice(0, 80);
+    const text = "AegisPay Client AI Chat\n" +
+      "Client: " + client + "\nCategory: " + String(category || "GENERAL") +
+      "\nMessage preview (sensitive details redacted):\n" + preview +
+      "\n\nOpen the Master Admin support area if follow-up is needed.";
+    try {
+      const res = await fetch("https://api.telegram.org/bot" + bot + "/sendMessage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }),
+        signal: AbortSignal.timeout(4500)
+      });
+      const body = await res.json().catch(() => null);
+      return Boolean(res.ok && body?.ok);
+    } catch (_) {
+      return false;
+    }
+  }
+
   const SUPPORT_ATTACHMENT_BUCKET = "private-support-attachments";
   const SUPPORT_ATTACHMENT_MAX_BYTES = 3 * 1024 * 1024;
   const SUPPORT_ATTACHMENT_MIME = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
@@ -873,6 +909,9 @@ Deno.serve(async (req: Request) => {
         ? "Withdrawal requests must be submitted through the secure Withdrawals workflow. This assistant cannot approve or initiate a payout. Review the displayed fee and net amount there before confirming." +
           (supportCase ? "\n\nA representative may contact you soon." : "")
         : opAnswer + (supportCase ? "\n\nA representative may contact you soon." : "");
+      if (profile.role === "USER" && !needsRepresentative) {
+        await notifyAiChat(profile, message, caseCategory(message));
+      }
       return json({ configured: false, provider: "aegispay-guidance", answer: sanitizeClientAnswer(responseText), degraded: false, supportCase });
     }
 
@@ -949,6 +988,9 @@ Deno.serve(async (req: Request) => {
       } catch (_) {
         answer += "\n\nI could not notify the support team automatically. Please tap Talk to a Customer Representative and retry.";
       }
+    }
+    if (profile.role === "USER" && !needsEscalation) {
+      await notifyAiChat(profile, message, caseCategory(message));
     }
     return json({ configured, provider, answer: sanitizeClientAnswer(answer), degraded, role: profile.role, supportCase });
   } catch (error) {

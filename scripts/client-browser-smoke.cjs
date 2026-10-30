@@ -129,6 +129,8 @@ const server = http.createServer((req, res) => {
       'Welcome display controls must not render Dark/Light/Eye Protection label text.');
     await welcomeStart.click();
     await page.locator('#ap-welcome-layer').waitFor({ state: 'detached', timeout: 3000 });
+    assert.equal(await page.evaluate(() => localStorage.getItem('aegispay_welcome_seen_v1')), '1',
+      'Dismissing the first-run welcome should persist so it is not shown again.');
     assert.equal(await page.evaluate(() => typeof window.openAegisShopMarketplace), 'function',
       'Local Client must expose the shared Shop marketplace navigation handler to inline controls.');
     const googleButton = page.locator('#liveLogin [data-google-auth]');
@@ -212,6 +214,12 @@ const server = http.createServer((req, res) => {
     assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), {renderCount: 1,executeCount: 1,resetCount: 1},
       'Turnstile should execute only after Login is clicked, then reset after the verified login attempt.');
     await page.waitForFunction(() => document.querySelector('#liveLogin button[type="submit"]')?.disabled === false, null, { timeout: 3000 });
+    const clientLoginNotice = page.locator('#aegisNoticeModal');
+    await clientLoginNotice.waitFor({ state: 'visible', timeout: 3000 });
+    assert.equal(await clientLoginNotice.locator('button').textContent(), 'OK',
+      'Client login error must use a centered dialog with an OK dismissal button.');
+    await clientLoginNotice.locator('button').click();
+    await clientLoginNotice.waitFor({ state: 'detached', timeout: 3000 });
     const clientContrast = whiteTextMinContrast(await clientSubmit.evaluate(el => getComputedStyle(el).backgroundImage));
     assert.ok(loginFields.loginHeight >= 44, 'Primary login button should provide a 44px minimum touch target.');
     assert.ok(loginFields.langHeight >= 40, 'Language control should provide a 40px minimum touch target.');

@@ -31,6 +31,8 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.webkit.WebViewAssetLoader;
@@ -623,6 +625,82 @@ public class MainActivity extends AppCompatActivity {
         @JavascriptInterface
         public String runtimeInfo() {
             return "{\"framework\":\"WebView\",\"apiMode\":\"Supabase\",\"androidX\":true,\"webView\":true}";
+        }
+
+        private int allowedBiometricAuthenticators() {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                return BiometricManager.Authenticators.BIOMETRIC_STRONG
+                        | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+            }
+            return BiometricManager.Authenticators.BIOMETRIC_WEAK;
+        }
+
+        private void biometricCallback(String callbackId, boolean success, String message) {
+            if (callbackId == null || !callbackId.matches("^[A-Za-z0-9_-]{1,80}$")) return;
+            String js = "window.AegisBiometricCallback && window.AegisBiometricCallback("
+                    + JSONObjectEscape.quote(callbackId) + ","
+                    + (success ? "true" : "false") + ","
+                    + JSONObjectEscape.quote(message) + ")";
+            callJs(js);
+        }
+
+        @JavascriptInterface
+        public boolean isBiometricAvailable() {
+            try {
+                int authenticators = allowedBiometricAuthenticators();
+                return BiometricManager.from(MainActivity.this)
+                        .canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS;
+            } catch (Exception ignored) {
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public void authenticateBiometric(String callbackId) {
+            if (callbackId == null || !callbackId.matches("^[A-Za-z0-9_-]{1,80}$")) return;
+            runOnUiThread(() -> {
+                try {
+                    int authenticators = allowedBiometricAuthenticators();
+                    BiometricManager manager = BiometricManager.from(MainActivity.this);
+                    if (manager.canAuthenticate(authenticators) != BiometricManager.BIOMETRIC_SUCCESS) {
+                        biometricCallback(callbackId, false,
+                                "No supported face, fingerprint or device screen lock is available.");
+                        return;
+                    }
+
+                    BiometricPrompt.AuthenticationCallback callback =
+                            new BiometricPrompt.AuthenticationCallback() {
+                        @Override
+                        public void onAuthenticationError(int errorCode, CharSequence errString) {
+                            super.onAuthenticationError(errorCode, errString);
+                            biometricCallback(callbackId, false,
+                                    "Device authentication was cancelled or could not be completed.");
+                        }
+
+                        @Override
+                        public void onAuthenticationSucceeded(BiometricPrompt.AuthenticationResult result) {
+                            super.onAuthenticationSucceeded(result);
+                            biometricCallback(callbackId, true, "Authenticated");
+                        }
+                    };
+
+                    BiometricPrompt prompt = new BiometricPrompt(
+                            MainActivity.this,
+                            ContextCompat.getMainExecutor(MainActivity.this),
+                            callback
+                    );
+                    BiometricPrompt.PromptInfo.Builder info = new BiometricPrompt.PromptInfo.Builder()
+                            .setTitle("Unlock AegisPay")
+                            .setSubtitle("Use your face, fingerprint or device screen lock")
+                            .setAllowedAuthenticators(authenticators);
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                        info.setNegativeButtonText("Cancel");
+                    }
+                    prompt.authenticate(info.build());
+                } catch (Exception ignored) {
+                    biometricCallback(callbackId, false, "Device authentication is unavailable.");
+                }
+            });
         }
 
         @JavascriptInterface

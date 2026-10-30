@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v55-unique-address-treasury-privacy';
+const CACHE='aegispay-shell-v56-client-ux-biometric-telegram';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
