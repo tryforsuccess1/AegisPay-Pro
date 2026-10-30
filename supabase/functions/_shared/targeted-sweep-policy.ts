@@ -11,6 +11,7 @@ type Source = {
   network: string;
   tokenContract: string;
   receivingAddress: string;
+  senderAddress: string;
 };
 
 type Transfer = {
@@ -76,7 +77,8 @@ export function validateTargetedDepositSweep(input: TargetedSweepInput): Targete
     || String(source.txid || "").toLowerCase() !== targetTxid
     || String(source.network || "").toUpperCase() !== SHASTA_NETWORK
     || String(source.tokenContract || "") !== SHASTA_USDT_CONTRACT
-    || String(source.receivingAddress || "") !== input.walletAddress) {
+    || String(source.receivingAddress || "") !== input.walletAddress
+    || !ADDRESS_RE.test(String(source.senderAddress || ""))) {
     return fail("VERIFIED_DEPOSIT_IDENTITY_MISMATCH");
   }
   const amountRaw = String(source.rawAmount || "");
@@ -94,6 +96,7 @@ export function validateTargetedDepositSweep(input: TargetedSweepInput): Targete
     || Number(transfer.decimals) !== 6
     || String(transfer.type || "").toLowerCase() !== "transfer"
     || !ADDRESS_RE.test(String(transfer.from || ""))
+    || String(transfer.from || "") !== String(source.senderAddress || "")
     || !Number.isSafeInteger(transfer.blockTimestamp) || transfer.blockTimestamp <= 0) {
     return fail("TARGET_TRANSFER_CHAIN_DETAILS_MISMATCH");
   }
@@ -108,6 +111,8 @@ export function validateTargetedDepositSweep(input: TargetedSweepInput): Targete
   if (BigInt(balanceRaw) < BigInt(amountRaw)) return fail("TOKEN_BALANCE_BELOW_TARGET_AMOUNT");
   if (input.alreadySwept) return fail("TARGET_DEPOSIT_ALREADY_SWEPT");
   if (input.pendingSweep) return fail("WALLET_HAS_PENDING_SWEEP");
+
+  if (!String(source.id || "").trim()) return fail("VERIFIED_DEPOSIT_ID_INVALID");
 
   return {
     ok: true,
