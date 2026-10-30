@@ -4040,7 +4040,7 @@ async function liveActivity(){
   return rows.length?rows.map(x=>{
    const positive=x.amount>=0,icon=x.filter==='dep'?'dep':x.filter==='wd'?'wd':x.filter==='task'?'bag':x.filter==='settle'?'hg':x.filter==='ref'?'users':'hist';
    const kind=x.filter==='wd'?'db':positive?'cr':'nt';
-   return '<div class="rw"><div class="t '+kind+'">'+apIcon(icon)+'</div><div class="m"><b>'+esc(x.label)+'</b><small>'+esc(new Date(x.date).toLocaleString())+(x.status?' · '+esc(x.status):'')+'</small></div><div class="v '+(positive?'pos':'neg')+'">'+(positive?'+':'−')+Math.abs(x.amount).toFixed(2)+'<small>USDT</small></div></div>';
+   return '<div class="rw"><div class="t '+kind+'">'+apIcon(icon)+'</div><div class="m"><b>'+esc(clientPaymentCopy(x.label))+'</b><small>'+esc(new Date(x.date).toLocaleString())+(x.status?' · '+esc(clientPaymentStatus(x.status)):'')+'</small></div><div class="v '+(positive?'pos':'neg')+'">'+(positive?'+':'−')+Math.abs(x.amount).toFixed(2)+'<small>USDT</small></div></div>';
   }).join(''):'<div class="empty">No records in this category yet.</div>';
  };
  app.innerHTML='<div class="scr on"><div class="pt" data-i18n="p_activity">Activity</div><div class="ps">Deposits, Shop and task events, balance entries and withdrawal status.</div>'+
