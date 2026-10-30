@@ -140,6 +140,13 @@ async function visit(page, url, expectedSelector) {
     assert.deepEqual(await page.evaluate(() => window.__turnstileMockStats), { renderCount: 1, executeCount: 1, resetCount: 1 },
       'Live Client Turnstile should initialize and execute on Login click, then reset after the mocked auth attempt.');
 
+    const liveLoginNotice = page.locator('#aegisNoticeModal');
+    await liveLoginNotice.waitFor({ state: 'visible', timeout: 5000 });
+    assert.equal(await liveLoginNotice.locator('button').textContent(), 'OK',
+      'Live Client login failure must use a centered dialog with an OK dismissal button.');
+    await liveLoginNotice.locator('button').click();
+    await liveLoginNotice.waitFor({ state: 'detached', timeout: 3000 });
+
     await page.locator('.ap-auth [data-a="lang"]').first().click();
     await page.locator('#ov.show').waitFor({ state: 'visible', timeout: 5000 });
     await page.locator('#sh [data-ap-lang="ur"]').click();
