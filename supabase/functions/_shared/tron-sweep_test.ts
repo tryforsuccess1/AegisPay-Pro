@@ -1,5 +1,5 @@
 import { assertEquals, assertNotEquals, assertRejects } from "jsr:@std/assert@1.0.14";
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources, isSuccessfulSweepSimulation, TRC20_TRANSFER_TOPIC } from "./tron-sweep.ts";
 
 const txid = "a".repeat(64);
 const signed = { txID: txid, raw_data: { expiration: 2_000_000_000_000 }, signature: ["test-signature"] };
@@ -87,6 +87,15 @@ Deno.test("sweep fee limit derives from chain Energy price and fails closed abov
   assertEquals(estimateSweepFeeLimitSun(65_000, 0, 100_000_000), 0);
   assertEquals(estimateSweepFeeLimitSun(0, 420, 100_000_000), 0);
   assertEquals(estimateSweepFeeLimitSun(65_000, 420, 100_000_000, 1.35, Number.NaN), 0);
+});
+
+Deno.test("sweep fallback simulation requires successful TVM execution", () => {
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [{ ret: "SUCCESS" }] } }), true);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [{ ret: "FAILED" }] } }), false);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: false }, transaction: { ret: [{ ret: "SUCCESS" }] } }), false);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true }, transaction: { ret: [] } }), false);
+  assertEquals(isSuccessfulSweepSimulation({ result: { result: true } }), false);
+  assertEquals(isSuccessfulSweepSimulation(null), false);
 });
 
 Deno.test("estimated transaction Bandwidth includes protobuf result and signature overhead", () => {
