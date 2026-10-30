@@ -66,6 +66,8 @@ jobs:
         run: deno test --node-modules-dir=auto --allow-env=WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE supabase/functions/_shared/tron-hd-wallet_test.ts
       - name: Test per-withdrawal payout wallet policy and fee reserve
         run: deno test --node-modules-dir=auto supabase/functions/_shared/withdrawal-payout-wallet_test.ts
+      - name: Test production readiness secret separation diagnostics
+        run: deno test supabase/functions/_shared/production-readiness-policy_test.ts
       - name: Test isolated Shasta payout allowlist and fail-closed routing
         run: deno test --node-modules-dir=auto supabase/functions/_shared/shasta-test-mode_test.ts
       - name: Test HD sweep idempotency and transaction recovery state machine
