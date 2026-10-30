@@ -3193,7 +3193,7 @@ shop:()=>`${T('Shop','home')}<div class="hero" style="background:linear-gradient
  <div class="card"><div class="lvl"><div>Balance<b>$2,480</b></div><div>Referrals<b>12</b></div><div>Earned<b>37</b></div></div></div>
  <div class="card" style="padding:0 16px">${[['user','Account Details','#f06a4d'],['shield','Security &amp; PIN','#1a9a6e'],['card','Payment Methods','#c94b8a'],['bell','Notifications','#d98a1a'],['set','Settings','#8a7a68'],['out','Log Out','#d63a4a']].map(m=>`<div class="mn">${bub(ic(m[0]),m[2])}<span>${m[1]}</span><span class="mu" style="flex:none">${ic('chev')}</span></div>`).join('')}</div>${NV('account')}`,
 
-bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><section class="ai-support-cta" aria-label="Customer support"><button class="ai-support-button" id="aiRepresentative" type="button"><span class="ai-support-icon">i</span><span class="ai-support-copy"><strong>Talk to a Customer Representative</strong><small>Need more help? Our support team can review your issue.</small></span><span class="ai-support-chevron">›</span></button><div id="aiRepresentativeStatus" class="ai-support-status" aria-live="polite" hidden></div></section><div class="ai-composer"><button class="ai-attach-btn" id="aiAttach" type="button" aria-label="Attach screenshot or PDF" title="Attach screenshot or PDF">+</button><div class="ai-input-shell" id="aiInputShell"><input id="aiAttachmentInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><span id="aiAttachmentName" class="ai-attachment-name" hidden></span><button class="ai-attachment-remove" id="aiAttachmentRemove" type="button" aria-label="Remove attachment" hidden>×</button></div><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
+bot:()=>'<div class="scr on ai-assistant-screen"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_ai">AI Assistant</h1></div><div class="chips"><button class="chip" type="button" data-q="Deposit / TXID">Deposit / TXID</button><button class="chip" type="button" data-q="Withdrawal status">Withdrawal</button><button class="chip" type="button" data-q="Referrals">Referrals</button><button class="chip" type="button" data-q="Shop tasks">Tasks</button><button class="chip" type="button" data-q="Password reset">Password</button></div><div class="msgs" id="aiMessages" aria-live="polite"></div><section class="ai-support-cta" aria-label="Customer support"><button class="ai-support-button" id="aiRepresentative" type="button"><span class="ai-support-icon">i</span><span class="ai-support-copy"><strong>Talk to a Customer Representative</strong><small>Need more help? Our support team can review your issue.</small></span><span class="ai-support-chevron">›</span></button><div id="aiRepresentativeStatus" class="ai-support-status" aria-live="polite" hidden></div><small class="ai-support-privacy">Messages sent to AegisPay AI may be shared with our support team for follow-up.</small></section><div class="ai-composer"><button class="ai-attach-btn" id="aiAttach" type="button" aria-label="Attach screenshot or PDF" title="Attach screenshot or PDF">+</button><div class="ai-input-shell" id="aiInputShell"><input id="aiAttachmentInput" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" hidden><input id="aiInput" placeholder="Type your question..." aria-label="Ask AegisPay AI" maxlength="1000" style="flex:1"><span id="aiAttachmentName" class="ai-attachment-name" hidden></span><button class="ai-attachment-remove" id="aiAttachmentRemove" type="button" aria-label="Remove attachment" hidden>×</button></div><button class="btn sm" id="aiSend" type="button" style="padding:0" aria-label="Send">'+apIcon('send')+'</button></div>'+NV('bot')+'</div>'};
 function go(id){app.innerHTML=SC[id]();scrollTo(0,0)}
 function showAuthBootstrap(){
  app.innerHTML='<div class="card" role="status" aria-live="polite" style="margin-top:22vh;padding:24px;text-align:center"><div style="font-size:22px;font-weight:700;letter-spacing:-.4px">Aegis<span style="background:linear-gradient(135deg,var(--p1),var(--p2));background-clip:text;-webkit-background-clip:text;color:transparent">Pay</span></div><p class="mu" style="margin-top:8px">Restoring your secure session…</p><div aria-hidden="true" style="height:3px;width:120px;margin:18px auto 0;border-radius:9px;background:linear-gradient(90deg,var(--p1),var(--p2))"></div></div>';
@@ -3207,14 +3207,19 @@ const U='https://wtcspnrmsoisroavojop.supabase.co',K='sb_publishable_pDg6Ef_P6fZ
 const db=supabase.createClient(U,K,{auth:{autoRefreshToken:true,persistSession:true,detectSessionInUrl:false}});
 window.AegisSupabaseClient=db;
 window.__aegisCurrentRoute=window.__aegisCurrentRoute||'home';
-const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='',notificationPage=0,notificationRequestId=0,notificationCursors=[null],notificationNavigationInProgress=false,notificationReturnFromDetails=false,notificationRouteObserver=null;
-function uiNotice(message,type='error',duration=4200){
-  const root=document.getElementById('app');if(!root)return;
-  const old=root.querySelector('.app-notice');if(old)old.remove();
-  const el=document.createElement('div');el.className='app-notice '+(type==='success'?'success':type==='info'?'info':'error');
-  el.innerHTML='<span style="font-size:15px;line-height:1">'+(type==='success'?'✓':type==='info'?'i':'!')+'</span><span style="flex:1">'+esc(String(message||''))+'</span><button class="x" type="button" aria-label="Close">×</button>';
-  el.querySelector('.x').onclick=()=>el.remove();root.prepend(el);
-  if(duration>0)setTimeout(()=>{if(el.isConnected)el.remove()},duration);
+const oldGo=window.go; let profile=null,authUser=null,settings={},tiers=[],unreadNotifications=0,referralLinkCode='',notificationPage=0,notificationRequestId=0,notificationCursors=[null],notificationNavigationInProgress=false,notificationReturnFromDetails=false,notificationRouteObserver=null,initialAppBoot=true;
+function uiNotice(message,type='error',duration=0){
+  const old=document.getElementById('aegisNoticeModal');if(old)old.remove();
+  const backdrop=document.createElement('div');backdrop.id='aegisNoticeModal';backdrop.setAttribute('role',type==='error'?'alertdialog':'dialog');backdrop.setAttribute('aria-modal','true');
+  backdrop.style.cssText='position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;padding:22px;background:rgba(8,10,18,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)';
+  const card=document.createElement('section');card.style.cssText='width:min(410px,100%);padding:23px 20px 18px;border:1px solid rgba(201,75,138,.25);border-radius:23px;background:var(--s1,#fff);color:var(--tx,#211b25);box-shadow:0 24px 80px rgba(0,0,0,.32);text-align:center';
+  const icon=document.createElement('div');icon.textContent=type==='success'?'✓':type==='info'?'i':'!';icon.style.cssText='width:44px;height:44px;margin:0 auto 12px;border-radius:15px;display:grid;place-items:center;background:'+(type==='success'?'rgba(26,154,110,.12)':type==='info'?'rgba(201,75,138,.12)':'rgba(214,58,74,.12)')+';color:'+(type==='success'?'#16845f':type==='info'?'#b3447a':'#c33c50')+';font-size:22px;font-weight:800';
+  const title=document.createElement('h2');title.textContent=type==='success'?'Completed':type==='info'?'Information':'Please check';title.style.cssText='margin:0 0 8px;font:750 18px/1.3 var(--ff,Arial,sans-serif);color:var(--hd,#211b25)';
+  const copy=document.createElement('p');copy.textContent=String(message||'');copy.style.cssText='margin:0 0 20px;font:500 13px/1.65 var(--ff,Arial,sans-serif);color:var(--mut,#756b76);white-space:pre-wrap;overflow-wrap:anywhere';
+  const ok=document.createElement('button');ok.type='button';ok.textContent='OK';ok.style.cssText='width:100%;min-height:46px;border:0;border-radius:14px;background:linear-gradient(135deg,#f06a4d,#c94b8a);color:#fff;font:750 13px var(--ff,Arial,sans-serif);cursor:pointer';
+  const close=()=>{backdrop.remove();document.removeEventListener('keydown',onKey);};const onKey=e=>{if(e.key==='Escape'||e.key==='Enter'){e.preventDefault();close();}};
+  ok.addEventListener('click',close);backdrop.addEventListener('click',e=>{if(e.target===backdrop)close();});document.addEventListener('keydown',onKey);
+  card.append(icon,title,copy,ok);backdrop.appendChild(card);document.body.appendChild(backdrop);ok.focus();
 }
 // Financial activity must be read from account_ledger, never fabricated for display.
 let activityTickerTimer=null,activityTickerInitialTimer=null,activityTickerHideTimer=null;
@@ -3356,6 +3361,13 @@ async function refreshNotificationCount(){
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const formatName=v=>String(v??'').trim().replace(/\s+/g,' ').split(' ').filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const formatUsername=v=>String(v??'').trim().toLowerCase();
+const clientPaymentCopy=value=>String(value??'').replace(/\bAli\s+Shahid\b/gi,'AegisPay team').replace(/\bMASTER[_\s-]*ADMIN\b/gi,'AegisPay team').replace(/\bMaster\s+Admin\b/gi,'AegisPay team');
+const clientPaymentStatus=value=>{
+  const raw=String(value||'Pending').trim(),key=raw.toUpperCase().replace(/[\s-]+/g,'_');
+  const known={APPROVED_BY_MASTER_ADMIN:'Approved',APPROVED_BY_ADMIN:'Approved',ADMIN_APPROVED:'Approved',PENDING_MASTER_ADMIN:'Under review',PENDING_ADMIN_APPROVAL:'Under review',PENDING_REVIEW:'Under review',REJECTED_BY_MASTER_ADMIN:'Not approved',REJECTED_BY_ADMIN:'Not approved',ADMIN_REJECTED:'Not approved',MANUAL_REVIEW:'Under review',FAILED_REVIEW:'Under review',PROCESSING:'Processing',COMPLETED:'Completed',PAID:'Paid',VERIFIED:'Verified',FAILED:'Failed',REJECTED:'Not approved',CANCELLED:'Cancelled',PENDING:'Pending'};
+  if(known[key])return known[key];
+  return clientPaymentCopy(raw).replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/\b\w/g,c=>c.toUpperCase())||'Pending';
+};
 
 window.AegisSupabaseConfig=window.AegisSupabaseConfig||{turnstileSiteKey:'0x4AAAAAAFZaOeTke8FQpVNS',socialProviders:{google:true,facebook:false}};
 function passwordResetRedirectTo(){
@@ -3716,13 +3728,12 @@ async function liveTopup(){
  ]);
  const deposits=(ledgerResult.data||[]).filter(x=>Number(x.amount)>0&&/deposit|top.?up|funding|txid/i.test(String((x.description||'')+' '+(x.entry_type||''))));
  const statusView=(value)=>{
-  const s=String(value||'').toUpperCase();
-  if(s==='VERIFIED')return {label:'Verified',cls:'ok'};
-  if(s==='PENDING_VERIFICATION')return {label:'Pending verification',cls:'wa'};
-  if(s==='REJECTED'||s==='FAILED')return {label:'Rejected',cls:'rd'};
-  if(s==='FAILED_REVIEW'||s==='MANUAL_REVIEW')return {label:'Manual review required',cls:'wa'};
-  if(s==='CANCELLED')return {label:'Cancelled',cls:'mu'};
-  return {label:s?s.replace(/_/g,' ').toLowerCase().replace(/(^|\s)\S/g,m=>m.toUpperCase()):'Submitted',cls:'mu'};
+  const s=String(value||'').toUpperCase(),label=clientPaymentStatus(value);
+  if(s==='VERIFIED'||/APPROVED|PAID|COMPLETED/.test(s))return {label,cls:'ok'};
+  if(s==='PENDING_VERIFICATION'||s==='FAILED_REVIEW'||s==='MANUAL_REVIEW'||/PENDING|REVIEW|PROCESSING/.test(s))return {label,cls:'wa'};
+  if(s==='REJECTED'||s==='FAILED'||/DECLINED/.test(s))return {label,cls:'rd'};
+  if(s==='CANCELLED')return {label,cls:'mu'};
+  return {label,cls:'mu'};
  };
  const requestRows=submissionResult.error
   ?'<div class="empty">Deposit request history could not be loaded. Please try again.</div>'
@@ -3857,7 +3868,7 @@ async function liveWithdraw(){
  const walletCard=p.destination_address?
   '<div class="card"><div class="row"><b>Destination wallet (TRON)</b><span class="bd ok">Linked · Locked</span></div><div class="addr" style="margin-top:12px"><span style="flex:1">'+esc(p.destination_address)+'</span>'+apIcon('lock')+'</div><div class="note">The linked withdrawal wallet cannot be changed from the client app. Changes require an authorized account review.</div></div>':
   '<div class="card"><div class="fl" style="margin-top:0">Destination wallet (TRON / TRC20)</div><input id="withdrawWallet" autocomplete="off" placeholder="T..."><div class="note">After linking, this address is locked. Changes require an authorized account review.</div><div style="height:12px"></div><button class="btn o" type="button" id="linkWalletBtn">Link wallet '+apIcon('wallet')+'</button></div>';
- const requests=(historyRes.data||[]).map(w=>'<div class="rw"><div class="t '+(/PAID|APPROVED|COMPLETED/i.test(String(w.status||''))?'cr':'nt')+'">'+apIcon('wd')+'</div><div class="m"><b>Withdrawal request</b><small>'+esc(new Date(w.created_at).toLocaleString())+' · '+esc(w.status||'Pending')+'</small></div><div class="v">'+Number(w.amount||0).toFixed(2)+'<small>USDT</small></div></div>').join('');
+ const requests=(historyRes.data||[]).map(w=>'<div class="rw"><div class="t '+(/PAID|APPROVED|COMPLETED/i.test(String(w.status||''))?'cr':'nt')+'">'+apIcon('wd')+'</div><div class="m"><b>Withdrawal request</b><small>'+esc(new Date(w.created_at).toLocaleString())+' · '+esc(clientPaymentStatus(w.status||'Pending'))+'</small></div><div class="v">'+Number(w.amount||0).toFixed(2)+'<small>USDT</small></div></div>').join('');
  app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_wd">Withdraw</h1></div>'+
   '<div class="card big"><small>Available to withdraw</small><div class="n"><span class="bv">'+available.toFixed(2)+'</span> USDT</div><div class="two"><div><small>Held (pending)</small><b class="hv">'+held.toFixed(2)+'</b></div><div><small>Wallet</small><b id="wst">'+(p.destination_address?'Linked':'Not linked')+'</b></div></div></div>'+
   '<div class="info">'+apIcon('info')+'<div>Withdrawal requests are validated by server-side balance, fee and eligibility rules. Requests may undergo automated checks and authorized review; a transfer is only shown as paid after the payout service confirms it. Current minimum: <b>'+minAmount.toFixed(2)+' USDT</b>.</div></div>'+
@@ -3940,10 +3951,24 @@ async function liveNotifications(){
  const items=r.data||[];
  await refreshNotificationCount();
  if(requestId!==notificationRequestId)return;
+ let previousNotificationGroup='';
+ const notificationGroupLabel=value=>{
+   const d=new Date(value);if(!Number.isFinite(d.getTime()))return 'Earlier';
+   const today=new Date();today.setHours(0,0,0,0);const target=new Date(d);target.setHours(0,0,0,0);
+   const days=Math.round((today.getTime()-target.getTime())/86400000);
+   if(days===0)return 'Today';if(days===1)return 'Yesterday';
+   return d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'});
+ };
+ const notificationRows=items.map(x=>{
+   const group=notificationGroupLabel(x.created_at);
+   const heading=group!==previousNotificationGroup?'<div class="notification-date-heading">'+esc(group)+'</div>':'';
+   previousNotificationGroup=group;
+   return heading+'<button type="button" class="nt-i app-notification-card" data-notification-id="'+esc(x.id)+'"><span class="u '+(x.is_read?'r':'')+'"></span><span class="notification-copy"><b>'+esc(x.title||'AegisPay Update')+'</b><p>'+esc(x.body||'')+'</p><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></span></button>';
+ }).join('')||'<div class="empty">No notifications yet.</div>';
  app.innerHTML='<div class="scr on"><div class="hd"><button class="bk" type="button" onclick="go(\'home\')">'+apIcon('back')+'</button><h1 data-i18n="p_notes">Notifications</h1></div>'+
   '<h2><b>Updates</b><span>'+totalCount+' total</span></h2>'+
   (unreadNotifications?'<div class="notification-actions"><button type="button" id="markAllNotifications">Mark all as read</button></div>':'')+
-  '<div class="card list" id="notificationList">'+(items.map(x=>'<button type="button" class="nt-i" data-notification-id="'+esc(x.id)+'" style="width:100%;background:transparent;border:0;text-align:left;color:var(--tx);font-family:var(--ff);padding:14px 0"><span class="u '+(x.is_read?'r':'')+'"></span><span style="flex:1;min-width:0"><b>'+esc(x.title||'AegisPay Update')+'</b><p>'+esc(x.body||'')+'</p><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></span></button>').join('')||'<div class="empty">No notifications yet.</div>')+'</div>'+(pageCount>1?'<div class="notification-pager" aria-label="Notification pages"><button type="button" class="notification-page-button" id="notificationPrevious"'+(notificationPage===0?' disabled':'')+'>Previous</button><span class="notification-page-status" aria-live="polite">Page '+(notificationPage+1)+' of '+pageCount+'</span><button type="button" class="notification-page-button" id="notificationNext"'+(notificationPage>=pageCount-1?' disabled':'')+'>Next</button></div>':'')+nav('hidden')+'</div>';
+  '<div class="notification-list" id="notificationList">'+notificationRows+'</div>'+(pageCount>1?'<div class="notification-pager" aria-label="Notification pages"><button type="button" class="notification-page-button" id="notificationPrevious"'+(notificationPage===0?' disabled':'')+'>Previous</button><span class="notification-page-status" aria-live="polite">Page '+(notificationPage+1)+' of '+pageCount+'</span><button type="button" class="notification-page-button" id="notificationNext"'+(notificationPage>=pageCount-1?' disabled':'')+'>Next</button></div>':'')+nav('hidden')+'</div>';
  // Open notification details as a dedicated readable page. A click handler outside the list handles all mobile taps.
  window.__aegisOpenNotificationById=async function(id){
    let item=items.find(x=>String(x.id)===String(id));
@@ -4068,8 +4093,26 @@ async function liveAccount(){
    '<div class="mi" data-a="appear">'+apIcon('moon')+'<span data-i18n="m_title">Appearance</span>'+apIcon('chev')+'</div>'+
    '<div class="mi" data-a="lang">'+apIcon('globe')+'<span data-i18n="p_lang">Language</span>'+apIcon('chev')+'</div>'+
    '<div class="mi" onclick="go(\'bot\')">'+apIcon('spark')+'AI support'+apIcon('chev')+'</div></div>'+
+  '<div class="card" id="aegisBiometricCard" style="margin-top:14px"><div class="row"><b>Quick unlock</b><span class="bd" id="aegisBiometricStatus">Optional</span></div><p class="note" style="margin:8px 0 12px">Use your face, fingerprint or supported device PIN when reopening AegisPay. This is optional and stays on this device.</p><button type="button" class="btn o" id="aegisBiometricToggle">Enable quick unlock</button></div>'+
   '<div style="height:14px"></div><button class="btn rd" type="button" onclick="liveLogout()" data-i18n="p_logout">Log out</button>'+nav('account')+'</div>';
  const copy=document.getElementById('copyClientId');if(copy)copy.onclick=()=>copyTextToClipboard(clientId(p),'Client ID copied.');
+ const bioButton=document.getElementById('aegisBiometricToggle'),bioStatus=document.getElementById('aegisBiometricStatus');
+ if(bioButton){
+   const available=!!(window.AegisNative&&typeof window.AegisNative.isBiometricAvailable==='function'&&window.AegisNative.isBiometricAvailable());
+   const syncBio=()=>{const enabled=biometricIsEnabled();if(bioStatus)bioStatus.textContent=enabled?'Enabled':'Disabled';bioButton.textContent=enabled?'Turn off quick unlock':'Enable quick unlock';};
+   if(!available){bioButton.disabled=true;bioButton.textContent='Available in the Android app';if(bioStatus)bioStatus.textContent='Not available';}
+   else{
+     syncBio();
+     bioButton.onclick=async()=>{
+       if(biometricIsEnabled()){setBiometricEnabled(false);syncBio();uiNotice('Quick unlock has been turned off.','success');return;}
+       bioButton.disabled=true;bioButton.textContent='Confirm on your device…';
+       const result=await requestNativeBiometric();
+       if(result.ok){setBiometricEnabled(true);syncBio();uiNotice('Quick unlock enabled for this device.','success');}
+       else{syncBio();uiNotice(result.message||'Device authentication was not completed.','info');}
+       bioButton.disabled=false;
+     };
+   }
+ }
 }
 let taskProductData={};
 const taskReviewSamples=[
@@ -5032,6 +5075,23 @@ window.openAegisSupport=openAegisSupport;
 
 window.__aegisDataGoBound=true;document.addEventListener('click',function(e){const el=e.target.closest('[data-go]');if(!el||el.hasAttribute('onclick'))return;const route=el.getAttribute('data-go');if(route){e.preventDefault();window.go(route)}});
 window.go=async function(id){try{if(id==='login'||id==='signup'||id==='forgot'||id==='reset'){const r=originalGo(id);setTimeout(bindAuthForms,0);return r}if(!profile)return originalGo('login');if(id==='bot')return await openAegisSupport();if(id==='home')return liveHome();if(id==='topup'||id==='deposit')return liveTopup();if(id==='vip')return liveVip();if(id==='kyc')return liveKyc();if(id==='withdraw')return liveWithdraw();if(id==='referral'||id==='refs')return liveReferral();if(id==='assets')return liveAssets();if(id==='activity')return liveActivity();if(id==='account'||id==='profile')return liveAccount();if(id==='notifications'||id==='notes')return liveNotifications();if(id==='tasks'||id==='shop')return liveShop();return originalGo(id)}catch(e){app.innerHTML='<div class="card" style="margin-top:30px"><h3>Unable to load</h3><p class="mu" style="margin-top:8px">'+esc(e.message)+'</p></div>'}finally{setTimeout(updateNotificationBadge,0)}};
+function biometricIsEnabled(){try{return localStorage.getItem('aegispay_biometric_enabled_v1')==='1'}catch(_){return false}}
+function setBiometricEnabled(enabled){try{if(enabled)localStorage.setItem('aegispay_biometric_enabled_v1','1');else localStorage.removeItem('aegispay_biometric_enabled_v1')}catch(_){}}
+const aegisBiometricCallbacks=new Map();let aegisBiometricSequence=0;
+window.AegisBiometricCallback=function(id,success,message){const resolve=aegisBiometricCallbacks.get(String(id||''));if(!resolve)return;aegisBiometricCallbacks.delete(String(id));resolve({ok:!!success,message:String(message||'')});};
+function requestNativeBiometric(){
+ const native=window.AegisNative;
+ if(!native||typeof native.isBiometricAvailable!=='function'||typeof native.authenticateBiometric!=='function')return Promise.resolve({ok:false,message:'Quick unlock is available only in the Android app.'});
+ try{if(!native.isBiometricAvailable())return Promise.resolve({ok:false,message:'No supported face, fingerprint or device PIN is configured on this phone.'});}catch(_){return Promise.resolve({ok:false,message:'Device authentication is unavailable.'});}
+ return new Promise(resolve=>{const id='aegis-bio-'+Date.now()+'-'+(++aegisBiometricSequence);aegisBiometricCallbacks.set(id,resolve);try{native.authenticateBiometric(id);}catch(_){aegisBiometricCallbacks.delete(id);resolve({ok:false,message:'Could not open device authentication.'});}});
+}
+function renderBiometricGate(){
+ app.innerHTML='<div class="scr on" style="min-height:70vh;display:flex;flex-direction:column;justify-content:center"><div class="card" style="padding:24px;text-align:center"><div class="md m2" style="width:56px;height:56px;margin:0 auto 14px">◈</div><h2 style="margin:0 0 8px">Unlock AegisPay</h2><p class="note" id="aegisBiometricGateStatus">Confirm with your face, fingerprint or supported device PIN to continue.</p><button type="button" class="btn" id="aegisBiometricRetry" style="margin-top:16px">Unlock</button><button type="button" class="btn o" id="aegisBiometricSignOut" style="margin-top:9px">Sign out instead</button></div></div>';
+ const retry=document.getElementById('aegisBiometricRetry'),status=document.getElementById('aegisBiometricGateStatus'),signout=document.getElementById('aegisBiometricSignOut');
+ const unlock=async()=>{if(retry)retry.disabled=true;if(status)status.textContent='Waiting for device authentication…';const result=await requestNativeBiometric();if(!result.ok){if(status)status.textContent=result.message||'Authentication was not completed. Try again or sign out.';if(retry)retry.disabled=false;return;}try{await initData();if(profile&&profile.role==='USER'&&['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())){recordClientAccess('APP_OPEN');await liveHome();}else{await db.auth.signOut();setBiometricEnabled(false);window.go('login');}}catch(error){if(status)status.textContent=String(error&&error.message||'Your secure session could not be restored. Try again or sign out.');if(retry)retry.disabled=false;}};
+ if(retry)retry.onclick=unlock;
+ if(signout)signout.onclick=async()=>{await db.auth.signOut();setBiometricEnabled(false);window.go('login');};
+}
 async function bootLive(){let qs,requestedReturnPage='';try{qs=new URLSearchParams(location.search);referralLinkCode=String(qs.get('ref')||qs.get('referral')||'').trim().toUpperCase();const hashParams=new URLSearchParams((location.hash||'').replace(/^#/,'').replace(/^\?/,''));
 if(qs.get('shop_purchase')==='confirmed'){
   const shopTaskId=String(qs.get('task')||'').trim();
@@ -5039,6 +5099,7 @@ if(qs.get('shop_purchase')==='confirmed'){
   history.replaceState({},document.title,location.pathname);
   const shopSession=await db.auth.getSession();
   if(!shopSession.data.session){window.go('login');return;}
+  if(initialAppBoot){initialAppBoot=false;if(biometricIsEnabled()&&window.AegisNative){const unlocked=await requestNativeBiometric();if(!unlocked.ok){renderBiometricGate();return;}}}
   try{
     await initData();
     if(profile.role!=='USER' || !['ACTIVE','NORMAL'].includes(String(profile.status||'').toUpperCase())) throw Error('This account is not active.');
@@ -5128,6 +5189,10 @@ if(!s.data.session&&requestedReturnPage){
       if(!refreshed.error&&refreshed.data&&refreshed.data.session)s={data:{session:refreshed.data.session}};
     }catch(_){}
   }
+}
+if(initialAppBoot){
+  initialAppBoot=false;
+  if(s.data.session&&biometricIsEnabled()&&window.AegisNative){const unlocked=await requestNativeBiometric();if(!unlocked.ok){renderBiometricGate();return;}}
 }
 if(s.data.session){
   await initData();
@@ -5235,7 +5300,22 @@ window.__aegisAuthBootstrapComplete=true;window.go((referralLinkCode||qs.get('si
     '.p2-wallet>span:first-child,.p2-wallet>.bub,.p2-wallet>i:first-child{display:none!important}'+
     '.p2-wallet code{display:block!important;min-width:0;flex:1;color:#2b2430!important;font:650 12.5px/1.55 ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",monospace!important;letter-spacing:0!important;white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere!important;word-break:break-word!important;text-shadow:none!important}'+
     '.p2-wallet .btn{flex:0 0 auto;background:#fff!important;border-color:#e4b4ca!important;color:#b33f78!important;box-shadow:none!important}';
-  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css+walletContrastOverrides+(nativeMobileLayout?nativeMobileOverrides:'');document.head.appendChild(st);
+  const st=document.createElement('style');st.setAttribute('data-aegis-phase2','1');st.textContent=css+walletContrastOverrides+(nativeMobileLayout?nativeMobileOverrides:'')+
+  '.tier-grid{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain;scroll-snap-type:x mandatory!important;gap:10px!important;width:100%!important;margin:10px 0 12px!important;padding:3px 2px 12px!important;align-items:stretch!important;-webkit-overflow-scrolling:touch}'+
+  '.tier-card{flex:0 0 168px!important;width:168px!important;min-width:168px!important;min-height:116px!important;scroll-snap-align:start!important}'+
+  '.aegis-mobile-app-layout .tier-grid{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;overflow-x:auto!important;gap:9px!important}'+
+  '.aegis-mobile-app-layout .tier-card{flex:0 0 158px!important;width:158px!important;min-width:158px!important;min-height:112px!important;padding:11px!important}'+
+  '.tier-grid::-webkit-scrollbar{height:4px}.tier-grid::-webkit-scrollbar-thumb{background:rgba(201,75,138,.35);border-radius:99px}'+
+  '.notification-list{display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:9px!important;width:100%!important}'+
+  '.notification-date-heading{width:100%;padding:8px 3px 2px;color:var(--mut);font:750 10px var(--ff);letter-spacing:.7px;text-transform:uppercase}'+
+  '.app-notification-card{display:flex!important;align-items:flex-start!important;gap:11px!important;width:100%!important;min-width:0!important;margin:0!important;padding:14px!important;border:1px solid var(--line)!important;border-radius:16px!important;background:var(--s1)!important;color:var(--tx)!important;text-align:left!important;white-space:normal!important}'+
+  '.app-notification-card .notification-copy{display:block;min-width:0;flex:1}.app-notification-card .notification-copy b{display:block;color:var(--hd);font-size:12px;line-height:1.45}.app-notification-card .notification-copy p{margin:5px 0 0;color:var(--mut);font-size:11px;line-height:1.55;overflow-wrap:anywhere}.app-notification-card .notification-copy small{display:block;margin-top:7px;color:var(--mut);font-size:9.5px}'+
+  '.app-notification-card:has(.u:not(.r)){border-color:rgba(201,75,138,.35)!important;background:linear-gradient(135deg,rgba(201,75,138,.08),rgba(240,106,77,.04))!important}'+
+  '.ai-support-privacy{display:block;margin:8px 3px 0;color:var(--mut);font-size:9px;line-height:1.45}'+
+  'button:not(:disabled),a[role=button],.mi,.mn,.p2-action,.p2-ai,.tier-card,.notif-card,.nt-i{transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}'+
+  'button:not(:disabled):active,a[role=button]:active,.mi:active,.mn:active,.p2-action:active,.p2-ai:active,.tier-card:active,.notif-card:active,.nt-i:active{transform:scale(.975) translateY(1px)}'+
+  '@media(prefers-reduced-motion:reduce){button:not(:disabled),a[role=button],.mi,.mn,.p2-action,.p2-ai,.tier-card,.notif-card,.nt-i{transition:none!important}}';
+document.head.appendChild(st);
 
   uiNotice=function(message,type){
     const root=document.getElementById('app');if(!root)return;const old=root.querySelector('.app-notice');if(old)old.remove();
@@ -5751,6 +5831,7 @@ document.addEventListener('click',function(e){var a=e.target.closest('[data-a="w
 (function(){
 'use strict';
 var layer=document.getElementById('ap-welcome-layer'),stage=document.getElementById('apw-stage'),field=document.getElementById('apw-cs'),start=document.getElementById('apw-start'),app=document.getElementById('app');
+try{if(localStorage.getItem('aegispay_welcome_seen_v1')==='1'){if(layer)layer.remove();return;}}catch(_){}
 if(!layer||!stage||!field||!start)return;
 var PAL=['#FF7A4D','#F0506E','#FFB08F','#FF9F43','#E8456E','#FFC9A8','#FF6B6B','#FFD166','#F78FB3'];
 var LAY=[[.26,.17,.24],[.62,.15,.17],[.95,.32,.16],[.02,.35,.13],[.02,.54,.15],[.97,.5,.15],[.9,.68,.16],[.15,.74,.19],[.52,.72,.22]];
@@ -5773,7 +5854,7 @@ if(t>c.nb){c.bl=t+.14;c.nb=t+2+Math.random()*4}c.g.style.transform='translate('+
 }
 function animate(now){if(destroyed||leaving)return;var dt=Math.min(.05,(now-last)/1000||0);last=now;if(!reduced)shapes.forEach(function(c){update(c,now/1000,dt)});else shapes.forEach(function(c){update(c,0,0)});frameId=requestAnimationFrame(animate)}
 function syncTheme(){var d=document.documentElement;stage.setAttribute('data-mode',d.getAttribute('data-mode')||'dark');stage.setAttribute('data-warm',d.getAttribute('data-warm')||'0')}
-function removeWelcome(immediate){if(destroyed||leaving)return;leaving=true;layer.classList.add('apw-leaving');if(immediate){destroyed=true;cancelAnimationFrame(frameId);layer.remove();if(observer)observer.disconnect();return}window.setTimeout(function(){destroyed=true;cancelAnimationFrame(frameId);layer.remove();if(observer)observer.disconnect()},580)}
+function removeWelcome(immediate){if(destroyed||leaving)return;try{localStorage.setItem('aegispay_welcome_seen_v1','1')}catch(_){}leaving=true;layer.classList.add('apw-leaving');if(immediate){destroyed=true;cancelAnimationFrame(frameId);layer.remove();if(observer)observer.disconnect();return}window.setTimeout(function(){destroyed=true;cancelAnimationFrame(frameId);layer.remove();if(observer)observer.disconnect()},580)}
 start.addEventListener('click',function(){removeWelcome(false)});
 stage.addEventListener('pointermove',function(e){var r=stage.getBoundingClientRect();point.x=(e.clientX-r.left)/r.width;point.y=(e.clientY-r.top)/r.height;point.has=1});
 stage.addEventListener('pointerleave',function(){point.has=0});
