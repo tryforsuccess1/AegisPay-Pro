@@ -64,6 +64,31 @@ export function estimateSweepBandwidth(rawDataHex: string, signatureCount = 1): 
   return hex.length / 2 + 3 + 64 + (67 * signatureCount);
 }
 
+
+export function estimateSweepEnergyRequirement(energyRequired: number, safetyMultiplier = 1.3): number {
+  if (!Number.isSafeInteger(energyRequired) || energyRequired <= 0 || energyRequired > 1_000_000
+    || !Number.isFinite(safetyMultiplier) || safetyMultiplier < 1 || safetyMultiplier > 2) return 0;
+  const buffered = Math.ceil(energyRequired * safetyMultiplier);
+  return Number.isSafeInteger(buffered) && buffered > 0 && buffered <= 2_000_000 ? buffered : 0;
+}
+
+export function estimateSweepFeeLimitSun(
+  energyRequired: number,
+  energyFeeSun: number,
+  maxFeeLimitSun: number,
+  safetyMultiplier = 1.35,
+  overheadSun = 2_000_000,
+): number {
+  const values = [energyRequired, energyFeeSun, maxFeeLimitSun, overheadSun];
+  if (values.some((value) => !Number.isSafeInteger(value) || value < 0)
+    || energyRequired <= 0 || energyRequired > 1_000_000
+    || energyFeeSun <= 0 || energyFeeSun > 1_000_000
+    || maxFeeLimitSun < 3_000_000
+    || !Number.isFinite(safetyMultiplier) || safetyMultiplier < 1 || safetyMultiplier > 2) return 0;
+  const estimate = Math.max(3_000_000, Math.ceil(energyRequired * energyFeeSun * safetyMultiplier + overheadSun));
+  return Number.isSafeInteger(estimate) && estimate <= maxFeeLimitSun ? estimate : 0;
+}
+
 export function getAvailableBandwidth(
   netLimit: number,
   netUsed: number,
