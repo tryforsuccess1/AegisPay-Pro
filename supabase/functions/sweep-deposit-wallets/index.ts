@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 
-import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources } from "../_shared/tron-sweep.ts";
+import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources, isSuccessfulSweepSimulation } from "../_shared/tron-sweep.ts";
 import { loadShastaTestRules, shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -217,7 +217,7 @@ async function estimateUsdtTransferEnergy(senderAddress: string, destinationAddr
       if (response.ok) {
         const payload = await response.json().catch(() => null);
         const value = Number(payload?.energy_used);
-        if (payload?.result?.result === true && Number.isSafeInteger(value) && value > 0 && value <= 1_000_000) {
+        if (isSuccessfulSweepSimulation(payload) && Number.isSafeInteger(value) && value > 0 && value <= 1_000_000) {
           estimatedEnergy = value;
         }
       }
