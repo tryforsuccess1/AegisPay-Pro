@@ -1,3 +1,41 @@
+# Latest verified status — 2026-10-30
+
+This section supersedes older deployment/version snapshots below where they conflict.
+
+## Latest code, CI and deployment
+
+- Canonical repository: `tryforsuccess1/AegisPay-Pro`, branch `main`.
+- TRON sweep hardening PR #153 merged successfully (merge commit `60c9fc1ccdeed9bec387f669821fef4ed03f4834`). It adds transaction-specific Energy estimation, a fallback constant-contract simulation, current chain Energy-fee lookup, bounded dynamic fee limits, transaction-size Bandwidth checks, and a one-wallet-per-run limit for Shasta and Mainnet sweep functions.
+- A further TVM-execution-result guard was added: a fallback simulation must contain an explicit successful TVM return status; an API-level success without a successful execution result is rejected before signing. PR #154 adds regression coverage and is merged (merge commit `1fe0a9aa3864d3736d2686eb32244ab9a2f2885e`).
+- Latest PR #154 workflow checks: AegisPay CI PASS; SQL Migration Tests PASS; Withdrawal Migration Tests PASS; Android APK Build PASS. The CI log confirms canonical architecture validation PASS and TRON sweep tests 13 passed / 0 failed. Edge Function type-checks passed as part of CI.
+- Supabase deployed sweep functions match the latest main source: `sweep-deposit-wallets v64` ACTIVE and `sweep-mainnet-deposit-wallets v5` ACTIVE. A source read after deployment verified Energy simulation, fallback, TVM success guard, current Energy-fee lookup, dynamic fee cap, Bandwidth sizing and one-wallet batching are present.
+- Cloudflare Pages UI deployment from PR #153 merge commit `60c9fc1ccdeed9bec387f669821fef4ed03f4834` completed successfully. PR #154 and subsequent changes are sweep backend/test/validator/documentation only; no UI assets changed.
+- No Mainnet or Shasta sweep transaction was broadcast during this update.
+
+## Current database and payment state
+
+- Supabase project `wtcspnrmsoisroavojop` is ACTIVE_HEALTHY.
+- Production remains locked: `PRE_PRODUCTION`, live deposits OFF, real payouts OFF, go-live approval FALSE, payout lock ON.
+- Current counts: 8 active allowlisted Shasta deposit wallets; 0 active Mainnet deposit wallets; 0 duplicate Shasta addresses; 0 unresolved sweep records; 0 APPROVED/PROCESSING withdrawals without TXID.
+- One historical PAID withdrawal still lacks a `withdrawal_payout_journal` row. It has an existing manual on-chain reconciliation audit event; do not fabricate the missing derivation metadata, create a duplicate payout, or debit the customer again.
+- Wallet, sweep and payout-journal tables remain RLS protected and inaccessible to `anon` / `authenticated` direct SELECT; privileged service-role access remains.
+
+## Security, account and operational prerequisites
+
+- Supabase organization plan is `FREE`. Native Leaked Password Protection is available on Pro and above, so the Supabase Auth setting cannot be enabled on the current plan without an owner-authorized plan upgrade. Security Advisor therefore continues to show this WARN.
+- The repository already has a custom Have I Been Pwned range check on the controlled `public-signup` and `complete-password-reset` Edge Functions. It sends only the first five SHA-1 hash characters, rejects compromised passwords, and fails closed if the provider is unavailable. The password policy requires 12–128 characters. This is a mitigation, not a replacement for Supabase's native protection on every possible direct Auth password operation.
+- The GitHub repository remains PUBLIC. The connected GitHub actions do not expose an authorized repository-visibility/security-settings write operation. Changing it to PRIVATE requires the owner's explicit choice because it may affect Cloudflare's Git integration.
+- GitHub and Cloudflare 2FA enrollment require the account owner to complete authenticator/security-key verification while signed in. This cannot be completed by an unattended API call.
+- Shasta end-to-end chain testing remains pending. Eight test wallets are allowlisted, but the actual funded-node simulation/sweep/receipt test was not executed in this session. Do not treat unit tests as an on-chain end-to-end test.
+- Mainnet/Shasta/withdrawal seeds, passphrases, TronGrid and cron credentials must be set and checked in the project's secret manager by the owner. Never put these values in chat, source control or client code.
+- Legal/PVARA clearance, physical Android install/update testing, Master Admin's final preflight and final written go-live approval remain required.
+
+## Safety rule
+
+Do not enable the Mainnet sweep flag, live-deposit flag, real-payout flag or remove the production payout lock as part of deployment verification. Keep all live-money gates closed until the owner-side security, funded Shasta end-to-end testing, reconciliation, legal and explicit go-live requirements are complete.
+
+---
+
 # AegisPay Production Handoff
 
 ## Verified code, deployment and release snapshot — 2026-10-18
