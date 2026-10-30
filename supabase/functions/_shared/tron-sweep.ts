@@ -42,13 +42,18 @@ export function classifySweepAction(row: SweepRowState, _nowMs = Date.now()): Sw
 export function hasEnoughSweepResources(
   trxBalanceSun: number,
   availableEnergy: number,
+  availableBandwidth: number,
   minimumTrxSun: number,
   minimumEnergy: number,
-  minimumTrxWithEnergySun: number,
+  minimumBandwidth: number,
+  minimumTrxWithResourcesSun: number,
 ): boolean {
-  if (!Number.isFinite(trxBalanceSun) || !Number.isFinite(availableEnergy) || trxBalanceSun < 0 || availableEnergy < 0) return false;
+  const values = [trxBalanceSun, availableEnergy, availableBandwidth, minimumTrxSun, minimumEnergy, minimumBandwidth, minimumTrxWithResourcesSun];
+  if (values.some((value) => !Number.isFinite(value) || value < 0)) return false;
   return trxBalanceSun >= minimumTrxSun ||
-    (trxBalanceSun >= minimumTrxWithEnergySun && availableEnergy >= minimumEnergy);
+    (trxBalanceSun >= minimumTrxWithResourcesSun
+      && availableEnergy >= minimumEnergy
+      && availableBandwidth >= minimumBandwidth);
 }
 
 function hexTail(value: unknown): string {
