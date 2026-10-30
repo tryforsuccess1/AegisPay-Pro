@@ -18,7 +18,7 @@ on:
       - 'scripts/validate-static.js'
       - '.github/workflows/sql-migration-tests.yml'
   push:
-    branches: [main]
+    branches: [main, feat/shasta-targeted-verified-deposit-sweep-20261031]
     paths:
       - 'database/migrations/**'
       - 'supabase/functions/monitor-deposits/index.ts'
@@ -79,8 +79,12 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_wallets_assertions.sql
       - name: Apply HD sweep journal migration
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261017150938_hd_deposit_sweep_journal_20261017100000.sql
+      - name: Apply targeted Shasta sweep selector migration
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/20261031_targeted_shasta_deposit_sweep.sql
       - name: Verify HD sweep idempotency and restricted access
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/hd_deposit_sweep_assertions.sql
+      - name: Verify targeted Shasta sweep selector
+        run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/targeted_shasta_sweep_assertions.sql
       - name: Verify deposit idempotency, permissions, referral settings, and safe gates
         run: psql -v ON_ERROR_STOP=1 -f scripts/sql-tests/deposit_migration_assertions.sql
       - name: Create disposable cron, Vault, and pg_net stubs

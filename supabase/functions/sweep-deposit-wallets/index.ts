@@ -5,6 +5,7 @@ import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 
 import { buildSweepIdempotencyKey, classifySweepAction, classifySweepReceipt, estimateSweepBandwidth, estimateSweepEnergyRequirement, estimateSweepFeeLimitSun, getAvailableBandwidth, hasEnoughSweepResources, isSuccessfulSweepSimulation } from "../_shared/tron-sweep.ts";
 import { loadShastaTestRules, shastaMnemonicsAreDistinct } from "../_shared/shasta-test-mode.ts";
+import { validateTargetedDepositSweep } from "../_shared/targeted-sweep-policy.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -40,7 +41,7 @@ type SweepRow = {
   id: string; deposit_wallet_id: string; network: string; token_contract: string;
   treasury_address: string; amount_raw: string; txid: string | null;
   signed_transaction: any; transaction_expiration_ms: number | null;
-  status: string; idempotency_key: string; failure_code?: string | null;
+  status: string; idempotency_key: string; target_deposit_txid?: string | null; failure_code?: string | null;
 };
 type IncomingTransfer = { txid: string; rawAmount: string; blockTimestamp: number };
 type VerifiedSource = { id: string; txid: string; raw_amount?: string | null; verification_source: string };
@@ -147,7 +148,7 @@ async function getVerifiedSources(admin: Admin, walletId: string): Promise<Map<s
 }
 async function getSafeSnapshot(admin: Admin, client: any, wallet: WalletRow) {
   const beforeBalance = await getTokenBalance(client, wallet.address);
-  if (BigInt(beforeBalance) <= 0n) return { ok: true as const, empty: true as const, balanceRaw: "0", transfers: [], sources: new Map<string, VerifiedSource>() };
+  if (BigInt(beforeBalance) <= 0n) return { ok: true as const, empty: true as const, balanceRaw: "0", amountRaw: "0", targetTxid: null as string | null, transfers: [], sources: new Map<string, VerifiedSource>() };
   const transfers = await getIncomingTransfers(wallet.address);
   if (!transfers.length) throw new Error("TOKEN_BALANCE_WITHOUT_CONFIRMED_INBOUND_HISTORY");
   const sources = await getVerifiedSources(admin, wallet.id);
@@ -181,8 +182,125 @@ async function getSafeSnapshot(admin: Admin, client: any, wallet: WalletRow) {
   if (!unsweptTransfers.length) throw new Error("TOKEN_BALANCE_HAS_NO_UNSWEPT_VERIFIED_DEPOSITS");
   const afterBalance = await getTokenBalance(client, wallet.address);
   if (beforeBalance !== afterBalance) throw new Error("BALANCE_CHANGED_DURING_SNAPSHOT");
-  return { ok: true as const, empty: false as const, balanceRaw: afterBalance, transfers: unsweptTransfers, sources };
+  return { ok: true as const, empty: false as const, balanceRaw: afterBalance, amountRaw: afterBalance, targetTxid: null as string | null, transfers: unsweptTransfers, sources };
 }
+
+async function getTargetedSafeSnapshot(
+  admin: Admin,
+  client: any,
+  wallet: WalletRow,
+  targetTxidValue: string,
+  currentSweepId?: string,
+) {
+  const targetTxid = String(targetTxidValue || "").trim().toLowerCase();
+  if (!validTxid(targetTxid)) throw new Error("TARGET_TXID_INVALID");
+
+  const beforeBalance = await getTokenBalance(client, wallet.address);
+  const { data: source, error: sourceError } = await admin.from("deposit_submissions")
+    .select("id,user_id,deposit_wallet_id,txid,status,raw_amount,verification_source,network,token_contract,receiving_address,sender_address")
+    .eq("deposit_wallet_id", wallet.id)
+    .eq("user_id", wallet.user_id)
+    .eq("txid", targetTxid)
+    .maybeSingle();
+  if (sourceError) throw new Error("TARGET_VERIFIED_DEPOSIT_LOOKUP_FAILED");
+  if (!source) throw new Error("TARGET_VERIFIED_DEPOSIT_NOT_FOUND");
+
+  const url = new URL(HOST + "/v1/accounts/" + encodeURIComponent(wallet.address) + "/transactions/trc20");
+  url.searchParams.set("only_confirmed", "true");
+  url.searchParams.set("only_to", "true");
+  url.searchParams.set("limit", String(MAX_INBOUND_TXS));
+  url.searchParams.set("order_by", "block_timestamp,desc");
+  url.searchParams.set("contract_address", TOKEN);
+  const headers: Record<string, string> = { accept: "application/json" };
+  if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
+  const response = await fetch(url, { headers, signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error("TARGET_TRONGRID_INBOUND_QUERY_FAILED");
+  const payload = await response.json();
+  const rows = Array.isArray(payload?.data) ? payload.data : [];
+  if (rows.length >= MAX_INBOUND_TXS) throw new Error("INBOUND_HISTORY_LIMIT_REACHED");
+
+  const matchingTransfers = rows
+    .filter((row: any) => String(row?.transaction_id || "").toLowerCase() === targetTxid)
+    .map((row: any) => ({
+      txid: String(row?.transaction_id || "").toLowerCase(),
+      rawAmount: String(row?.value || "0"),
+      from: String(row?.from || ""),
+      to: String(row?.to || ""),
+      contract: String(row?.token_info?.address || row?.contract_address || ""),
+      success: row?.success === false ? false : true,
+      decimals: Number(row?.token_info?.decimals),
+      type: String(row?.type || ""),
+      blockTimestamp: Number(row?.block_timestamp || 0),
+    }));
+
+  const { data: previousItems, error: previousItemsError } = await admin.from("deposit_wallet_sweep_items")
+    .select("sweep_id").eq("deposit_submission_id", String(source.id)).limit(100);
+  if (previousItemsError) throw new Error("TARGET_PRIOR_SWEEP_ITEMS_LOOKUP_FAILED");
+  if ((previousItems || []).length >= 100) throw new Error("TARGET_PRIOR_SWEEP_HISTORY_LIMIT_REACHED");
+  const previousSweepIds = [...new Set((previousItems || [])
+    .map((item: any) => String(item.sweep_id || "")).filter(Boolean))];
+  let previousSweeps: any[] = [];
+  if (previousSweepIds.length) {
+    const { data, error } = await admin.from("deposit_wallet_sweeps")
+      .select("id,status").in("id", previousSweepIds).limit(100);
+    if (error) throw new Error("TARGET_PRIOR_SWEEP_STATUS_LOOKUP_FAILED");
+    previousSweeps = data || [];
+    if (previousSweeps.length !== previousSweepIds.length) throw new Error("TARGET_PRIOR_SWEEP_STATUS_INCOMPLETE");
+  }
+  const otherPreviousSweeps = previousSweeps.filter((row) => String(row.id) !== String(currentSweepId || ""));
+  const alreadySwept = otherPreviousSweeps.some((row) => String(row.status).toUpperCase() === "CONFIRMED");
+  const pendingSweep = otherPreviousSweeps.some((row) =>
+    ["PREPARED", "SIGNED", "BROADCAST", "FAILED_REVIEW"].includes(String(row.status).toUpperCase())
+  );
+
+  const validation = validateTargetedDepositSweep({
+    walletId: wallet.id,
+    walletAddress: wallet.address,
+    network: wallet.network,
+    tokenContract: wallet.token_contract,
+    targetTxid,
+    balanceRaw: beforeBalance,
+    source: {
+      id: String(source.id),
+      txid: String(source.txid || ""),
+      status: String(source.status || ""),
+      rawAmount: String(source.raw_amount || ""),
+      verificationSource: String(source.verification_source || ""),
+      walletId: String(source.deposit_wallet_id || ""),
+      network: String(source.network || ""),
+      tokenContract: String(source.token_contract || ""),
+      receivingAddress: String(source.receiving_address || ""),
+      senderAddress: String(source.sender_address || ""),
+    },
+    transfers: matchingTransfers,
+    alreadySwept,
+    pendingSweep,
+  });
+  if (!validation.ok) throw new Error(validation.code);
+
+  const afterBalance = await getTokenBalance(client, wallet.address);
+  if (beforeBalance !== afterBalance) throw new Error("BALANCE_CHANGED_DURING_TARGETED_SNAPSHOT");
+  const verifiedSource: VerifiedSource = {
+    id: String(source.id),
+    txid: targetTxid,
+    raw_amount: validation.amountRaw,
+    verification_source: String(source.verification_source),
+  };
+  return {
+    ok: true as const,
+    empty: false as const,
+    balanceRaw: afterBalance,
+    amountRaw: validation.amountRaw,
+    targetTxid: validation.targetTxid,
+    transfers: [{
+      txid: validation.targetTxid,
+      rawAmount: validation.amountRaw,
+      blockTimestamp: matchingTransfers[0].blockTimestamp,
+    }],
+    sources: new Map<string, VerifiedSource>([[validation.targetTxid, verifiedSource]]),
+  };
+}
+
 async function estimateUsdtTransferEnergy(senderAddress: string, destinationAddress: string, amountRaw: string) {
   const headers: Record<string, string> = { "Content-Type": "application/json", accept: "application/json" };
   if (TRONGRID_KEY) headers["TRON-PRO-API-KEY"] = TRONGRID_KEY;
@@ -337,10 +455,22 @@ async function processSavedTransaction(admin: Admin, client: any, row: SweepRow,
 }
 
 async function signAndPersist(admin: Admin, client: any, wallet: WalletRow, row: SweepRow, treasury: string) {
-  const snapshot = await getSafeSnapshot(admin, client, wallet);
-  if (snapshot.empty || snapshot.balanceRaw !== String(row.amount_raw)) return markReview(admin, row, snapshot.empty ? "BALANCE_EMPTY_BEFORE_SIGNING" : "BALANCE_CHANGED_BEFORE_SIGNING");
+  const targeted = Boolean(String(row.target_deposit_txid || "").trim());
+  const targetTxid = targeted ? String(row.target_deposit_txid || "").trim().toLowerCase() : "";
+  const snapshot = targeted
+    ? await getTargetedSafeSnapshot(admin, client, wallet, targetTxid, row.id)
+    : await getSafeSnapshot(admin, client, wallet);
+  if (snapshot.empty) return markReview(admin, row, "BALANCE_EMPTY_BEFORE_SIGNING");
+  const sweepAmountRaw = targeted ? String(snapshot.amountRaw) : snapshot.balanceRaw;
+  if (targeted) {
+    if (sweepAmountRaw !== String(row.amount_raw) || snapshot.targetTxid !== targetTxid) {
+      return markReview(admin, row, "TARGET_DEPOSIT_CHANGED_BEFORE_SIGNING");
+    }
+  } else if (snapshot.balanceRaw !== String(row.amount_raw)) {
+    return markReview(admin, row, "BALANCE_CHANGED_BEFORE_SIGNING");
+  }
   const sourceIds = snapshot.transfers.map((x) => x.txid);
-  const freshKey = await buildSweepIdempotencyKey(wallet.id, NETWORK, TOKEN, snapshot.balanceRaw, sourceIds);
+  const freshKey = await buildSweepIdempotencyKey(wallet.id, NETWORK, TOKEN, sweepAmountRaw, targeted ? [targetTxid] : sourceIds);
   if (freshKey !== row.idempotency_key) return markReview(admin, row, "SOURCE_SNAPSHOT_CHANGED_BEFORE_SIGNING");
   const { data: savedItems, error: itemsError } = await admin.from("deposit_wallet_sweep_items")
     .select("deposit_submission_id,deposit_txid,amount_raw").eq("sweep_id", row.id);
@@ -382,10 +512,10 @@ async function signAndPersist(admin: Admin, client: any, wallet: WalletRow, row:
   }
   let transaction: any;
   try {
-    const energyEstimate = await estimateUsdtTransferEnergy(wallet.address, treasury, snapshot.balanceRaw);
+    const energyEstimate = await estimateUsdtTransferEnergy(wallet.address, treasury, sweepAmountRaw);
     const ext = await client.transactionBuilder.triggerSmartContract(
       TOKEN, "transfer(address,uint256)", { feeLimit: energyEstimate.feeLimitSun, callValue: 0 },
-      [{ type: "address", value: treasury }, { type: "uint256", value: snapshot.balanceRaw }],
+      [{ type: "address", value: treasury }, { type: "uint256", value: sweepAmountRaw }],
       wallet.address,
     );
     if (!ext?.result?.result || !ext?.transaction) return markReview(admin, row, "TRC20_TRANSFER_BUILD_FAILED");
@@ -459,9 +589,85 @@ async function processWallet(admin: Admin, wallet: WalletRow, treasury: string) 
   return await signAndPersist(admin, client, wallet, inserted as SweepRow, treasury);
 }
 
+
+async function processTargetedWallet(admin: Admin, wallet: WalletRow, treasury: string, targetTxid: string) {
+  const identity = await deriveTronHdIdentity(HD_MNEMONIC, HD_PASSPHRASE, Number(wallet.derivation_index));
+  if (identity.address !== wallet.address || identity.rootFingerprint !== wallet.wallet_root_fingerprint) {
+    return { walletId: wallet.id, status: "HD_ROOT_OR_ADDRESS_MISMATCH" };
+  }
+  const client = newTron(identity.privateKey);
+
+  const { data: pendingRows, error: pendingError } = await admin.from("deposit_wallet_sweeps").select("*")
+    .eq("deposit_wallet_id", wallet.id)
+    .in("status", ["PREPARED", "SIGNED", "BROADCAST", "FAILED_REVIEW"])
+    .order("created_at", { ascending: false }).limit(10);
+  if (pendingError) return { walletId: wallet.id, status: "JOURNAL_LOOKUP_FAILED" };
+  if ((pendingRows || []).length > 1) {
+    return { walletId: wallet.id, status: "MANUAL_REVIEW_REQUIRED", code: "MULTIPLE_UNRESOLVED_SWEEP_JOURNALS" };
+  }
+  const pending = (pendingRows || [])[0] as SweepRow | undefined;
+  if (pending) {
+    if (String(pending.target_deposit_txid || "").toLowerCase() !== targetTxid) {
+      return { walletId: wallet.id, sweepId: pending.id, status: "WALLET_HAS_PENDING_SWEEP" };
+    }
+    if (String(pending.status).toUpperCase() === "FAILED_REVIEW") {
+      return { walletId: wallet.id, sweepId: pending.id, status: "MANUAL_REVIEW_REQUIRED", code: pending.failure_code || "PRIOR_SWEEP_REQUIRES_REVIEW" };
+    }
+    return await processJournalRecord(admin, client, wallet, pending, treasury);
+  }
+
+  let snapshot;
+  try {
+    snapshot = await getTargetedSafeSnapshot(admin, client, wallet, targetTxid);
+  } catch (error) {
+    return {
+      walletId: wallet.id,
+      status: "NOT_SWEPT",
+      code: String((error as Error)?.message || "TARGETED_SNAPSHOT_NOT_SAFE"),
+    };
+  }
+  const idempotencyKey = await buildSweepIdempotencyKey(wallet.id, NETWORK, TOKEN, snapshot.amountRaw, [targetTxid]);
+  const { data: inserted, error: insertError } = await admin.from("deposit_wallet_sweeps").insert({
+    deposit_wallet_id: wallet.id,
+    network: NETWORK,
+    token_contract: TOKEN,
+    treasury_address: treasury,
+    amount_raw: snapshot.amountRaw,
+    target_deposit_txid: targetTxid,
+    idempotency_key: idempotencyKey,
+    status: "PREPARED",
+  }).select("*").single();
+  if (insertError || !inserted) {
+    const { data: existing, error: existingError } = await admin.from("deposit_wallet_sweeps")
+      .select("*").eq("deposit_wallet_id", wallet.id).eq("idempotency_key", idempotencyKey).maybeSingle();
+    if (existingError || !existing) return { walletId: wallet.id, status: "JOURNAL_CREATE_FAILED" };
+    if (String(existing.target_deposit_txid || "").toLowerCase() !== targetTxid
+      || String(existing.amount_raw) !== snapshot.amountRaw) {
+      return { walletId: wallet.id, sweepId: existing.id, status: "MANUAL_REVIEW_REQUIRED", code: "TARGETED_JOURNAL_IDENTITY_MISMATCH" };
+    }
+    return await processJournalRecord(admin, client, wallet, existing as SweepRow, treasury);
+  }
+  return await signAndPersist(admin, client, wallet, inserted as SweepRow, treasury);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed." }, 405);
+  let requestBody: Record<string, unknown> = {};
+  const requestBodyText = await req.text().catch(() => "");
+  if (requestBodyText.length > 4096) return json({ error: "Request body is too large." }, 413);
+  if (requestBodyText.trim()) {
+    try {
+      const parsed = JSON.parse(requestBodyText);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return json({ error: "Invalid request body." }, 400);
+      requestBody = parsed as Record<string, unknown>;
+    } catch {
+      return json({ error: "Invalid JSON request body." }, 400);
+    }
+  }
+  if (Object.keys(requestBody).some((key) => !["wallet_id", "target_deposit_txid"].includes(key))) {
+    return json({ error: "Unsupported request field." }, 400);
+  }
   if (!TESTNET_SWEEP_ENABLED || !SHASTA_TEST_MODE_ENABLED) return json({ error: "Testnet sweep is disabled by default.", code: "TESTNET_SWEEP_DISABLED" }, 423);
   if (!SUPABASE_URL || !SERVICE_KEY || !HD_MNEMONIC || !TESTNET_PAYOUT_KEY || !TRONGRID_KEY) {
     return json({ error: "Testnet sweep is not configured." }, 503);
@@ -510,6 +716,35 @@ Deno.serve(async (req: Request) => {
     const testUserIds = [...new Set((allowlistedUsers || []).map((row: any) => String(row.user_id || "")))]
       .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
     if (!testUserIds.length) return json({ network: NETWORK, checked: 0, results: [], reason: "NO_ALLOWLISTED_TEST_USERS" });
+
+    const hasWalletSelector = requestBody.wallet_id !== undefined;
+    const hasDepositSelector = requestBody.target_deposit_txid !== undefined;
+    if (hasWalletSelector || hasDepositSelector) {
+      const walletId = String(requestBody.wallet_id || "");
+      const targetTxid = String(requestBody.target_deposit_txid || "").trim().toLowerCase();
+      if (!hasWalletSelector || !hasDepositSelector
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(walletId)
+        || !validTxid(targetTxid)) {
+        return json({ error: "Both a valid allowlisted wallet_id and target_deposit_txid are required." }, 400);
+      }
+      const { data: targetWallet, error: targetWalletError } = await admin.from("deposit_wallets")
+        .select("id,user_id,address,derivation_index,wallet_root_fingerprint,token_contract,network")
+        .eq("id", walletId).eq("network", NETWORK).eq("token_contract", TOKEN).eq("status", "ACTIVE")
+        .in("user_id", testUserIds).maybeSingle();
+      if (targetWalletError) return json({ error: "Unable to verify selected Shasta wallet." }, 503);
+      if (!targetWallet) return json({ error: "Selected wallet is not active or is not allowlisted for Shasta testing." }, 403);
+      let targetedResult: Record<string, unknown>;
+      try {
+        targetedResult = await processTargetedWallet(admin, targetWallet as WalletRow, treasury, targetTxid);
+      } catch (error) {
+        targetedResult = { walletId, status: "NOT_SWEPT", code: errorCode(error) };
+      }
+      const { error: rotationError } = await admin.from("deposit_wallets")
+        .update({ last_sweep_attempt_at: new Date().toISOString() }).eq("id", walletId);
+      if (rotationError) targetedResult.rotationMarked = false;
+      return json({ network: NETWORK, checked: 1, targeted: true, results: [targetedResult], mainnetSweepEnabled: false });
+    }
+
     const { data: wallets, error: walletError } = await admin.from("deposit_wallets")
       .select("id,user_id,address,derivation_index,wallet_root_fingerprint,token_contract,network")
       .eq("network", NETWORK).eq("token_contract", TOKEN).eq("status", "ACTIVE")
