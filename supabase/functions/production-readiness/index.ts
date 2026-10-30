@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { TronWeb } from "npm:tronweb@6.0.4";
 import { deriveTronHdIdentity } from "../_shared/tron-hd-wallet.ts";
 import { checkWithdrawalPayoutHdConfig } from "../_shared/withdrawal-payout-wallet.ts";
+import { areNetworkSecretsSafelySeparated } from "../_shared/production-readiness-policy.ts";
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL"), SERVICE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 const TRONGRID_KEY=Deno.env.get("TRONGRID_API_KEY"), CRON_SECRET=Deno.env.get("AEGIS_CRON_SECRET");
 const MAINNET_PAYOUT_KEY = Deno.env.get("TRON_MAINNET_TREASURY_PRIVATE_KEY") || Deno.env.get("TRON_PAYOUT_PRIVATE_KEY") || "";
@@ -294,10 +295,15 @@ const withdrawalPayoutHdConfig=checkWithdrawalPayoutHdConfig(
    &&mainnetSignerCheck.matches&&shastaSignerCheck.matches;
    const withdrawalPayoutWalletReady=withdrawalPayoutModeEnabled&&withdrawalPayoutFeeCapValid&&withdrawalPayoutSeedDistinct
     &&withdrawalPayoutHdCheck.rootDerivationValid&&withdrawalPayoutHdCheck.childDerivationValid&&withdrawalPayoutHdCheck.rootFingerprintConsistent;
-   const networkSecretsSafelySeparated=payoutKeysSafelySeparated
-    &&!mainnetHdMnemonicAliasConflict&&!shastaHdMnemonicAliasConflict
-    &&!mainnetHdPassphraseAliasConflict&&!shastaHdPassphraseAliasConflict
-    &&mainnetShastaHdMnemonicsDistinct&&withdrawalPayoutWalletReady;
+   const networkSecretsSafelySeparated=areNetworkSecretsSafelySeparated({
+    payoutKeysSafelySeparated,
+    mainnetHdMnemonicAliasConflict,
+    shastaHdMnemonicAliasConflict,
+    mainnetHdPassphraseAliasConflict,
+    shastaHdPassphraseAliasConflict,
+    mainnetShastaHdMnemonicsDistinct,
+    withdrawalPayoutSeedDistinct,
+   });
   const environment=String(prod.environment||"PRE_PRODUCTION").toUpperCase();
   const liveDeposits=system.live_deposits===true, realPayouts=system.real_payouts===true, goLive=system.production_go_live_approved===true;
   const productionLiveDeposits=prod.live_deposits_enabled===true, productionRealPayouts=prod.real_payouts_enabled===true, productionGoLive=prod.go_live_approved===true;
