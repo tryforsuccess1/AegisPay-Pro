@@ -238,7 +238,7 @@ async function getTargetedSafeSnapshot(
   if (previousItemsError) throw new Error("TARGET_PRIOR_SWEEP_ITEMS_LOOKUP_FAILED");
   if ((previousItems || []).length >= 100) throw new Error("TARGET_PRIOR_SWEEP_HISTORY_LIMIT_REACHED");
   const previousSweepIds = [...new Set((previousItems || [])
-    .map((item: any) => String(item.sweep_id || ""))).filter(Boolean)];
+    .map((item: any) => String(item.sweep_id || "")).filter(Boolean))];
   let previousSweeps: any[] = [];
   if (previousSweepIds.length) {
     const { data, error } = await admin.from("deposit_wallet_sweeps")
