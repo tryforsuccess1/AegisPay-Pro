@@ -1,4 +1,4 @@
-const CACHE='aegispay-shell-v57-withdrawal-history-privacy';
+const CACHE='aegispay-shell-v58-activity-description-privacy';
 const APP_SCOPE=self.registration&&self.registration.scope?new URL(self.registration.scope).pathname:'/';
 const APP_MODE=APP_SCOPE.startsWith('/app/');
 const ASSETS=APP_MODE
