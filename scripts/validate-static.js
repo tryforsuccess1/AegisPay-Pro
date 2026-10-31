@@ -157,6 +157,8 @@ assertInlineScriptsParse('master-admin.html');
 
 const client=fs.readFileSync('client.html','utf8');
 const masterAdmin=fs.readFileSync('master-admin.html','utf8');
+assert(client.includes("const clientLedgerDescription=entry=>")&&client.includes("'Withdrawal amount deducted after approval'"),'Client ledger must replace internal withdrawal approval details with a neutral public-facing description.');
+assert(client.includes('esc(clientLedgerDescription(x))')&&!client.includes('esc(x.description||x.entry_type'),'All displayed client ledger descriptions must pass through the privacy-safe renderer.');
 
 // A manually approved legacy deposit without a TXID can be recovered only by a
 // Master Admin; actual credit still has to pass the existing chain verifier.
@@ -172,7 +174,7 @@ assert(manualTestnetApprovalSql.includes("live_deposits")&&manualTestnetApproval
 assert(manualTestnetApprovalSql.includes('manual_approved_by=v_actor.id')&&manualTestnetApprovalSql.includes('CREATE TRIGGER guard_shasta_deposit_verification')&&manualTestnetApprovalSql.includes('Manual test credits require all live-money gates to remain closed')&&manualTestnetApprovalSql.includes('MANUAL_APPROVED'),'Database trigger must independently validate and audit the only manual-approval exception.');
 assert(masterAdmin.includes('admin-auth.js?v=20261029-seed-relation-audit-v1'),'Master Admin must request the Admin login click-feedback and detailed preflight UI asset.');
 const serviceWorkerForSimpleApproval=fs.readFileSync('service-worker.js','utf8');
-assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v56-client-ux-biometric-telegram'"),'Service worker cache must be bumped for Shop-return and scroll fixes.');
+assert(serviceWorkerForSimpleApproval.includes("const CACHE='aegispay-shell-v57-withdrawal-history-privacy'"),'Service worker cache must be bumped for Shop-return and scroll fixes.');
 const landingPage=fs.readFileSync('site/index.html','utf8');
 
 // Client and Master Admin share the origin but must never share a persisted auth session.
@@ -216,7 +218,7 @@ assert(shopWorkerPage.includes("index<4?'eager':'lazy'")&&shopWorkerPage.include
 const startupSource=client.slice(client.indexOf('async function initData(){'),client.indexOf('\nfunction top(',client.indexOf('async function initData(){')));
 assert(startupSource.includes('const [userResult,s,t]=await Promise.all([')&&startupSource.includes('void refreshNotificationCount();'),'Authenticated startup must load profile-related data concurrently and refresh the notification count without blocking page rendering.');
 assert(client.includes('async function refreshClientProfile()')&&client.includes('await refreshClientProfile(); await liveShop();')&&client.includes("await refreshClientProfile();\n   await liveShop();"),'Shop tier/task/cycle actions must refresh only the changed profile before reloading Shop data.');
-assert(serviceWorker.includes("const CACHE='aegispay-shell-v56-client-ux-biometric-telegram'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
+assert(serviceWorker.includes("const CACHE='aegispay-shell-v57-withdrawal-history-privacy'")&&serviceWorker.includes("'./aegis-turnstile.js'")&&serviceWorker.includes("'./app/aegis-turnstile.js'")&&serviceWorker.includes('Promise.all(ASSETS.map(asset=>cache.add(asset).catch(()=>undefined)))'),'Fast app-shell cache must be versioned, precache the root and /app/ auth helpers, and install assets concurrently.');
 assert(serviceWorker.includes('const update=fetch(event.request,{cache:\'no-store\',redirect:\'follow\'})')&&serviceWorker.includes('caches.match(cacheKey).then(cached=>cached||update.catch')&&serviceWorker.includes('cacheUrl.search=\'\';'),'Static shell requests must be served from cache first, refresh in the background with followed redirects, and avoid caching URL query tokens.');
 assert(serviceWorker.includes("['code','access_token','refresh_token','token_hash','error','error_description']")&&serviceWorker.includes('const shouldStore=!authSensitive&&!isAuthCallback'),'OAuth and recovery URLs must never be stored as distinct cached requests.');
 assert(client.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})")&&masterAdmin.includes("navigator.serviceWorker.register('/service-worker.js',{scope:'/',updateViaCache:'none'})"),'Web client and Master Admin must register the non-blocking app-shell cache after page load.');
