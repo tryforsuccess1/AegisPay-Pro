@@ -3361,7 +3361,7 @@ async function refreshNotificationCount(){
 const esc=v=>String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 const formatName=v=>String(v??'').trim().replace(/\s+/g,' ').split(' ').filter(Boolean).map(w=>w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()).join(' ');
 const formatUsername=v=>String(v??'').trim().toLowerCase();
-const clientPaymentCopy=value=>String(value??'').replace(/\bAli\s+Shahid\b/gi,'AegisPay team').replace(/\bMASTER[_\s-]*ADMIN\b/gi,'AegisPay team').replace(/\bMaster\s+Admin\b/gi,'AegisPay team');
+const clientPaymentCopy=value=>{const text=String(value??'');if(/\bwithdraw(?:al)?\b/i.test(text)&&/\b(?:deduct(?:ed|ion)?|debit)\b/i.test(text))return 'Withdrawal amount deducted after approval';return text.replace(/\bAli\s+Shahid\b/gi,'AegisPay team').replace(/\bMASTER[_\s-]*ADMIN\b/gi,'AegisPay team').replace(/\bMaster\s+Admin\b/gi,'AegisPay team');};
 const clientPaymentStatus=value=>{
   const raw=String(value||'Pending').trim(),key=raw.toUpperCase().replace(/[\s-]+/g,'_');
   const known={APPROVED_BY_MASTER_ADMIN:'Approved',APPROVED_BY_ADMIN:'Approved',ADMIN_APPROVED:'Approved',PENDING_MASTER_ADMIN:'Under review',PENDING_ADMIN_APPROVAL:'Under review',PENDING_REVIEW:'Under review',REJECTED_BY_MASTER_ADMIN:'Not approved',REJECTED_BY_ADMIN:'Not approved',ADMIN_REJECTED:'Not approved',MANUAL_REVIEW:'Under review',FAILED_REVIEW:'Under review',PROCESSING:'Processing',COMPLETED:'Completed',PAID:'Paid',VERIFIED:'Verified',FAILED:'Failed',REJECTED:'Not approved',CANCELLED:'Cancelled',PENDING:'Pending'};
