@@ -3368,6 +3368,12 @@ const clientPaymentStatus=value=>{
   if(known[key])return known[key];
   return clientPaymentCopy(raw).replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/\b\w/g,c=>c.toUpperCase())||'Pending';
 };
+const clientLedgerDescription=entry=>{
+  const description=String(entry?.description||entry?.entry_type||'Account activity');
+  const kind=String((entry?.description||'')+' '+(entry?.entry_type||'')).toLowerCase();
+  return Number(entry?.amount||0)<0&&/\\b(withdraw|withdrawal|payout)\\b/.test(kind)
+    ?'Withdrawal amount deducted after approval':description;
+};
 
 window.AegisSupabaseConfig=window.AegisSupabaseConfig||{turnstileSiteKey:'0x4AAAAAAFZaOeTke8FQpVNS',socialProviders:{google:true,facebook:false}};
 function passwordResetRedirectTo(){
@@ -3551,7 +3557,7 @@ async function liveHome(){
   const amount=Number(x.amount||0),positive=amount>=0,kind=String((x.description||'')+' '+(x.entry_type||'')).toLowerCase();
   const icon=/withdraw|debit|payout/.test(kind)?'wd':/task|profit|reward/.test(kind)?'bag':/refer/.test(kind)?'users':'hist';
   const css=/withdraw|debit|payout/.test(kind)?'db':positive?'cr':'nt';
-  return '<div class="rw"><div class="t '+css+'">'+apIcon(icon)+'</div><div class="m"><b>'+esc(x.description||x.entry_type||'Account activity')+'</b><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></div><div class="v '+(positive?'pos':'neg')+'">'+(positive?'+':'−')+Math.abs(amount).toFixed(2)+'<small>USDT</small></div></div>';
+  return '<div class="rw"><div class="t '+css+'">'+apIcon(icon)+'</div><div class="m"><b>'+esc(clientLedgerDescription(x))+'</b><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></div><div class="v '+(positive?'pos':'neg')+'">'+(positive?'+':'−')+Math.abs(amount).toFixed(2)+'<small>USDT</small></div></div>';
  }).join('');
  app.innerHTML='<div class="scr on" id="s-home">'+
   '<div class="bar"><div class="wm">'+apLogo(false)+'<span><b>Aegis</b><i class="gt">Pay</i></span></div><div class="sp"></div>'+
@@ -3747,7 +3753,7 @@ async function liveTopup(){
  const creditRows=ledgerResult.error
   ?'<div class="empty">Verified credit history could not be loaded. Please try again.</div>'
   :deposits.length
-   ?deposits.map(x=>'<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>'+esc(x.description||x.entry_type||'Verified USDT deposit')+'</b><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></div><div class="v pos">+'+Number(x.amount).toFixed(2)+'<small>USDT</small></div></div>').join('')
+   ?deposits.map(x=>'<div class="rw"><div class="t nt">'+apIcon('dep')+'</div><div class="m"><b>'+esc(clientLedgerDescription(x))+'</b><small>'+esc(new Date(x.created_at).toLocaleString())+'</small></div><div class="v pos">+'+Number(x.amount).toFixed(2)+'<small>USDT</small></div></div>').join('')
    :'<div class="empty">No verified deposit credits yet.</div>';
  const header='<div class="hd"><button class="bk" type="button" id="depositBack" aria-label="Back">'+apIcon('back')+'</button><h1 data-i18n="p_dep">Deposit USDT</h1></div>';
  const pausedTitle=paymentsPaused||addressError&&addressError.code==='DEPOSIT_ADDRESS_NETWORK_PAUSED'
@@ -5332,7 +5338,7 @@ document.head.appendChild(st);
     const p=profile,b=Number(p.current_platform_balance||0),held=Number(p.withdrawal_held||0),available=Math.max(0,b-held);
     const q=await Promise.all([db.from('account_ledger').select('entry_type,amount,description,created_at').eq('user_id',p.id).order('created_at',{ascending:false}).limit(5),db.from('cycle_runs').select('status,cycle_base,ready_at').eq('user_id',p.id).in('status',['TASKS_OPEN','WAITING_18H']).order('created_at',{ascending:false}).limit(1).maybeSingle(),db.from('tasks').select('id,status,reward,task_value').eq('user_id',p.id).order('id',{ascending:false}).limit(50),db.from('kyc_verifications').select('status,submitted_at').eq('user_id',p.id).order('submitted_at',{ascending:false}).limit(1).maybeSingle()]);
     const cycle=q[1].data||null,tasks=q[2].data||[],done=cycle?tasks.filter(function(x){return String(x.status)==='Completed';}).length:0,progress=tasks.length?Math.round(done/tasks.length*100):0,name=formatName(p.display_name||p.name||'Client')||'Client',tier=(tiers||[]).find(function(x){return String(x.id)===String(p.selected_tier_id);}),level=tier?.name||p.selected_tier_name||p.vip_level||'Not Assigned',kycStatus=String(q[3]?.data?.status||'').trim().toUpperCase(),kycLabel=kycStatus==='VERIFIED'?'Verified':(['PENDING_REVIEW','MANUAL_REVIEW','PENDING'].includes(kycStatus)?'Pending':'Unverified'),kycColor=kycLabel==='Verified'?'var(--m)':kycLabel==='Pending'?'var(--a)':'#FF9CAF';
-    const recent=(q[0].data||[]).map(function(x){return '<div class="row"><div>'+esc(x.description||x.entry_type)+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="'+(Number(x.amount)>=0?'up':'dn')+'">'+(Number(x.amount)>=0?'+':'')+Number(x.amount).toFixed(2)+'<small>USDT</small></em></div>';}).join('');
+    const recent=(q[0].data||[]).map(function(x){return '<div class="row"><div>'+esc(clientLedgerDescription(x))+'<small>'+new Date(x.created_at).toLocaleString()+'</small></div><em class="'+(Number(x.amount)>=0?'up':'dn')+'">'+(Number(x.amount)>=0?'+':'')+Number(x.amount).toFixed(2)+'<small>USDT</small></em></div>';}).join('');
     let cycleHtml=cycle?(cycle.status==='WAITING_18H'?'<div class="p2-status green"><span class="dot"></span><div><b>Settlement in progress</b><small>All tasks are complete · Next settlement '+esc(cycle.ready_at?new Date(cycle.ready_at).toLocaleString():'scheduled')+'</small></div></div>':'<div class="p2-card compact"><div class="p2-row"><span class="bub" style="background:rgba(201,75,138,.12);color:var(--c)">'+ic('check')+'</span><div class="grow"><h3>Shop Cycle Active</h3><small>'+done+' of '+tasks.length+' tasks completed · '+Number(cycle.cycle_base||0).toFixed(2)+' USDT</small></div><button class="btn o" style="width:auto;padding:9px 11px;font-size:10px" onclick="go(\'earn\')">Open</button></div><div class="p2-progress"><i style="width:'+progress+'%"></i></div><small class="mu">'+progress+'% complete</small></div>'):'<div class="p2-status"><span class="dot"></span><div><b>Shop earning is ready</b><small>Activate a tier to unlock automatic task assignment.</small></div></div>';
     app.innerHTML='<div class="tb" style="padding-top:20px"><div class="av">'+esc(name[0]||'A')+'</div><div style="flex:1"><small class="mu" style="font-size:10px">Welcome back</small><h1 style="font-size:19px;margin-top:2px">'+esc(name)+'</h1><small class="mu" style="font-size:9.5px">'+esc(level)+'</small></div><button class="p2-ai-mini" onclick="go(\'bot\')" aria-label="Open AI">'+ic('spark')+'</button><button type="button" class="dot" onclick="go(\'notifications\')" aria-label="Notifications">'+ic('bell')+'</button></div>'+
       '<div class="p2-balance"><small>Available Balance</small><h2>'+available.toFixed(2)+' <span>USDT</span></h2><div class="sub">Total '+b.toFixed(2)+' USDT · Held '+held.toFixed(2)+' USDT</div><div class="p2-stats"><div class="p2-stat"><small>Level</small><b>'+esc(level)+'</b></div><div class="p2-stat"><small>Client ID</small><b>'+esc(clientId(p))+'</b></div><div class="p2-stat"><small>KYC Status</small><b style="color:'+kycColor+'">'+esc(kycLabel)+'</b></div></div></div>'+
