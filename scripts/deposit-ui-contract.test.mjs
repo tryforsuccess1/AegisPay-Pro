@@ -33,7 +33,7 @@ test("embedded QR encoder produces a valid SVG for a TRON wallet without network
 });
 
 test("service-worker cache version is bumped so deployed deposit UI fixes reach mobile clients", () => {
-  assert.match(serviceWorker, /aegispay-shell-v57-withdrawal-history-privacy/);
+  assert.match(serviceWorker, /aegispay-shell-v58-activity-description-privacy/);
   assert.doesNotMatch(serviceWorker, /aegispay-shell-v52-persist-deposit-address/);
 });
 
